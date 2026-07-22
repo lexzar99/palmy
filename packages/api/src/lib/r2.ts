@@ -44,7 +44,15 @@ function loadConfig(): R2Config | null {
   const accessKeyId = process.env.R2_ACCESS_KEY_ID;
   const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
   const bucket = process.env.R2_BUCKET || '';
-  const publicBase = (process.env.R2_PUBLIC_BASE_URL || '').replace(/\/$/, '');
+  // Normalisera basen: trimma, ta bort trailing slash OCH garantera ett schema.
+  // Sätts R2_PUBLIC_BASE_URL till t.ex. "images.viaeats.se" (utan https://) blir
+  // varje genererad bild-URL scheme-lös → browsern tolkar den som en RELATIV
+  // path → trasig bild överallt (admin-preview, web, app). Vi tvingar https så
+  // en slarvig env aldrig kan producera trasiga URL:er.
+  let publicBase = (process.env.R2_PUBLIC_BASE_URL || '').trim().replace(/\/+$/, '');
+  if (publicBase && !/^https?:\/\//i.test(publicBase)) {
+    publicBase = `https://${publicBase}`;
+  }
 
   if (!accountId || !accessKeyId || !secretAccessKey || !bucket || !publicBase) {
     _cachedConfig = null;
