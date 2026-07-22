@@ -5,6 +5,7 @@ import {
   type PayoutBreakdown,
   type RestaurantEcon,
 } from './financeCalc';
+import type { Prisma } from '@prisma/client';
 
 /**
  * A restaurant payout is earned only after the order has reached a successful
@@ -18,11 +19,35 @@ export const PAYOUT_NON_PAYABLE_FINAL_PAYMENT_STATUSES = ['FAILED', 'REFUNDED'] 
 export const DEFAULT_PAYOUT_REFUND_WINDOW_HOURS = 72;
 const MAX_PAYOUT_REFUND_WINDOW_HOURS = 24 * 30;
 
-export const PAYOUT_TEST_ORDER_EXCLUSIONS = [
-  { discountCode: { in: ['test', 'testa', 'TEST', 'TESTA'] } },
-  { stripePaymentIntentId: 'TEST_PAYMENT' },
-  { customerName: 'AUTOTEST' },
+export const PAYOUT_TEST_DISCOUNT_CODES = ['test', 'testa', 'TEST', 'TESTA'] as const;
+export const PAYOUT_TEST_PAYMENT_INTENT_ID = 'TEST_PAYMENT';
+export const PAYOUT_TEST_CUSTOMER_NAME = 'AUTOTEST';
+
+export const PAYOUT_TEST_ORDER_EXCLUSIONS: Prisma.OrderWhereInput[] = [
+  { discountCode: { in: [...PAYOUT_TEST_DISCOUNT_CODES] } },
+  { stripePaymentIntentId: PAYOUT_TEST_PAYMENT_INTENT_ID },
+  { customerName: PAYOUT_TEST_CUSTOMER_NAME },
 ];
+
+// Prisma/SQL `NOT field = value` filters out NULL rows too. Finance and
+// payout queries need NULL payment references to remain visible/payable.
+export const PAYOUT_NON_TEST_ORDER_FILTER: Prisma.OrderWhereInput = {
+  AND: [
+    {
+      OR: [
+        { discountCode: null },
+        { discountCode: { notIn: [...PAYOUT_TEST_DISCOUNT_CODES] } },
+      ],
+    },
+    {
+      OR: [
+        { stripePaymentIntentId: null },
+        { stripePaymentIntentId: { not: PAYOUT_TEST_PAYMENT_INTENT_ID } },
+      ],
+    },
+    { customerName: { not: PAYOUT_TEST_CUSTOMER_NAME } },
+  ],
+};
 
 export type PayoutOrder = {
   status: string;

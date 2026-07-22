@@ -3,7 +3,7 @@ import prisma from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { hasOpeningHours } from '../lib/openingHours';
 import { computePayout, economyFromSettings } from '../lib/financeCalc';
-import { payoutOrders } from '../lib/payoutPolicy';
+import { PAYOUT_NON_TEST_ORDER_FILTER, payoutOrders } from '../lib/payoutPolicy';
 import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
 import { moneyDto } from '../utils/money';
 
@@ -42,11 +42,7 @@ const startOfMonth = () => {
 };
 
 const orderBusinessFilters = {
-  NOT: [
-    { discountCode: { in: ['test', 'testa', 'TEST', 'TESTA'] } },
-    { stripePaymentIntentId: 'TEST_PAYMENT' },
-    { customerName: 'AUTOTEST' },
-  ],
+  ...PAYOUT_NON_TEST_ORDER_FILTER,
 };
 
 const severityRank: Record<string, number> = {

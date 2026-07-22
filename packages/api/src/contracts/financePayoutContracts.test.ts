@@ -17,6 +17,10 @@ import {
   payoutOrders,
   payoutRefundWindowClosesAt,
   payoutRefundWindowHours,
+  PAYOUT_NON_TEST_ORDER_FILTER,
+  PAYOUT_TEST_CUSTOMER_NAME,
+  PAYOUT_TEST_DISCOUNT_CODES,
+  PAYOUT_TEST_PAYMENT_INTENT_ID,
   PayoutProviderAuditBlockedError,
   PayoutProviderAuditStaleError,
   recomputePayoutFromEconomicSnapshot,
@@ -42,6 +46,24 @@ const paidDelivered = {
   tipAmount: 500,
   refundAmount: null,
 } satisfies PayoutOrder;
+
+assert.deepEqual(PAYOUT_NON_TEST_ORDER_FILTER, {
+  AND: [
+    {
+      OR: [
+        { discountCode: null },
+        { discountCode: { notIn: [...PAYOUT_TEST_DISCOUNT_CODES] } },
+      ],
+    },
+    {
+      OR: [
+        { stripePaymentIntentId: null },
+        { stripePaymentIntentId: { not: PAYOUT_TEST_PAYMENT_INTENT_ID } },
+      ],
+    },
+    { customerName: { not: PAYOUT_TEST_CUSTOMER_NAME } },
+  ],
+});
 
 assert.equal(isPayoutEligibleOrder(paidDelivered), true);
 assert.equal(isPayoutEligibleOrder({ ...paidDelivered, status: 'COMPLETED' }), true);
@@ -422,7 +444,7 @@ async function runPayoutSourceAuditContracts() {
   }
   assert.deepEqual(capturedProviderWhere.status.in, ['DELIVERED', 'COMPLETED']);
   assert.deepEqual(capturedProviderWhere.paymentStatus.in, ['PAID', 'PARTIALLY_REFUNDED']);
-  assert.equal(capturedProviderWhere.NOT.length, 3);
+  assert.deepEqual(capturedProviderWhere.AND, PAYOUT_NON_TEST_ORDER_FILTER.AND);
 
   const auditedPayableOrder = {
     id: 'audited-order',

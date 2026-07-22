@@ -4,7 +4,7 @@ import {
   buildPayoutProviderAuditFingerprint,
   hasCompletePayoutEconomicSnapshot,
   PAYOUT_NON_PAYABLE_FINAL_PAYMENT_STATUSES,
-  PAYOUT_TEST_ORDER_EXCLUSIONS,
+  PAYOUT_NON_TEST_ORDER_FILTER,
   recomputePayoutFromEconomicSnapshot,
   requiredLateRefundRecoveryAmount,
   type RecoveryPlanAllocation,
@@ -102,7 +102,7 @@ export async function calculateLateRefundRecoveryPlan(
         restaurantId: input.restaurantId,
         paymentStatus: { notIn: [...PAYOUT_NON_PAYABLE_FINAL_PAYMENT_STATUSES] },
         createdAt: { gte: source.periodStart, lte: source.periodEnd },
-        NOT: [...PAYOUT_TEST_ORDER_EXCLUSIONS],
+        ...PAYOUT_NON_TEST_ORDER_FILTER,
       },
       select: {
         id: true,

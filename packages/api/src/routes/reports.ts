@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { PAYOUT_NON_TEST_ORDER_FILTER } from '../lib/payoutPolicy';
 
 const router = Router();
 router.use(authenticate);
@@ -17,14 +18,8 @@ const requireRestaurantScope = (req: AuthRequest, res: any): string | null => {
   return rid;
 };
 
-// Common where clause to exclude test orders from business reports
-const excludeTestOrders = {
-  AND: [
-    { discountCode: { notIn: ['test', 'testa', 'TEST', 'TESTA'] } },
-    { stripePaymentIntentId: { not: 'TEST_PAYMENT' } },
-    { customerName: { not: 'AUTOTEST' } },
-  ]
-};
+// Common where clause to exclude test orders from business reports.
+const excludeTestOrders = PAYOUT_NON_TEST_ORDER_FILTER;
 
 // GET /api/admin/reports/bi - Business Intelligence Overview
 router.get('/bi', async (req, res) => {

@@ -14,9 +14,9 @@ import { recordRefundProviderResponse } from './refundLedger';
 import { announceFullRefund } from './refundNotifications';
 import {
   buildPayoutProviderAuditFingerprint,
+  PAYOUT_NON_TEST_ORDER_FILTER,
   PAYOUT_ORDER_STATUSES,
   PAYOUT_PAYMENT_STATUSES,
-  PAYOUT_TEST_ORDER_EXCLUSIONS,
   PayoutProviderAuditStaleError,
   type PayoutProviderAuditOrder,
 } from '../payoutPolicy';
@@ -240,7 +240,7 @@ async function readPayoutProviderAuditFingerprint(
         createdAt: { gte: input.periodStart, lte: input.periodEnd },
         status: { in: [...PAYOUT_ORDER_STATUSES] },
         paymentStatus: { in: [...PAYOUT_PAYMENT_STATUSES] },
-        NOT: [...PAYOUT_TEST_ORDER_EXCLUSIONS],
+        ...PAYOUT_NON_TEST_ORDER_FILTER,
         ...(cursor ? { id: { gt: cursor } } : {}),
       },
       select: {

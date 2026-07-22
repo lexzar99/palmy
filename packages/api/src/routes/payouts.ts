@@ -13,7 +13,7 @@ import {
   isPayoutOrderRefundWindowClosed,
   isPayoutSettlementBlockingOrder,
   PAYOUT_NON_PAYABLE_FINAL_PAYMENT_STATUSES,
-  PAYOUT_TEST_ORDER_EXCLUSIONS,
+  PAYOUT_NON_TEST_ORDER_FILTER,
   payoutRefundWindowClosesAt,
   payoutRefundWindowHours,
   PayoutProviderAuditError,
@@ -243,7 +243,7 @@ router.post('/', async (req: AuthRequest, res) => {
             restaurantId: restaurantKey,
             paymentStatus: { notIn: [...PAYOUT_NON_PAYABLE_FINAL_PAYMENT_STATUSES] },
             createdAt: { gte: start, lte: end },
-            NOT: [...PAYOUT_TEST_ORDER_EXCLUSIONS],
+            ...PAYOUT_NON_TEST_ORDER_FILTER,
           },
           select: {
             id: true,
