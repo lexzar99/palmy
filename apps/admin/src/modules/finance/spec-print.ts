@@ -1,5 +1,4 @@
 import type { PayoutSpec } from "@/modules/finance/api";
-import { orderStatusLabel, paymentStatusLabel } from "@/shared/utils/format";
 
 const kr = (n: number) =>
   (Number(n) || 0).toLocaleString("sv-SE", { style: "currency", currency: "SEK", minimumFractionDigits: 2 });
@@ -13,9 +12,69 @@ const logoSrc = "/viaeats-finance-logo.png";
 export type PayoutPrintMode = "summary" | "orders" | "daily";
 export type PayoutPrintOptions = {
   mode?: PayoutPrintMode;
-  includedOnly?: boolean;
-  statuses?: string[];
+  showReferenceOrders?: boolean;
+  showPaymentState?: boolean;
 };
+
+type PrintOrder = PayoutSpec["orders"][number];
+
+const referenceOrderStatuses = new Set(["CANCELLED", "REJECTED", "DELIVERY_FAILED"]);
+const referencePaymentStatuses = new Set(["REFUNDED", "FAILED"]);
+
+export const payoutPrintSettlementAmount = (order: PrintOrder) =>
+  order.includedInPayout ? Number(order.total || 0) : 0;
+
+export const payoutPrintOrderTypeLabel = (order: PrintOrder) => {
+  const type = String(order.type || "").toUpperCase();
+  return type === "PICKUP" || type === "TAKEAWAY" ? "Avhämtning" : "Leverans";
+};
+
+export const payoutPrintOrderStateLabel = (order: PrintOrder) => {
+  const paymentStatus = String(order.paymentStatus || "").toUpperCase();
+  if (!order.includedInPayout) return "Avbruten/återbetald";
+  if (paymentStatus === "PARTIALLY_REFUNDED") return "Delvis återbetald";
+  return "Betald";
+};
+
+export const isPayoutPrintReferenceOrder = (order: PrintOrder) =>
+  !order.includedInPayout &&
+  (
+    referenceOrderStatuses.has(String(order.status || "").toUpperCase()) ||
+    referencePaymentStatuses.has(String(order.paymentStatus || "").toUpperCase())
+  );
+
+export function payoutPrintOrders(spec: PayoutSpec, options: PayoutPrintOptions = {}) {
+  return spec.orders.filter((order) =>
+    order.includedInPayout ||
+    (options.showReferenceOrders && isPayoutPrintReferenceOrder(order)),
+  );
+}
+
+export function payoutPrintSummary(orders: PrintOrder[]) {
+  const paidOrders = orders.filter((order) => order.includedInPayout);
+  const referenceOrders = orders.filter((order) => !order.includedInPayout);
+  return {
+    paidOrderCount: paidOrders.length,
+    referenceOrderCount: referenceOrders.length,
+    paidTotal: paidOrders.reduce((sum, order) => sum + payoutPrintSettlementAmount(order), 0),
+  };
+}
+
+export function payoutPrintDailyRows(orders: PrintOrder[]) {
+  const dailyMap = orders.reduce((map, order) => {
+    const key = new Date(order.createdAt).toISOString().slice(0, 10);
+    const current = map.get(key) ?? { key, paidCount: 0, referenceCount: 0, paidTotal: 0 };
+    if (order.includedInPayout) {
+      current.paidCount += 1;
+      current.paidTotal += payoutPrintSettlementAmount(order);
+    } else {
+      current.referenceCount += 1;
+    }
+    map.set(key, current);
+    return map;
+  }, new Map<string, { key: string; paidCount: number; referenceCount: number; paidTotal: number }>());
+  return Array.from(dailyMap.values()).sort((a, b) => a.key.localeCompare(b.key));
+}
 
 /**
  * Öppnar en självständig, utskriftsvänlig utbetalningsspec i ett nytt fönster
@@ -31,14 +90,10 @@ export function printPayoutSpec(
   const persisted = spec.persisted;
   const frozen = persisted?.status === "APPROVED" || persisted?.status === "PAID";
   const mode = options.mode ?? "orders";
-  const statusSet = options.statuses ? new Set(options.statuses) : null;
-  const filteredOrders = spec.orders.filter((order) =>
-    (!statusSet || statusSet.has(order.status)) &&
-    (!options.includedOnly || order.includedInPayout),
-  );
-  const filteredTotal = filteredOrders.reduce((sum, order) => sum + order.total, 0);
-  const countedOrders = filteredOrders.filter((order) => order.includedInPayout);
-  const countedTotal = countedOrders.reduce((sum, order) => sum + order.total, 0);
+  const printOrders = payoutPrintOrders(spec, options);
+  const summary = payoutPrintSummary(printOrders);
+  const dailyRows = payoutPrintDailyRows(printOrders);
+  const showPaymentState = options.showPaymentState !== false;
   const owed = (b as { owed?: number }).owed || 0;
   const isOwed = !frozen && owed > 0;
   const net = frozen && persisted
@@ -46,13 +101,20 @@ export function printPayoutSpec(
     : isOwed
       ? owed
       : Math.max(0, b.payout - (Number(manualAdjustment) || 0) - (Number(lateRefundRecovery) || 0));
-  const totalLabel = isOwed ? "Att fakturera restaurangen" : "Netto att betala ut";
+  const totalLabel = isOwed ? "Att fakturera restaurangen" : "Att överföra till restaurangen";
   const modelLabel = (frozen ? persisted?.selfDeliverySnapshot : spec.restaurant.selfDelivery) ? "Levererar själv" : "ViaEats levererar";
   const commissionPct = frozen ? persisted?.commissionPctSnapshot : b.commissionPct;
+  const platformFeeVat = frozen && persisted
+    ? ((persisted.commissionAmount + persisted.subscriptionAmount) * Number(persisted.feeVatPctSnapshot || 0)) / 100
+    : b.feeVat;
+  const platformFeeBase = frozen && persisted
+    ? persisted.commissionAmount + persisted.subscriptionAmount
+    : b.commission + b.subscription;
+  const platformFeeTotal = platformFeeBase + platformFeeVat;
   const modeLabel: Record<PayoutPrintMode, string> = {
-    summary: "Kompakt total",
-    orders: "Orderrad per order",
-    daily: "Summering per dag",
+    summary: "Totalt antal order och belopp",
+    orders: "Varje order med ordernummer och belopp",
+    daily: "Per dag med antal order och belopp",
   };
   const win = window.open("", "_blank", "width=820,height=1040");
   if (!win) {
@@ -60,62 +122,54 @@ export function printPayoutSpec(
     return;
   }
 
+  const section = (label: string) => `<tr class="section"><td colspan="2">${esc(label)}</td></tr>`;
   const line = (label: string, value: string, opts: { strong?: boolean; sub?: boolean; minus?: boolean } = {}) =>
     `<tr class="${opts.strong ? "strong" : ""} ${opts.sub ? "sub" : ""}">
       <td>${opts.minus ? "- " : ""}${esc(label)}</td>
       <td class="num">${esc(value)}</td>
     </tr>`;
 
-  const dailyMap = filteredOrders.reduce((map, order) => {
-      const key = new Date(order.createdAt).toISOString().slice(0, 10);
-      const current = map.get(key) ?? { key, count: 0, total: 0, included: 0 };
-      current.count += 1;
-      current.total += order.total;
-      current.included += order.includedInPayout ? 1 : 0;
-      map.set(key, current);
-      return map;
-    }, new Map<string, { key: string; count: number; total: number; included: number }>());
-  const dailyRows = Array.from(dailyMap.values()).sort((a, b) => a.key.localeCompare(b.key));
-
-  const orderRows = filteredOrders
-    .map(
-      (o) =>
-        `<tr><td><strong>#${esc(o.orderNumber)}</strong></td><td>${day(o.createdAt)}</td><td>${
-          o.type === "PICKUP" ? "Avhämtning" : "Leverans"
-        }</td><td>${esc(orderStatusLabel(o.status))}</td><td>${esc(paymentStatusLabel(o.paymentStatus))}</td><td><span class="${o.includedInPayout ? "pill good" : "pill muted-pill"}">${o.includedInPayout ? "Räknas" : "Ej med"}</span></td><td class="num">${kr(o.total)}</td></tr>`,
-    )
+  const orderHeader = showPaymentState
+    ? "<tr><th>Order</th><th>Datum</th><th>Typ</th><th>Status</th><th class=\"num\">Belopp</th></tr>"
+    : "<tr><th>Order</th><th>Datum</th><th>Typ</th><th class=\"num\">Belopp</th></tr>";
+  const orderRows = printOrders
+    .map((order) => {
+      const state = payoutPrintOrderStateLabel(order);
+      const amount = payoutPrintSettlementAmount(order);
+      const statusCell = showPaymentState ? `<td>${esc(state)}</td>` : "";
+      return `<tr><td><strong>#${esc(order.orderNumber)}</strong></td><td>${day(order.createdAt)}</td><td>${esc(payoutPrintOrderTypeLabel(order))}</td>${statusCell}<td class="num">${kr(amount)}</td></tr>`;
+    })
     .join("");
   const dailyHtml = dailyRows
-    .map((row) => `<tr><td>${day(row.key)}</td><td class="num">${row.count}</td><td class="num">${row.included}</td><td class="num">${kr(row.total)}</td></tr>`)
+    .map((row) => `<tr><td>${day(row.key)}</td><td class="num">${row.paidCount}</td><td class="num">${kr(row.paidTotal)}</td>${options.showReferenceOrders ? `<td class="num">${row.referenceCount}</td>` : ""}</tr>`)
     .join("");
+  const dailyHeader = options.showReferenceOrders
+    ? "<tr><th>Datum</th><th class=\"num\">Betalda order</th><th class=\"num\">Belopp</th><th class=\"num\">Referensorder</th></tr>"
+    : "<tr><th>Datum</th><th class=\"num\">Betalda order</th><th class=\"num\">Belopp</th></tr>";
   const ordersSection = mode === "summary"
     ? `<section class="orders">
-        <div class="section-title">PDF-underlag</div>
+        <div class="section-title">Orderunderlag</div>
         <div class="mini-grid">
-          <div class="mini-card"><span>Visade ordrar</span><strong>${filteredOrders.length}</strong></div>
-          <div class="mini-card"><span>Visad totalsumma</span><strong>${kr(filteredTotal)}</strong></div>
-          <div class="mini-card"><span>Order som räknas</span><strong>${countedOrders.length}</strong></div>
-          <div class="mini-card accent"><span>Summa som räknas</span><strong>${kr(countedTotal)}</strong></div>
+          <div class="mini-card"><span>Betalda order</span><strong>${summary.paidOrderCount}</strong></div>
+          <div class="mini-card accent"><span>Belopp</span><strong>${kr(summary.paidTotal)}</strong></div>
+          <div class="mini-card"><span>Referensorder</span><strong>${summary.referenceOrderCount}</strong></div>
         </div>
       </section>`
     : mode === "daily"
       ? `<section class="orders">
-          <div class="section-title">Ordrar per dag</div>
+          <div class="section-title">Order per dag</div>
           <table>
-            <thead><tr><th>Datum</th><th class="num">Ordrar</th><th class="num">Räknas</th><th class="num">Summa</th></tr></thead>
-            <tbody>${dailyHtml || `<tr><td colspan="4" class="muted">Inga ordrar matchar PDF-filtret.</td></tr>`}</tbody>
+            <thead>${dailyHeader}</thead>
+            <tbody>${dailyHtml || `<tr><td colspan="${options.showReferenceOrders ? 4 : 3}" class="muted">Inga order matchar PDF-valet.</td></tr>`}</tbody>
           </table>
         </section>`
       : `<section class="orders">
-          <div class="section-title">Ordrar i perioden</div>
+          <div class="section-title">Order i perioden</div>
           <table>
-            <thead><tr><th>Order</th><th>Datum</th><th>Typ</th><th>Status</th><th>Betalning</th><th>Underlag</th><th class="num">Summa</th></tr></thead>
-            <tbody>${orderRows || `<tr><td colspan="7" class="muted">Inga ordrar matchar PDF-filtret.</td></tr>`}</tbody>
+            <thead>${orderHeader}</thead>
+            <tbody>${orderRows || `<tr><td colspan="${showPaymentState ? 5 : 4}" class="muted">Inga order matchar PDF-valet.</td></tr>`}</tbody>
           </table>
         </section>`;
-  const selectedStatuses = statusSet
-    ? [...statusSet].map((status) => orderStatusLabel(status)).join(", ") || "Inga statusar"
-    : "Alla";
 
   const html = `<!doctype html>
 <html lang="sv"><head><meta charset="utf-8" />
@@ -166,7 +220,7 @@ export function printPayoutSpec(
   .hero-card {
     justify-self: end;
     width: 100%;
-    max-width: 278px;
+    max-width: 288px;
     border: 1px solid rgba(255,255,255,0.28);
     border-radius: 16px;
     padding: 18px;
@@ -202,6 +256,16 @@ export function printPayoutSpec(
   .calc { margin-top: 6px; overflow: hidden; border: 1px solid #f0ded2; border-radius: 14px; }
   .calc td { padding: 9px 13px; border-bottom: 1px solid #f3e7df; background: #fff; }
   .calc td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .calc tr.section td {
+    padding-top: 13px;
+    padding-bottom: 6px;
+    color: #9a3412;
+    background: #fff4ed;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 950;
+  }
   .calc tr.sub td { color: #667085; padding-left: 28px; background: #fffaf7; border-bottom: 1px dotted #ead8cd; }
   .calc tr.strong td { font-weight: 900; background: #fff4ed; border-top: 1px solid #ffd1bf; border-bottom: 1px solid #ffd1bf; }
   .total {
@@ -222,17 +286,7 @@ export function printPayoutSpec(
   .orders td, .orders th { padding: 8px 11px; border-bottom: 1px solid #f4e6dd; text-align: left; font-size: 11.5px; }
   .orders th { color: #9a6b59; font-weight: 900; background: #fff4ed; }
   .orders td.num, .orders th.num { text-align: right; }
-  .pill {
-    display: inline-flex;
-    align-items: center;
-    border-radius: 999px;
-    padding: 3px 7px;
-    font-size: 10px;
-    font-weight: 900;
-  }
-  .good { color: #067647; background: #ecfdf3; border: 1px solid #abefc6; }
-  .muted-pill { color: #667085; background: #f2f4f7; border: 1px solid #d0d5dd; }
-  .mini-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .mini-card { border: 1px solid #f0ded2; border-radius: 14px; padding: 13px; background: #fffaf7; }
   .mini-card span { display: block; color: #8a6a5b; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 900; }
   .mini-card strong { display: block; margin-top: 6px; font-size: 18px; color: #101827; }
@@ -254,7 +308,7 @@ export function printPayoutSpec(
           <img class="logo" src="${logoSrc}" alt="ViaEats" />
           <div>
             <div class="kicker">Finance</div>
-            <div style="font-weight:950">Partnerutbetalning</div>
+            <div style="font-weight:950">Partnerunderlag</div>
           </div>
         </div>
         <h1>${esc(spec.restaurant.legalName || spec.restaurant.name)}</h1>
@@ -266,7 +320,7 @@ export function printPayoutSpec(
         <div class="chips">
           <span class="chip">${esc(modelLabel)}</span>
           <span class="chip">${esc(b.tierLabel)}</span>
-          <span class="chip">${esc(commissionPct ?? "-")}% provision</span>
+          <span class="chip">${esc(commissionPct ?? "-")}% ViaEats provision</span>
         </div>
       </div>
     </header>
@@ -288,40 +342,45 @@ export function printPayoutSpec(
           <div class="muted">${esc(spec.company.address || "")}</div>
         </div>
         <div class="info-block">
-          <div class="label">PDF-filter</div>
+          <div class="label">PDF-innehåll</div>
           <div><strong>${esc(modeLabel[mode])}</strong></div>
-          <div class="muted">${options.includedOnly ? "Endast order som räknas" : "Alla order efter statusfilter"}</div>
-          <div class="muted">Status: ${esc(selectedStatuses)}</div>
+          <div class="muted">Betalda order visas alltid${options.showReferenceOrders ? " med avbrutna/återbetalda som referens" : ""}.</div>
         </div>
         <div class="info-block right">
-          <div class="label">Underlag</div>
-          <div><strong>${filteredOrders.length}</strong> visade ordrar</div>
-          <div class="muted">${countedOrders.length} räknas - ${kr(countedTotal)}</div>
+          <div class="label">Orderunderlag</div>
+          <div><strong>${summary.paidOrderCount}</strong> betalda order</div>
+          <div class="muted">${kr(summary.paidTotal)}${summary.referenceOrderCount ? ` - ${summary.referenceOrderCount} referensorder` : ""}</div>
         </div>
       </div>
 
       <table class="calc">
         ${frozen && persisted
           ? [
-              line(`Fryst restaurangintäkt (${persisted.orderCount} ordrar)`, kr(persisted.grossSales), { strong: true }),
+              section("Restaurangens underlag"),
+              line(`Fryst restaurangintäkt (${persisted.orderCount} order)`, kr(persisted.grossSales), { strong: true }),
               persisted.foodVatAmount != null ? line(`Fryst restaurangmoms (${vatLabel(persisted.foodVatPctSnapshot)})`, kr(persisted.foodVatAmount), { sub: true }) : "",
               (persisted.platformTipAmount || 0) > 0 ? line("Fryst dricks till bud/plattform", kr(persisted.platformTipAmount || 0), { sub: true }) : "",
-              line(`Provision (${persisted.commissionPctSnapshot ?? "-"}%)`, kr(persisted.commissionAmount), { minus: true }),
+              section("ViaEats ersättning och avgiftsavdrag"),
+              line(`ViaEats provision (${persisted.commissionPctSnapshot ?? "-"}%)`, kr(persisted.commissionAmount), { minus: true }),
               line("Abonnemang", kr(persisted.subscriptionAmount), { minus: true }),
-              line(`Moms på avgifter (${persisted.feeVatPctSnapshot ?? "-"}%)`, kr(((persisted.commissionAmount + persisted.subscriptionAmount) * Number(persisted.feeVatPctSnapshot || 0)) / 100), { minus: true }),
+              line(`Moms på ViaEats ersättning (${persisted.feeVatPctSnapshot ?? "-"}%)`, kr(platformFeeVat), { minus: true }),
+              line("Summa avgiftsavdrag inkl. moms", kr(platformFeeTotal), { strong: true }),
               Math.abs(persisted.manualAdjustmentAmount) > 0 ? line("Manuell justering", kr(persisted.manualAdjustmentAmount), { minus: true }) : "",
               persisted.lateRefundAdjustmentAmount > 0 ? line("Automatisk recovery för sena refunds", kr(persisted.lateRefundAdjustmentAmount), { minus: true }) : "",
             ].join("")
           : [
-              line(`Bruttoförsäljning (${b.orderCount} ordrar)`, kr(b.grossTotal)),
-              line("varav matvärde (provisionsbas)", kr(b.foodBase), { sub: true }),
-              line(spec.restaurant.selfDelivery ? "varav leveransavgift till restaurangen" : "varav leveransavgift till plattformen", kr(b.deliveryFee), { sub: true }),
+              section("Restaurangens underlag"),
+              line(`Betalda order (${b.orderCount} order)`, kr(b.grossTotal)),
+              line("varav matvärde", kr(b.foodBase), { sub: true }),
+              line(spec.restaurant.selfDelivery ? "varav leveransavgift till restaurangen" : "varav leveransavgift till ViaEats", kr(b.deliveryFee), { sub: true }),
               line(spec.restaurant.selfDelivery ? "varav dricks till restaurangen" : "varav dricks till bud/plattform", kr(b.tip), { sub: true }),
               line(`Restaurangmoms (${vatLabel(b.foodVatPct)})`, kr(b.foodVat), { sub: true }),
-              line("Restaurangens intäkt", kr(b.restaurantGross), { strong: true }),
-              line(`Provision (${b.commissionPct}%)`, kr(b.commission), { minus: true }),
+              line("Restaurangens intäkt före ViaEats avgifter", kr(b.restaurantGross), { strong: true }),
+              section("ViaEats ersättning och avgiftsavdrag"),
+              line(`ViaEats provision (${b.commissionPct}%)`, kr(b.commission), { minus: true }),
               line(`Abonnemang (${b.tierLabel})`, kr(b.subscription), { minus: true }),
-              line(`Moms på avgifter (${b.feeVatPct}%)`, kr(b.feeVat), { minus: true }),
+              line(`Moms på ViaEats ersättning (${b.feeVatPct}%)`, kr(b.feeVat), { minus: true }),
+              line("Summa avgiftsavdrag inkl. moms", kr(platformFeeTotal), { strong: true }),
               Math.abs(Number(manualAdjustment) || 0) > 0 ? line("Manuell justering", kr(Number(manualAdjustment) || 0), { minus: true }) : "",
               (Number(lateRefundRecovery) || 0) > 0 ? line("Automatisk recovery för sena refunds", kr(Number(lateRefundRecovery) || 0), { minus: true }) : "",
             ].join("")}
@@ -334,7 +393,7 @@ export function printPayoutSpec(
       <div class="note">
         ${frozen
           ? "Beloppet ovan är den frysta snapshot som godkändes och får inte räknas om med dagens inställningar."
-          : `Restaurangmoms (${vatLabel(b.foodVatPct)}) i restaurangens försäljning: ${kr(b.foodVat)}. Plattformens avgifter faktureras som tjänst med ${b.feeVatPct}% moms.`}
+          : `Restaurangmoms (${vatLabel(b.foodVatPct)}) i restaurangens försäljning: ${kr(b.foodVat)}. ViaEats avgiftsavdrag består av tjänsteersättning och moms på tjänsten.`}
         Belopp i SEK med två decimaler.
       </div>
     </div>

@@ -23,6 +23,7 @@ export const PAYOUT_TEST_DISCOUNT_CODES = ['test', 'testa', 'TEST', 'TESTA'] as 
 export const PAYOUT_TEST_PAYMENT_INTENT_ID = 'TEST_PAYMENT';
 export const PAYOUT_TEST_CUSTOMER_NAME = 'AUTOTEST';
 export const PAYOUT_PENDING_REFUND_PAYMENT_STATUSES = ['REFUNDING'] as const;
+export const FINANCE_NON_ACCOUNTING_PAYMENT_STATUSES = ['REFUNDING', 'PENDING', 'NEEDS_REVIEW'] as const;
 
 export const PAYOUT_TEST_ORDER_EXCLUSIONS: Prisma.OrderWhereInput[] = [
   { discountCode: { in: [...PAYOUT_TEST_DISCOUNT_CODES] } },
@@ -50,11 +51,11 @@ export const PAYOUT_NON_TEST_ORDER_FILTER: Prisma.OrderWhereInput = {
   ],
 };
 
-// Finance display/economics waits for pending refunds to settle. Payout
-// approval still reads REFUNDING rows separately as settlement blockers.
+// Finance display/economics only shows settled accounting rows. Payout
+// approval still reads pending payment/refund rows separately as blockers.
 export const FINANCE_ACCOUNTING_ORDER_FILTER: Prisma.OrderWhereInput = {
   ...PAYOUT_NON_TEST_ORDER_FILTER,
-  paymentStatus: { notIn: [...PAYOUT_PENDING_REFUND_PAYMENT_STATUSES] },
+  paymentStatus: { notIn: [...FINANCE_NON_ACCOUNTING_PAYMENT_STATUSES] },
 };
 
 export type PayoutOrder = {
