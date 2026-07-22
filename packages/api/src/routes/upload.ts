@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { authenticate, requireSuperAdmin, AuthRequest } from '../middleware/auth';
-import { r2Enabled, buildR2Key, uploadToR2, toWebp, listR2, existsInR2, deleteFromR2, r2UrlToKey, slugifyPathSegment, r2KeyToPublicUrl, r2KeyToVersionedUrl } from '../lib/r2';
+import { r2Enabled, buildR2Key, uploadToR2, toWebp, listR2, existsInR2, deleteFromR2, r2UrlToKey, slugifyPathSegment, r2KeyToPublicUrl, r2KeyToVersionedUrl, shortContentHash } from '../lib/r2';
 import { runR2Migration, type MigrateOptions } from '../lib/r2Migrate';
 import prisma from '../lib/prisma';
 import { menuCacheBust } from './menu';
@@ -193,10 +193,12 @@ router.post('/upload-r2', memoryUpload.single('file'), async (req: Request, res:
     // Bygg kanonisk nyckel
     let key: string;
     if (kind === 'misc') {
-      // Unik webp-nyckel så plattform-bilder (t.ex. sponsorkort) inte krockar
-      // med varandra när de saknar restaurang/kategori-kontext.
+      // Innehålls-adresserad nyckel: samma bild → samma nyckel (idempotent, inga
+      // orphan-dubbletter vid om-uppladdning), olika bilder → olika nyckel (så
+      // t.ex. två sponsorkort med samma filnamn inte skriver över varandra).
+      // Tidigare användes Date.now() vilket skapade en ny fil vid VARJE upload.
       const base = String(req.body.filename || req.file?.originalname || 'upload').replace(/\.[a-z0-9]+$/i, '');
-      const fn = `${slugifyPathSegment(base) || 'upload'}-${Date.now()}.webp`;
+      const fn = `${slugifyPathSegment(base) || 'upload'}-${shortContentHash(webp)}.webp`;
       key = buildR2Key({ kind: 'misc', city: citySlug || undefined, restaurant: restaurantSlug || undefined, filename: fn });
     } else if (kind === 'hero') {
       key = buildR2Key({ kind: 'hero', city: citySlug!, restaurant: restaurantSlug! });
@@ -374,17 +376,39 @@ router.post('/images/auto-match', async (req: Request, res: Response) => {
     let matchedCategories = 0;
     let matchedProducts = 0;
     let actualWrites = 0;
+    let clearedDrift = 0;
     const updates: Array<{ kind: string; id: string; url: string; key: string; changed: boolean }> = [];
+
+    // En URL "driftar" om den pekar in i VÅR R2-bucket men på en nyckel utanför
+    // restaurangens nuvarande kanoniska prefix — en kvarleva från en tidigare
+    // slug/stad. Sådana länkar är döda efter ett byte (eller efter att den gamla
+    // mappen raderats). Nolla dem så menyn faller tillbaka på predicted URL (nya
+    // pathen) i stället för att fastna på en trasig bild. Externa URL:er
+    // (Cloudinary m.m.) rörs aldrig — r2UrlToKey returnerar null för dem.
+    const isDrifted = (u: string | null | undefined): boolean => {
+      const k = r2UrlToKey(u || '');
+      return !!k && !k.startsWith(prefix);
+    };
 
     // hero.webp → Restaurant.heroImageUrl (banner-bilden)
     const heroKey = `${prefix}hero.webp`;
     if (keyByKey.has(heroKey)) {
       matchedHero = true;
       const url = urlFor(heroKey);
-      const changed = rest.heroImageUrl !== url;
+      // Jämför på KANONISK nyckel, inte full URL: uppladdning versionerar `?v`
+      // på content-hash medan auto-match versionerar på lastModified. Utan detta
+      // skulle knappen skriva om URL:en varje gång fast bilden är oförändrad.
+      const changed = r2UrlToKey(rest.heroImageUrl || '') !== heroKey;
       updates.push({ kind: 'hero', id: restaurantId, url, key: heroKey, changed });
       if (!dryRun && changed) {
         await prisma.restaurant.update({ where: { id: restaurantId }, data: { heroImageUrl: url } });
+        actualWrites++;
+      }
+    } else if (isDrifted(rest.heroImageUrl)) {
+      clearedDrift++;
+      updates.push({ kind: 'hero-cleared', id: restaurantId, url: '', key: r2UrlToKey(rest.heroImageUrl || '') || '', changed: true });
+      if (!dryRun) {
+        await prisma.restaurant.update({ where: { id: restaurantId }, data: { heroImageUrl: null } });
         actualWrites++;
       }
     }
@@ -393,10 +417,17 @@ router.post('/images/auto-match', async (req: Request, res: Response) => {
     if (keyByKey.has(logoKey)) {
       matchedLogo = true;
       const url = urlFor(logoKey);
-      const changed = rest.imageUrl !== url;
+      const changed = r2UrlToKey(rest.imageUrl || '') !== logoKey;
       updates.push({ kind: 'logo', id: restaurantId, url, key: logoKey, changed });
       if (!dryRun && changed) {
         await prisma.restaurant.update({ where: { id: restaurantId }, data: { imageUrl: url } });
+        actualWrites++;
+      }
+    } else if (isDrifted(rest.imageUrl)) {
+      clearedDrift++;
+      updates.push({ kind: 'logo-cleared', id: restaurantId, url: '', key: r2UrlToKey(rest.imageUrl || '') || '', changed: true });
+      if (!dryRun) {
+        await prisma.restaurant.update({ where: { id: restaurantId }, data: { imageUrl: null } });
         actualWrites++;
       }
     }
@@ -412,10 +443,17 @@ router.post('/images/auto-match', async (req: Request, res: Response) => {
       if (keyByKey.has(key)) {
         matchedCategories++;
         const url = urlFor(key);
-        const changed = c.imageUrl !== url;
+        const changed = r2UrlToKey(c.imageUrl || '') !== key;
         updates.push({ kind: 'category', id: c.id, url, key, changed });
         if (!dryRun && changed) {
           await prisma.category.update({ where: { id: c.id }, data: { imageUrl: url } });
+          actualWrites++;
+        }
+      } else if (isDrifted(c.imageUrl)) {
+        clearedDrift++;
+        updates.push({ kind: 'category-cleared', id: c.id, url: '', key: r2UrlToKey(c.imageUrl || '') || '', changed: true });
+        if (!dryRun) {
+          await prisma.category.update({ where: { id: c.id }, data: { imageUrl: null } });
           actualWrites++;
         }
       }
@@ -436,10 +474,17 @@ router.post('/images/auto-match', async (req: Request, res: Response) => {
       if (keyByKey.has(key)) {
         matchedProducts++;
         const url = urlFor(key);
-        const changed = p.imageUrl !== url;
+        const changed = r2UrlToKey(p.imageUrl || '') !== key;
         updates.push({ kind: 'product', id: p.id, url, key, changed });
         if (!dryRun && changed) {
           await prisma.product.update({ where: { id: p.id }, data: { imageUrl: url } });
+          actualWrites++;
+        }
+      } else if (isDrifted(p.imageUrl)) {
+        clearedDrift++;
+        updates.push({ kind: 'product-cleared', id: p.id, url: '', key: r2UrlToKey(p.imageUrl || '') || '', changed: true });
+        if (!dryRun) {
+          await prisma.product.update({ where: { id: p.id }, data: { imageUrl: null } });
           actualWrites++;
         }
       }
@@ -457,6 +502,7 @@ router.post('/images/auto-match', async (req: Request, res: Response) => {
       prefix,
       totalObjectsInPrefix: items.length,
       matched: { hero: matchedHero, logo: matchedLogo, categories: matchedCategories, products: matchedProducts },
+      clearedDriftLinks: clearedDrift,
       writes: actualWrites,
       updates: updates.slice(0, 20),
       dryRun,

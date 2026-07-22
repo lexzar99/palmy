@@ -159,6 +159,58 @@ export function r2KeyToPublicUrl(key: string): string {
 }
 
 /**
+ * Byt path-prefix på en publik R2-URL och behåll query/hash (`?v=…`).
+ *
+ * Används vid slug-/stadsbyte: en sparad URL som pekar på gamla pathen
+ * (`{stad}/{gammal-slug}/…`) skrivs om till nya pathen utan att tappa
+ * cache-bust-versionen. Returnerar URL:en OFÖRÄNDRAD om den inte pekar in i
+ * vår bucket, eller om nyckeln inte börjar på `oldPrefix` — så det är säkert
+ * att köra den brett över alla bild-fält.
+ */
+export function reprefixR2Url(url: string, oldPrefix: string, newPrefix: string): string {
+  if (!url) return url;
+  const base = `${r2PublicBase()}/`;
+  if (!base || base === '/' || !url.startsWith(base)) return url;
+  const rest = url.slice(base.length);
+  const cut = rest.search(/[?#]/);
+  const key = cut === -1 ? rest : rest.slice(0, cut);
+  const suffix = cut === -1 ? '' : rest.slice(cut);
+  if (!oldPrefix || !key.startsWith(oldPrefix)) return url;
+  return `${base}${newPrefix}${key.slice(oldPrefix.length)}${suffix}`;
+}
+
+/**
+ * Flytta ALLA objekt från ett path-prefix till ett annat inom samma bucket
+ * (server-side copy + delete). Idempotent: objekt som redan ligger rätt
+ * hoppas över. Best-effort per objekt — ett misslyckat copy raderar aldrig
+ * källan, så vi aldrig tappar bytes.
+ *
+ * Returnerar antal flyttade + ev. fel. Kastar bara om R2 inte är konfigurerat.
+ */
+export async function renameR2Prefix(
+  oldPrefix: string,
+  newPrefix: string,
+): Promise<{ moved: number; failed: Array<{ key: string; error: string }> }> {
+  const result = { moved: 0, failed: [] as Array<{ key: string; error: string }> };
+  if (!r2Enabled()) throw new Error('R2 är inte konfigurerat');
+  if (!oldPrefix || !newPrefix || oldPrefix === newPrefix) return result;
+  const items = await listR2(oldPrefix, 5000);
+  for (const it of items) {
+    const toKey = `${newPrefix}${it.key.slice(oldPrefix.length)}`;
+    if (toKey === it.key) continue;
+    try {
+      await copyInR2(it.key, toKey);
+      await deleteFromR2(it.key);
+      result.moved++;
+    } catch (e: any) {
+      // Källan lämnas kvar orörd så bilden aldrig försvinner.
+      result.failed.push({ key: it.key, error: e?.message || String(e) });
+    }
+  }
+  return result;
+}
+
+/**
  * Omvänd mappning: publik URL → R2-nyckel. Returnerar null om URL:en inte
  * pekar in i VÅR bucket (t.ex. en extern URL eller base64). Strippar en
  * eventuell `?v=`-cache-bust-query. Används för att kunna radera en gammal

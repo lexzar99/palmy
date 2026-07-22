@@ -19,6 +19,8 @@ import { resolveOrCreateCity } from '../lib/cityResolver';
 import { cached, bustCache, bustRestaurantCaches } from '../lib/ttlCache';
 import { revalidateWebRestaurant } from '../lib/revalidate';
 import { menuCacheBust } from './menu';
+import { slugifyPathSegment } from '../lib/r2';
+import { syncRestaurantImagePrefix } from '../lib/r2Rename';
 import { isCustomerVisibleDeal, isDealAvailableNow, parseApplicableRestaurantIds, parseDealProductIds } from '../lib/deals';
 import { audit } from '../lib/auditLog';
 import { normalizeFoodVatPercent } from '../lib/tax';
@@ -923,6 +925,38 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       where: { id },
       data,
     });
+
+    // R2/DB-synk vid slug- eller stadsbyte. Object keys byggs på
+    // `{stad}/{restaurang}/…` och de fulla URL:erna cachas i DB. Utan detta
+    // blir bilderna orphans på gamla pathen (och en ny uppladdning hamnar på
+    // nya → två uppsättningar bilder i R2). Flytta objekten + skriv om varje
+    // sparad URL. Best-effort, aldrig blockerande, körs före re-fetchen nedan
+    // så svaret bär de nya URL:erna.
+    const slugChanged = typeof data.slug === 'string' && data.slug !== existingRestaurant.slug;
+    const cityChanged = typeof data.cityId === 'string' && data.cityId !== existingRestaurant.cityId;
+    if (slugChanged || cityChanged) {
+      try {
+        const resolveCitySlug = async (cityId: string | null, legacyCity: string | null): Promise<string> => {
+          const city = cityId
+            ? await prisma.city.findUnique({ where: { id: cityId }, select: { slug: true, name: true } })
+            : null;
+          return city?.slug || slugifyPathSegment(city?.name || legacyCity || 'global');
+        };
+        const oldCitySlug = await resolveCitySlug(existingRestaurant.cityId, existingRestaurant.city);
+        const newCityId = (data.cityId as string | undefined) ?? existingRestaurant.cityId;
+        const newSlug = (data.slug as string | undefined) ?? existingRestaurant.slug;
+        const newCitySlug = await resolveCitySlug(newCityId, (data.city as string | undefined) ?? existingRestaurant.city);
+        const oldPrefix = `${oldCitySlug}/${existingRestaurant.slug}/`;
+        const newPrefix = `${newCitySlug}/${newSlug}/`;
+        const sync = await syncRestaurantImagePrefix({ restaurantId: id, oldPrefix, newPrefix });
+        if (sync.ran) {
+          console.log(`[restaurants PATCH] R2-prefix synk ${oldPrefix} → ${newPrefix}: ${sync.objectsMoved} objekt flyttade, ${sync.urlsRewritten} URL:er omskrivna${sync.objectsFailed ? `, ${sync.objectsFailed} misslyckades` : ''}`);
+          menuCacheBust(id);
+        }
+      } catch (e: any) {
+        console.warn('[restaurants PATCH] R2-prefix-synk misslyckades:', e?.message || e);
+      }
+    }
 
     // Hermes/WhatsApp: notifiera när restaurangen pausar / förlänger pausen.
     // Bara när pausedUntil faktiskt sätts till ett framtida datum (inte vid
