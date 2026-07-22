@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { timingSafeEqual } from 'crypto';
 import prisma from '../lib/prisma';
 import { sendHermesAlert } from '../lib/hermesAlerts';
+import { overlayOrderLiveEta, overlayOrderLiveEtas } from '../lib/orderLiveEta';
 
 const router = Router();
 
@@ -661,7 +662,7 @@ router.get('/orders/lookup', requireHermesToken, async (req, res) => {
       },
     });
 
-    const summaries = await Promise.all(orders.map(summarizeOrder));
+    const summaries = await Promise.all((await overlayOrderLiveEtas(orders)).map(summarizeOrder));
     res.json({
       ok: true,
       found: summaries.length > 0,
@@ -725,7 +726,7 @@ router.post('/support/report', requireHermesToken, async (req, res) => {
         })
       : null;
 
-    const orderSummary = order ? await summarizeOrder(order) : null;
+    const orderSummary = order ? await summarizeOrder(await overlayOrderLiveEta(order)) : null;
     const label = supportReportTypeLabels[safeType];
     const customerLine = customerName || orderSummary?.customerName || 'Okänd kund';
     const orderLine = orderSummary?.orderNumber || orderNumber || 'okänd order';

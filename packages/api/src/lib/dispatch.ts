@@ -29,6 +29,7 @@ import { haversineKm } from '../utils/geo';
 import { buildTravelLookup } from './travelMatrix';
 import { estimateOrderEta, getCourierActiveDeliveries } from './orderEta';
 import { rankDispatchCandidates, type ScoredDispatchCandidate } from './dispatchScoring';
+import { overlayCourierLivePositions } from './courierLivePosition';
 import {
   alertNoCouriersOnline,
   notifyCouriersOfNewJob,
@@ -110,7 +111,7 @@ export async function buildDispatchCandidates(
   const couriers = await prisma.courier.findMany({
     where: { online: true, isActive: true, city: { equals: city, mode: 'insensitive' } },
   });
-  const eligible = couriers.filter((c) => !excludeIds.has(c.id));
+  const eligible = await overlayCourierLivePositions(couriers.filter((c) => !excludeIds.has(c.id)));
   if (eligible.length === 0) return [];
 
   const now = new Date();

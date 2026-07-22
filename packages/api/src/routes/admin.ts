@@ -17,6 +17,8 @@ import { dispatchCustomerOrderStatus } from '../lib/customerOrderNotifier';
 import { recalculateRestaurantEta } from '../lib/restaurantEta';
 import { recalculateRestaurantZoneEtas } from '../lib/restaurantZoneEta';
 import { customerStepEtaEndsAt, etaResponseFields, refreshOrderEta } from '../lib/orderEta';
+import { overlayCourierLivePosition } from '../lib/courierLivePosition';
+import { overlayOrderLiveEta, overlayOrderLiveEtas } from '../lib/orderLiveEta';
 import { sanitizeError } from '../lib/errors';
 import { menuCacheBust } from './menu';
 import { bustCache } from '../lib/ttlCache';
@@ -591,9 +593,10 @@ router.get('/orders', async (req, res) => {
       }
     }
 
+    const liveOrders = await overlayOrderLiveEtas(orders);
     const showFullPII = canSeeCustomerPII(req as AuthRequest);
     res.json({
-      orders: orders.map((o) => {
+      orders: liveOrders.map((o) => {
         const stats = o.userId ? statsByUser.get(o.userId) : undefined;
         const base = {
           ...o,
@@ -683,6 +686,11 @@ router.get('/orders/:id', async (req, res) => {
         return;
       }
     }
+
+    if ((order as any).delivery?.courier) {
+      (order as any).delivery.courier = await overlayCourierLivePosition((order as any).delivery.courier);
+    }
+    Object.assign(order as any, await overlayOrderLiveEta(order as any));
 
     // Tilldelad kurir + statusövergångs-tider (för order-modalen). null när
     // ingen leverans/kurir finns (avhämtning, self-leverans, ej tilldelad än).
@@ -921,7 +929,7 @@ router.patch('/orders/:id/status', async (req, res) => {
           where: { id: existing.id },
           data: { estimatedTime: normalizedEstimatedTime },
         });
-        const refreshedEta = await refreshOrderEta(etaOrder.id).catch(() => null);
+        const refreshedEta = await refreshOrderEta(etaOrder.id, { sink: 'durable-event' }).catch(() => null);
         if (refreshedEta) etaOrder = { ...etaOrder, ...refreshedEta };
         if (dbStatus === 'ACCEPTED' || dbStatus === 'PREPARING') {
           // Warm in the background. The tablet starts fetching the ready
@@ -1020,7 +1028,7 @@ router.patch('/orders/:id/status', async (req, res) => {
       res.status(404).json({ error: 'Order hittades inte efter uppdateringen' });
       return;
     }
-    const refreshedEta = await refreshOrderEta(order.id).catch((e: any) => {
+    const refreshedEta = await refreshOrderEta(order.id, { sink: 'durable-event' }).catch((e: any) => {
       console.warn('[admin] order ETA refresh failed:', e?.message);
       return null;
     });

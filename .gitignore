@@ -58,7 +58,6 @@ logs.zip
 /.claude/
 /scripts/
 /brand-identity/
-/docker-compose.yml
 /start-dev.sh
 /DEALS_ENGINE_PLAN.md
 /DELIVERA_WOW_PLAN.md

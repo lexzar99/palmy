@@ -14,6 +14,9 @@ import { clearCourierApnsToken, registerCourierApnsToken, sendTestCourierApns } 
 import { uploadToR2, deleteFromR2, r2Enabled } from '../lib/r2';
 import { customerStepEtaEndsAt, estimateOrderEta, etaResponseFields, getCourierActiveDeliveries, refreshCourierActiveEtas, refreshOrderEta } from '../lib/orderEta';
 import { declineOffer, getActiveOffers, isSmartDispatchEnabled, resolveOffersOnAccept, MAX_ACTIVE } from '../lib/dispatch';
+import { overlayCourierLivePosition, overlayCourierLivePositions, writeCourierPositionWithFallback } from '../lib/courierLivePosition';
+import { resetPositionFlushClaim } from '../lib/liveState';
+import { overlayOrderLiveEta, overlayOrderLiveEtas } from '../lib/orderLiveEta';
 
 // Leveransbild sparas i 2 dygn och raderas sedan permanent (cleanup-jobbet).
 const PROOF_PHOTO_TTL_MS = 2 * 24 * 60 * 60 * 1000;
@@ -183,13 +186,30 @@ router.post('/session/start', requireCourier, async (req: CourierRequest, res) =
 });
 
 router.post('/session/stop', requireCourier, async (req: CourierRequest, res) => {
-  await prisma.courier.update({ where: { id: req.courier.id }, data: { online: false } });
-  res.json({ ok: true });
+  try {
+    const courier = await overlayCourierLivePosition(req.courier);
+    const hasPosition = Number.isFinite(courier.currentLat) && Number.isFinite(courier.currentLng) && courier.lastSeenAt instanceof Date;
+    await prisma.$transaction(async (tx) => {
+      if (hasPosition) {
+        await tx.courier.updateMany({
+          where: { id: courier.id, OR: [{ lastSeenAt: null }, { lastSeenAt: { lte: courier.lastSeenAt } }] },
+          data: { currentLat: courier.currentLat, currentLng: courier.currentLng, lastSeenAt: courier.lastSeenAt },
+        });
+      }
+      // online:false is durable even when a simultaneous position update won.
+      await tx.courier.update({ where: { id: courier.id }, data: { online: false } });
+    });
+    void resetPositionFlushClaim(courier.id).catch(() => null);
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Courier session stop error:', error);
+    res.status(500).json({ error: 'Kunde inte avsluta sessionen' });
+  }
 });
 
 router.get('/jobs', requireCourier, async (req: CourierRequest, res) => {
   try {
-    const courier = req.courier;
+    const courier = await overlayCourierLivePosition(req.courier);
     if (!courier.online) return res.json([]);
     const orders = await prisma.order.findMany({
       where: {
@@ -275,8 +295,9 @@ router.get('/jobs/:orderId', requireCourier, async (req: CourierRequest, res) =>
   if (offer && offer.courierId !== req.courier.id) {
     return res.status(404).json({ error: 'Ordern är inte längre tillgänglig' });
   }
-  const activeDeliveries = await getCourierActiveDeliveries(req.courier.id);
-  const eta = estimateOrderEta(order, { courier: req.courier, activeDeliveries, appendAsCandidate: true });
+  const courier = await overlayCourierLivePosition(req.courier);
+  const activeDeliveries = await getCourierActiveDeliveries(courier.id);
+  const eta = estimateOrderEta(order, { courier, activeDeliveries, appendAsCandidate: true });
   res.json({
     ...jobFromOrder(order),
     ...eta,
@@ -291,7 +312,8 @@ router.get('/active', requireCourier, async (req: CourierRequest, res) => {
     include: { order: { include: { restaurant: true, items: true } } },
     orderBy: { acceptedAt: 'asc' },
   });
-  res.json(deliveries.map(activeFromDelivery));
+  const liveOrders = await overlayOrderLiveEtas(deliveries.map((delivery) => delivery.order));
+  res.json(deliveries.map((delivery, index) => activeFromDelivery({ ...delivery, order: liveOrders[index] })));
 });
 
 router.get('/deliveries/:id', requireCourier, async (req: CourierRequest, res) => {
@@ -300,7 +322,7 @@ router.get('/deliveries/:id', requireCourier, async (req: CourierRequest, res) =
     include: { order: { include: { restaurant: true, items: true } } },
   });
   if (!d) return res.status(404).json({ error: 'Leveransen hittades inte' });
-  res.json(activeFromDelivery(d));
+  res.json(activeFromDelivery({ ...d, order: await overlayOrderLiveEta(d.order) }));
 });
 
 router.post('/jobs/:orderId/accept', requireCourier, async (req: CourierRequest, res) => {
@@ -360,7 +382,8 @@ router.post('/jobs/:orderId/accept', requireCourier, async (req: CourierRequest,
         orderNumber: order.orderNumber,
       });
     }
-    await refreshCourierActiveEtas(courier.id, { courier });
+    const liveCourier = await overlayCourierLivePosition(courier);
+    await refreshCourierActiveEtas(courier.id, { sink: 'durable-event', courier: liveCourier });
     const full = await prisma.delivery.findUnique({ where: { id: delivery.id }, include: { order: { include: { restaurant: true, items: true } } } });
     res.json(activeFromDelivery(full));
   } catch (e: any) {
@@ -417,7 +440,8 @@ router.post('/deliveries/:id/picked-up', requireCourier, async (req: CourierRequ
     throw error;
   });
   if (!order) return res.status(409).json({ error: 'Ordern uppdaterades på en annan enhet. Försök igen.' });
-  const etaByOrder = await refreshCourierActiveEtas(req.courier.id, { courier: req.courier });
+  const liveCourier = await overlayCourierLivePosition(req.courier);
+  const etaByOrder = await refreshCourierActiveEtas(req.courier.id, { sink: 'durable-event', courier: liveCourier });
   const eta = etaByOrder.get(d.orderId) ?? null;
   emitOrderStatus({ ...order, ...(eta ?? {}) });
   const full = await prisma.delivery.findUnique({ where: { id: d.id }, include: { order: { include: { restaurant: true, items: true } } } });
@@ -503,8 +527,9 @@ router.post('/deliveries/:id/complete', requireCourier, async (req: CourierReque
   void import('./referrals').then(({ maybeTriggerReferralReward }) =>
     maybeTriggerReferralReward(order.id),
   );
-  const eta = await refreshOrderEta(d.orderId, { courierId: req.courier.id, courier: req.courier });
-  void refreshCourierActiveEtas(req.courier.id, { courier: req.courier }).catch(() => null);
+  const liveCourier = await overlayCourierLivePosition(req.courier);
+  const eta = await refreshOrderEta(d.orderId, { sink: 'durable-event', courierId: req.courier.id, courier: liveCourier });
+  void refreshCourierActiveEtas(req.courier.id, { sink: 'durable-event', courier: liveCourier }).catch(() => null);
   emitOrderStatus({ ...order, ...(eta ?? {}) });
 
   // Kurirens notering + leveranssätt landar som order-Note → syns i admin så att
@@ -549,15 +574,25 @@ router.post('/deliveries/:id/complete', requireCourier, async (req: CourierReque
 
 router.post('/location', requireCourier, async (req: CourierRequest, res) => {
   const { lat, lng } = req.body || {};
-  if (typeof lat !== 'number' || typeof lng !== 'number') return res.status(400).json({ error: 'Ogiltig position' });
-  await prisma.courier.update({ where: { id: req.courier.id }, data: { currentLat: lat, currentLng: lng, lastSeenAt: new Date() } });
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return res.status(400).json({ error: 'Ogiltig position' });
+  const at = new Date();
+  let effective = { lat, lng, at };
+  try {
+    effective = (await writeCourierPositionWithFallback({ courierId: req.courier.id, lat, lng, at })).position;
+  } catch (error) {
+    console.error('Courier location error:', error);
+    return res.status(500).json({ error: 'Kunde inte spara position' });
+  }
+  const activeDeliveries = await getCourierActiveDeliveries(req.courier.id);
+  const liveCourier = { ...req.courier, currentLat: effective.lat, currentLng: effective.lng, lastSeenAt: effective.at };
+  // ETA-refresh is intentionally outside Socket.IO: an uninitialized socket
+  // layer must never suppress the durable pre-phase-3 refresh.
+  void refreshCourierActiveEtas(req.courier.id, { sink: 'live-ping', courier: liveCourier, activeDeliveries }).catch(() => null);
   // Broadcast till kundens order-rum för live-tracking (visas vid PICKED_UP).
   try {
     const io = getIO();
-    const active = await prisma.delivery.findMany({ where: { courierId: req.courier.id, status: { in: ACTIVE_STATUSES } }, select: { orderId: true, status: true } });
-    void refreshCourierActiveEtas(req.courier.id, { courier: { ...req.courier, currentLat: lat, currentLng: lng } }).catch(() => null);
-    for (const a of active) io.to(`order:${a.orderId}`).emit('courier:location', { orderId: a.orderId, lat, lng });
-    io.to('admin-room').emit('courier:location', { courierId: req.courier.id, name: req.courier.name, lat, lng, lastSeenAt: new Date().toISOString() });
+    for (const a of activeDeliveries) io.to(`order:${a.orderId}`).emit('courier:location', { orderId: a.orderId, lat: effective.lat, lng: effective.lng });
+    io.to('admin-room').emit('courier:location', { courierId: req.courier.id, name: req.courier.name, lat: effective.lat, lng: effective.lng, lastSeenAt: effective.at.toISOString() });
   } catch {
     /* ignorera */
   }
@@ -741,11 +776,12 @@ adminCourierRouter.get('/', async (_req: AuthRequest, res) => {
     prisma.delivery.groupBy({ by: ['courierId'], where: { status: 'DELIVERED', deliveredAt: { gte: since30 } }, _sum: { payOre: true }, _count: { _all: true } }),
     prisma.delivery.groupBy({ by: ['courierId'], where: { status: { in: ACTIVE_STATUSES as any } }, _count: { _all: true } }),
   ]);
+  const liveCouriers = await overlayCourierLivePositions(couriers);
   const todayMap = new Map(todayGroups.map((g) => [g.courierId, g]));
   const map30 = new Map(groups30.map((g) => [g.courierId, g]));
   const activeMap = new Map(activeGroups.map((g) => [g.courierId, g._count._all]));
   res.json(
-    couriers.map((c) => {
+    liveCouriers.map((c) => {
       const t = todayMap.get(c.id);
       const m = map30.get(c.id);
       return {
@@ -775,7 +811,8 @@ adminCourierRouter.get('/', async (_req: AuthRequest, res) => {
 // leveranshistorik. Driver admin-detaljsidans flikar. Super-admin-only (router).
 adminCourierRouter.get('/:id', async (req: AuthRequest, res) => {
   try {
-    const courier = await prisma.courier.findUnique({ where: { id: req.params.id } });
+    const storedCourier = await prisma.courier.findUnique({ where: { id: req.params.id } });
+    const courier = storedCourier ? await overlayCourierLivePosition(storedCourier) : null;
     if (!courier) return res.status(404).json({ error: 'Kurir hittades inte' });
 
     const deliveries = await prisma.delivery.findMany({
@@ -975,6 +1012,7 @@ adminCourierRouter.get('/:id/offers', async (req: AuthRequest, res) => {
 
 adminCourierRouter.post('/:id/revoke', async (req: AuthRequest, res) => {
   await prisma.courier.update({ where: { id: req.params.id }, data: { tokenVersion: { increment: 1 }, online: false } });
+  void resetPositionFlushClaim(req.params.id).catch(() => null);
   res.json({ ok: true });
 });
 
@@ -1017,6 +1055,7 @@ adminCourierRouter.patch('/:id', async (req: AuthRequest, res) => {
     data.online = false;
   }
   await prisma.courier.update({ where: { id: req.params.id }, data });
+  if (data.isActive === false) void resetPositionFlushClaim(req.params.id).catch(() => null);
   res.json({ ok: true });
 });
 

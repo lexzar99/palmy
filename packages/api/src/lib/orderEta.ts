@@ -3,6 +3,8 @@ import { getEffectiveEtaMinutes } from './restaurantEta';
 import { haversineKm } from '../utils/geo';
 import { computeDeliveryWindowMs } from './deliveryWindow';
 import type { TravelLookup } from './travelMatrix';
+import { overlayCourierLivePosition } from './courierLivePosition';
+import { setOrderEta } from './liveState';
 
 const ACTIVE_DELIVERY_STATUSES = ['EN_ROUTE_PICKUP', 'PICKED_UP'];
 const TERMINAL_ORDER_STATUSES = ['DELIVERED', 'COMPLETED'];
@@ -409,66 +411,101 @@ export async function getCourierActiveDeliveries(courierId: string) {
   });
 }
 
-export async function refreshOrderEta(
-  orderId: string,
-  options: { courierId?: string | null; activeDeliveries?: any[]; courier?: any | null } = {},
-): Promise<OrderEtaSnapshot | null> {
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    include: { restaurant: true, items: true, delivery: { include: { courier: true } } },
-  });
-  if (!order) return null;
+type EtaSink = 'live-ping' | 'durable-event';
+type RefreshEtaOptions = { sink: EtaSink; courierId?: string | null; activeDeliveries?: any[]; courier?: any | null };
+const etaData = (eta: OrderEtaSnapshot) => ({
+  etaReadyAt: eta.etaReadyAt,
+  etaPickupAt: eta.etaPickupAt,
+  etaCustomerAt: eta.etaCustomerAt,
+  etaCustomerMin: eta.etaCustomerMin,
+  etaPriorityScore: eta.etaPriorityScore,
+  etaReason: eta.etaReason,
+});
+const orderInclude = { restaurant: true, items: true, delivery: { include: { courier: true } } } as const;
 
+async function loadOrderForEta(orderId: string) {
+  return prisma.order.findUnique({ where: { id: orderId }, include: orderInclude });
+}
+
+async function casPersistEta(order: any, eta: OrderEtaSnapshot) {
+  const changed = await prisma.order.updateMany({ where: { id: order.id, status: order.status, updatedAt: order.updatedAt }, data: etaData(eta) });
+  if (changed.count !== 1) return null;
+  return loadOrderForEta(order.id);
+}
+
+async function calculateEta(order: any, options: RefreshEtaOptions, activeDeliveries: any[]) {
   const courierId = options.courierId ?? order.delivery?.courierId ?? null;
-  const activeDeliveries = options.activeDeliveries ?? (courierId ? await getCourierActiveDeliveries(courierId) : []);
-  const eta = estimateOrderEta(order, {
-    courier: options.courier ?? order.delivery?.courier ?? null,
-    activeDeliveries,
-    appendAsCandidate: Boolean(courierId),
-  });
+  const baseCourier = options.courier ?? order.delivery?.courier ?? null;
+  const courier = baseCourier?.id ? await overlayCourierLivePosition(baseCourier) : baseCourier;
+  return {
+    courier,
+    eta: estimateOrderEta(order, { courier, activeDeliveries, appendAsCandidate: Boolean(courierId) }),
+  };
+}
 
-  await prisma.order.update({
-    where: { id: orderId },
-    data: {
-      etaReadyAt: eta.etaReadyAt,
-      etaPickupAt: eta.etaPickupAt,
-      etaCustomerAt: eta.etaCustomerAt,
-      etaCustomerMin: eta.etaCustomerMin,
-      etaPriorityScore: eta.etaPriorityScore,
-      etaReason: eta.etaReason,
-    },
-  });
+/**
+ * ETA persistence is intentionally explicit. A position ping may use Redis
+ * only; every lifecycle/admin event remains durable in PostgreSQL first.
+ */
+export async function refreshOrderEta(orderId: string, options: RefreshEtaOptions): Promise<OrderEtaSnapshot | null> {
+  let order = await loadOrderForEta(orderId);
+  if (!order) return null;
+  let courierId = options.courierId ?? order.delivery?.courierId ?? null;
+  let activeDeliveries = options.activeDeliveries ?? (courierId ? await getCourierActiveDeliveries(courierId) : []);
+  const computedAt = new Date(); // capture before calculation: CAS ordering must reflect calculation start.
+  let calculated = await calculateEta(order, options, activeDeliveries);
 
-  return eta;
+  if (options.sink === 'live-ping') {
+    const write = await setOrderEta({
+      orderId: order.id,
+      orderStatus: order.status,
+      orderUpdatedAt: order.updatedAt,
+      computedAt,
+      sourcePositionAt: calculated.courier?.lastSeenAt instanceof Date ? calculated.courier.lastSeenAt : null,
+      ...calculated.eta,
+    });
+    if (write === 'stored' || write === 'superseded') return calculated.eta;
+    // Redis unavailable/disabled: preserve old behavior through a revision-CAS
+    // rather than letting a late ping overwrite a status transition.
+    await casPersistEta(order, calculated.eta);
+    return calculated.eta;
+  }
+
+  let persisted = await casPersistEta(order, calculated.eta);
+  if (!persisted) {
+    // A durable event may race a second status/admin event. Re-read and make
+    // one bounded second attempt; after that the winner owns the snapshot.
+    order = await loadOrderForEta(orderId);
+    if (!order) return null;
+    courierId = options.courierId ?? order.delivery?.courierId ?? null;
+    activeDeliveries = options.activeDeliveries ?? (courierId ? await getCourierActiveDeliveries(courierId) : []);
+    calculated = await calculateEta(order, options, activeDeliveries);
+    persisted = await casPersistEta(order, calculated.eta);
+    if (!persisted) return null;
+  }
+  const durableOrder = persisted;
+  void setOrderEta({
+    orderId: durableOrder.id,
+    orderStatus: durableOrder.status,
+    orderUpdatedAt: durableOrder.updatedAt,
+    computedAt,
+    sourcePositionAt: calculated.courier?.lastSeenAt instanceof Date ? calculated.courier.lastSeenAt : null,
+    ...calculated.eta,
+  });
+  return calculated.eta;
 }
 
 export async function refreshCourierActiveEtas(
   courierId: string,
-  options: { courier?: any | null } = {},
+  options: RefreshEtaOptions,
 ): Promise<Map<string, OrderEtaSnapshot>> {
-  const activeDeliveries = await getCourierActiveDeliveries(courierId);
+  const activeDeliveries = options.activeDeliveries ?? await getCourierActiveDeliveries(courierId);
   const result = new Map<string, OrderEtaSnapshot>();
-
   await Promise.all(activeDeliveries.map(async (delivery: any) => {
     if (!delivery?.order?.id) return;
-    const eta = estimateOrderEta(delivery.order, {
-      courier: options.courier ?? delivery.order?.delivery?.courier ?? null,
-      activeDeliveries,
-    });
-    result.set(delivery.order.id, eta);
-    await prisma.order.update({
-      where: { id: delivery.order.id },
-      data: {
-        etaReadyAt: eta.etaReadyAt,
-        etaPickupAt: eta.etaPickupAt,
-        etaCustomerAt: eta.etaCustomerAt,
-        etaCustomerMin: eta.etaCustomerMin,
-        etaPriorityScore: eta.etaPriorityScore,
-        etaReason: eta.etaReason,
-      },
-    });
+    const eta = await refreshOrderEta(delivery.order.id, { ...options, courierId, activeDeliveries });
+    if (eta) result.set(delivery.order.id, eta);
   }));
-
   return result;
 }
 

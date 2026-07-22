@@ -23,6 +23,8 @@ import { discountPlatformAllowed } from '../lib/clientPlatform';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { dispatchCustomerOrderStatus } from '../lib/customerOrderNotifier';
 import { customerStepEtaEndsAt, etaResponseFields, refreshOrderEta } from '../lib/orderEta';
+import { overlayCourierLivePosition } from '../lib/courierLivePosition';
+import { overlayOrderLiveEta } from '../lib/orderLiveEta';
 import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
 import { moneyDto, nullableMoneyDto } from '../utils/money';
 import { referralPhoneVariants } from '../lib/referralRules';
@@ -338,6 +340,8 @@ router.post('/', async (req: Request, res: Response) => {
         etaCustomerMin: true,
         etaPriorityScore: true,
         etaReason: true,
+        status: true,
+        updatedAt: true,
       },
     });
     if (existing) {
@@ -352,6 +356,7 @@ router.post('/', async (req: Request, res: Response) => {
         return rejectExpiredOrderReplay(res);
       }
       console.log(`♻️ Replaying persisted order for idempotency-key ${idempotencyKey}`);
+      const liveExisting = await overlayOrderLiveEta(existing);
       attachWebOrderSession(req, res, existing.id);
       return res.status(200).json({
         orderId: existing.id,
@@ -359,7 +364,7 @@ router.post('/', async (req: Request, res: Response) => {
         total: existing.total / 100,
         appliedDealTitle: existing.appliedDealTitle,
         estimatedTime: existing.estimatedTime,
-        ...etaResponseFields(existing),
+        ...etaResponseFields(liveExisting),
         ...nativeOrderSessionForClient(req, existing.id),
         ...rawOrderAccessForNonWebClient(req, existing.accessToken),
       });
@@ -1569,13 +1574,14 @@ router.post('/', async (req: Request, res: Response) => {
               return rejectExpiredOrderReplay(res);
             }
             attachWebOrderSession(req, res, replay.id);
+            const liveReplay = await overlayOrderLiveEta(replay);
             return res.status(200).json({
               orderId: replay.id,
               orderNumber: replay.orderNumber,
               total: replay.total / 100,
               appliedDealTitle: replay.appliedDealTitle,
               estimatedTime: replay.estimatedTime,
-              ...etaResponseFields(replay),
+              ...etaResponseFields(liveReplay),
               ...nativeOrderSessionForClient(req, replay.id),
               ...rawOrderAccessForNonWebClient(req, replay.accessToken),
             });
@@ -1587,7 +1593,7 @@ router.post('/', async (req: Request, res: Response) => {
     if (!order) {
       throw new OrderValidationError('Kunde inte skapa order just nu, försök igen.');
     }
-    const createdEta = await refreshOrderEta(order.id).catch((e: any) => {
+    const createdEta = await refreshOrderEta(order.id, { sink: 'durable-event' }).catch((e: any) => {
       console.warn('[order] initial ETA failed:', e?.message);
       return null;
     });
@@ -2079,6 +2085,11 @@ router.get('/:id', async (req: Request, res: Response) => {
       return;
     }
 
+    if (order.delivery?.courier) {
+      order.delivery.courier = await overlayCourierLivePosition({ ...order.delivery.courier, id: order.delivery.courierId });
+    }
+    Object.assign(order, await overlayOrderLiveEta(order));
+
     // Database status is the sole source of truth. The lifecycle worker keeps
     // self-delivery in DELIVERING for exactly 15 minutes before completing it.
     const customerStatus = order.status;
@@ -2529,7 +2540,7 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
         data,
         select: { id: true, status: true, etaReadyAt: true, etaPickupAt: true, etaCustomerAt: true, etaCustomerMin: true, etaPriorityScore: true, etaReason: true },
       });
-      const refreshedEta = await refreshOrderEta(orderId).catch(() => null);
+      const refreshedEta = await refreshOrderEta(orderId, { sink: 'durable-event' }).catch(() => null);
       if (refreshedEta) updated = { ...updated, ...refreshedEta };
 
       try {
@@ -2577,7 +2588,7 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
       where: { id: orderId },
       select: { id: true, status: true, etaReadyAt: true, etaPickupAt: true, etaCustomerAt: true, etaCustomerMin: true, etaPriorityScore: true, etaReason: true },
     });
-    const refreshedEta = await refreshOrderEta(orderId).catch(() => null);
+    const refreshedEta = await refreshOrderEta(orderId, { sink: 'durable-event' }).catch(() => null);
     if (refreshedEta) updated = { ...updated, ...refreshedEta };
 
     // Notify any connected clients (restaurant, admin, customer mirrors).
