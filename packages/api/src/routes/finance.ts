@@ -4,8 +4,6 @@ import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { computePayout, economyFromSettings, type OrderEcon } from '../lib/financeCalc';
 import {
   netPayoutOrder,
-  PAYOUT_ORDER_STATUSES,
-  PAYOUT_PAYMENT_STATUSES,
   PAYOUT_TEST_ORDER_EXCLUSIONS,
   payoutRefundWindowClosesAt,
   payoutRefundWindowHours,
@@ -61,8 +59,6 @@ router.get('/summary', async (req, res) => {
       }),
       prisma.order.findMany({
         where: {
-          status: { in: [...PAYOUT_ORDER_STATUSES] },
-          paymentStatus: { in: [...PAYOUT_PAYMENT_STATUSES] },
           createdAt: { gte: start, lte: end },
           NOT: [...PAYOUT_TEST_ORDER_EXCLUSIONS],
         },
@@ -99,9 +95,13 @@ router.get('/summary', async (req, res) => {
     const persistedMap = new Map(persisted.map((p) => [p.restaurantId, p]));
 
     const ordersByRestaurant = new Map<string, OrderEcon[]>();
+    const periodOrdersByRestaurant = new Map<string, typeof orders>();
     const refundsByRestaurant = new Map<string, number>();
     for (const o of orders) {
       if (!o.restaurantId) continue;
+      const periodList = periodOrdersByRestaurant.get(o.restaurantId) || [];
+      periodList.push(o);
+      periodOrdersByRestaurant.set(o.restaurantId, periodList);
       const netOrder = netPayoutOrder(o);
       if (!netOrder) continue;
       const list = ordersByRestaurant.get(o.restaurantId) || [];
@@ -117,6 +117,7 @@ router.get('/summary', async (req, res) => {
       .map((r) => {
         const b = computePayout(ordersByRestaurant.get(r.id) || [], r, economy);
         const p = persistedMap.get(r.id) || null;
+        const periodOrderCount = periodOrdersByRestaurant.get(r.id)?.length || 0;
         const economic = selectFinanceSummaryEconomicValues({
           orderCount: b.orderCount,
           grossSales: b.restaurantGrossOre,
@@ -137,7 +138,9 @@ router.get('/summary', async (req, res) => {
           tierLabel: b.tierLabel,
           selfDelivery: economic.selfDelivery,
           commissionPct: economic.commissionPct,
-          orderCount: economic.orderCount,
+          orderCount: periodOrderCount,
+          payoutOrderCount: economic.orderCount,
+          periodOrderCount,
           grossSales: fromOre(economic.grossSales),
           refunds: fromOre(refundsByRestaurant.get(r.id)),
           foodBase: fromOre(b.foodBase),
@@ -152,9 +155,7 @@ router.get('/summary', async (req, res) => {
           status: p?.status ?? null,
           payoutReference: p?.payoutReference ?? null,
         };
-      })
-      // Tomma restauranger utan abonnemang är inte intressanta i kön.
-      .filter((row) => row.usesFrozenSnapshot || row.orderCount > 0 || row.subscription > 0);
+      });
 
     const totals = sumFinanceSummaryRows(rows);
 

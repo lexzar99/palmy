@@ -22,6 +22,8 @@ export interface FinanceRow {
   selfDelivery: boolean;
   commissionPct: number;
   orderCount: number;
+  payoutOrderCount: number;
+  periodOrderCount: number;
   grossSales: number; // restaurangens intäkt (self: allt, platform: matvärde)
   foodBase: number;
   deliveryFee: number;

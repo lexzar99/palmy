@@ -195,7 +195,14 @@ export function FinancePage() {
                             </div>
                           </td>
                           <td><DeliveryModeBadge selfDelivery={r.selfDelivery} /></td>
-                          <td style={{ fontFamily: MONO, textAlign: "right" }}>{formatNumber(r.orderCount)}</td>
+                          <td style={{ fontFamily: MONO, textAlign: "right" }}>
+                            <div>{formatNumber(r.orderCount)}</div>
+                            {r.payoutOrderCount !== r.orderCount ? (
+                              <div className="mt-0.5 text-xs font-sans text-[var(--text-muted)]">
+                                {formatNumber(r.payoutOrderCount)} avräknas
+                              </div>
+                            ) : null}
+                          </td>
                           <td style={{ fontFamily: MONO, textAlign: "right" }}>{formatCurrency(r.grossSales)}</td>
                           <td style={{ fontFamily: MONO, textAlign: "right", color: "var(--text-muted)" }}>
                             −{formatCurrency(r.commission)} <span>({r.commissionPct}%)</span>
