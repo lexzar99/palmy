@@ -9,8 +9,8 @@ import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal,
 import { DeliveryModeBadge } from "@/shared/components/delivery-mode";
 import { formatCurrencyExact as formatCurrency, formatNumber, restaurantTierLabel } from "@/shared/utils/format";
 
-// Tier = abonnemang + placering i listan. INTE provision — provisionen styrs
-// av leveransmodellen (selfDelivery 10/20%) och sätts på restaurangen/Ekonomi.
+// Tier = abonnemang + placering i listan. INTE provision - provisionen styrs
+// av restaurangens ekonomiinställning.
 const TIER_META: Record<number, { blurb: string; tone: "warning" | "info" | "neutral" | "danger" }> = {
   1: { blurb: "Topp-placering i listan", tone: "warning" },
   2: { blurb: "Förhöjd placering", tone: "info" },
@@ -159,7 +159,7 @@ function TierModal({ restaurant, open, onClose }: { restaurant: ControlCenterRes
           <div className="mt-3 grid gap-2 text-sm text-[var(--text-secondary)]">
             <div>Placering: {TIER_META[featuredClass]?.blurb ?? "Vanlig placering"}</div>
             <div className="flex items-center gap-2">Leveransmodell: <DeliveryModeBadge selfDelivery={restaurant.selfDelivery} /></div>
-            <div className="text-xs">Provision ({restaurant.commissionPct}%) styrs av leveransmodellen, ändra den på restaurangsidan eller i Ekonomi.</div>
+            <div className="text-xs">Provision ({restaurant.commissionPct}%) styrs av restaurangens ekonomiinställning och kan ändras på restaurangsidan eller i Ekonomi.</div>
           </div>
         </Surface>
       </div>

@@ -768,8 +768,8 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <Field label="Modell">
                   <Select value={form.selfDelivery ? "self" : "platform"} onChange={(e) => set("selfDelivery", e.target.value === "self")}>
-                    <option value="platform">Vi levererar (20%)</option>
-                    <option value="self">Levererar själv (10%)</option>
+                    <option value="platform">Vi levererar</option>
+                    <option value="self">Levererar själv</option>
                   </Select>
                 </Field>
                 <Field label="Provisions-override">

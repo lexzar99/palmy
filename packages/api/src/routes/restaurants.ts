@@ -169,7 +169,7 @@ const restaurantSchema = z.object({
   logoutCode: z.string().nullable().optional(),
   announcementText: z.string().nullable().optional(),
   vatPercent: z.union([z.literal(0), z.literal(6), z.literal(12), z.literal(25)]).nullable().optional(),
-  // Leveransansvar: true = restaurangen levererar själv (10% default), false = plattformen (20%).
+  // Leveransansvar: true = restaurangen levererar själv, false = plattformen.
   selfDelivery: z.boolean().optional(),
   // Provisions-override i %. null = använd global self/platform-sats.
   commissionPctOverride: z.number().nullable().optional(),

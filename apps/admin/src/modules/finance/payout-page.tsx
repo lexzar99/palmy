@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20,9 +20,12 @@ import { Badge, Button, Field, Input, PageHeader, Select, Surface, Textarea } fr
 import { formatCurrencyExact as formatCurrency, formatDate, formatDateTime, orderStatusLabel, paymentStatusLabel } from "@/shared/utils/format";
 
 const mono = "ui-monospace, SFMono-Regular, Menlo, monospace";
+type PrintMode = "summary" | "orders" | "daily";
 
 const isoDate = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const vatLabel = (value: number | null | undefined) =>
+  value == null ? "blandad moms" : `${Number(value).toLocaleString("sv-SE")}%`;
 
 /** KPI card matching the design handoff. `accent` tints the last (Bonus) card orange. */
 function Kpi({ label, value, accent }: { label: string; value: React.ReactNode; accent?: boolean }) {
@@ -73,12 +76,20 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
   const [goldPrice, setGoldPrice] = useState("");
   const [silverPrice, setSilverPrice] = useState("");
   const [standardPrice, setStandardPrice] = useState("");
+  const [printMode, setPrintMode] = useState<PrintMode>("orders");
+  const [printIncludedOnly, setPrintIncludedOnly] = useState(false);
+  const [printStatuses, setPrintStatuses] = useState<string[]>([]);
 
   const spec = useQuery({
     queryKey: payoutSpecQueryKey(restaurantId, periodFrom, periodTo),
     queryFn: () => getPayoutSpec(restaurantId, periodFrom, periodTo),
   });
   const economy = useQuery({ queryKey: economyQueryKey, queryFn: getEconomy });
+  const availablePrintStatuses = useMemo(
+    () => [...new Set((spec.data?.orders || []).map((order) => order.status))],
+    [spec.data?.orders],
+  );
+  const printStatusKey = availablePrintStatuses.join("|");
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -95,6 +106,9 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
       setStandardPrice(spec.data.restaurant.tierStandardFeeOverride == null ? "" : String(spec.data.restaurant.tierStandardFeeOverride));
     }
   }, [spec.data]);
+  useEffect(() => {
+    setPrintStatuses(availablePrintStatuses);
+  }, [printStatusKey]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const b = spec.data?.breakdown;
@@ -107,6 +121,7 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
   const frozenFeeVat = usesFrozenSnapshot && persisted
     ? ((persisted.commissionAmount + persisted.subscriptionAmount) * Number(persisted.feeVatPctSnapshot || 0)) / 100
     : 0;
+  const frozenPlatformTip = usesFrozenSnapshot && persisted ? (persisted.platformTipAmount || 0) : 0;
   const net = usesFrozenSnapshot && persisted
     ? persisted.payoutAmount
     : isOwed
@@ -115,8 +130,8 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
   const restaurantGross = usesFrozenSnapshot && persisted ? persisted.grossSales : (b?.restaurantGross ?? 0);
   const displayedOrderCount = usesFrozenSnapshot && persisted ? persisted.orderCount : (b?.orderCount ?? 0);
   const platformDeductions = usesFrozenSnapshot && persisted
-    ? persisted.commissionAmount + persisted.subscriptionAmount + frozenFeeVat
-    : (b?.commission ?? 0) + (b?.subscription ?? 0) + (b?.feeVat ?? 0);
+    ? persisted.commissionAmount + persisted.subscriptionAmount + frozenFeeVat + frozenPlatformTip
+    : (b?.commission ?? 0) + (b?.subscription ?? 0) + (b?.feeVat ?? 0) + (b?.platformTip ?? 0);
   const persistedStatus = spec.data?.persisted?.status || "NEW";
   const refundWindowClosed = spec.data?.refundWindow.closed ?? false;
   const allowedStatuses = persistedStatus === "PAID"
@@ -158,6 +173,18 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
     const parsed = Number(trimmed);
     return trimmed === "" || !Number.isFinite(parsed) ? null : Math.max(0, parsed);
   };
+  const printOptions = {
+    mode: printMode,
+    includedOnly: printIncludedOnly,
+    statuses: printStatuses,
+  };
+  const togglePrintStatus = (statusValue: string) => {
+    setPrintStatuses((current) =>
+      current.includes(statusValue)
+        ? current.filter((value) => value !== statusValue)
+        : [...current, statusValue],
+    );
+  };
 
   const saveDelivery = useMutation({
     mutationFn: () =>
@@ -190,7 +217,7 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
             <span className="inline-flex items-center rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-page)] px-3 py-2 text-[13px] font-semibold text-[var(--text-secondary)]">
               {formatDate(periodFrom)} – {formatDate(periodTo)}
             </span>
-            <Button onClick={() => spec.data && printPayoutSpec(spec.data, manualAdjustment, automaticRecovery)}>
+            <Button onClick={() => spec.data && printPayoutSpec(spec.data, manualAdjustment, automaticRecovery, printOptions)}>
               <Printer size={15} /> Exportera
             </Button>
           </>
@@ -217,6 +244,10 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
                   Fryst ekonomisnapshot från godkännandet. Detta är det enda belopp som får överföras; dagens provision eller orderdata ändrar inte underlaget.
                 </p>
                 <CalcRow label={`Fryst restaurangintäkt (${persisted.orderCount} ordrar)`} value={persisted.grossSales} strong />
+                {persisted.foodVatAmount != null ? (
+                  <CalcRow label={`Fryst restaurangmoms (${vatLabel(persisted.foodVatPctSnapshot)})`} value={persisted.foodVatAmount} />
+                ) : null}
+                {frozenPlatformTip > 0 ? <CalcRow label="Fryst dricks till bud/plattform" value={frozenPlatformTip} /> : null}
                 <CalcRow label={`Provision (${persisted.commissionPctSnapshot ?? "—"}%)`} value={persisted.commissionAmount} minus />
                 <CalcRow label="Abonnemang" value={persisted.subscriptionAmount} minus />
                 <CalcRow label={`Moms på avgifter (${persisted.feeVatPctSnapshot ?? "—"}%)`} value={frozenFeeVat} minus />
@@ -227,8 +258,9 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
               <>
                 <CalcRow label={`Bruttoförsäljning (${b.orderCount} ordrar)`} value={b.grossTotal} />
                 <CalcRow label="varav matvärde (provisionsbas)" value={b.foodBase} sub />
-                <CalcRow label="varav leveransavgift" value={b.deliveryFee} sub />
-                <CalcRow label="varav dricks" value={b.tip} sub />
+                <CalcRow label={spec.data.restaurant.selfDelivery ? "varav leveransavgift till restaurangen" : "varav leveransavgift till plattformen"} value={b.deliveryFee} sub />
+                <CalcRow label={spec.data.restaurant.selfDelivery ? "varav dricks till restaurangen" : "varav dricks till bud/plattform"} value={b.tip} sub />
+                <CalcRow label={`Restaurangmoms (${vatLabel(b.foodVatPct)})`} value={b.foodVat} sub />
                 <CalcRow label="Restaurangens intäkt" value={b.restaurantGross} strong />
                 <CalcRow label={`Provision (${b.commissionPct}%)`} value={b.commission} minus />
                 <CalcRow label={`Abonnemang (${b.tierLabel})`} value={b.subscription} minus />
@@ -247,7 +279,7 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
               </p>
             ) : null}
             {!usesFrozenSnapshot ? <p className="mt-2 text-xs text-[var(--text-secondary)]">
-              Matmoms ({b.foodVatPct}%) i försäljningen: {formatCurrency(b.foodVat)} — informativ, restaurangens egen redovisning.
+              Restaurangmoms ({vatLabel(b.foodVatPct)}) i försäljningen: {formatCurrency(b.foodVat)} — informativ, restaurangens egen redovisning.
             </p> : null}
           </Surface>
 
@@ -256,15 +288,18 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
               <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Leveransmodell & provision</p>
               <DeliveryModeBadge selfDelivery={selfDelivery} />
             </div>
-            <div className="mt-3 grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+            <div className="mt-3 grid gap-4 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
               <Field label="Modell">
                 <Select value={selfDelivery ? "self" : "platform"} onChange={(e) => setSelfDelivery(e.target.value === "self")}>
-                  <option value="platform">Vi levererar (20%)</option>
-                  <option value="self">Levererar själv (10%)</option>
+                  <option value="platform">Vi levererar</option>
+                  <option value="self">Levererar själv</option>
                 </Select>
               </Field>
               <Field label="Provisions-override (%, tomt = global)">
                 <Input type="number" value={override} placeholder="–" onChange={(e) => setOverride(e.target.value)} />
+              </Field>
+              <Field label="Restaurangmoms">
+                <Input value={vatLabel(spec.data.restaurant.vatPercent ?? b.foodVatPct)} disabled />
               </Field>
               <Button onClick={() => saveDelivery.mutate()}>
                 {saveDelivery.isPending ? <Loader2 size={16} className="animate-spin" /> : "Uppdatera ekonomi"}
@@ -399,7 +434,30 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
           </Surface>
 
           <div className="flex items-center justify-between gap-2">
-            <Button onClick={() => spec.data && printPayoutSpec(spec.data, manualAdjustment, automaticRecovery)}>
+            <Surface className="flex flex-1 flex-wrap items-end gap-3 px-4 py-3">
+              <Field label="PDF-innehåll">
+                <Select value={printMode} onChange={(event) => setPrintMode(event.target.value as PrintMode)}>
+                  <option value="summary">Endast antal och totalt</option>
+                  <option value="orders">Ordernummer och pris</option>
+                  <option value="daily">Per dag, antal och totalt</option>
+                </Select>
+              </Field>
+              <label className="flex items-center gap-2 rounded-xl border border-[var(--border-subtle)] px-3 py-2 text-sm font-semibold text-[var(--text-secondary)]">
+                <input type="checkbox" checked={printIncludedOnly} onChange={(event) => setPrintIncludedOnly(event.target.checked)} />
+                Endast order som räknas
+              </label>
+              {availablePrintStatuses.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {availablePrintStatuses.map((statusValue) => (
+                    <label key={statusValue} className="flex items-center gap-1.5 rounded-full border border-[var(--border-subtle)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)]">
+                      <input type="checkbox" checked={printStatuses.includes(statusValue)} onChange={() => togglePrintStatus(statusValue)} />
+                      {orderStatusLabel(statusValue)}
+                    </label>
+                  ))}
+                </div>
+              ) : null}
+            </Surface>
+            <Button onClick={() => spec.data && printPayoutSpec(spec.data, manualAdjustment, automaticRecovery, printOptions)}>
               <Printer size={16} /> Skriv ut / PDF
             </Button>
             <div className="flex gap-2">

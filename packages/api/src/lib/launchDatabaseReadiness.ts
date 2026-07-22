@@ -335,11 +335,12 @@ export async function getLaunchDatabaseSchemaIssues(): Promise<LaunchDatabaseSch
           AND tr.tgname = 'RestaurantPayout_block_hard_delete' AND NOT tr.tgisinternal AND tr.tgenabled <> 'D'
       )),
       ('payout_recovery_columns', (
-        SELECT COUNT(*) = 5 FROM information_schema.columns
+        SELECT COUNT(*) = 8 FROM information_schema.columns
         WHERE table_schema = current_schema() AND table_name = 'RestaurantPayout'
           AND column_name IN (
             'manualAdjustmentAmount', 'lateRefundAdjustmentAmount',
-            'commissionPctSnapshot', 'feeVatPctSnapshot', 'selfDeliverySnapshot'
+            'commissionPctSnapshot', 'feeVatPctSnapshot', 'selfDeliverySnapshot',
+            'foodVatAmount', 'platformTipAmount', 'foodVatPctSnapshot'
           )
       ) AND NOT EXISTS (
         SELECT 1 FROM information_schema.columns

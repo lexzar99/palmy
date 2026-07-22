@@ -74,6 +74,7 @@ export interface RestaurantEcon {
   selfDelivery: boolean;
   commissionPctOverride: number | null;
   featuredClass: number | null;
+  vatPercent?: number | null;
   // Per-restaurangens prisavtal i öre/månad. null = använd global tier-sats.
   tierGoldFeeOverride?: number | null;
   tierSilverFeeOverride?: number | null;
@@ -93,6 +94,7 @@ export interface OrderEcon {
   total: number;
   deliveryFee: number;
   tipAmount: number;
+  foodVatPercent?: number | null;
 }
 
 export interface PayoutBreakdown {
@@ -102,6 +104,8 @@ export interface PayoutBreakdown {
   foodBase: number; // provisionsbas = total − leveransavgift − dricks
   deliveryFeeTotal: number;
   tipTotal: number;
+  restaurantTipOre: number;
+  platformTipOre: number;
   commissionPct: number;
   commissionOre: number;
   subscriptionOre: number;
@@ -111,7 +115,7 @@ export interface PayoutBreakdown {
   payoutOre: number; // netto att betala ut (golvat vid 0 — aldrig negativt)
   owedOre: number; // om avdragen > intäkten: vad restaurangen är skyldig oss (fakturera)
   foodVatOre: number; // informativ: moms i restaurangens matförsäljning
-  foodVatPct: number;
+  foodVatPct: number | null;
   tierLabel: string;
 }
 
@@ -125,6 +129,8 @@ export function computePayout(
   const deliveryFeeTotal = sum((o) => o.deliveryFee);
   const tipTotal = sum((o) => o.tipAmount);
   const foodBase = Math.max(0, grossTotal - deliveryFeeTotal - tipTotal);
+  const restaurantTipOre = r.selfDelivery ? tipTotal : 0;
+  const platformTipOre = r.selfDelivery ? 0 : tipTotal;
 
   const commissionPct = resolveCommissionPct(r, s);
   const commissionOre = Math.round((foodBase * commissionPct) / 100);
@@ -142,9 +148,21 @@ export function computePayout(
   const payoutOre = Math.max(0, rawNetOre);
   const owedOre = Math.max(0, -rawNetOre);
 
-  // Matmoms (inkl-moms i foodBase) — informativ rad för restaurangens egen redovisning.
-  const v = s.vatCustomerPct / 100;
-  const foodVatOre = v > 0 ? Math.round(foodBase - foodBase / (1 + v)) : 0;
+  // Matmoms (inkl-moms i foodBase) — informativ rad för restaurangens egen
+  // redovisning. Orderns momssnapshot vinner så tidigare perioder inte skrivs
+  // om när restaurangens nuvarande momssats ändras.
+  const fallbackFoodVatPct = r.vatPercent ?? s.vatCustomerPct;
+  const foodVatRates = orders.map((order) => order.foodVatPercent ?? fallbackFoodVatPct);
+  const foodVatOre = orders.reduce((total, order, index) => {
+    const orderFoodBase = Math.max(0, Number(order.total || 0) - Number(order.deliveryFee || 0) - Number(order.tipAmount || 0));
+    const rate = Math.max(0, Number(foodVatRates[index] ?? 0));
+    const v = rate / 100;
+    return total + (v > 0 ? Math.round(orderFoodBase - orderFoodBase / (1 + v)) : 0);
+  }, 0);
+  const distinctFoodVatRates = [...new Set(foodVatRates.map((rate) => Number(rate)).filter(Number.isFinite))];
+  const foodVatPct = distinctFoodVatRates.length === 1
+    ? distinctFoodVatRates[0]
+    : (orders.length === 0 ? fallbackFoodVatPct : null);
 
   return {
     orderCount: orders.length,
@@ -152,6 +170,8 @@ export function computePayout(
     foodBase,
     deliveryFeeTotal,
     tipTotal,
+    restaurantTipOre,
+    platformTipOre,
     commissionPct,
     commissionOre,
     subscriptionOre,
@@ -161,7 +181,7 @@ export function computePayout(
     payoutOre,
     owedOre,
     foodVatOre,
-    foodVatPct: s.vatCustomerPct,
+    foodVatPct,
     tierLabel: tier.label,
   };
 }

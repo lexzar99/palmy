@@ -34,6 +34,8 @@ function presetRange(kind: "month" | "lastMonth" | "7" | "30"): { from: string; 
 const STATUS_LABEL: Record<string, string> = { DRAFT: "Utkast", APPROVED: "Godkänd", PAID: "Betald", HOLD: "Pausad" };
 const statusTone = (s: string | null): "neutral" | "info" | "success" | "warning" =>
   s === "PAID" ? "success" : s === "APPROVED" ? "info" : s === "HOLD" ? "warning" : "neutral";
+const vatLabel = (value: number | null | undefined) =>
+  value == null ? "Blandad moms" : `${Number(value).toLocaleString("sv-SE")}%`;
 
 type FinanceTab = "utbetalningar" | "tiers" | "satser";
 
@@ -120,8 +122,9 @@ export function FinancePage() {
         />
       ) : (
         <>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
             <MetricCard label="Försäljning" value={totals ? formatCurrency(totals.grossSales) : "—"} detail={totals ? `${formatNumber(totals.orderCount)} ordrar` : undefined} />
+            <MetricCard label="Restaurangmoms" value={totals ? formatCurrency(totals.foodVat) : "—"} />
             <MetricCard label="Provision" value={totals ? formatCurrency(totals.commission) : "—"} />
             <MetricCard label="Abonnemang" value={totals ? formatCurrency(totals.subscription) : "—"} />
             <article
@@ -173,6 +176,7 @@ export function FinancePage() {
                       <th>Modell</th>
                       <th style={{ textAlign: "right" }}>Ordrar</th>
                       <th style={{ textAlign: "right" }}>Brutto</th>
+                      <th style={{ textAlign: "right" }}>Moms</th>
                       <th style={{ textAlign: "right" }}>Provision</th>
                       <th style={{ textAlign: "right" }}>Abonnemang</th>
                       <th style={{ textAlign: "right" }}>Netto</th>
@@ -204,6 +208,10 @@ export function FinancePage() {
                             ) : null}
                           </td>
                           <td style={{ fontFamily: MONO, textAlign: "right" }}>{formatCurrency(r.grossSales)}</td>
+                          <td style={{ fontFamily: MONO, textAlign: "right" }}>
+                            <div>{formatCurrency(r.foodVat)}</div>
+                            <div className="mt-0.5 text-xs font-sans text-[var(--text-muted)]">{vatLabel(r.foodVatPct)}</div>
+                          </td>
                           <td style={{ fontFamily: MONO, textAlign: "right", color: "var(--text-muted)" }}>
                             −{formatCurrency(r.commission)} <span>({r.commissionPct}%)</span>
                           </td>

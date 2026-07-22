@@ -21,6 +21,7 @@ export interface FinanceRow {
   tierLabel: string;
   selfDelivery: boolean;
   commissionPct: number;
+  foodVatPct: number | null;
   orderCount: number;
   payoutOrderCount: number;
   periodOrderCount: number;
@@ -28,9 +29,12 @@ export interface FinanceRow {
   foodBase: number;
   deliveryFee: number;
   tip: number;
+  restaurantTip: number;
+  platformTip: number;
   commission: number;
   subscription: number;
   feeVat: number;
+  foodVat: number;
   payout: number; // netto att betala ut (≥ 0)
   owed: number; // restaurangen är skyldig oss (faktureras) — > 0 ersätter payout
   refunds: number;
@@ -47,6 +51,8 @@ export interface FinanceSummary {
     commission: number;
     subscription: number;
     feeVat: number;
+    foodVat: number;
+    platformTip: number;
     payout: number;
     owed: number;
     refunds: number;
@@ -81,6 +87,7 @@ export interface PayoutSpec {
     featuredClass: number;
     selfDelivery: boolean;
     commissionPctOverride: number | null;
+    vatPercent: number | null;
     tierGoldFeeOverride: number | null;
     tierSilverFeeOverride: number | null;
     tierStandardFeeOverride: number | null;
@@ -103,6 +110,8 @@ export interface PayoutSpec {
     foodBase: number;
     deliveryFee: number;
     tip: number;
+    restaurantTip: number;
+    platformTip: number;
     tierLabel: string;
     commissionPct: number;
     commission: number;
@@ -112,7 +121,7 @@ export interface PayoutSpec {
     restaurantGross: number;
     payout: number;
     owed: number;
-    foodVatPct: number;
+    foodVatPct: number | null;
     foodVat: number;
   };
   orders: PayoutSpecOrder[];
@@ -125,8 +134,11 @@ export interface PayoutSpec {
     manualAdjustmentAmount: number;
     lateRefundAdjustmentAmount: number;
     payoutAmount: number;
+    foodVatAmount: number | null;
+    platformTipAmount: number | null;
     commissionPctSnapshot: number | null;
     feeVatPctSnapshot: number | null;
+    foodVatPctSnapshot: number | null;
     selfDeliverySnapshot: boolean | null;
     notes: string | null;
     payoutReference: string | null;

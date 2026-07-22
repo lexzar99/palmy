@@ -877,8 +877,8 @@ model Restaurant {
   adminUserId                   String?                       @unique
   announcementText              String? // Info-banner på restaurangsidan (t.ex. adressändring, stängt idag)
   vatPercent                    Int? // Moms i % som visas i kassan (6 eller 12). null = visas inte
-  // Leveransansvar. false = plattformen levererar (vi matchar bud, 20% provision-default).
-  // true = restaurangen levererar själv (10% provision-default, ingen budmatchning).
+  // Leveransansvar. false = plattformen levererar (vi matchar bud).
+  // true = restaurangen levererar själv (ingen budmatchning).
   // Styr provisionssats, dispatch-grind och färg-separation i admin.
   selfDelivery                  Boolean                       @default(false)
   // Manuell provisions-override i procent (t.ex. ny restaurang 5% första månaden).
@@ -1157,10 +1157,13 @@ model RestaurantPayout {
   manualAdjustmentAmount     Int                        @default(0)
   lateRefundAdjustmentAmount Int                        @default(0)
   payoutAmount               Int                        @default(0)
+  foodVatAmount              Int?
+  platformTipAmount          Int?
   // Frozen on approval. A paid source period is recomputed with these exact
   // commercial terms when a later cumulative refund must be recovered.
   commissionPctSnapshot      Int?
   feeVatPctSnapshot          Int?
+  foodVatPctSnapshot         Int?
   selfDeliverySnapshot       Boolean?
   status                     String                     @default("DRAFT")
   notes                      String?

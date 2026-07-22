@@ -63,6 +63,7 @@ export type PayoutOrder = {
   total: number;
   deliveryFee: number;
   tipAmount: number;
+  foodVatPercent?: number | null;
   refundAmount?: number | null;
 };
 
@@ -302,13 +303,17 @@ export function netPayoutOrder(order: PayoutOrder): NetPayoutOrder | null {
   const deliveryFee = Math.min(netTotal, Math.round(originalDelivery * ratio));
   const tipAmount = Math.min(netTotal - deliveryFee, Math.round(originalTip * ratio));
 
-  return {
+  const net: NetPayoutOrder = {
     total: netTotal,
     deliveryFee,
     tipAmount,
     originalTotal,
     refundAmount,
   };
+  if (order.foodVatPercent != null) {
+    net.foodVatPercent = order.foodVatPercent;
+  }
+  return net;
 }
 
 export function payoutOrders(orders: PayoutOrder[]): NetPayoutOrder[] {
@@ -326,11 +331,14 @@ export type PayoutMoneySnapshot = {
   manualAdjustmentAmount: number;
   lateRefundAdjustmentAmount: number;
   payoutAmount: number;
+  foodVatAmount?: number | null;
+  platformTipAmount?: number | null;
 };
 
 export type PayoutEconomicSnapshot = {
   commissionPctSnapshot: number | null | undefined;
   feeVatPctSnapshot: number | null | undefined;
+  foodVatPctSnapshot?: number | null | undefined;
   selfDeliverySnapshot: boolean | null | undefined;
   subscriptionAmount: number;
   manualAdjustmentAmount: number;
@@ -372,7 +380,9 @@ export function samePayoutMoneySnapshot(
     left.subscriptionAmount === right.subscriptionAmount &&
     left.manualAdjustmentAmount === right.manualAdjustmentAmount &&
     left.lateRefundAdjustmentAmount === right.lateRefundAdjustmentAmount &&
-    left.payoutAmount === right.payoutAmount;
+    left.payoutAmount === right.payoutAmount &&
+    (left.foodVatAmount == null || right.foodVatAmount == null || left.foodVatAmount === right.foodVatAmount) &&
+    (left.platformTipAmount == null || right.platformTipAmount == null || left.platformTipAmount === right.platformTipAmount);
 }
 
 /** Build every persisted monetary field from server-owned order snapshots. */
@@ -386,7 +396,7 @@ export function buildPayoutMoneySnapshot(
   breakdown: PayoutBreakdown;
   snapshot: PayoutMoneySnapshot;
   economicSnapshot: Required<Pick<PayoutEconomicSnapshot,
-    'commissionPctSnapshot' | 'feeVatPctSnapshot' | 'selfDeliverySnapshot'>>;
+    'commissionPctSnapshot' | 'feeVatPctSnapshot' | 'foodVatPctSnapshot' | 'selfDeliverySnapshot'>>;
 } {
   const breakdown = computePayout(payoutOrders(orders), restaurant, economy);
   const manualAdjustmentOre = Number.isFinite(manualAdjustmentAmount)
@@ -407,10 +417,13 @@ export function buildPayoutMoneySnapshot(
       payoutAmount: breakdown.owedOre > 0
         ? 0
         : Math.max(0, breakdown.payoutOre - manualAdjustmentOre - lateRefundAdjustmentOre),
+      foodVatAmount: breakdown.foodVatOre,
+      platformTipAmount: breakdown.platformTipOre,
     },
     economicSnapshot: {
       commissionPctSnapshot: breakdown.commissionPct,
       feeVatPctSnapshot: breakdown.feeVatPct,
+      foodVatPctSnapshot: breakdown.foodVatPct,
       selfDeliverySnapshot: restaurant.selfDelivery,
     },
   };
@@ -445,6 +458,13 @@ export function recomputePayoutFromEconomicSnapshot(
   const deliveryFeeTotal = eligible.reduce((sum, order) => sum + order.deliveryFee, 0);
   const tipTotal = eligible.reduce((sum, order) => sum + order.tipAmount, 0);
   const foodBase = Math.max(0, grossTotal - deliveryFeeTotal - tipTotal);
+  const foodVatRates = eligible.map((order) => order.foodVatPercent ?? source.foodVatPctSnapshot ?? 0);
+  const foodVatAmount = eligible.reduce((sum, order, index) => {
+    const orderFoodBase = Math.max(0, Number(order.total || 0) - Number(order.deliveryFee || 0) - Number(order.tipAmount || 0));
+    const rate = Math.max(0, Number(foodVatRates[index] ?? 0));
+    const v = rate / 100;
+    return sum + (v > 0 ? Math.round(orderFoodBase - orderFoodBase / (1 + v)) : 0);
+  }, 0);
   const commissionAmount = Math.round(
     (foodBase * Number(source.commissionPctSnapshot)) / 100,
   );
@@ -466,6 +486,8 @@ export function recomputePayoutFromEconomicSnapshot(
     subscriptionAmount,
     manualAdjustmentAmount,
     lateRefundAdjustmentAmount,
+    foodVatAmount,
+    platformTipAmount: source.selfDeliverySnapshot ? 0 : tipTotal,
     // Preserve the existing fail-closed owed behaviour: a negative commercial
     // net never turns a negative manual adjustment into a payout.
     payoutAmount: rawPayoutAmount < 0

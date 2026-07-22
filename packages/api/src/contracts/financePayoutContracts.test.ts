@@ -130,6 +130,10 @@ assert.equal(platformPayout.foodBase, 6_800);
 assert.equal(platformPayout.restaurantGrossOre, 6_800);
 assert.equal(platformPayout.commissionOre, 1_360);
 assert.equal(platformPayout.feeVatOre, 340);
+assert.equal(platformPayout.foodVatOre, 385);
+assert.equal(platformPayout.foodVatPct, 6);
+assert.equal(platformPayout.restaurantTipOre, 0);
+assert.equal(platformPayout.platformTipOre, 400);
 assert.equal(platformPayout.payoutOre, 5_100);
 
 const selfDeliveryPayout = computePayout(
@@ -140,6 +144,10 @@ const selfDeliveryPayout = computePayout(
 assert.equal(selfDeliveryPayout.restaurantGrossOre, 8_000);
 assert.equal(selfDeliveryPayout.commissionOre, 680);
 assert.equal(selfDeliveryPayout.feeVatOre, 170);
+assert.equal(selfDeliveryPayout.foodVatOre, 385);
+assert.equal(selfDeliveryPayout.foodVatPct, 6);
+assert.equal(selfDeliveryPayout.restaurantTipOre, 400);
+assert.equal(selfDeliveryPayout.platformTipOre, 0);
 assert.equal(selfDeliveryPayout.payoutOre, 7_150);
 
 const customTierPayout = computePayout(
@@ -176,11 +184,14 @@ assert.deepEqual(settlement.snapshot, {
   subscriptionAmount: 0,
   manualAdjustmentAmount: 100,
   lateRefundAdjustmentAmount: 0,
+  foodVatAmount: 385,
+  platformTipAmount: 400,
   payoutAmount: 5_000,
 });
 assert.deepEqual(settlement.economicSnapshot, {
   commissionPctSnapshot: 20,
   feeVatPctSnapshot: 25,
+  foodVatPctSnapshot: 6,
   selfDeliverySnapshot: false,
 });
 
@@ -215,6 +226,8 @@ assert.deepEqual(
     subscriptionAmount: 0,
     manualAdjustmentAmount: 100,
     lateRefundAdjustmentAmount: 0,
+    foodVatAmount: 289,
+    platformTipAmount: 300,
     payoutAmount: 3_725,
   },
 );
@@ -318,6 +331,9 @@ const frozenOverview = selectFinanceSummaryEconomicValues({
   feeVat: 222_222,
   payout: 111_111,
   owed: 55_555,
+  foodVat: 12_345,
+  foodVatPct: 12,
+  platformTip: 9_876,
   commissionPct: 44,
   selfDelivery: true,
 }, {
@@ -326,9 +342,12 @@ const frozenOverview = selectFinanceSummaryEconomicValues({
   grossSales: 10_000,
   commissionAmount: 2_000,
   subscriptionAmount: 500,
+  foodVatAmount: 345,
+  platformTipAmount: 88,
   payoutAmount: 6_775,
   commissionPctSnapshot: 20,
   feeVatPctSnapshot: 25,
+  foodVatPctSnapshot: 6,
   selfDeliverySnapshot: false,
 });
 assert.deepEqual(frozenOverview, {
@@ -337,6 +356,9 @@ assert.deepEqual(frozenOverview, {
   commission: 2_000,
   subscription: 500,
   feeVat: 625,
+  foodVat: 345,
+  foodVatPct: 6,
+  platformTip: 88,
   payout: 6_775,
   owed: 0,
   commissionPct: 20,
@@ -352,6 +374,8 @@ assert.deepEqual(sumFinanceSummaryRows([
     commission: 100,
     subscription: 0,
     feeVat: 25,
+    foodVat: 59,
+    platformTip: 0,
     payout: 875,
     owed: 0,
   },
@@ -362,6 +386,8 @@ assert.deepEqual(sumFinanceSummaryRows([
   commission: 2_100,
   subscription: 500,
   feeVat: 650,
+  foodVat: 404,
+  platformTip: 88,
   payout: 7_650,
   owed: 0,
 });

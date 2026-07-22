@@ -4,6 +4,9 @@ export type FinanceSummaryEconomicValues = {
   commission: number;
   subscription: number;
   feeVat: number;
+  foodVat: number;
+  foodVatPct: number | null;
+  platformTip: number;
   payout: number;
   owed: number;
   commissionPct: number;
@@ -17,8 +20,11 @@ export type PersistedFinanceSummarySnapshot = {
   commissionAmount: number;
   subscriptionAmount: number;
   payoutAmount: number;
+  foodVatAmount?: number | null;
+  platformTipAmount?: number | null;
   commissionPctSnapshot: number | null;
   feeVatPctSnapshot: number | null;
+  foodVatPctSnapshot?: number | null;
   selfDeliverySnapshot: boolean | null;
 };
 
@@ -53,6 +59,11 @@ export function selectFinanceSummaryEconomicValues(
     commission,
     subscription,
     feeVat,
+    foodVat: Math.max(0, Math.round(Number(persisted.foodVatAmount ?? live.foodVat) || 0)),
+    foodVatPct: persisted.foodVatPctSnapshot == null
+      ? live.foodVatPct
+      : Number(persisted.foodVatPctSnapshot),
+    platformTip: Math.max(0, Math.round(Number(persisted.platformTipAmount ?? live.platformTip) || 0)),
     payout: Math.max(0, Math.round(Number(persisted.payoutAmount) || 0)),
     owed: Math.max(0, commission + subscription + feeVat - grossSales),
     commissionPct: Number.isFinite(persisted.commissionPctSnapshot)
@@ -71,6 +82,8 @@ export type FinanceSummaryTotalValues = {
   commission: number;
   subscription: number;
   feeVat: number;
+  foodVat: number;
+  platformTip: number;
   payout: number;
   owed: number;
   orderCount: number;
@@ -86,6 +99,8 @@ export function sumFinanceSummaryRows(
       commission: totals.commission + row.commission,
       subscription: totals.subscription + row.subscription,
       feeVat: totals.feeVat + row.feeVat,
+      foodVat: totals.foodVat + row.foodVat,
+      platformTip: totals.platformTip + row.platformTip,
       payout: totals.payout + row.payout,
       owed: totals.owed + row.owed,
       orderCount: totals.orderCount + row.orderCount,
@@ -96,6 +111,8 @@ export function sumFinanceSummaryRows(
       commission: 0,
       subscription: 0,
       feeVat: 0,
+      foodVat: 0,
+      platformTip: 0,
       payout: 0,
       owed: 0,
       orderCount: 0,
