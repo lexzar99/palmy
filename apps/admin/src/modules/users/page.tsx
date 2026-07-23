@@ -428,12 +428,24 @@ function StaffModal({ open, member, onClose }: { open: boolean; member: StaffRec
    Kontokort — team & restauranger separerat
    ───────────────────────────────────────────── */
 
-function StaffCard({ member, onOpen }: { member: StaffRecord; onOpen: () => void }) {
+function StaffCard({ member, isSelf = false, onOpen }: { member: StaffRecord; isSelf?: boolean; onOpen: () => void }) {
   return (
-    <button type="button" onClick={onOpen} className="staff-card">
+    <button
+      type="button"
+      onClick={onOpen}
+      className="staff-card"
+      style={isSelf ? { borderColor: "var(--brand-navy-bar)", background: "var(--brand-navy-soft)" } : undefined}
+    >
       <StaffAvatar member={member} size={44} />
       <span className="min-w-0 flex-1 text-left">
-        <span className="block truncate text-[14px] font-bold text-[var(--text-primary)]">{member.name}</span>
+        <span className="flex items-center gap-2">
+          <span className="min-w-0 truncate text-[14px] font-bold text-[var(--text-primary)]">{member.name}</span>
+          {isSelf && (
+            <span className="flex-none rounded-full bg-[var(--brand-orange)] px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.05em] text-white">
+              Du
+            </span>
+          )}
+        </span>
         <span className="block truncate text-[12px] text-[var(--text-muted)]">
           {member.username ? `@${member.username}` : member.email}
         </span>
@@ -452,6 +464,7 @@ type UsersTab = "anvandare" | "sakerhet";
 
 export function UsersPage() {
   const router = useRouter();
+  const session = useAdminSession();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
   const tab: UsersTab = tabParam === "sakerhet" ? "sakerhet" : "anvandare";
@@ -471,14 +484,18 @@ export function UsersPage() {
     return <ErrorPanel title="Användarmodulen kunde inte laddas" action={<Button onClick={() => void staff.refetch()}>Försök igen</Button>} />;
   }
 
-  const teamAccounts = staff.data.filter((m) => !m.restaurantId && m.role !== "ADMIN" && m.role !== "RESTAURANT_ADMIN");
+  const selfId = session.data?.id ?? null;
+  // Inloggade kontot först, sedan resten i API:ts ordning.
+  const teamAccounts = staff.data
+    .filter((m) => !m.restaurantId && m.role !== "ADMIN" && m.role !== "RESTAURANT_ADMIN")
+    .sort((a, b) => Number(b.id === selfId) - Number(a.id === selfId));
   const restaurantAccounts = staff.data.filter((m) => m.restaurantId || m.role === "ADMIN" || m.role === "RESTAURANT_ADMIN");
 
   return (
     <div className="page-stack">
       <PageHeader
         breadcrumb="System"
-        title="Användare"
+        title="Personal"
         actions={tab === "anvandare" ? <Button variant="primary" onClick={() => setWizardOpen(true)}><Plus size={13} /> Nytt konto</Button> : undefined}
       />
 
@@ -508,7 +525,7 @@ export function UsersPage() {
         ) : (
           <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
             {teamAccounts.map((member) => (
-              <StaffCard key={member.id} member={member} onOpen={() => setActiveMember(member)} />
+              <StaffCard key={member.id} member={member} isSelf={member.id === selfId} onOpen={() => setActiveMember(member)} />
             ))}
           </div>
         )}

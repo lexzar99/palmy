@@ -84,7 +84,7 @@ export const ADMIN_ROUTES: AdminRouteDefinition[] = [
 
   route({ id: "finance", href: "/finance", label: "Ekonomi", shortLabel: "Ekonomi", icon: CircleDollarSign, section: "finance", keywords: "finance payout intäkt reconciliation utbetalningar tiers provision moms" }),
 
-  route({ id: "users", href: "/users", label: "Superadmin", icon: Users, section: "system", keywords: "admin användare säkerhet" }),
+  route({ id: "users", href: "/users", label: "Personal", icon: Users, section: "system", keywords: "admin användare säkerhet personal team konton" }),
   route({ id: "api-health", href: "/api-health", label: "API-status", icon: Gauge, section: "system", keywords: "uptime hälsa status" }),
   route({ id: "audit-log", href: "/audit-log", label: "Audit-logg", icon: History, section: "system", keywords: "logg compliance revision" }),
   route({ id: "platform-settings", href: "/platform-settings", label: "Plattformsinställningar", shortLabel: "Plattform", icon: Building2, section: "system", keywords: "företag company settings integrationer" }),

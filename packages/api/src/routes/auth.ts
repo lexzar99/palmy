@@ -724,6 +724,29 @@ router.get('/me', authenticateUser, async (req: any, res: any) => {
 });
 
 // POST /api/auth/login
+// Profil-teaser för det stegvisa login-flödet: användarnamn → visa namn +
+// avatar innan lösenordssteget. Svarar ALLTID 200 med samma form så svaret
+// i sig inte bekräftar om kontot finns; hårt rate-limitat via authLimiter.
+router.post('/login-profile', authLimiter, async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const { identifier } = req.body as { identifier?: string };
+    const loginId = String(identifier || '').trim().toLowerCase();
+    if (!loginId) {
+      res.status(400).json({ error: 'Användarnamn krävs' });
+      return;
+    }
+    const admin = await resolveAdminByIdentifier(loginId);
+    res.json({
+      name: admin?.name || null,
+      avatarUrl: (admin as { avatarUrl?: string | null } | null)?.avatarUrl || null,
+    });
+  } catch (error) {
+    console.error('Login profile error:', error);
+    res.json({ name: null, avatarUrl: null });
+  }
+});
+
 router.post('/login', authLimiter, async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
