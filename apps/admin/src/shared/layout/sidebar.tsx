@@ -21,8 +21,9 @@ import { logoutAdminSession } from "@/shared/auth/storage";
 import { useAdminSession } from "@/shared/hooks/use-admin-session";
 import { getStoredTheme, setStoredTheme, type Theme } from "@/shared/store/theme";
 import { ADMIN_SECTIONS, isActiveAdminHref } from "@/shared/navigation/admin-routes";
-// Cream-symbolen — navy-varianten försvinner mot den mörka menyn.
-import viaeatsSymbol from "../../../../../Logotyp/sym-cream.png";
+// Ren cream-smiley (utan bil/påse) — navy-varianten försvinner mot den
+// mörka menyn och sym-*-filerna innehåller leveransikonerna.
+import viaeatsSymbol from "../../../../../Logotyp/exports/smiley-cream-transparent.png";
 
 /** Visningsnamn för profilkortet; generiska "admin"-konton får riktigt namn. */
 function displayName(sessionName?: string | null) {

@@ -24,11 +24,9 @@ import {
   customerOverviewQueryKey,
   getControlCenter,
   getCustomerOverview,
-  getLaunchCampaign,
   getRestaurantRefs,
   getSystemHealth,
   healthQueryKey,
-  launchCampaignQueryKey,
   restaurantRefsQueryKey,
 } from "@/modules/dashboard/api";
 import { TrendChart } from "@/modules/dashboard/TrendChart";
@@ -131,11 +129,6 @@ export function DashboardPage() {
     queryFn: getCustomerOverview,
     refetchInterval: 60_000,
   });
-  const launchCampaign = useQuery({
-    queryKey: launchCampaignQueryKey({ days: 30, limit: 1 }),
-    queryFn: () => getLaunchCampaign({ days: 30, limit: 1 }),
-  });
-
   if (controlCenter.isLoading || health.isLoading) {
     return (
       <div className="page-stack">
@@ -174,12 +167,22 @@ export function DashboardPage() {
   const data = controlCenter.data;
   const healthData = health.data;
 
-  const attentionList = data.restaurantSnapshots.filter(
-    (r) => r.pendingOrders > 0 || (!r.isOpen && r.liveOrders > 0) || r.reviewScore < 4.2,
-  );
   const criticalAlerts = data.alerts.filter((a) => a.severity === "high" || a.severity === "medium");
-  const totalAttention = attentionList.length + criticalAlerts.length;
   const pendingLiveOrders = data.liveStatusCounts.PENDING || 0;
+
+  // Notiser per restaurang — en rad per restaurang med alla skäl samlade.
+  // "Stängd under öppettid" = schemat säger öppet men restaurangen är stängd.
+  const restaurantNotices = data.restaurantSnapshots
+    .map((r) => {
+      const reasons: string[] = [];
+      if (r.pendingOrders > 0) reasons.push(`${r.pendingOrders} väntande ordrar`);
+      if (r.scheduledOpenNow && !r.isOpen) reasons.push("Stängd under öppettid");
+      if (!r.hasHours) reasons.push("Saknar öppettider");
+      if (r.reviewScore < 4.2) reasons.push(`${r.reviewScore.toFixed(1)} ★`);
+      return { restaurant: r, reasons };
+    })
+    .filter((notice) => notice.reasons.length > 0);
+  const totalAttention = criticalAlerts.length + restaurantNotices.length + (pendingLiveOrders > 0 ? 1 : 0);
 
   const profileName = displayName(session.data?.name);
   const greeting = greetingForHour(new Date().getHours());
@@ -190,11 +193,6 @@ export function DashboardPage() {
     .sort((a, b) => b.scopedRevenue - a.scopedRevenue)
     .slice(0, 5);
   const topRevenueMax = Math.max(1, ...topRestaurants.map((r) => r.scopedRevenue));
-
-  const campaign = launchCampaign.data;
-  const campaignSendRate = campaign && campaign.totals.leads > 0
-    ? Math.min(100, Math.round((campaign.totals.couponsSent / campaign.totals.leads) * 100))
-    : 0;
 
   return (
     <div className="page-stack">
@@ -257,6 +255,25 @@ export function DashboardPage() {
                     <p className="px-3 py-6 text-center text-[13px] text-[var(--text-muted)]">Allt under kontroll ✨</p>
                   ) : (
                     <div className="grid gap-1">
+                      {pendingLiveOrders > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNotifOpen(false);
+                            router.push("/orders");
+                          }}
+                          className="flex items-center gap-2.5 rounded-[10px] bg-[var(--brand-orange-soft)] px-3 py-2.5 text-left"
+                        >
+                          <ClipboardList size={15} className="shrink-0 text-[var(--brand-orange)]" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[13px] font-bold text-[var(--text-primary)]">
+                              {formatNumber(pendingLiveOrders)} {pendingLiveOrders === 1 ? "ny order väntar" : "nya ordrar väntar"}
+                            </span>
+                            <span className="block text-[12px] text-[var(--text-secondary)]">Öppna liveordrar</span>
+                          </span>
+                          <ArrowRight size={13} className="shrink-0 text-[var(--text-muted)]" />
+                        </button>
+                      )}
                       {criticalAlerts.map((alert) => (
                         <div key={alert.id} className="flex items-start gap-2.5 rounded-[10px] px-3 py-2.5">
                           <AlertCircle size={15} className="mt-0.5 shrink-0" style={{ color: alert.severity === "high" ? "var(--danger)" : "var(--warning)" }} />
@@ -266,26 +283,20 @@ export function DashboardPage() {
                           </div>
                         </div>
                       ))}
-                      {attentionList.map((r) => (
+                      {restaurantNotices.map(({ restaurant, reasons }) => (
                         <button
-                          key={r.id}
+                          key={restaurant.id}
                           type="button"
                           onClick={() => {
                             setNotifOpen(false);
-                            router.push(`/restaurants/${r.id}`);
+                            router.push(`/restaurants/${restaurant.id}`);
                           }}
                           className="flex items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left hover:bg-[var(--bg-hover)]"
                         >
                           <AlertCircle size={15} className="shrink-0 text-[var(--warning)]" />
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[13px] font-bold text-[var(--text-primary)]">{r.name}</span>
-                            <span className="block text-[12px] text-[var(--text-secondary)]">
-                              {r.pendingOrders > 0
-                                ? `${r.pendingOrders} väntande`
-                                : !r.hasHours
-                                  ? "Saknar öppettider"
-                                  : `${r.reviewScore.toFixed(1)} ★`}
-                            </span>
+                            <span className="block truncate text-[13px] font-bold text-[var(--text-primary)]">{restaurant.name}</span>
+                            <span className="block truncate text-[12px] text-[var(--text-secondary)]">{reasons.join(" · ")}</span>
                           </span>
                           <ArrowRight size={13} className="shrink-0 text-[var(--text-muted)]" />
                         </button>
@@ -353,50 +364,43 @@ export function DashboardPage() {
           </div>
         </section>
 
-        {/* Kampanj */}
+        {/* Idag — dagens puls oavsett vald rapportperiod */}
         <Surface className="flex flex-col px-5 py-5 xl:col-span-3">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="eyebrow">Pågår nu</p>
-              <h2 className="section-title mt-1">Launch-kampanj</h2>
+              <p className="eyebrow">Just idag</p>
+              <h2 className="section-title mt-1">Dagens puls</h2>
             </div>
             <span className="flex h-[38px] w-[38px] flex-none items-center justify-center rounded-[11px] bg-[var(--brand-navy-soft)] text-[var(--brand-navy-ink)]">
-              <Gift size={17} />
+              <ClipboardList size={17} />
             </span>
           </div>
-          {campaign ? (
-            <div className="mt-4 grid flex-1 content-start gap-3">
-              <div className="flex items-center justify-between text-[13px]">
-                <span className="font-semibold text-[var(--text-secondary)]">Leads 30d</span>
-                <span className="font-extrabold text-[var(--text-primary)]">{formatNumber(campaign.totals.leadsInPeriod)}</span>
-              </div>
-              <div className="flex items-center justify-between text-[13px]">
-                <span className="font-semibold text-[var(--text-secondary)]">Kuponger</span>
-                <span className="font-extrabold text-[var(--text-primary)]">{formatNumber(campaign.totals.couponsSent)}</span>
-              </div>
-              <div className="flex items-center justify-between text-[13px]">
-                <span className="font-semibold text-[var(--text-secondary)]">Snitt/dag</span>
-                <span className="font-extrabold text-[var(--text-primary)]">{campaign.totals.averageDailyLeads.toFixed(1)}</span>
-              </div>
-              <div className="mt-1">
-                <div className="mb-1.5 flex justify-between text-[11.5px] font-bold">
-                  <span className="text-[var(--text-secondary)]">Skickade</span>
-                  <span className="text-[var(--text-primary)]">{campaignSendRate}%</span>
-                </div>
-                <div className="progress-track">
-                  <div className="progress-fill" style={{ width: `${campaignSendRate}%` }} />
-                </div>
-              </div>
+          <div className="mt-4 grid flex-1 content-start gap-3">
+            <div className="flex items-center justify-between text-[13px]">
+              <span className="font-semibold text-[var(--text-secondary)]">Intäkt</span>
+              <span className="font-extrabold text-[var(--text-primary)]">{formatCurrency(data.summary.todayRevenue)}</span>
             </div>
-          ) : (
-            <p className="section-subtitle mt-3 flex-1">Laddar…</p>
-          )}
+            <div className="flex items-center justify-between text-[13px]">
+              <span className="font-semibold text-[var(--text-secondary)]">Ordrar</span>
+              <span className="font-extrabold text-[var(--text-primary)]">{formatNumber(data.summary.todayOrders)}</span>
+            </div>
+            <div className="flex items-center justify-between text-[13px]">
+              <span className="font-semibold text-[var(--text-secondary)]">Aktiva kunder</span>
+              <span className="font-extrabold text-[var(--text-primary)]">{formatNumber(data.summary.activeCustomers)}</span>
+            </div>
+            <div className="flex items-center justify-between text-[13px]">
+              <span className="font-semibold text-[var(--text-secondary)]">Snittbetyg</span>
+              <span className="font-extrabold text-[var(--text-primary)]">
+                {data.summary.avgRating > 0 ? data.summary.avgRating.toFixed(1) : "–"} <Star size={11} className="-mt-0.5 inline" aria-hidden />
+              </span>
+            </div>
+          </div>
           <button
             type="button"
-            onClick={() => router.push("/launch-campaign")}
+            onClick={() => router.push("/order-history")}
             className="mt-4 inline-flex items-center gap-1.5 self-start text-[13px] font-bold text-[var(--brand-navy-ink)] hover:underline"
           >
-            Öppna <ArrowRight size={13} />
+            Historik <ArrowRight size={13} />
           </button>
         </Surface>
 

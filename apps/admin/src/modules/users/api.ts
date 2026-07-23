@@ -33,8 +33,19 @@ export const inviteStaff = (payload: InviteStaffPayload) =>
 
 export const updateStaff = (
   staffId: string,
-  payload: { active?: boolean; role?: string; name?: string; username?: string | null; avatarUrl?: string | null },
+  payload: {
+    active?: boolean;
+    role?: string;
+    name?: string;
+    username?: string | null;
+    avatarUrl?: string | null;
+    email?: string;
+  },
 ) => apiPatch<StaffRecord>(`/admin/staff/${staffId}`, payload);
+
+/** Byt eget lösenord. Servern bumpar tokenVersion → logga in igen efteråt. */
+export const changeOwnPassword = (payload: { currentPassword: string; newPassword: string }) =>
+  apiPost<{ success: boolean; reauthenticate: boolean }>("/admin/me/change-password", payload);
 
 export const deleteStaff = (staffId: string) => apiDelete<{ success: boolean }>(`/admin/staff/${staffId}`);
 

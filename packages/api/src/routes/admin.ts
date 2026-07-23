@@ -4046,12 +4046,13 @@ router.post('/staff/invite', authenticate, requireSuperAdmin, async (req, res) =
 
 router.patch('/staff/:id', authenticate, requireSuperAdmin, async (req, res) => {
   try {
-    const { active, role, name, username, avatarUrl } = req.body as {
+    const { active, role, name, username, avatarUrl, email } = req.body as {
       active?: boolean;
       role?: string;
       name?: string;
       username?: string | null;
       avatarUrl?: string | null;
+      email?: string;
     };
     const existing = await prisma.adminUser.findUnique({
       where: { id: req.params.id },
@@ -4060,6 +4061,21 @@ router.patch('/staff/:id', authenticate, requireSuperAdmin, async (req, res) => 
 
     if (!existing) {
       return res.status(404).json({ error: 'Kontot hittades inte' });
+    }
+
+    // E-post är inloggningsidentitet — validera + kräv unikhet vid byte.
+    const trimmedEmail = email === undefined ? undefined : String(email).trim().toLowerCase();
+    if (trimmedEmail !== undefined) {
+      if (!/^\S+@\S+\.\S+$/.test(trimmedEmail)) {
+        return res.status(400).json({ error: 'Ogiltig e-postadress' });
+      }
+      const emailTaken = await prisma.adminUser.findFirst({
+        where: { email: trimmedEmail, id: { not: req.params.id } },
+        select: { id: true },
+      });
+      if (emailTaken) {
+        return res.status(400).json({ error: 'E-posten används redan av ett annat konto' });
+      }
     }
 
     const normalizedRole = role ? String(role).trim().toUpperCase() : undefined;
@@ -4089,6 +4105,7 @@ router.patch('/staff/:id', authenticate, requireSuperAdmin, async (req, res) => 
         ...(normalizedRole ? { role: normalizedRole } : {}),
         ...(trimmedUsername !== undefined ? { username: trimmedUsername } : {}),
         ...(avatarUrl !== undefined ? { avatarUrl: String(avatarUrl || '').trim() || null } : {}),
+        ...(trimmedEmail !== undefined ? { email: trimmedEmail } : {}),
       },
       select: {
         id: true,
@@ -4106,7 +4123,7 @@ router.patch('/staff/:id', authenticate, requireSuperAdmin, async (req, res) => 
     await audit(req as AuthRequest, 'STAFF_UPDATE', {
       resourceType: 'AdminUser',
       resourceId: updated.id,
-      changes: { active, role: normalizedRole, name },
+      changes: { active, role: normalizedRole, name, username: trimmedUsername, email: trimmedEmail },
     });
     res.json(formatted);
   } catch (error) {
@@ -4483,6 +4500,52 @@ router.post('/staff/:id/reset-password', authenticate, requireSuperAdmin, async 
   } catch (error) {
     console.error('Staff password reset error:', error);
     res.status(500).json({ error: 'Kunde inte återställa lösenordet' });
+  }
+});
+
+// Självservice: byt eget lösenord med nuvarande lösenord som bevis.
+// tokenVersion bumpas så ALLA utfärdade tokens (inkl. denna session) dör —
+// klienten ska logga in igen med det nya lösenordet.
+router.post('/me/change-password', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body as { currentPassword?: string; newPassword?: string };
+    const current = String(currentPassword || '');
+    const next = String(newPassword || '');
+
+    if (!req.admin?.id) {
+      return res.status(401).json({ error: 'Logga in först' });
+    }
+    if (next.length < 8) {
+      return res.status(400).json({ error: 'Nya lösenordet måste vara minst 8 tecken' });
+    }
+
+    const account = await prisma.adminUser.findUnique({
+      where: { id: req.admin.id },
+      select: { id: true, password: true },
+    });
+    if (!account) {
+      return res.status(404).json({ error: 'Kontot hittades inte' });
+    }
+
+    const passwordOk = await bcrypt.compare(current, account.password);
+    if (!passwordOk) {
+      return res.status(400).json({ error: 'Fel nuvarande lösenord' });
+    }
+
+    const hashedPassword = await bcrypt.hash(next, 12);
+    await prisma.adminUser.update({
+      where: { id: account.id },
+      data: { password: hashedPassword, tokenVersion: { increment: 1 } },
+    });
+
+    await audit(req, 'ADMIN_PASSWORD_CHANGE', {
+      resourceType: 'AdminUser',
+      resourceId: account.id,
+    });
+    res.json({ success: true, reauthenticate: true });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ error: 'Kunde inte byta lösenordet' });
   }
 });
 

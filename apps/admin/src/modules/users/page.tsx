@@ -10,10 +10,9 @@ import {
   Copy,
   KeyRound,
   Plus,
-  Store,
-  UsersRound,
 } from "lucide-react";
 import {
+  changeOwnPassword,
   deleteStaff,
   getStaff,
   inviteStaff,
@@ -23,6 +22,8 @@ import {
   type InviteStaffPayload,
   type StaffRecord,
 } from "@/modules/users/api";
+import { logoutAdminSession } from "@/shared/auth/storage";
+import { useAdminSession } from "@/shared/hooks/use-admin-session";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Tabs } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
 import { TwoFAPage } from "@/modules/two-fa/page";
@@ -37,6 +38,10 @@ const ROLE_LABEL: Record<string, string> = {
   VIEWER: "Läsläge",
   ADMIN: "Restaurang",
   RESTAURANT_ADMIN: "Restaurang",
+  // Hermes-agentroller (sätts i API/DB, inte via panelen)
+  MENU_AGENT: "Menyagent",
+  GROWTH_AGENT: "Tillväxtagent",
+  GLOBAL_VIEWER: "Driftvakt",
 };
 
 function initials(name: string) {
@@ -60,17 +65,16 @@ function StaffAvatar({ member, size = 40 }: { member: Pick<StaffRecord, "name" |
 }
 
 /* ─────────────────────────────────────────────
-   Kontoskapare — 4 steg: Typ → Profil → Inloggning → Klart
+   Kontoskapare — 3 steg: Profil → Inloggning → Klart.
+   Endast teamkonton: restaurangers inloggningar skapas i
+   Restaurangenheter, inte här.
    ───────────────────────────────────────────── */
 
-type AccountKind = "team" | "restaurant";
-
-const WIZARD_STEPS = ["Typ", "Profil", "Inloggning", "Klart"] as const;
+const WIZARD_STEPS = ["Profil", "Inloggning", "Klart"] as const;
 
 function CreateAccountWizard({ open, onClose }: { open: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [step, setStep] = useState(0);
-  const [kind, setKind] = useState<AccountKind | null>(null);
   const [avatarUrl, setAvatarUrl] = useState("");
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
@@ -87,7 +91,6 @@ function CreateAccountWizard({ open, onClose }: { open: boolean; onClose: () => 
   useEffect(() => {
     if (!open) return;
     setStep(0);
-    setKind(null);
     setAvatarUrl("");
     setName("");
     setUsername("");
@@ -115,9 +118,8 @@ function CreateAccountWizard({ open, onClose }: { open: boolean; onClose: () => 
   const passwordStrength = password.length >= 14 ? 3 : password.length >= 10 ? 2 : password.length >= 8 ? 1 : 0;
 
   const canNext =
-    step === 0 ? kind !== null :
-    step === 1 ? name.trim().length >= 2 && usernameValid :
-    step === 2 ? emailValid && passwordValid :
+    step === 0 ? name.trim().length >= 2 && usernameValid :
+    step === 1 ? emailValid && passwordValid :
     true;
 
   const createMutation = useMutation({
@@ -125,7 +127,7 @@ function CreateAccountWizard({ open, onClose }: { open: boolean; onClose: () => 
       const payload: InviteStaffPayload = {
         name: name.trim(),
         email: email.trim(),
-        role: kind === "restaurant" ? "ADMIN" : role,
+        role,
         ...(effectiveUsername ? { username: effectiveUsername } : {}),
         ...(avatarUrl ? { avatarUrl } : {}),
         ...(ownPassword ? { password } : {}),
@@ -134,7 +136,7 @@ function CreateAccountWizard({ open, onClose }: { open: boolean; onClose: () => 
     },
     onSuccess: async (response) => {
       setTempPassword(response.temporaryPassword ?? null);
-      setStep(3);
+      setStep(2);
       await queryClient.invalidateQueries({ queryKey: staffQueryKey });
     },
   });
@@ -157,7 +159,7 @@ function CreateAccountWizard({ open, onClose }: { open: boolean; onClose: () => 
       title="Nytt konto"
       size="md"
       footer={
-        step === 3 ? (
+        step === 2 ? (
           <div className="flex justify-end">
             <Button variant="primary" onClick={onClose}>Klart</Button>
           </div>
@@ -166,7 +168,7 @@ function CreateAccountWizard({ open, onClose }: { open: boolean; onClose: () => 
             <Button onClick={() => (step === 0 ? onClose() : setStep(step - 1))}>
               {step === 0 ? "Avbryt" : <><ArrowLeft size={14} /> Tillbaka</>}
             </Button>
-            {step < 2 ? (
+            {step < 1 ? (
               <Button variant="primary" disabled={!canNext} onClick={() => setStep(step + 1)}>
                 Nästa <ArrowRight size={14} />
               </Button>
@@ -196,21 +198,6 @@ function CreateAccountWizard({ open, onClose }: { open: boolean; onClose: () => 
       </div>
 
       {step === 0 && (
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <button type="button" className={cn("kind-card", kind === "team" && "is-selected")} onClick={() => setKind("team")}>
-            <span className="kind-card-icon"><UsersRound size={20} /></span>
-            <span className="kind-card-title">Teamkonto</span>
-            <span className="kind-card-sub">För oss som jobbar i panelen</span>
-          </button>
-          <button type="button" className={cn("kind-card", kind === "restaurant" && "is-selected")} onClick={() => setKind("restaurant")}>
-            <span className="kind-card-icon"><Store size={20} /></span>
-            <span className="kind-card-title">Restaurangkonto</span>
-            <span className="kind-card-sub">Kopplas till en restaurang</span>
-          </button>
-        </div>
-      )}
-
-      {step === 1 && (
         <div className="mt-6 grid gap-5">
           <ImageUploadField label="Profilbild" value={avatarUrl} onChange={setAvatarUrl} kind="misc" fileBaseName={effectiveUsername || "avatar"} />
           <Field label="Namn" required>
@@ -233,20 +220,18 @@ function CreateAccountWizard({ open, onClose }: { open: boolean; onClose: () => 
         </div>
       )}
 
-      {step === 2 && (
+      {step === 1 && (
         <div className="mt-6 grid gap-5">
-          <Field label="E-post" required hint={kind === "restaurant" ? "Använd restaurangens admin-e-post — kontot kopplas automatiskt." : undefined}>
+          <Field label="E-post" required hint="Används för inloggning. Unik.">
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="namn@viaeats.se" autoFocus />
           </Field>
-          {kind === "team" && (
-            <Field label="Roll">
-              <Select value={role} onChange={(e) => setRole(e.target.value)}>
-                {TEAM_ROLES.map((r) => (
-                  <option key={r} value={r}>{ROLE_LABEL[r]}</option>
-                ))}
-              </Select>
-            </Field>
-          )}
+          <Field label="Roll">
+            <Select value={role} onChange={(e) => setRole(e.target.value)}>
+              {TEAM_ROLES.map((r) => (
+                <option key={r} value={r}>{ROLE_LABEL[r]}</option>
+              ))}
+            </Select>
+          </Field>
           <div className="grid gap-3">
             <div className="segmented self-start">
               <button type="button" className={ownPassword ? "is-active" : ""} onClick={() => setOwnPassword(true)}>Eget lösenord</button>
@@ -276,7 +261,7 @@ function CreateAccountWizard({ open, onClose }: { open: boolean; onClose: () => 
         </div>
       )}
 
-      {step === 3 && (
+      {step === 2 && (
         <div className="mt-6 grid justify-items-center gap-4 text-center">
           <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--success-soft)] text-[var(--success-text)]">
             <Check size={26} />
@@ -303,29 +288,57 @@ function CreateAccountWizard({ open, onClose }: { open: boolean; onClose: () => 
    Redigera befintligt konto
    ───────────────────────────────────────────── */
 
+function apiError(error: unknown): string | null {
+  return (error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? null;
+}
+
 function StaffModal({ open, member, onClose }: { open: boolean; member: StaffRecord | null; onClose: () => void }) {
   const queryClient = useQueryClient();
+  const session = useAdminSession();
+  const router = useRouter();
+  const isSelf = Boolean(member && session.data?.id === member.id);
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [role, setRole] = useState("STAFF");
   const [active, setActive] = useState(true);
   const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!open || !member) return;
     setName(member.name);
     setUsername(member.username ?? "");
+    setEmail(member.email);
     setAvatarUrl(member.avatarUrl ?? "");
     setRole(member.role === "RESTAURANT_ADMIN" ? "ADMIN" : member.role);
     setActive(member.active);
     setPasswordMessage(null);
+    setCurrentPassword("");
+    setNewPassword("");
+    setNewPasswordConfirm("");
   }, [member, open]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  const emailChanged = member ? email.trim().toLowerCase() !== member.email.toLowerCase() : false;
+  const emailValid = /^\S+@\S+\.\S+$/.test(email.trim());
+
   const saveMutation = useMutation({
-    mutationFn: () => updateStaff(member!.id, { name, role, active, username: username || null, avatarUrl: avatarUrl || null }),
+    mutationFn: () =>
+      updateStaff(member!.id, {
+        name,
+        role,
+        active,
+        username: username || null,
+        avatarUrl: avatarUrl || null,
+        // Skickas bara vid faktisk ändring — gamla "admin"-värdet är ingen
+        // giltig e-post och ska inte trigga validering i onödan.
+        ...(emailChanged ? { email: email.trim() } : {}),
+      }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: staffQueryKey });
       onClose();
@@ -347,20 +360,64 @@ function StaffModal({ open, member, onClose }: { open: boolean; member: StaffRec
     },
   });
 
+  const changePasswordValid = currentPassword.length > 0 && newPassword.length >= 8 && newPassword === newPasswordConfirm;
+  const changePasswordMutation = useMutation({
+    mutationFn: () => changeOwnPassword({ currentPassword, newPassword }),
+    onSuccess: async () => {
+      // Servern har dödat alla tokens — ta användaren till login direkt.
+      await logoutAdminSession();
+      router.replace("/login");
+    },
+  });
+
+  const saveError = apiError(saveMutation.error);
+  const passwordError = apiError(changePasswordMutation.error);
+
   return (
-    <Modal open={open} onClose={onClose} title={member ? member.name : "Konto"} footer={<div className="flex items-center justify-between gap-2"><div>{member ? <Button variant="danger" onClick={() => deleteMutation.mutate()}>Radera</Button> : null}</div><div className="flex gap-2"><Button onClick={onClose}>Stäng</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>Spara</Button></div></div>}>
+    <Modal open={open} onClose={onClose} title={member ? member.name : "Konto"} footer={<div className="flex items-center justify-between gap-2"><div>{member && !isSelf ? <Button variant="danger" onClick={() => deleteMutation.mutate()}>Radera</Button> : null}</div><div className="flex gap-2"><Button onClick={onClose}>Stäng</Button><Button variant="primary" disabled={emailChanged && !emailValid} loading={saveMutation.isPending} onClick={() => saveMutation.mutate()}>Spara</Button></div></div>}>
       {member ? (
         <div className="space-y-5">
           {passwordMessage ? <div className="rounded-2xl border border-[var(--accent)] bg-[var(--accent-soft)] px-4 py-4 text-sm text-[var(--accent)]">Tillfälligt lösenord: <strong>{passwordMessage}</strong></div> : null}
           <ImageUploadField label="Profilbild" value={avatarUrl} onChange={setAvatarUrl} kind="misc" fileBaseName={username || "avatar"} />
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Namn"><Input value={name} onChange={(event) => setName(event.target.value)} /></Field>
-            <Field label="Användarnamn"><Input value={username} onChange={(event) => setUsername(event.target.value.toLowerCase())} placeholder="valfritt" /></Field>
-            <Field label="Roll"><Select value={role} onChange={(event) => setRole(event.target.value)}><option value="SUPER_ADMIN">Superadmin</option><option value="STAFF">Medarbetare</option><option value="VIEWER">Läsläge</option><option value="ADMIN">Restaurang</option></Select></Field>
-            <Field label="Status"><Select value={active ? "active" : "inactive"} onChange={(event) => setActive(event.target.value === "active")}><option value="active">Aktiv</option><option value="inactive">Inaktiv</option></Select></Field>
-            <Field label="E-post" className="md:col-span-2"><Input value={member.email} disabled /></Field>
+            <Field label="Användarnamn" hint="Kan användas för inloggning. Unikt."><Input value={username} onChange={(event) => setUsername(event.target.value.toLowerCase())} placeholder="valfritt" /></Field>
+            <Field label="Roll"><Select value={role} onChange={(event) => setRole(event.target.value)} disabled={isSelf}><option value="SUPER_ADMIN">Superadmin</option><option value="STAFF">Medarbetare</option><option value="VIEWER">Läsläge</option><option value="ADMIN">Restaurang</option></Select></Field>
+            <Field label="Status"><Select value={active ? "active" : "inactive"} onChange={(event) => setActive(event.target.value === "active")} disabled={isSelf}><option value="active">Aktiv</option><option value="inactive">Inaktiv</option></Select></Field>
+            <Field
+              label="E-post"
+              className="md:col-span-2"
+              hint="Används för inloggning. Unik."
+              error={emailChanged && !emailValid ? "Ogiltig e-postadress" : undefined}
+            >
+              <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+            </Field>
           </div>
-          <Button variant="secondary" onClick={() => resetMutation.mutate()}><KeyRound size={16} /> Återställ lösenord</Button>
+          {saveError ? <p className="field-message" role="alert">{saveError}</p> : null}
+
+          {isSelf ? (
+            <div className="rounded-[14px] border border-[var(--border-subtle)] bg-[var(--bg-panel-soft)] p-4">
+              <p className="text-[13px] font-bold text-[var(--text-primary)]">Byt lösenord</p>
+              <p className="field-hint mt-1">Du loggas ut överallt och loggar in igen med det nya.</p>
+              <div className="mt-3 grid gap-3">
+                <Field label="Nuvarande lösenord"><Input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} autoComplete="current-password" /></Field>
+                <Field label="Nytt lösenord" error={newPassword && newPassword.length < 8 ? "Minst 8 tecken" : undefined}><Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} autoComplete="new-password" /></Field>
+                <Field label="Bekräfta nytt lösenord" error={newPasswordConfirm && newPassword !== newPasswordConfirm ? "Matchar inte" : undefined}><Input type="password" value={newPasswordConfirm} onChange={(e) => setNewPasswordConfirm(e.target.value)} autoComplete="new-password" /></Field>
+                {passwordError ? <p className="field-message" role="alert">{passwordError}</p> : null}
+                <Button
+                  variant="primary"
+                  className="justify-self-start"
+                  disabled={!changePasswordValid}
+                  loading={changePasswordMutation.isPending}
+                  onClick={() => changePasswordMutation.mutate()}
+                >
+                  <KeyRound size={15} /> Byt lösenord
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button variant="secondary" onClick={() => resetMutation.mutate()}><KeyRound size={16} /> Återställ lösenord</Button>
+          )}
         </div>
       ) : null}
     </Modal>
@@ -461,9 +518,14 @@ export function UsersPage() {
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 className="section-title">Restaurangkonton</h2>
-            <p className="section-subtitle">Partnernas inloggningar</p>
+            <p className="section-subtitle">Skapas via Restaurangenheter — inte här</p>
           </div>
-          <span className="sidebar-section-count">{restaurantAccounts.length}</span>
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={() => router.push("/restaurant-devices")} className="text-[12.5px] font-bold text-[var(--brand-navy-ink)] hover:underline">
+              Enheter
+            </button>
+            <span className="sidebar-section-count">{restaurantAccounts.length}</span>
+          </div>
         </div>
         {restaurantAccounts.length === 0 ? (
           <EmptyState title="Inga restaurangkonton" />

@@ -267,6 +267,20 @@ async function resolveAdminByIdentifier(loginId: string) {
     return directAdmin;
   }
 
+  // Inloggning med e-post (case-insensitivt) eller användarnamn (handle).
+  const lowered = loginId.trim().toLowerCase();
+  if (lowered) {
+    const byEmailOrUsername = await prisma.adminUser.findFirst({
+      where: {
+        isActive: true,
+        OR: [{ email: lowered }, { username: lowered }],
+      },
+    });
+    if (byEmailOrUsername) {
+      return byEmailOrUsername;
+    }
+  }
+
   const normalizedLoginId = normalizeAdminLoginAlias(loginId);
   if (!normalizedLoginId) {
     return null;

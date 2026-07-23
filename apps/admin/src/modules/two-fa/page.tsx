@@ -12,6 +12,8 @@ import {
   RefreshCw,
   Trash2,
   AlertTriangle,
+  Copy,
+  Download,
 } from "lucide-react";
 import { apiDelete, apiGet, apiPost } from "@/shared/api/client";
 import { Button, Field, Input, PageHeader, Surface } from "@/shared/components/ui";
@@ -31,6 +33,15 @@ type TrustedDevice = {
   expiresAt: string;
 };
 
+/** Ikonplatta i navy-tint — samma mönster som dashboardens kort. */
+function SectionIcon({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="flex h-[38px] w-[38px] flex-none items-center justify-center rounded-[11px] bg-[var(--brand-navy-soft)] text-[var(--brand-navy-ink)]">
+      {children}
+    </span>
+  );
+}
+
 export function TwoFAPage({ embedded = false }: { embedded?: boolean } = {}) {
   const queryClient = useQueryClient();
   const [setupData, setSetupData] = useState<{ qrDataUrl: string; secret: string } | null>(null);
@@ -39,6 +50,7 @@ export function TwoFAPage({ embedded = false }: { embedded?: boolean } = {}) {
   const [regenerateCode, setRegenerateCode] = useState("");
   // Engångsvisning av recovery codes — visas EFTER backend bekräftar
   const [shownRecoveryCodes, setShownRecoveryCodes] = useState<string[] | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const status = useQuery({
     queryKey: ["2fa-status"],
@@ -106,62 +118,58 @@ export function TwoFAPage({ embedded = false }: { embedded?: boolean } = {}) {
 
   return (
     <div className="page-stack">
-      {!embedded && <PageHeader title="Tvåfaktor + enheter" />}
+      {!embedded && <PageHeader title="Säkerhet" />}
 
-      {/* Status-banner */}
-      <Surface className="px-6 py-5">
-        <div className="flex items-start gap-3">
-          {isEnabled ? (
-            <ShieldCheck size={20} className="text-emerald-500 mt-0.5" />
-          ) : (
-            <Shield size={20} className="text-amber-500 mt-0.5" />
-          )}
-          <div>
-            <h2 className="section-title">
-              {isEnabled ? "2FA är aktivt" : "2FA är avstängt"}
-            </h2>
-          </div>
+      {/* Status — navy hero i miniformat */}
+      <section className="hero-card flex flex-wrap items-center gap-4" style={{ padding: "20px 22px" }}>
+        <span className="flex h-12 w-12 flex-none items-center justify-center rounded-full bg-[var(--brand-cream)] text-[#0a2340]">
+          {isEnabled ? <ShieldCheck size={22} /> : <Shield size={22} />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[16px] font-extrabold text-white">Tvåfaktorsautentisering</h2>
+          <p className="mt-0.5 text-[12.5px] font-medium text-[rgba(254,247,240,0.65)]">
+            {isEnabled ? "Ditt konto kräver kod vid nya enheter." : "Aktivera för att skydda kontot."}
+          </p>
         </div>
-      </Surface>
+        <span
+          className="rounded-full px-3 py-1.5 text-[11.5px] font-extrabold"
+          style={
+            isEnabled
+              ? { background: "rgba(74, 222, 128, 0.18)", color: "#86efac" }
+              : { background: "var(--brand-orange-soft)", color: "var(--brand-orange-ink)" }
+          }
+        >
+          {isEnabled ? "Aktivt" : "Avstängt"}
+        </span>
+      </section>
 
       {/* Recovery codes — visas EN gång */}
       {shownRecoveryCodes && (
-        <div
-          className="rounded-2xl px-6 py-6"
-          style={{
-            border: "1px solid rgba(251, 191, 36, 0.4)",
-            backgroundColor: "var(--bg-panel)",
-          }}
-        >
-          <div className="flex items-start gap-3 mb-4">
-            <AlertTriangle size={20} className="text-amber-500 mt-0.5 shrink-0" />
+        <Surface className="border-[color-mix(in_srgb,var(--warning)_35%,transparent)] px-5 py-5">
+          <div className="mb-4 flex items-start gap-3">
+            <SectionIcon><AlertTriangle size={17} /></SectionIcon>
             <div>
-              <h3 className="section-title">Spara dessa recovery codes nu</h3>
-              <p className="section-subtitle">
-                <strong>Visas bara den här gången.</strong>
-              </p>
+              <h3 className="section-title">Spara koderna nu</h3>
+              <p className="section-subtitle">Visas bara en gång.</p>
             </div>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4 font-mono">
+          <div className="mb-4 grid grid-cols-2 gap-2 font-mono sm:grid-cols-5">
             {shownRecoveryCodes.map((c) => (
-              <code
-                key={c}
-                className="block p-2.5 rounded-lg text-center text-sm font-semibold"
-                style={{ backgroundColor: "var(--bg-panel-muted)", color: "var(--text-primary)" }}
-              >
+              <code key={c} className="block rounded-[9px] bg-[var(--bg-panel-muted)] p-2.5 text-center text-sm font-semibold text-[var(--text-primary)]">
                 {c}
               </code>
             ))}
           </div>
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex flex-wrap gap-2">
             <Button
               variant="secondary"
               onClick={() => {
-                navigator.clipboard.writeText(shownRecoveryCodes.join("\n"));
-                alert("Kopierat till urklipp");
+                void navigator.clipboard.writeText(shownRecoveryCodes.join("\n"));
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
               }}
             >
-              Kopiera alla
+              <Copy size={14} /> {copied ? "Kopierat!" : "Kopiera"}
             </Button>
             <Button
               variant="secondary"
@@ -175,51 +183,51 @@ export function TwoFAPage({ embedded = false }: { embedded?: boolean } = {}) {
                 URL.revokeObjectURL(url);
               }}
             >
-              Ladda ner .txt
+              <Download size={14} /> Ladda ner
             </Button>
             <Button variant="primary" onClick={() => setShownRecoveryCodes(null)}>
-              Klar — jag har sparat dem
+              Klar — sparade
             </Button>
           </div>
-        </div>
+        </Surface>
       )}
 
       {/* Setup-flow */}
       {!isEnabled && !setupData && (
-        <Surface className="px-6 py-6">
-          <h3 className="section-title mb-3">Aktivera 2FA</h3>
+        <Surface className="flex flex-wrap items-center justify-between gap-4 px-5 py-5">
+          <div className="flex items-center gap-3">
+            <SectionIcon><Shield size={17} /></SectionIcon>
+            <div>
+              <h3 className="section-title">Aktivera 2FA</h3>
+              <p className="section-subtitle">Tar en minut med valfri autentiseringsapp.</p>
+            </div>
+          </div>
           <Button variant="primary" onClick={() => setupMut.mutate()} disabled={setupMut.isPending}>
             {setupMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Shield size={14} />}
-            Starta setup
+            Kom igång
           </Button>
         </Surface>
       )}
 
       {setupData && (
-        <Surface className="px-6 py-6">
-          <h3 className="section-title mb-3">Scanna QR-koden</h3>
-          <div className="flex flex-wrap gap-6 items-start mb-5">
+        <Surface className="px-5 py-5">
+          <h3 className="section-title mb-4">Skanna QR-koden</h3>
+          <div className="mb-5 flex flex-wrap items-start gap-6">
             {/* Data-URL från 2FA-setup; Next Image kan inte optimera den. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={setupData.qrDataUrl}
               alt="2FA QR-kod"
-              className="w-48 h-48 rounded-xl border"
-              style={{ borderColor: "var(--border-subtle)" }}
+              className="h-48 w-48 rounded-[14px] border border-[var(--border-subtle)] bg-white p-2"
             />
-            <div className="flex-1 min-w-[200px]">
-              <p className="text-xs mb-2" style={{ color: "var(--text-secondary)" }}>
-                Kan inte scanna? Skriv in detta secret manuellt:
-              </p>
-              <code
-                className="block p-3 rounded-lg text-xs break-all"
-                style={{ backgroundColor: "var(--bg-panel-muted)", color: "var(--text-primary)" }}
-              >
+            <div className="min-w-[200px] flex-1">
+              <p className="card-label mb-2">Eller ange manuellt</p>
+              <code className="block break-all rounded-[9px] bg-[var(--bg-panel-muted)] p-3 text-xs text-[var(--text-primary)]">
                 {setupData.secret}
               </code>
             </div>
           </div>
-          <Field label="Ange 6-siffrig kod från appen">
+          <Field label="Kod från appen">
             <Input
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
@@ -227,16 +235,13 @@ export function TwoFAPage({ embedded = false }: { embedded?: boolean } = {}) {
               maxLength={6}
               inputMode="numeric"
               autoFocus
+              className="input-compact-number max-w-[180px]"
             />
           </Field>
-          <div className="flex gap-3 mt-4">
-            <Button
-              variant="primary"
-              onClick={() => verifyMut.mutate()}
-              disabled={code.length !== 6 || verifyMut.isPending}
-            >
+          <div className="mt-4 flex gap-3">
+            <Button variant="primary" onClick={() => verifyMut.mutate()} disabled={code.length !== 6 || verifyMut.isPending}>
               {verifyMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
-              Bekräfta + aktivera
+              Aktivera
             </Button>
             <Button variant="secondary" onClick={() => { setSetupData(null); setCode(""); }}>
               Avbryt
@@ -245,34 +250,33 @@ export function TwoFAPage({ embedded = false }: { embedded?: boolean } = {}) {
         </Surface>
       )}
 
-      {/* När 2FA är aktivt: recovery codes status + trusted devices + disable */}
+      {/* När 2FA är aktivt: recovery codes + betrodda enheter + avstängning */}
       {isEnabled && !setupData && (
-        <>
-          {/* Recovery codes status */}
-          <Surface className="px-6 py-6">
-            <div className="flex items-center justify-between mb-4">
+        <div className="grid items-start gap-4 xl:grid-cols-2">
+          {/* Recovery codes */}
+          <Surface className="px-5 py-5">
+            <div className="mb-4 flex items-start justify-between gap-3">
               <div className="flex items-start gap-3">
-                <KeyRound size={20} className="text-[var(--accent)] mt-0.5" />
+                <SectionIcon><KeyRound size={17} /></SectionIcon>
                 <div>
-                  <h3 className="section-title">Recovery codes</h3>
+                  <h3 className="section-title">Återställningskoder</h3>
                   <p className="section-subtitle">
-                    {remainingCodes > 0
-                      ? `${remainingCodes} av 10 oanvända kvar`
-                      : "Inga koder kvar — generera nya nu"}
+                    {remainingCodes > 0 ? `${remainingCodes} av 10 kvar` : "Inga kvar — generera nya"}
                   </p>
                 </div>
               </div>
-              {remainingCodes <= 3 && remainingCodes > 0 && (
-                <span className="text-amber-500 text-xs font-semibold">⚠ Få kvar</span>
+              {remainingCodes <= 3 && (
+                <span className="badge badge-warning">Få kvar</span>
               )}
             </div>
-            <Field label="Ange TOTP-kod för att generera nya 10 koder">
+            <Field label="TOTP-kod" hint="Nya koder ersätter alla gamla.">
               <Input
                 value={regenerateCode}
                 onChange={(e) => setRegenerateCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 placeholder="123456"
                 maxLength={6}
                 inputMode="numeric"
+                className="input-compact-number max-w-[180px]"
               />
             </Field>
             <Button
@@ -282,59 +286,50 @@ export function TwoFAPage({ embedded = false }: { embedded?: boolean } = {}) {
               disabled={regenerateCode.length !== 6 || regenerateMut.isPending}
             >
               {regenerateMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-              Generera nya recovery codes (invaliderar gamla)
+              Generera nya
             </Button>
           </Surface>
 
-          {/* Trusted devices */}
-          <Surface className="px-6 py-6">
-            <div className="flex items-center justify-between mb-4">
+          {/* Betrodda enheter */}
+          <Surface className="px-5 py-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex items-start gap-3">
-                <Monitor size={20} className="text-[var(--accent)] mt-0.5" />
+                <SectionIcon><Monitor size={17} /></SectionIcon>
                 <div>
-                  <h3 className="section-title">Trusted devices</h3>
+                  <h3 className="section-title">Betrodda enheter</h3>
+                  <p className="section-subtitle">Slipper koden vid inloggning.</p>
                 </div>
               </div>
               {(devices.data?.length || 0) > 0 && (
                 <Button
                   variant="danger"
                   onClick={() => {
-                    if (window.confirm("Revoka ALLA enheter? Du måste ange TOTP-kod nästa login överallt.")) {
+                    if (window.confirm("Glöm alla enheter? Alla behöver ange kod vid nästa inloggning.")) {
                       revokeAllMut.mutate();
                     }
                   }}
                   disabled={revokeAllMut.isPending}
                 >
-                  Revoka alla
+                  Glöm alla
                 </Button>
               )}
             </div>
             {devices.isLoading ? (
-              <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Laddar…</p>
+              <p className="section-subtitle">Laddar…</p>
             ) : (devices.data?.length || 0) === 0 ? (
-              <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                Inga trusted devices än.
-              </p>
+              <p className="section-subtitle">Inga betrodda enheter ännu.</p>
             ) : (
               <div className="grid gap-2">
                 {(devices.data || []).map((d) => (
-                  <div
-                    key={d.id}
-                    className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg"
-                    style={{ backgroundColor: "var(--bg-panel-muted)" }}
-                  >
+                  <div key={d.id} className="flex items-center justify-between gap-3 rounded-[11px] bg-[var(--bg-panel-muted)] px-4 py-3">
                     <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-sm truncate">{d.deviceLabel}</p>
-                      <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                      <p className="truncate text-sm font-semibold">{d.deviceLabel}</p>
+                      <p className="mt-0.5 text-xs text-[var(--text-muted)]">
                         {d.ipAddress ? `${d.ipAddress} · ` : ""}
-                        Senast använd {new Date(d.lastSeenAt).toLocaleString("sv-SE")}
+                        {new Date(d.lastSeenAt).toLocaleString("sv-SE")}
                       </p>
                     </div>
-                    <Button
-                      variant="danger"
-                      onClick={() => revokeDeviceMut.mutate(d.id)}
-                      disabled={revokeDeviceMut.isPending}
-                    >
+                    <Button variant="danger" onClick={() => revokeDeviceMut.mutate(d.id)} disabled={revokeDeviceMut.isPending}>
                       <Trash2 size={13} /> Glöm
                     </Button>
                   </div>
@@ -343,31 +338,41 @@ export function TwoFAPage({ embedded = false }: { embedded?: boolean } = {}) {
             )}
           </Surface>
 
-          {/* Disable 2FA */}
-          <Surface className="px-6 py-6">
-            <h3 className="section-title mb-3">Stäng av 2FA</h3>
-            <Field label="Ange aktuell 6-siffrig kod">
-              <Input
-                value={disableCode}
-                onChange={(e) => setDisableCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                placeholder="123456"
-                maxLength={6}
-                inputMode="numeric"
-              />
-            </Field>
-            <Button
-              variant="danger"
-              className="mt-4"
-              onClick={() => {
-                if (window.confirm("Stäng av 2FA? Detta tar även bort alla recovery codes.")) disableMut.mutate();
-              }}
-              disabled={disableCode.length !== 6 || disableMut.isPending}
-            >
-              {disableMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <ShieldOff size={14} />}
-              Stäng av 2FA
-            </Button>
+          {/* Stäng av */}
+          <Surface className="px-5 py-5 xl:col-span-2">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <div className="flex items-start gap-3">
+                  <SectionIcon><ShieldOff size={17} /></SectionIcon>
+                  <div>
+                    <h3 className="section-title">Stäng av 2FA</h3>
+                    <p className="section-subtitle">Tar även bort alla återställningskoder.</p>
+                  </div>
+                </div>
+                <Field label="TOTP-kod" className="mt-4">
+                  <Input
+                    value={disableCode}
+                    onChange={(e) => setDisableCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    placeholder="123456"
+                    maxLength={6}
+                    inputMode="numeric"
+                    className="input-compact-number max-w-[180px]"
+                  />
+                </Field>
+              </div>
+              <Button
+                variant="danger"
+                onClick={() => {
+                  if (window.confirm("Stäng av 2FA? Detta tar även bort alla återställningskoder.")) disableMut.mutate();
+                }}
+                disabled={disableCode.length !== 6 || disableMut.isPending}
+              >
+                {disableMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <ShieldOff size={14} />}
+                Stäng av
+              </Button>
+            </div>
           </Surface>
-        </>
+        </div>
       )}
     </div>
   );

@@ -200,11 +200,12 @@ app.use(cookieParser());
 app.use(express.static('public'));
 
 // Rate limiting
+// Konsoliderade Hermes-agenter (2026-07-24): ett konto per uppdrag.
+// Kocken äger meny+bild (fd Studion), Falken driftövervakning (fd Kund-
+// vakten), Torget tillväxt. Fd-kontona är avaktiverade i DB, inte raderade.
 const AI_AGENT_LOGIN_IDS = new Set([
   'falken@viaeats.se',
-  'kundvakten@viaeats.se',
   'kocken@viaeats.se',
-  'studion@viaeats.se',
   'torget@viaeats.se',
 ]);
 
@@ -213,7 +214,7 @@ const loginIdFromBody = (body: any) =>
 
 // Höjd login-budget kräver en delad agent-hemlighet (x-viaeats-agent), inte
 // bara den postade e-posten — annars kunde vem som helst hävda falken@… för
-// att få 80 gissningar. loginIdFromBody scopar ändå till våra 5 agent-konton.
+// att få 80 gissningar. loginIdFromBody scopar ändå till våra 3 agent-konton.
 const isAiAgentLogin = (req: express.Request) =>
   isVerifiedAgentLogin(req, AI_AGENT_LOGIN_IDS, loginIdFromBody(req.body));
 
