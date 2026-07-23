@@ -22,6 +22,8 @@ type TwoFAStatus = {
   enabled: boolean;
   remainingRecoveryCodes: number;
   recoveryGeneratedAt: string | null;
+  /** Metadata per kodplats — koderna själva lagras hashade och kan inte visas. */
+  codes?: Array<{ used: boolean; usedAt: string | null }>;
 };
 
 type TrustedDevice = {
@@ -269,7 +271,29 @@ export function TwoFAPage({ embedded = false }: { embedded?: boolean } = {}) {
                 <span className="badge badge-warning">Få kvar</span>
               )}
             </div>
-            <Field label="TOTP-kod" hint="Nya koder ersätter alla gamla.">
+            {(status.data?.codes?.length ?? 0) > 0 && (
+              <div className="mb-4 grid grid-cols-5 gap-2">
+                {status.data!.codes!.map((slot, i) => (
+                  <div
+                    key={i}
+                    className="rounded-[9px] px-2 py-2 text-center"
+                    style={{
+                      background: slot.used ? "var(--bg-hover)" : "var(--success-soft)",
+                      opacity: slot.used ? 0.65 : 1,
+                    }}
+                    title={slot.used && slot.usedAt ? `Använd ${new Date(slot.usedAt).toLocaleDateString("sv-SE")}` : "Oanvänd"}
+                  >
+                    <span className="block font-mono text-[11px] font-bold" style={{ color: slot.used ? "var(--text-muted)" : "var(--success-text)", textDecoration: slot.used ? "line-through" : "none" }}>
+                      Kod {i + 1}
+                    </span>
+                    <span className="mt-0.5 block text-[9.5px] font-semibold text-[var(--text-muted)]">
+                      {slot.used ? (slot.usedAt ? new Date(slot.usedAt).toLocaleDateString("sv-SE") : "Använd") : "Kvar"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Field label="TOTP-kod" hint="Nya koder ersätter alla gamla. Kopian sparas när de visas — de kan inte visas igen.">
               <Input
                 value={regenerateCode}
                 onChange={(e) => setRegenerateCode(e.target.value.replace(/\D/g, "").slice(0, 6))}

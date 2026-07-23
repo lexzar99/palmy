@@ -2,11 +2,21 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import localFont from "next/font/local";
 import { ArrowLeft, ArrowRight, KeyRound, LockKeyhole, ShieldCheck, UserRound } from "lucide-react";
 import { apiPost } from "@/shared/api/client";
 import { setStoredAdminSession } from "@/shared/auth/storage";
 import { Button, Field, Input } from "@/shared/components/ui";
 import viaeatsSymbol from "../../../../../Logotyp/exports/smiley-navy-transparent.png";
+import creamSmiley from "../../../../../Logotyp/exports/smiley-cream-transparent.png";
+import brandPattern from "../../../../../Logotyp/exports/background-pattern-navy-wide.png";
+
+// Brandtypografi för ordmärket (Baloo 2 ExtraBold enligt brand-guiden).
+const baloo = localFont({
+  src: "./fonts/Baloo2.ttf",
+  weight: "400 800",
+  display: "swap",
+});
 
 type LoginResponse =
   | {
@@ -139,8 +149,20 @@ export default function LoginPage() {
   const displayName = profile?.name || identifier.trim();
 
   return (
-    <div className="auth-shell">
-      <div key={shakeKey} className={`auth-card${shakeKey > 0 ? " auth-shake" : ""}`}>
+    <div className="auth-split">
+      {/* ── Brandpanel ── */}
+      <aside className="auth-brand" style={{ backgroundImage: `url(${brandPattern.src})` }} aria-hidden>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={creamSmiley.src} alt="" className="auth-brand-smiley" />
+        <p className={`auth-wordmark ${baloo.className}`} style={{ fontWeight: 800 }}>
+          via<span style={{ color: "var(--brand-orange)" }}>eats</span>
+        </p>
+        <p className="auth-tagline">Mat från stan.</p>
+      </aside>
+
+      {/* ── Formulärsida ── */}
+      <div className="auth-form-side">
+        <div key={shakeKey} className={`auth-card${shakeKey > 0 ? " auth-shake" : ""}`}>
         {/* ── Steg 1: vem loggar in? ── */}
         {step === "user" && (
           <div className="auth-step">
@@ -150,8 +172,8 @@ export default function LoginPage() {
                 <img src={viaeatsSymbol.src} alt="" className="h-11 w-11 object-contain" />
               </div>
             </div>
-            <h1 className="mt-5 text-center text-[24px] font-semibold tracking-[-0.025em]">viaeats admin</h1>
-            <p className="mt-1.5 text-center text-[13px] text-[var(--text-secondary)]">Logga in för att fortsätta</p>
+            <h1 className="mt-5 text-center text-[26px] font-bold tracking-[-0.03em]">Välkommen tillbaka</h1>
+            <p className="mt-1.5 text-center text-[13.5px] text-[var(--text-secondary)]">Logga in för att fortsätta till panelen</p>
 
             <form className="mt-7 grid gap-5" onSubmit={submitIdentifier}>
               <Field label="Användarnamn eller e-post" htmlFor="login-identifier">
@@ -316,6 +338,7 @@ export default function LoginPage() {
             </form>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

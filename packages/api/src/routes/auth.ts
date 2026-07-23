@@ -1098,13 +1098,23 @@ router.get('/2fa/status', authenticate, async (req: any, res) => {
     const admin = await prisma.adminUser.findUnique({ where: { id: req.admin?.id } });
     const enabled = Boolean((admin as any)?.totpEnabled);
     const remainingCodes = enabled ? await countRemainingCodes(req.admin.id) : 0;
+    // Själva koderna är bcrypt-hashade och kan aldrig återges — men
+    // använd/oanvänd-status per plats är säker metadata att visa.
+    const codes = enabled
+      ? (await prisma.recoveryCode.findMany({
+          where: { adminId: req.admin.id },
+          select: { usedAt: true, createdAt: true },
+          orderBy: { createdAt: 'asc' },
+        })).map((code) => ({ used: Boolean(code.usedAt), usedAt: code.usedAt }))
+      : [];
     res.json({
       enabled,
       remainingRecoveryCodes: remainingCodes,
       recoveryGeneratedAt: (admin as any)?.recoveryGeneratedAt ?? null,
+      codes,
     });
   } catch {
-    res.json({ enabled: false, remainingRecoveryCodes: 0 });
+    res.json({ enabled: false, remainingRecoveryCodes: 0, codes: [] });
   }
 });
 
