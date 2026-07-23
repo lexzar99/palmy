@@ -5,14 +5,13 @@ import prisma from '../lib/prisma';
 import { slugify } from '../lib/slug';
 import { authenticate, AuthRequest, resolveAdminSessionFromToken } from '../middleware/auth';
 import { getIO } from '../lib/socket';
-import { isRestaurantOpen } from '../lib/openingHours';
+import { isRestaurantOpen, nextOpeningAfterToday } from '../lib/openingHours';
 import { normalizeDeliveryZones } from '../utils/deliveryZones';
 import { moneyDto, nullableMoneyDto, oreToSek, parseOre, sekToOre } from '../utils/money';
 import { getEffectiveEtaMinutes, ETA_DEFAULT_MINUTES } from '../lib/restaurantEta';
 import {
   ACCEPTING_ORDERS_MODES,
   AcceptingOrdersMode,
-  normalizeAcceptingOrdersMode,
   resolveRestaurantAvailability,
 } from '../lib/restaurantAvailability';
 import { resolveOrCreateCity } from '../lib/cityResolver';
@@ -579,9 +578,9 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       payload.adminPassword = undefined;
     }
     const slug = slugify(payload.slug || payload.name);
-    const acceptingOrdersMode: AcceptingOrdersMode = payload.acceptingOrdersMode
-      ?? (payload.isOpen === false ? 'FORCE_CLOSED' : 'SCHEDULED');
     const openingHours = JSON.stringify(payload.openingHours ?? {});
+    const acceptingOrdersMode: AcceptingOrdersMode = payload.acceptingOrdersMode ?? 'SCHEDULED';
+    const legacyClosedForToday = payload.acceptingOrdersMode === undefined && payload.isOpen === false;
     const data: any = {
       name: payload.name,
       slug: slug,
@@ -604,6 +603,11 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
         ? new Date(payload.acceptingOrdersOverrideUntil)
         : null,
       acceptingOrdersOverrideReason: payload.acceptingOrdersOverrideReason ?? null,
+      pausedUntil: payload.pausedUntil
+        ? new Date(payload.pausedUntil)
+        : legacyClosedForToday
+          ? nextOpeningAfterToday(openingHours)
+          : null,
       comingSoon: payload.comingSoon,
       draft: payload.draft ?? false,
       rating: payload.rating !== undefined ? Number(payload.rating) : undefined,
@@ -806,6 +810,10 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       if (!Number.isFinite(n)) throw new TypeError(`${field} måste vara ett giltigt tal`);
       return n;
     };
+    const safeStringify = (val: any) => {
+      if (typeof val === 'string') return val;
+      return JSON.stringify(val ?? {});
+    };
 
     if (payload.etaMinutes !== undefined) data.etaMinutes = toSafeNum(payload.etaMinutes);
     // Manuell override: number = sätt nytt värde (clampat 25–55), null = rensa override
@@ -819,17 +827,23 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     }
     if (payload.featuredClass !== undefined) data.featuredClass = toSafeNum(payload.featuredClass);
 
-    // Explicit mode is canonical. Legacy isOpen is accepted without turning a
-    // full-form save into a hidden override: true restores SCHEDULED, false
-    // means FORCE_CLOSED. FORCE_OPEN is only expressible through the new field.
+    // Explicit mode is canonical. Legacy terminal `isOpen=false` means
+    // "closed for today", not a permanent manual override. It returns to the
+    // opening-hours schedule at the next configured opening.
     if (payload.acceptingOrdersMode !== undefined) {
       data.acceptingOrdersMode = payload.acceptingOrdersMode;
       data.isOpen = payload.acceptingOrdersMode !== 'FORCE_CLOSED';
     } else if (payload.isOpen !== undefined) {
-      const currentLegacyToggle = normalizeAcceptingOrdersMode((existingRestaurant as any).acceptingOrdersMode) !== 'FORCE_CLOSED';
-      if (payload.isOpen !== currentLegacyToggle) {
-        data.acceptingOrdersMode = payload.isOpen ? 'SCHEDULED' : 'FORCE_CLOSED';
-        data.isOpen = payload.isOpen;
+      data.acceptingOrdersMode = 'SCHEDULED';
+      data.acceptingOrdersOverrideUntil = null;
+      data.acceptingOrdersOverrideReason = null;
+      data.isOpen = true;
+      if (payload.isOpen === false) {
+        data.pausedUntil = nextOpeningAfterToday(
+          payload.openingHours !== undefined ? safeStringify(payload.openingHours) : existingRestaurant.openingHours,
+        );
+      } else {
+        data.pausedUntil = null;
       }
     }
     if (payload.acceptingOrdersOverrideUntil !== undefined) {
@@ -862,11 +876,6 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     }
     
     // JSON fields - ensure they aren't double-stringified
-    const safeStringify = (val: any) => {
-      if (typeof val === 'string') return val;
-      return JSON.stringify(val ?? {});
-    };
-
     if (payload.tags !== undefined) data.tags = safeStringify(payload.tags);
     if (payload.openingHours !== undefined) data.openingHours = safeStringify(payload.openingHours);
     if (payload.internalInfo !== undefined) data.internalInfo = payload.internalInfo;

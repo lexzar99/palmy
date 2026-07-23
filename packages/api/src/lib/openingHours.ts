@@ -7,6 +7,139 @@ export interface OpeningHours {
 
 export type WeeklyOpeningHours = Record<string, OpeningHours>;
 
+const SWEDEN_TIME_ZONE = 'Europe/Stockholm';
+const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+const stockholmFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: SWEDEN_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+  hourCycle: 'h23',
+});
+
+type LocalDateParts = { year: number; month: number; day: number; hour: number; minute: number; second: number };
+
+function parseHours(openingHours: any | string | null | undefined): any | null {
+  if (!openingHours) return null;
+  if (typeof openingHours === 'string') {
+    try {
+      return JSON.parse(openingHours);
+    } catch {
+      return null;
+    }
+  }
+  return openingHours;
+}
+
+function stockholmParts(date: Date): LocalDateParts {
+  const parts = stockholmFormatter.formatToParts(date);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value || 0);
+  return {
+    year: get('year'),
+    month: get('month'),
+    day: get('day'),
+    hour: get('hour'),
+    minute: get('minute'),
+    second: get('second'),
+  };
+}
+
+function stockholmOffsetMs(date: Date): number {
+  const p = stockholmParts(date);
+  return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - date.getTime();
+}
+
+function stockholmLocalToUtc(year: number, month: number, day: number, hour: number, minute: number): Date {
+  const localAsUtcMs = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
+  let utc = new Date(localAsUtcMs);
+  for (let i = 0; i < 3; i += 1) {
+    utc = new Date(localAsUtcMs - stockholmOffsetMs(utc));
+  }
+  return utc;
+}
+
+function addLocalDays(base: LocalDateParts, days: number): LocalDateParts {
+  const d = new Date(Date.UTC(base.year, base.month - 1, base.day + days, 12, 0, 0, 0));
+  return {
+    year: d.getUTCFullYear(),
+    month: d.getUTCMonth() + 1,
+    day: d.getUTCDate(),
+    hour: 0,
+    minute: 0,
+    second: 0,
+  };
+}
+
+function localDateKey(date: Pick<LocalDateParts, 'year' | 'month' | 'day'>): string {
+  return `${date.year}-${String(date.month).padStart(2, '0')}-${String(date.day).padStart(2, '0')}`;
+}
+
+function localDayName(date: Pick<LocalDateParts, 'year' | 'month' | 'day'>): string {
+  return DAY_NAMES[new Date(Date.UTC(date.year, date.month - 1, date.day)).getUTCDay()];
+}
+
+function slotsFor(day: any): any[] {
+  if (!day || day.closed === true) return [];
+  if (Array.isArray(day)) return day;
+  if (Array.isArray(day.shifts)) return day.shifts;
+  return [day];
+}
+
+function dayDataFor(hours: any, date: Pick<LocalDateParts, 'year' | 'month' | 'day'>): any | null {
+  const specialHours = Array.isArray(hours.specialHours) ? hours.specialHours : [];
+  const special = specialHours.find((sh: any) => sh?.date === localDateKey(date));
+  if (special?.closed === true) return null;
+  if (special) return special;
+  const day = localDayName(date);
+  return hours[day] || hours.regular?.[day] || null;
+}
+
+function parseTimeMinutes(value: unknown): number | null {
+  if (typeof value !== 'string' || !value.includes(':')) return null;
+  const [hour, minute] = value.split(':').map(Number);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  return hour * 60 + minute;
+}
+
+/**
+ * Returns the next scheduled opening after the current Stockholm calendar day.
+ * Used for terminal "closed for today": the restaurant should return to
+ * schedule automatically and never become permanently force-closed.
+ */
+export function nextOpeningAfterToday(
+  openingHours: any | string | null | undefined,
+  now = new Date(),
+): Date {
+  const base = stockholmParts(now);
+  const tomorrow = addLocalDays(base, 1);
+  const fallback = stockholmLocalToUtc(tomorrow.year, tomorrow.month, tomorrow.day, 0, 0);
+  const hours = parseHours(openingHours);
+  if (!hours || typeof hours !== 'object') return fallback;
+
+  const allKeys = Object.keys(hours);
+  const hasRegular = hours.regular && Object.keys(hours.regular).length > 0;
+  if (allKeys.length === 0 && !hasRegular) return fallback;
+
+  for (let offset = 1; offset <= 14; offset += 1) {
+    const date = addLocalDays(base, offset);
+    const candidates = slotsFor(dayDataFor(hours, date))
+      .map((slot) => parseTimeMinutes(slot?.open))
+      .filter((value): value is number => value !== null)
+      .sort((a, b) => a - b);
+    if (candidates.length === 0) continue;
+    const first = candidates[0];
+    return stockholmLocalToUtc(date.year, date.month, date.day, Math.floor(first / 60), first % 60);
+  }
+
+  return fallback;
+}
+
 export function isRestaurantOpen(
   openingHours: any | string | null | undefined,
   now = new Date(),

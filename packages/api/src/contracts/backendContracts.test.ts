@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
+import { nextOpeningAfterToday } from '../lib/openingHours';
 import { normalizeDeliveryZones } from '../utils/deliveryZones';
 import { moneyDto, parseOre, sekToOre } from '../utils/money';
 import { resolveContentStatus } from '../lib/contentPlacement';
@@ -15,6 +16,12 @@ const now = new Date('2026-07-10T12:00:00.000Z');
 const scheduleClosed = JSON.stringify({ regular: {} });
 const fridayWindow = JSON.stringify({ friday: { open: '13:00', close: '15:00' } });
 const overnightFriday = JSON.stringify({ friday: { open: '22:00', close: '02:00' } });
+const dailyWindow = JSON.stringify({
+  regular: {
+    friday: { open: '11:00', close: '21:00' },
+    saturday: { open: '11:00', close: '21:00' },
+  },
+});
 
 assert.equal(
   resolveRestaurantAvailability({ openingHours: '{}', acceptingOrdersMode: 'SCHEDULED' }, {}, now).isOpen,
@@ -56,6 +63,18 @@ assert.equal(
   resolveRestaurantAvailability({ openingHours: scheduleClosed, acceptingOrdersMode: 'FORCE_OPEN' }, {}, now).isOpen,
   true,
 );
+assert.equal(
+  nextOpeningAfterToday(dailyWindow, new Date('2026-07-10T18:30:00.000Z')).toISOString(),
+  '2026-07-11T09:00:00.000Z',
+);
+const closedForToday = resolveRestaurantAvailability({
+  openingHours: dailyWindow,
+  acceptingOrdersMode: 'SCHEDULED',
+  pausedUntil: nextOpeningAfterToday(dailyWindow, new Date('2026-07-10T18:30:00.000Z')),
+}, {}, new Date('2026-07-10T18:30:00.000Z'));
+assert.equal(closedForToday.reason, 'RESTAURANT_PAUSED');
+assert.equal(closedForToday.configuredMode, 'SCHEDULED');
+assert.equal(closedForToday.legacyManualIsOpen, true);
 const expiredOverride = resolveRestaurantAvailability({
     openingHours: '{}',
     acceptingOrdersMode: 'FORCE_CLOSED',
