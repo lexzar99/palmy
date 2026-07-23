@@ -614,8 +614,39 @@ model RestaurantDevice {
   lastSeenAt       DateTime?
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
+  benchmarks       TerminalDeviceBenchmark[]
 
   @@index([restaurantId])
+}
+
+// Rapport från partnerplattans manuella "Diagnos & benchmark" i Settings.
+// Payloaden sparas rå så vi kan jämföra SUNMI/Qualcomm/MediaTek och senare
+// bygga ranking/adminvy utan att tappa äldre mätfält.
+model TerminalDeviceBenchmark {
+  id                 String            @id @default(cuid())
+  restaurantId       String
+  restaurant         Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurantDeviceId String?
+  restaurantDevice   RestaurantDevice? @relation(fields: [restaurantDeviceId], references: [id], onDelete: SetNull)
+  deviceId           String
+  appVersion         String?
+  deviceBrand        String?
+  deviceModel        String?
+  osVersion          String?
+  socVendor          String?
+  cpuHardware        String?
+  score              Int
+  grade              String?
+  durationMs         Int?
+  batteryLevel       Int?
+  batteryHealth      String?
+  batteryTemperatureC Float?
+  payload            Json
+  createdAt          DateTime          @default(now())
+
+  @@index([restaurantId, createdAt])
+  @@index([deviceId, createdAt])
+  @@index([score])
 }
 
 // Engångskod som super-admin genererar för att para en ny platta till en
@@ -889,6 +920,7 @@ model Restaurant {
   tierSilverFeeOverride         Int?
   tierStandardFeeOverride       Int?
   devices                       RestaurantDevice[]
+  terminalDeviceBenchmarks      TerminalDeviceBenchmark[]
   pairingCodes                  DevicePairingCode[]
   categories                    Category[]
   deals                         Deal[]

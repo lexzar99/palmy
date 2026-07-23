@@ -1316,7 +1316,7 @@ router.post('/:id/permanent-delete', authenticate, async (req: AuthRequest, res)
       const notes = await tx.note.deleteMany({ where: { restaurantId } });
       const pairingCodes = await tx.devicePairingCode.deleteMany({ where: { restaurantId } });
       const devices = await tx.restaurantDevice.deleteMany({ where: { restaurantId } });
-      const terminalBenchmarks = await tx.terminalDeviceBenchmark.deleteMany({ where: { restaurantId } });
+      const terminalBenchmarks = await (tx as any).terminalDeviceBenchmark?.deleteMany?.({ where: { restaurantId } }) ?? { count: 0 };
       const printers = await tx.restaurantPrinter.deleteMany({ where: { restaurantId } });
       const groupOrders = await tx.groupOrder.deleteMany({ where: { restaurantId } });
       const dealCampaignsDetached = await tx.dealCampaign.updateMany({ where: { restaurantId }, data: { restaurantId: null } });

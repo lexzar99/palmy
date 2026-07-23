@@ -139,15 +139,29 @@ type TerminalClientInfo = {
   osVersion?: string;
 };
 
+const asRecord = (value: unknown): Record<string, any> =>
+  value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, any> : {};
+
+const cleanText = (value: unknown, max = 160): string | undefined =>
+  typeof value === 'string' && value.trim() ? value.trim().slice(0, max) : undefined;
+
+const finiteNumber = (value: unknown): number | undefined => {
+  const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
+  return Number.isFinite(n) ? n : undefined;
+};
+
+const cleanScore = (value: unknown): number => {
+  const n = Math.round(finiteNumber(value) ?? 0);
+  return Math.max(0, Math.min(100, n));
+};
+
 function clientMetadataUpdate(client?: TerminalClientInfo) {
   if (!client || typeof client !== 'object') return {};
-  const clean = (v: unknown) =>
-    typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : undefined;
   return {
-    appVersion: clean(client.version),
-    deviceModel: clean(client.model),
-    deviceBrand: clean(client.brand),
-    osVersion: clean(client.osVersion),
+    appVersion: cleanText(client.version, 120),
+    deviceModel: cleanText(client.model, 120),
+    deviceBrand: cleanText(client.brand, 120),
+    osVersion: cleanText(client.osVersion, 120),
   };
 }
 
@@ -390,6 +404,110 @@ router.post('/session', async (req, res) => {
   } catch (error) {
     console.error('[terminal/session] error:', error);
     res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
+// POST /api/terminal/device-benchmark
+// Manuellt diagnos-/benchmarktest från partnerplattan. Kräver terminal-JWT
+// med deviceId så rapporten alltid kopplas till exakt parad fysisk platta.
+router.post('/device-benchmark', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const restaurantId = req.admin?.restaurantId;
+    const deviceId = req.admin?.deviceId;
+    if (!restaurantId || !deviceId) {
+      return res.status(403).json({ error: 'Terminalen saknar device-koppling' });
+    }
+
+    const device = await (prisma as any).restaurantDevice.findUnique({
+      where: { deviceId },
+      select: { id: true, restaurantId: true, revoked: true },
+    });
+    if (!device || device.revoked || device.restaurantId !== restaurantId) {
+      return res.status(403).json({ error: 'Ogiltig terminalsession' });
+    }
+
+    const report = asRecord(req.body);
+    const payloadBytes = Buffer.byteLength(JSON.stringify(report), 'utf8');
+    if (payloadBytes > 128_000) {
+      return res.status(413).json({ error: 'Benchmarkrapporten är för stor' });
+    }
+
+    const app = asRecord(report.app);
+    const deviceInfo = asRecord(report.device);
+    const cpu = asRecord(deviceInfo.cpu);
+    const battery = asRecord(report.battery);
+    const benchmark = asRecord(report.benchmark);
+    const score = cleanScore(benchmark.score ?? report.score);
+    const grade = cleanText(benchmark.grade ?? report.grade, 40);
+    const appVersion = cleanText(app.versionName ?? app.version, 120);
+    const deviceBrand = cleanText(deviceInfo.brand ?? deviceInfo.manufacturer, 120);
+    const deviceModel = cleanText(deviceInfo.model, 120);
+    const osVersion = cleanText(deviceInfo.androidRelease ?? deviceInfo.osVersion, 120);
+    const socVendor = cleanText(cpu.socVendor ?? deviceInfo.socVendor, 80);
+    const cpuHardware = cleanText(cpu.hardware ?? deviceInfo.hardware, 120);
+    const durationMs = Math.round(finiteNumber(benchmark.durationMs) ?? 0) || undefined;
+    const batteryLevel = finiteNumber(battery.levelPercent);
+    const batteryTemperatureC = finiteNumber(battery.temperatureC);
+    const batteryHealth = cleanText(battery.health, 80);
+
+    await (prisma as any).restaurantDevice.update({
+      where: { id: device.id },
+      data: {
+        lastSeenAt: new Date(),
+        appVersion: appVersion ?? undefined,
+        deviceBrand: deviceBrand ?? undefined,
+        deviceModel: deviceModel ?? undefined,
+        osVersion: osVersion ?? undefined,
+      },
+    });
+
+    let saved = false;
+    try {
+      const model = (prisma as any).terminalDeviceBenchmark;
+      if (model?.create) {
+        await model.create({
+          data: {
+            restaurantId,
+            restaurantDeviceId: device.id,
+            deviceId,
+            appVersion,
+            deviceBrand,
+            deviceModel,
+            osVersion,
+            socVendor,
+            cpuHardware,
+            score,
+            grade,
+            durationMs,
+            batteryLevel: batteryLevel == null ? undefined : Math.round(batteryLevel),
+            batteryHealth,
+            batteryTemperatureC,
+            payload: report,
+          },
+        });
+        saved = true;
+      }
+    } catch (error) {
+      // Backward-compatible deploy: om API:n når ny kod innan Prisma-migrationen
+      // är körd ska appen fortfarande få ett OK och rapporten synas i logs.
+      console.warn('[terminal/device-benchmark] db-save skipped:', error);
+    }
+
+    console.info('[terminal/device-benchmark]', {
+      restaurantId,
+      device: String(deviceId).slice(0, 8),
+      score,
+      grade,
+      brand: deviceBrand,
+      model: deviceModel,
+      socVendor,
+      saved,
+      payloadBytes,
+    });
+    return res.status(201).json({ success: true, saved, score, grade });
+  } catch (error) {
+    console.error('[terminal/device-benchmark] error:', error);
+    return res.status(500).json({ error: 'Kunde inte ta emot benchmarkrapporten' });
   }
 });
 
