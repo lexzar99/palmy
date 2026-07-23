@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ChevronDown, ChevronUp, Loader2, RefreshCw } from "lucide-react";
+import { AlertCircle, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
 import {
   dashboardQueryKey,
   type DashboardPeriodKey,
@@ -14,13 +14,9 @@ import {
   getSystemHealth,
   healthQueryKey,
   restaurantRefsQueryKey,
-  updateRestaurantLiveState,
 } from "@/modules/dashboard/api";
 import { TrendChart } from "@/modules/dashboard/TrendChart";
 import { Badge, Button, ErrorPanel, MetricCard, PageHeader, Sparkline, Surface } from "@/shared/components/ui";
-import { AcceptingOrdersModeSelect } from "@/shared/components/restaurant-availability";
-import type { AcceptingOrdersMode } from "@/shared/contracts/restaurants";
-import { availabilityReasonLabel } from "@/shared/contracts/restaurants";
 import {
   formatCurrencyExact as formatCurrency,
   formatNumber,
@@ -58,7 +54,6 @@ const PERIOD_OPTIONS: Array<{ key: DashboardPeriodKey; label: string }> = [
 ];
 
 export function DashboardPage() {
-  const queryClient = useQueryClient();
   const router = useRouter();
   const [showMore, toggleMore] = useLocalBool("dashboard:show-more", false);
   // Scope: hela dashboarden kan filtreras per restaurang (backend stödjer det
@@ -81,15 +76,6 @@ export function DashboardPage() {
     queryKey: customerOverviewQueryKey,
     queryFn: getCustomerOverview,
     refetchInterval: 60_000,
-  });
-
-  const toggleRestaurant = useMutation({
-    mutationFn: ({ restaurantId, acceptingOrdersMode }: { restaurantId: string; acceptingOrdersMode: AcceptingOrdersMode }) =>
-      updateRestaurantLiveState(restaurantId, acceptingOrdersMode),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      await queryClient.invalidateQueries({ queryKey: ["restaurants"] });
-    },
   });
 
   if (controlCenter.isLoading || health.isLoading) {
@@ -244,7 +230,6 @@ export function DashboardPage() {
           <MetricCard
             label="ViaEats provision"
             value={formatCurrency(data.summary.periodCommission)}
-            detail="Beräknad som i Ekonomi-fliken"
           />
           <MetricCard
             label="Att överföra"
@@ -375,84 +360,14 @@ export function DashboardPage() {
 
       {showMore && (
         <>
-          {/* Secondary metrics — intäkt/snittorder bor numera i hero-raden */}
+          {/* Secondary metrics */}
           <div className="grid gap-4 sm:grid-cols-2">
-            <MetricCard
-              label="Utbetalning (period)"
-              value={formatCurrency(data.summary.monthlyPayoutExposure)}
-            />
             <MetricCard
               label="DB-latens"
               value={`${healthData.dbPingMs} ms`}
               detail={healthData.status}
             />
           </div>
-
-          {/* Full restaurant grid */}
-          <Surface className="px-7 py-6">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="section-title">Restauranger</h2>
-              {toggleRestaurant.isPending && (
-                <Loader2 size={14} className="animate-spin text-[var(--accent)]" />
-              )}
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-              {data.restaurantSnapshots.map((r) => {
-                const avatar = r.imageUrl || r.heroImageUrl;
-                return (
-                <div
-                  key={r.id}
-                  className="surface-muted flex items-center gap-3 px-4 py-3"
-                >
-                  {avatar ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={avatar}
-                      alt=""
-                      className="h-10 w-10 rounded-lg object-cover shrink-0"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                    />
-                  ) : (
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-xl shrink-0">🍽️</div>
-                  )}
-                  <span
-                    className={`h-2 w-2 rounded-full shrink-0 ${
-                      r.isOpen ? "bg-[var(--success)]" : "bg-[var(--text-muted)]"
-                    }`}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate">{r.name}</p>
-                    {(r.pendingOrders > 0 || r.liveOrders > 0) && (
-                      <p className="mt-0.5 text-[12px] text-[var(--text-muted)]">
-                        {r.pendingOrders > 0 && <span className="text-[var(--warning)] font-semibold">{r.pendingOrders} väntar</span>}
-                        {r.pendingOrders > 0 && r.liveOrders > 0 && " · "}
-                        {r.liveOrders > 0 && `${r.liveOrders} live`}
-                      </p>
-                    )}
-                    <p className="mt-0.5 truncate text-[11px] text-[var(--text-muted)]">
-                      {availabilityReasonLabel[r.availabilityReason] ?? r.availabilityReason}
-                    </p>
-                    <p className="mt-1 text-[11px] font-semibold text-[var(--text-secondary)]">
-                      {formatCurrency(r.periodRevenue ?? r.monthRevenue)} period
-                      {r.commissionEstimate > 0 ? ` · ${formatCurrency(r.commissionEstimate)} provision` : ""}
-                    </p>
-                  </div>
-                  <AcceptingOrdersModeSelect
-                    className="w-[150px] shrink-0 text-xs"
-                    aria-label={`Beställningsläge för ${r.name}`}
-                    value={r.acceptingOrdersMode}
-                    disabled={toggleRestaurant.isPending}
-                    compactLabels
-                    onValueChange={(acceptingOrdersMode) => toggleRestaurant.mutate({
-                      restaurantId: r.id,
-                      acceptingOrdersMode,
-                    })}
-                  />
-                </div>
-                );
-              })}
-            </div>
-          </Surface>
 
           {/* Status + Top products */}
           <div className="grid gap-4 xl:grid-cols-2">

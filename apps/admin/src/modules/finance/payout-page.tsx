@@ -182,14 +182,18 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
     const parsed = Number(trimmed);
     return trimmed === "" || !Number.isFinite(parsed) ? null : Math.max(0, parsed);
   };
-  const printOptions = {
-    mode: printMode,
-    showReferenceOrders,
-    showPaymentState,
-  };
+  const payoutSpec = spec.data;
+  const printOptions = useMemo(
+    () => ({
+      mode: printMode,
+      showReferenceOrders,
+      showPaymentState,
+    }),
+    [printMode, showPaymentState, showReferenceOrders],
+  );
   const previewOrders = useMemo(
-    () => spec.data ? payoutPrintOrders(spec.data, printOptions) : [],
-    [spec.data, showReferenceOrders],
+    () => payoutSpec ? payoutPrintOrders(payoutSpec, printOptions) : [],
+    [payoutSpec, printOptions],
   );
   const previewSummary = useMemo(() => payoutPrintSummary(previewOrders), [previewOrders]);
   const previewDailyRows = useMemo(() => payoutPrintDailyRows(previewOrders), [previewOrders]);
