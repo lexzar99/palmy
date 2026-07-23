@@ -18,9 +18,22 @@ import { useQuery } from "@tanstack/react-query";
 import { getSystemHealth, healthQueryKey } from "@/modules/dashboard/api";
 import { cn } from "@/shared/utils/cn";
 import { logoutAdminSession } from "@/shared/auth/storage";
+import { useAdminSession } from "@/shared/hooks/use-admin-session";
 import { getStoredTheme, setStoredTheme, type Theme } from "@/shared/store/theme";
 import { ADMIN_SECTIONS, isActiveAdminHref } from "@/shared/navigation/admin-routes";
-import viaeatsSymbol from "../../../../../Logotyp/exports/smiley-navy-transparent.png";
+// Cream-symbolen — navy-varianten försvinner mot den mörka menyn.
+import viaeatsSymbol from "../../../../../Logotyp/sym-cream.png";
+
+/** Visningsnamn för profilkortet; generiska "admin"-konton får riktigt namn. */
+function displayName(sessionName?: string | null) {
+  const name = (sessionName ?? "").trim();
+  if (!name || /^admin$/i.test(name)) return "Jarir Alshaher";
+  return name;
+}
+
+function nameInitials(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("");
+}
 
 const SECTION_KEY = "sidebar:expanded-sections";
 const PIN_KEY = "nav.pinned";
@@ -39,6 +52,8 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const session = useAdminSession();
+  const profileName = displayName(session.data?.name);
 
   const isRouteActive = (id: string, href: string) => {
     if (!isActiveAdminHref(pathname, href)) return false;
@@ -287,6 +302,23 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
         >
           <LogOut size={12} />
           <span>Logga ut överallt</span>
+        </button>
+        <button
+          type="button"
+          className="sidebar-profile"
+          onClick={() => {
+            setMobileOpen(false);
+            setHovering(false);
+            router.push("/users");
+          }}
+          title="Öppna användare"
+        >
+          <span className="sidebar-profile-avatar" aria-hidden>{nameInitials(profileName)}</span>
+          <span className="min-w-0 flex-1">
+            <span className="sidebar-profile-name truncate">{profileName}</span>
+            <span className="sidebar-profile-role">Superadmin</span>
+          </span>
+          <ChevronRight size={14} style={{ color: "rgba(254,247,240,0.4)", flex: "none" }} />
         </button>
       </div>
     </>

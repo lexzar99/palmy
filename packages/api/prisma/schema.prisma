@@ -595,6 +595,10 @@ model AdminUser {
   email               String          @unique
   password            String
   name                String
+  // Profil för adminpanelen: valfritt handle + avatar (R2-URL).
+  // Inloggning sker fortsatt med e-post; username är visning/identitet.
+  username            String?         @unique
+  avatarUrl           String?
   role                String          @default("STAFF")
   isActive            Boolean         @default(true)
   // TOTP (2FA) — otplib-genererat base32-secret. När totpEnabled=true

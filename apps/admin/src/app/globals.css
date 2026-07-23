@@ -231,16 +231,91 @@ button {
   display: none;
 }
 
+/* ── Navy-skin för hela navigationen (Velora-känsla i vår palett).
+   Samma token-override-trick som .hero-card: nästlade komponenter
+   (nav-länkar, cmdk-trigger, badges) skinnar om sig själva. Aktiv länk
+   blir en ljus cream-pill med navy text; orange bara för notisprickar. ── */
+.sidebar-shell,
+.nav-flyout,
+.mobile-nav-drawer,
+.nav-rail {
+  --text-primary: #ffffff;
+  --text-secondary: rgba(254, 247, 240, 0.74);
+  --text-muted: rgba(254, 247, 240, 0.46);
+  --bg-page: rgba(254, 247, 240, 0.06);
+  --bg-panel: rgba(254, 247, 240, 0.1);
+  --bg-hover: rgba(254, 247, 240, 0.09);
+  --border-subtle: rgba(254, 247, 240, 0.1);
+  --border-strong: rgba(254, 247, 240, 0.2);
+  --accent: var(--brand-orange);
+  --accent-soft: var(--brand-cream);
+  --accent-ink: #0a2340;
+  background: #0a2340;
+}
+
+.nav-link-active::before {
+  display: none; /* cream-pillen bär aktiv-läget — ingen sidostapel på navy */
+}
+
 .sidebar-shell {
   width: 252px;
   height: 100vh;
   padding: 18px 14px 14px;
-  border-right: 1px solid var(--border-subtle);
-  background: var(--bg-panel);
+  border-right: 1px solid rgba(254, 247, 240, 0.08);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   gap: 4px;
+}
+
+/* Profilkort längst ner i sidomenyn */
+.sidebar-profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(254, 247, 240, 0.12);
+  background: rgba(254, 247, 240, 0.06);
+  text-align: left;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.sidebar-profile:hover {
+  background: rgba(254, 247, 240, 0.1);
+  border-color: rgba(254, 247, 240, 0.2);
+}
+
+.sidebar-profile-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--brand-cream);
+  color: #0a2340;
+  font-size: 12.5px;
+  font-weight: 800;
+  overflow: hidden;
+}
+
+.sidebar-profile-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 750;
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+.sidebar-profile-role {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(254, 247, 240, 0.5);
 }
 
 .sidebar-navigation {
@@ -259,8 +334,8 @@ button {
   width: 66px;
   height: 100vh;
   padding: 16px 0 12px;
-  border-right: 1px solid var(--border-subtle);
-  background: var(--bg-panel);
+  border-right: 1px solid rgba(254, 247, 240, 0.08);
+  background: #0a2340;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -313,8 +388,8 @@ button {
   top: 0;
   bottom: 0;
   width: 252px;
-  background: var(--bg-panel);
-  border-right: 1px solid var(--border-subtle);
+  background: #0a2340;
+  border-right: 1px solid rgba(254, 247, 240, 0.08);
   box-shadow: var(--shadow-lift);
   padding: 18px 14px 14px;
   display: flex;
@@ -712,6 +787,219 @@ button {
   font-weight: 600;
 }
 
+/* Notisklocka med orange badge + dropdown-panel */
+.dash-bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.dash-bell:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+}
+
+.dash-bell-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--brand-orange);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+}
+
+.notif-wrap { position: relative; }
+
+.notif-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 60;
+  width: min(92vw, 380px);
+  max-height: 420px;
+  overflow-y: auto;
+  border-radius: 14px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-panel-strong);
+  box-shadow: var(--shadow-lift);
+  padding: 8px;
+}
+
+.dash-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--brand-navy);
+  color: var(--brand-cream);
+  font-size: 13px;
+  font-weight: 800;
+  overflow: hidden;
+}
+
+/* ─────────────────────────────────────────────
+   Kontoskapare (wizard) + kontokort
+   ───────────────────────────────────────────── */
+
+.wizard-steps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wizard-step {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.wizard-step:last-child { flex: none; }
+
+.wizard-step-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 999px;
+  border: 1.5px solid var(--border-strong);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.wizard-step.is-active .wizard-step-dot {
+  background: var(--brand-navy);
+  border-color: var(--brand-navy);
+  color: var(--brand-cream);
+}
+
+.wizard-step.is-done .wizard-step-dot {
+  background: var(--success-soft);
+  border-color: transparent;
+  color: var(--success-text);
+}
+
+.wizard-step-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.wizard-step.is-active .wizard-step-label { color: var(--text-primary); }
+
+.wizard-step-line {
+  flex: 1;
+  height: 1.5px;
+  min-width: 12px;
+  background: var(--border-subtle);
+  border-radius: 999px;
+}
+
+.wizard-step.is-done .wizard-step-line { background: var(--success); opacity: 0.4; }
+
+.kind-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 22px 14px;
+  border-radius: 14px;
+  border: 1.5px solid var(--border-subtle);
+  background: var(--bg-panel);
+  text-align: center;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.kind-card:hover { border-color: var(--border-strong); }
+
+.kind-card.is-selected {
+  border-color: var(--brand-navy);
+  background: var(--brand-navy-soft);
+}
+
+:root[data-theme="dark"] .kind-card.is-selected {
+  border-color: var(--brand-navy-ink);
+}
+
+.kind-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 4px;
+  border-radius: 12px;
+  background: var(--brand-navy-soft);
+  color: var(--brand-navy-ink);
+}
+
+.kind-card-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.kind-card-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.pw-meter {
+  display: flex;
+  gap: 5px;
+}
+
+.pw-meter-bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+}
+
+.pw-meter-bar.is-on-1 { background: var(--danger); }
+.pw-meter-bar.is-on-2 { background: var(--warning); }
+.pw-meter-bar.is-on-3 { background: var(--success); }
+
+.staff-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 13px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-panel);
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.staff-card:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+}
+
 /* ─────────────────────────────────────────────
    Hero-kort — navy panel med inbäddad graf.
    Skinnar om nästlade komponenter (TrendChart,
@@ -769,7 +1057,8 @@ button {
 
 .quick-actions {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  /* auto-fit: radbryter i hela plattor — aldrig halvklippta kort eller scroll */
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: 10px;
 }
 
@@ -814,13 +1103,9 @@ button {
 
 @media (max-width: 767px) {
   .quick-actions {
-    display: flex;
-    overflow-x: auto;
-    padding-bottom: 4px;
-    scrollbar-width: none;
+    grid-template-columns: repeat(auto-fit, minmax(94px, 1fr));
+    gap: 8px;
   }
-  .quick-actions::-webkit-scrollbar { display: none; }
-  .quick-action { min-width: 104px; flex: none; }
 }
 
 /* ─────────────────────────────────────────────
@@ -1656,8 +1941,8 @@ button {
     flex-direction: column;
     gap: 4px;
     overflow-y: auto;
-    border-right: 1px solid var(--border-subtle);
-    background: var(--bg-panel);
+    border-right: 1px solid rgba(254, 247, 240, 0.08);
+    background: #0a2340;
     box-shadow: var(--shadow-lift);
     transform: translateX(-104%);
     visibility: hidden;
@@ -1695,9 +1980,15 @@ button {
     align-items: center;
     justify-content: space-between;
     padding: 0 16px;
-    border-bottom: 1px solid var(--border-subtle);
-    background: color-mix(in srgb, var(--bg-panel) 94%, transparent);
+    border-bottom: 1px solid rgba(254, 247, 240, 0.1);
+    background: color-mix(in srgb, #0a2340 96%, transparent);
     backdrop-filter: blur(16px);
+    --text-primary: #ffffff;
+    --text-secondary: rgba(254, 247, 240, 0.74);
+    --text-muted: rgba(254, 247, 240, 0.5);
+    --bg-panel: rgba(254, 247, 240, 0.1);
+    --bg-hover: rgba(254, 247, 240, 0.09);
+    --border-strong: rgba(254, 247, 240, 0.22);
   }
 
   .mobile-nav-brand {

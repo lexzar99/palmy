@@ -3540,6 +3540,8 @@ const formatStaffMember = async (admin: {
   id: string;
   name: string;
   email: string;
+  username?: string | null;
+  avatarUrl?: string | null;
   role: string;
   isActive: boolean;
   createdAt: Date;
@@ -3551,6 +3553,8 @@ const formatStaffMember = async (admin: {
     id: admin.id,
     name: admin.name,
     email: admin.email,
+    username: admin.username ?? null,
+    avatarUrl: admin.avatarUrl ?? null,
     role: restaurant && admin.role !== 'SUPER_ADMIN' ? 'RESTAURANT_ADMIN' : admin.role,
     restaurantName: restaurant?.name || null,
     restaurantId: restaurant?.id || null,
@@ -3559,6 +3563,9 @@ const formatStaffMember = async (admin: {
     createdAt: admin.createdAt,
   };
 };
+
+// Handle för adminprofilen: 3–30 tecken, bokstäver/siffror/._-
+const STAFF_USERNAME_PATTERN = /^[a-z0-9._-]{3,30}$/i;
 
 const formatDiscountCodeForAdmin = (discount: any) => ({
   id: discount.id,
@@ -3934,6 +3941,8 @@ router.get('/staff', authenticate, requireSuperAdmin, async (_req, res) => {
           id: true,
           name: true,
           email: true,
+          username: true,
+          avatarUrl: true,
           role: true,
           isActive: true,
           createdAt: true,
@@ -3953,9 +3962,19 @@ router.get('/staff', authenticate, requireSuperAdmin, async (_req, res) => {
 
 router.post('/staff/invite', authenticate, requireSuperAdmin, async (req, res) => {
   try {
-    const { name, email, role } = req.body as { name?: string; email?: string; role?: string };
+    const { name, email, role, username, avatarUrl, password } = req.body as {
+      name?: string;
+      email?: string;
+      role?: string;
+      username?: string;
+      avatarUrl?: string;
+      password?: string;
+    };
     const trimmedName = String(name || '').trim();
     const trimmedEmail = String(email || '').trim().toLowerCase();
+    const trimmedUsername = String(username || '').trim().toLowerCase();
+    const trimmedAvatarUrl = String(avatarUrl || '').trim();
+    const chosenPassword = String(password || '');
     const normalizedRole = String(role || 'STAFF').trim().toUpperCase();
 
     if (!trimmedName || !trimmedEmail) {
@@ -3966,18 +3985,36 @@ router.post('/staff/invite', authenticate, requireSuperAdmin, async (req, res) =
       return res.status(400).json({ error: 'Ogiltig roll' });
     }
 
+    if (trimmedUsername && !STAFF_USERNAME_PATTERN.test(trimmedUsername)) {
+      return res.status(400).json({ error: 'Ogiltigt användarnamn (3–30 tecken: a–z, 0–9, . _ -)' });
+    }
+
+    // Valfritt eget lösenord vid skapande; annars genereras ett tillfälligt.
+    if (chosenPassword && chosenPassword.length < 8) {
+      return res.status(400).json({ error: 'Lösenordet måste vara minst 8 tecken' });
+    }
+
     const existing = await prisma.adminUser.findUnique({ where: { email: trimmedEmail } });
     if (existing) {
       return res.status(400).json({ error: 'Kontot finns redan' });
     }
 
-    const temporaryPassword = createTemporaryPassword();
-    const hashedPassword = await bcrypt.hash(temporaryPassword, 12);
+    if (trimmedUsername) {
+      const usernameTaken = await prisma.adminUser.findUnique({ where: { username: trimmedUsername } });
+      if (usernameTaken) {
+        return res.status(400).json({ error: 'Användarnamnet är upptaget' });
+      }
+    }
+
+    const temporaryPassword = chosenPassword ? null : createTemporaryPassword();
+    const hashedPassword = await bcrypt.hash(chosenPassword || temporaryPassword!, 12);
 
     const created = await prisma.adminUser.create({
       data: {
         name: trimmedName,
         email: trimmedEmail,
+        username: trimmedUsername || null,
+        avatarUrl: trimmedAvatarUrl || null,
         role: normalizedRole,
         password: hashedPassword,
         isActive: true,
@@ -3986,6 +4023,8 @@ router.post('/staff/invite', authenticate, requireSuperAdmin, async (req, res) =
         id: true,
         name: true,
         email: true,
+        username: true,
+        avatarUrl: true,
         role: true,
         isActive: true,
         createdAt: true,
@@ -3996,7 +4035,7 @@ router.post('/staff/invite', authenticate, requireSuperAdmin, async (req, res) =
     await audit(req as AuthRequest, 'STAFF_INVITE', {
       resourceType: 'AdminUser',
       resourceId: created.id,
-      changes: { email: created.email, role: created.role },
+      changes: { email: created.email, role: created.role, username: created.username },
     });
     res.status(201).json({ ...formatted, temporaryPassword });
   } catch (error) {
@@ -4007,7 +4046,13 @@ router.post('/staff/invite', authenticate, requireSuperAdmin, async (req, res) =
 
 router.patch('/staff/:id', authenticate, requireSuperAdmin, async (req, res) => {
   try {
-    const { active, role, name } = req.body as { active?: boolean; role?: string; name?: string };
+    const { active, role, name, username, avatarUrl } = req.body as {
+      active?: boolean;
+      role?: string;
+      name?: string;
+      username?: string | null;
+      avatarUrl?: string | null;
+    };
     const existing = await prisma.adminUser.findUnique({
       where: { id: req.params.id },
       select: { id: true },
@@ -4022,17 +4067,35 @@ router.patch('/staff/:id', authenticate, requireSuperAdmin, async (req, res) => 
       return res.status(400).json({ error: 'Ogiltig roll' });
     }
 
+    const trimmedUsername = username === undefined ? undefined : String(username || '').trim().toLowerCase() || null;
+    if (trimmedUsername && !STAFF_USERNAME_PATTERN.test(trimmedUsername)) {
+      return res.status(400).json({ error: 'Ogiltigt användarnamn (3–30 tecken: a–z, 0–9, . _ -)' });
+    }
+    if (trimmedUsername) {
+      const usernameTaken = await prisma.adminUser.findFirst({
+        where: { username: trimmedUsername, id: { not: req.params.id } },
+        select: { id: true },
+      });
+      if (usernameTaken) {
+        return res.status(400).json({ error: 'Användarnamnet är upptaget' });
+      }
+    }
+
     const updated = await prisma.adminUser.update({
       where: { id: req.params.id },
       data: {
         ...(name !== undefined ? { name: String(name).trim() } : {}),
         ...(active !== undefined ? { isActive: Boolean(active) } : {}),
         ...(normalizedRole ? { role: normalizedRole } : {}),
+        ...(trimmedUsername !== undefined ? { username: trimmedUsername } : {}),
+        ...(avatarUrl !== undefined ? { avatarUrl: String(avatarUrl || '').trim() || null } : {}),
       },
       select: {
         id: true,
         name: true,
         email: true,
+        username: true,
+        avatarUrl: true,
         role: true,
         isActive: true,
         createdAt: true,

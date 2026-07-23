@@ -18,14 +18,14 @@ const TONE_COLOR: Record<string, string> = {
 const RADIUS = 15.915; // omkrets 100 → dasharray i procent
 const STROKE = 4.4;
 
-export function StatusDonut({ counts }: { counts: Record<string, number> }) {
+export function StatusDonut({ counts, compact = false }: { counts: Record<string, number>; compact?: boolean }) {
   const entries = Object.entries(counts).filter(([, count]) => count > 0);
   const total = entries.reduce((sum, [, count]) => sum + count, 0);
 
   if (total === 0) {
     return (
-      <div className="flex h-[180px] items-center justify-center text-sm text-[var(--text-muted)]">
-        Inga aktiva ordrar just nu
+      <div className={`flex items-center justify-center text-sm text-[var(--text-muted)] ${compact ? "h-[150px]" : "h-[180px]"}`}>
+        Inga aktiva ordrar
       </div>
     );
   }
@@ -39,8 +39,8 @@ export function StatusDonut({ counts }: { counts: Record<string, number> }) {
   });
 
   return (
-    <div className="flex flex-wrap items-center gap-6">
-      <div className="relative h-[132px] w-[132px] flex-none">
+    <div className={compact ? "flex flex-col items-center gap-4" : "flex flex-wrap items-center gap-6"}>
+      <div className={`relative flex-none ${compact ? "h-[112px] w-[112px]" : "h-[132px] w-[132px]"}`}>
         <svg viewBox="0 0 42 42" className="h-full w-full" aria-hidden>
           <circle
             cx="21" cy="21" r={RADIUS} fill="none"
@@ -63,8 +63,8 @@ export function StatusDonut({ counts }: { counts: Record<string, number> }) {
           <span className="mt-1 text-[10.5px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">ordrar</span>
         </div>
       </div>
-      <ul className="min-w-0 flex-1 space-y-2">
-        {segments.map((s) => (
+      <ul className={compact ? "w-full space-y-1.5" : "min-w-0 flex-1 space-y-2"}>
+        {(compact ? segments.slice(0, 4) : segments).map((s) => (
           <li key={s.status} className="flex items-center gap-2.5 text-[12.5px]">
             <span
               className="h-[9px] w-[9px] flex-none rounded-full"
