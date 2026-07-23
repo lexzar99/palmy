@@ -14,7 +14,6 @@ import {
   CircleDashed,
   Contact,
   Image as ImageIcon,
-  MapPin,
   Plus,
   Save,
   Settings2,
@@ -22,8 +21,11 @@ import {
   Store,
   Trash2,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/shared/utils/cn";
+import creamSmiley from "../../../../../Logotyp/exports/smiley-cream-transparent.png";
+import brandPattern from "../../../../../Logotyp/exports/background-pattern-navy-wide.png";
 import {
   createRestaurant,
   archiveRestaurant,
@@ -62,6 +64,7 @@ import {
 } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
 import { NotesPanel } from "@/shared/components/notes-panel";
+import { getRestaurantDevices } from "@/modules/restaurant-devices/api";
 import GooglePlacesInput from "@/shared/components/google-places-input";
 import { AcceptingOrdersModeToggle, RestaurantAvailabilitySummary } from "@/shared/components/restaurant-availability";
 import { useToast } from "@/shared/components/toast";
@@ -343,7 +346,14 @@ function HoursEditor({ value, onChange }: { value: HoursForm; onChange: (next: H
   );
 }
 
-const CREATE_STEPS = ["Grundinfo", "Kontakt", "Bilder", "Öppettider", "Drift", "Granska"] as const;
+const CREATE_STEPS: Array<{ label: string; hint: string; icon: LucideIcon }> = [
+  { label: "Grundinfo", hint: "Namn, adress och mattyp", icon: Store },
+  { label: "Kontakt", hint: "E-post och juridik", icon: Contact },
+  { label: "Bilder", hint: "Logga och omslag", icon: ImageIcon },
+  { label: "Öppettider", hint: "När det går att beställa", icon: Calendar },
+  { label: "Drift", hint: "Tier, leverans och moms", icon: Settings2 },
+  { label: "Granska", hint: "Kontrollera och skapa", icon: CircleCheck },
+];
 
 export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) {
   const router = useRouter();
@@ -372,6 +382,13 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
     queryKey: ordersQueryKey(restaurantId || null),
     queryFn: () => getRestaurantOrders(restaurantId!),
     enabled: Boolean(restaurantId) && tab === "orders",
+  });
+
+  // Enhetsparning ingår i lanserings-checklistan.
+  const devices = useQuery({
+    queryKey: ["restaurants", "devices", restaurantId || null],
+    queryFn: () => getRestaurantDevices(restaurantId!),
+    enabled: Boolean(restaurantId),
   });
 
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -526,30 +543,62 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
     const stepValid = createStep === 0 ? form.name.trim().length >= 2 : true;
     const openDays = DAYS.filter(({ key }) => !form.openingHours[key].closed && form.openingHours[key].shifts.length > 0);
 
+    const active = CREATE_STEPS[createStep];
     return (
-      <div className="page-stack">
-        <PageHeader breadcrumb="Restauranger / Ny" title="Ny restaurang" onBack={() => router.push("/restaurants")} />
+      <div className="onb-split">
+        {/* Brandpanel med stegspår */}
+        <aside className="onb-aside" style={{ backgroundImage: `url(${brandPattern.src})` }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={creamSmiley.src} alt="" className="onb-smiley" />
+          <p className="onb-title">Ny restaurang</p>
+          <p className="onb-sub">{form.name.trim() || "Sex snabba steg"}</p>
 
-        <div className="wizard-steps">
-          {CREATE_STEPS.map((label, i) => (
-            <div key={label} className={cn("wizard-step", i === createStep && "is-active", i < createStep && "is-done")}>
-              <span className="wizard-step-dot">{i < createStep ? <Check size={11} /> : i + 1}</span>
-              <span className="wizard-step-label">{label}</span>
-              {i < CREATE_STEPS.length - 1 && <span className="wizard-step-line" />}
+          <div className="onb-track">
+            {CREATE_STEPS.map((step, i) => {
+              const Icon = step.icon;
+              const done = i < createStep;
+              return (
+                <button
+                  key={step.label}
+                  type="button"
+                  disabled={i > createStep}
+                  onClick={() => setCreateStep(i)}
+                  className={cn("onb-track-item", i === createStep && "is-active", done && "is-done")}
+                >
+                  <span className="onb-track-dot">{done ? <Check size={12} /> : <Icon size={12} />}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">{step.label}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="onb-progress">
+            <div className="onb-progress-track">
+              <div className="onb-progress-fill" style={{ width: `${((createStep + 1) / CREATE_STEPS.length) * 100}%` }} />
             </div>
-          ))}
+            <p className="mt-2 text-[11.5px] font-bold text-[rgba(254,247,240,0.55)]">
+              Steg {createStep + 1} av {CREATE_STEPS.length}
+            </p>
+          </div>
+        </aside>
+
+        {/* Formulärsidan */}
+        <div className="grid content-start gap-4">
+        <div className="flex items-baseline justify-between gap-3">
+          <div>
+            <h1 className="page-title">{active.label}</h1>
+            <p className="section-subtitle">{active.hint}</p>
+          </div>
+          <button type="button" className="auth-back" onClick={() => router.push("/restaurants")}>
+            <X size={13} /> Avbryt
+          </button>
         </div>
 
-        <Surface className="p-5 sm:p-7">
+        <Surface className="onb-panel p-5 sm:p-7">
           {createStep === 0 && (
             <div className="grid gap-5">
-              <div className="flex items-center gap-3">
-                <SectionIcon><Store size={16} /></SectionIcon>
-                <div>
-                  <p className="section-title">Grundinfo</p>
-                  <p className="section-subtitle">Det kunderna ser.</p>
-                </div>
-              </div>
               <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
                 <Field label="Namn" required><Input value={form.name} onChange={(e) => set("name", e.target.value)} autoFocus /></Field>
                 <Field label="Mattyp"><Input value={form.cuisine} onChange={(e) => set("cuisine", e.target.value)} placeholder="Pizza, Sushi…" /></Field>
@@ -591,13 +640,6 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
 
           {createStep === 1 && (
             <div className="grid gap-5">
-              <div className="flex items-center gap-3">
-                <SectionIcon><Contact size={16} /></SectionIcon>
-                <div>
-                  <p className="section-title">Kontakt & juridik</p>
-                  <p className="section-subtitle">För inloggning och utbetalningar.</p>
-                </div>
-              </div>
               <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
                 <Field label="Kontakt-email (publik)"><Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="kontakt@restaurangen.se" /></Field>
                 <Field label="Admin-email" hint="Blir restaurangens inloggning."><Input type="email" value={form.adminEmail} onChange={(e) => set("adminEmail", e.target.value)} /></Field>
@@ -609,13 +651,6 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
 
           {createStep === 2 && (
             <div className="grid gap-5">
-              <div className="flex items-center gap-3">
-                <SectionIcon><ImageIcon size={16} /></SectionIcon>
-                <div>
-                  <p className="section-title">Bilder</p>
-                  <p className="section-subtitle">Logga och omslag — går att lägga till senare.</p>
-                </div>
-              </div>
               <div className="grid gap-5 sm:grid-cols-2">
                 <ImageUploadField label="Logotyp" kind="logo" restaurantId={restaurantId} value={form.imageUrl} onChange={(url) => set("imageUrl", url)} />
                 <ImageUploadField label="Omslagsbild" kind="hero" restaurantId={restaurantId} value={form.heroImageUrl} onChange={(url) => set("heroImageUrl", url)} />
@@ -625,26 +660,12 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
 
           {createStep === 3 && (
             <div className="grid gap-5">
-              <div className="flex items-center gap-3">
-                <SectionIcon><Calendar size={16} /></SectionIcon>
-                <div>
-                  <p className="section-title">Öppettider</p>
-                  <p className="section-subtitle">Styr när beställningar tas emot.</p>
-                </div>
-              </div>
               <HoursEditor value={form.openingHours} onChange={(h) => setForm((prev) => ({ ...prev, openingHours: h }))} />
             </div>
           )}
 
           {createStep === 4 && (
             <div className="grid gap-5">
-              <div className="flex items-center gap-3">
-                <SectionIcon><Settings2 size={16} /></SectionIcon>
-                <div>
-                  <p className="section-title">Drift</p>
-                  <p className="section-subtitle">Tier, leverans och moms.</p>
-                </div>
-              </div>
               <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
                 <Field label="Tier">
                   <Select value={String(form.featuredClass)} onChange={(e) => set("featuredClass", Number(e.target.value))}>
@@ -678,13 +699,6 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
 
           {createStep === 5 && (
             <div className="grid gap-5">
-              <div className="flex items-center gap-3">
-                <SectionIcon><CircleCheck size={16} /></SectionIcon>
-                <div>
-                  <p className="section-title">Granska</p>
-                  <p className="section-subtitle">Allt går att ändra efteråt.</p>
-                </div>
-              </div>
               <div className="grid gap-2.5 sm:grid-cols-2">
                 {[
                   ["Namn", form.name || "—"],
@@ -692,7 +706,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                   ["Adress", form.address || "—"],
                   ["Stad", form.city || "—"],
                   ["Kontakt", form.email || "—"],
-                  ["Admin-inloggning", form.adminEmail || "—"],
+                  ["Admin-email", form.adminEmail || "—"],
                   ["Tier", restaurantTierLabel(form.featuredClass)],
                   ["Moms", `${form.vatPercent} %`],
                   ["Leverans", form.selfDelivery ? "Levererar själv" : "Vi levererar"],
@@ -713,8 +727,8 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
         {saveError && <p className="field-message" role="alert">{saveError}</p>}
 
         <div className="flex items-center justify-between gap-2">
-          <Button onClick={() => (createStep === 0 ? router.push("/restaurants") : setCreateStep(createStep - 1))}>
-            {createStep === 0 ? "Avbryt" : <><ArrowLeft size={14} /> Tillbaka</>}
+          <Button disabled={createStep === 0} onClick={() => setCreateStep(createStep - 1)}>
+            <ArrowLeft size={14} /> Tillbaka
           </Button>
           {createStep < CREATE_STEPS.length - 1 ? (
             <Button variant="primary" disabled={!stepValid} onClick={() => setCreateStep(createStep + 1)}>
@@ -725,6 +739,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
               <Save size={14} /> Skapa restaurang
             </Button>
           )}
+        </div>
         </div>
       </div>
     );
@@ -838,10 +853,69 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
         />
       </div>
 
-      {/* Info tab */}
+      {/* Info tab — staplade sektioner: inga tomma sidokolumner */}
       {tab === "info" && (
-        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,.8fr)]">
-          <Surface className="grid content-start gap-5 self-start p-5">
+        <div className="grid gap-4">
+          {/* Lanserings-checklista som brett band */}
+          {!isCreate && (() => {
+            const checklist: Array<{ label: string; done: boolean; onClick?: () => void }> = [
+              { label: "Namn & adress", done: Boolean(form.name.trim() && form.address.trim()) },
+              { label: "Logotyp", done: Boolean(form.imageUrl) },
+              { label: "Omslagsbild", done: Boolean(form.heroImageUrl) },
+              { label: "Öppettider", done: DAYS.some(({ key }) => !form.openingHours[key].closed && form.openingHours[key].shifts.length > 0), onClick: () => setTab("hours") },
+              { label: "Meny", done: Boolean(detailData?.menu?.length), onClick: () => router.push(`/menu?restaurantId=${restaurantId}`) },
+              {
+                label: "Kopplad enhet",
+                done: Boolean(devices.data?.devices.some((d) => d.status === "linked")),
+                onClick: () => router.push(`/restaurant-devices?restaurantId=${restaurantId}`),
+              },
+            ];
+            const doneCount = checklist.filter((c) => c.done).length;
+            const allDone = doneCount === checklist.length;
+            return (
+              <Surface className="px-5 py-4">
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+                  <div className="flex flex-none items-center gap-3">
+                    <SectionIcon><CircleCheck size={16} /></SectionIcon>
+                    <div>
+                      <p className="text-[14px] font-extrabold tracking-[-0.3px]">Klar för lansering</p>
+                      <p className="text-xs text-[var(--text-muted)]">{doneCount} av {checklist.length} klart</p>
+                    </div>
+                  </div>
+                  <div className="min-w-[120px] flex-1">
+                    <div className="progress-track">
+                      <div className={cn("progress-fill", allDone && "is-leader")} style={{ width: `${(doneCount / checklist.length) * 100}%` }} />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {checklist.map((item) => (
+                      <button
+                        key={item.label}
+                        type="button"
+                        disabled={!item.onClick}
+                        onClick={item.onClick}
+                        className={cn(
+                          "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-bold transition-colors",
+                          item.onClick && "hover:border-[var(--border-strong)]",
+                        )}
+                        style={{
+                          cursor: item.onClick ? "pointer" : "default",
+                          borderColor: item.done ? "transparent" : "var(--border-strong)",
+                          background: item.done ? "var(--success-soft)" : "transparent",
+                          color: item.done ? "var(--success-text)" : "var(--text-secondary)",
+                        }}
+                      >
+                        {item.done ? <CircleCheck size={13} /> : <CircleDashed size={13} />}
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </Surface>
+            );
+          })()}
+
+          <Surface className="grid content-start gap-5 p-5">
             <div className="flex items-center gap-3">
               <SectionIcon><Store size={16} /></SectionIcon>
               <div>
@@ -849,7 +923,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 <p className="mt-0.5 text-xs text-[var(--text-muted)]">Visas för kunden och används i driften.</p>
               </div>
             </div>
-            <div className="grid gap-x-4 gap-y-3.5 sm:grid-cols-2">
+            <div className="grid gap-x-4 gap-y-3.5 sm:grid-cols-2 xl:grid-cols-3">
               <Field label="Namn" required><Input value={form.name} onChange={(e) => set("name", e.target.value)} autoFocus={isCreate} /></Field>
               <Field label="Slug" hint="Tomt genereras automatiskt"><Input value={form.slug} onChange={(e) => set("slug", e.target.value)} /></Field>
               <Field label="Mattyp"><Input value={form.cuisine} onChange={(e) => set("cuisine", e.target.value)} placeholder="Pizza, Sushi..." /></Field>
@@ -882,24 +956,36 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
               </Field>
               <Field label="Postnummer"><Input inputMode="numeric" autoComplete="postal-code" value={form.zip} onChange={(e) => set("zip", e.target.value)} /></Field>
               <Field label="Telefon"><Input type="tel" inputMode="tel" autoComplete="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} /></Field>
+            </div>
+            <Field label="Beskrivning">
+              <Textarea value={form.description} onChange={(e) => set("description", e.target.value)} rows={3} />
+            </Field>
+          </Surface>
+
+          {/* Kontakt & juridik i egen sektion */}
+          <Surface className="grid content-start gap-5 p-5">
+            <div className="flex items-center gap-3">
+              <SectionIcon><Contact size={16} /></SectionIcon>
+              <div>
+                <p className="text-[15px] font-extrabold tracking-[-0.3px]">Kontakt & juridik</p>
+                <p className="mt-0.5 text-xs text-[var(--text-muted)]">Används för utbetalningar och support.</p>
+              </div>
+            </div>
+            <div className="grid gap-x-4 gap-y-3.5 sm:grid-cols-2 xl:grid-cols-4">
               <Field label="Kontakt-email (publik)">
-                <Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="kontakt@palmyrapizzeria.se" />
+                <Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="kontakt@restaurangen.se" />
               </Field>
               <Field label="Admin-email"><Input type="email" autoComplete="email" value={form.adminEmail} onChange={(e) => set("adminEmail", e.target.value)} /></Field>
-            </div>
-            <div className="grid gap-x-4 gap-y-3.5 border-t border-[var(--row-divider)] pt-5 sm:grid-cols-2">
-              <Field label="Legalt namn (juridisk person)">
+              <Field label="Legalt namn">
                 <Input value={form.legalName} onChange={(e) => set("legalName", e.target.value)} placeholder="ex: Palmyra Pizzeria AB" />
               </Field>
               <Field label="Organisationsnummer">
                 <Input value={form.organizationNumber} onChange={(e) => set("organizationNumber", e.target.value)} placeholder="ex: 559123-4567" />
               </Field>
             </div>
-            <Field label="Beskrivning">
-              <Textarea value={form.description} onChange={(e) => set("description", e.target.value)} />
-            </Field>
           </Surface>
-          <div className="grid content-start gap-4">
+
+          <div className="grid items-start gap-4 xl:grid-cols-2">
             <Surface className="grid content-start gap-4 p-5">
               <div className="flex items-center gap-3">
                 <SectionIcon><ImageIcon size={16} /></SectionIcon>
@@ -975,51 +1061,6 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 </div>
               </div>
             </Surface>
-            {!isCreate && (() => {
-              // Lanserings-checklista — samma signaler som dashboardens notiser.
-              const checklist: Array<{ label: string; done: boolean; onClick?: () => void }> = [
-                { label: "Namn & adress", done: Boolean(form.name.trim() && form.address.trim()) },
-                { label: "Logotyp", done: Boolean(form.imageUrl) },
-                { label: "Omslagsbild", done: Boolean(form.heroImageUrl) },
-                { label: "Öppettider", done: DAYS.some(({ key }) => !form.openingHours[key].closed && form.openingHours[key].shifts.length > 0), onClick: () => setTab("hours") },
-                { label: "Meny", done: Boolean(detailData?.menu?.length), onClick: () => router.push(`/menu?restaurantId=${restaurantId}`) },
-                { label: "Admin-inloggning", done: Boolean(form.adminEmail.trim()) },
-              ];
-              const doneCount = checklist.filter((c) => c.done).length;
-              return (
-                <Surface className="p-5">
-                  <div className="mb-3 flex items-center gap-3">
-                    <SectionIcon><CircleCheck size={16} /></SectionIcon>
-                    <div>
-                      <p className="text-[15px] font-extrabold tracking-[-0.3px]">Klar för lansering</p>
-                      <p className="text-xs text-[var(--text-muted)]">{doneCount} av {checklist.length} klart</p>
-                    </div>
-                  </div>
-                  <div className="progress-track mb-3">
-                    <div className={cn("progress-fill", doneCount === checklist.length && "is-leader")} style={{ width: `${(doneCount / checklist.length) * 100}%` }} />
-                  </div>
-                  <div className="grid gap-1">
-                    {checklist.map((item) => (
-                      <button
-                        key={item.label}
-                        type="button"
-                        disabled={!item.onClick}
-                        onClick={item.onClick}
-                        className={cn("flex items-center gap-2.5 rounded-[9px] px-2 py-1.5 text-left text-[13px] font-semibold", item.onClick && "hover:bg-[var(--bg-hover)]")}
-                        style={{ cursor: item.onClick ? "pointer" : "default" }}
-                      >
-                        {item.done ? (
-                          <CircleCheck size={15} className="flex-none text-[var(--success)]" />
-                        ) : (
-                          <CircleDashed size={15} className="flex-none text-[var(--text-muted)]" />
-                        )}
-                        <span style={{ color: item.done ? "var(--text-secondary)" : "var(--text-primary)" }}>{item.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </Surface>
-              );
-            })()}
           </div>
         </div>
       )}
