@@ -6,7 +6,7 @@ import { ArrowRight, KeyRound, LockKeyhole, ShieldCheck, UserRound } from "lucid
 import { apiPost } from "@/shared/api/client";
 import { setStoredAdminSession } from "@/shared/auth/storage";
 import { Button, Field, Input, Surface } from "@/shared/components/ui";
-import viaeatsSymbol from "../../../../../Logotyp/sym-navy.png";
+import viaeatsSymbol from "../../../../../Logotyp/exports/smiley-navy-transparent.png";
 
 type LoginResponse =
   | {

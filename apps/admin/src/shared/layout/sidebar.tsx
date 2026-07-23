@@ -20,7 +20,7 @@ import { cn } from "@/shared/utils/cn";
 import { logoutAdminSession } from "@/shared/auth/storage";
 import { getStoredTheme, setStoredTheme, type Theme } from "@/shared/store/theme";
 import { ADMIN_SECTIONS, isActiveAdminHref } from "@/shared/navigation/admin-routes";
-import viaeatsSymbol from "../../../../../Logotyp/sym-navy.png";
+import viaeatsSymbol from "../../../../../Logotyp/exports/smiley-navy-transparent.png";
 
 const SECTION_KEY = "sidebar:expanded-sections";
 const PIN_KEY = "nav.pinned";
