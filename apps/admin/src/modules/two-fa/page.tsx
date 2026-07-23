@@ -320,7 +320,12 @@ export function TwoFAPage({ embedded = false }: { embedded?: boolean } = {}) {
               <div className="flex items-start gap-3">
                 <SectionIcon><Monitor size={17} /></SectionIcon>
                 <div>
-                  <h3 className="section-title">Betrodda enheter</h3>
+                  <h3 className="section-title">
+                    Betrodda enheter
+                    {(devices.data?.length || 0) > 0 && (
+                      <span className="sidebar-section-count ml-2 align-middle">{devices.data!.length}</span>
+                    )}
+                  </h3>
                   <p className="section-subtitle">Slipper koden vid inloggning.</p>
                 </div>
               </div>
@@ -343,7 +348,8 @@ export function TwoFAPage({ embedded = false }: { embedded?: boolean } = {}) {
             ) : (devices.data?.length || 0) === 0 ? (
               <p className="section-subtitle">Inga betrodda enheter ännu.</p>
             ) : (
-              <div className="grid gap-2">
+              /* Många enheter får inte spränga kortet — listan scrollar internt. */
+              <div className="grid max-h-[330px] content-start gap-2 overflow-y-auto pr-1">
                 {(devices.data || []).map((d) => (
                   <div key={d.id} className="flex items-center justify-between gap-3 rounded-[11px] bg-[var(--bg-panel-muted)] px-4 py-3">
                     <div className="min-w-0 flex-1">

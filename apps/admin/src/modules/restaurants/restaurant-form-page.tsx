@@ -4,7 +4,26 @@ import { useEffect, useState } from "react";
 import { DeliveryModeBadge } from "@/shared/components/delivery-mode";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Archive, Calendar, Plus, Save, Store, Trash2, X } from "lucide-react";
+import {
+  Archive,
+  ArrowLeft,
+  ArrowRight,
+  Calendar,
+  Check,
+  CircleCheck,
+  CircleDashed,
+  Contact,
+  Image as ImageIcon,
+  MapPin,
+  Plus,
+  Save,
+  Settings2,
+  Star,
+  Store,
+  Trash2,
+  X,
+} from "lucide-react";
+import { cn } from "@/shared/utils/cn";
 import {
   createRestaurant,
   archiveRestaurant,
@@ -208,6 +227,124 @@ const mapFormToPayload = (f: FormState): RestaurantFormPayload => ({
 const detailQueryKey = (id: string | null) => ["restaurants", "detail", id] as const;
 const ordersQueryKey = (id: string | null) => ["restaurants", "orders", id] as const;
 
+/** Ikonplatta i navy-tint — samma mönster som dashboard/personal. */
+function SectionIcon({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[10px] bg-[var(--brand-navy-soft)] text-[var(--brand-navy-ink)]">
+      {children}
+    </span>
+  );
+}
+
+/** Veckoschema-redigeraren — delas av onboarding-steget och Öppettider-fliken. */
+function HoursEditor({ value, onChange }: { value: HoursForm; onChange: (next: HoursForm) => void }) {
+  return (
+    <div className="grid gap-4">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button
+          variant="secondary"
+          onClick={() => {
+            // Copy the first open day's shifts to every day, preserving each day's closed/open state.
+            const source = DAYS.map(({ key }) => value[key]).find((d) => !d.closed && d.shifts.length > 0);
+            if (!source) return;
+            const template = source.shifts.map((s) => ({ ...s }));
+            onChange(
+              DAYS.reduce((acc, { key }) => {
+                const prevDay = value[key];
+                acc[key] = prevDay.closed ? prevDay : { closed: false, shifts: template.map((s) => ({ ...s })) };
+                return acc;
+              }, {} as HoursForm),
+            );
+          }}
+        >
+          Kopiera till alla dagar
+        </Button>
+      </div>
+
+      <Surface className="overflow-hidden p-0">
+        {DAYS.map(({ key, label, short }, dayIdx) => {
+          const day = value[key];
+          const isOpen = !day.closed;
+          const isToday = key === TODAY_KEY;
+          const updateDay = (next: DayHours) => onChange({ ...value, [key]: next });
+          return (
+            <div
+              key={key}
+              className="flex flex-wrap items-center justify-between gap-4 px-5 py-4"
+              style={{
+                borderBottom: dayIdx < DAYS.length - 1 ? "1px solid var(--row-divider)" : "none",
+                opacity: isOpen ? 1 : 0.6,
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <span
+                  className="flex h-[42px] w-[42px] items-center justify-center rounded-[10px] text-sm font-extrabold"
+                  style={{
+                    fontWeight: 800,
+                    background: isToday ? "var(--brand-navy-soft)" : "var(--bg-page)",
+                    color: isToday ? "var(--brand-navy-ink)" : "var(--text-secondary)",
+                  }}
+                  title={label}
+                >
+                  {short}
+                </span>
+                <Toggle
+                  ariaLabel={`${label}: ${isOpen ? "öppen" : "stängd"}`}
+                  checked={isOpen}
+                  onChange={(v) => updateDay({ closed: !v, shifts: v ? (day.shifts.length ? day.shifts : [{ open: "11:00", close: "22:00" }]) : [] })}
+                />
+              </div>
+
+              {isOpen ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  {day.shifts.map((shift, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Input
+                        type="time"
+                        value={shift.open}
+                        onChange={(e) => updateDay({ ...day, shifts: day.shifts.map((s, i) => (i === idx ? { ...s, open: e.target.value } : s)) })}
+                        className="w-[120px] font-bold"
+                      />
+                      <span className="text-[var(--text-muted)]">–</span>
+                      <Input
+                        type="time"
+                        value={shift.close}
+                        onChange={(e) => updateDay({ ...day, shifts: day.shifts.map((s, i) => (i === idx ? { ...s, close: e.target.value } : s)) })}
+                        className="w-[120px] font-bold"
+                      />
+                      {day.shifts.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => updateDay({ ...day, shifts: day.shifts.filter((_, i) => i !== idx) })}
+                          aria-label="Ta bort tid"
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
+                        >
+                          <X size={15} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => updateDay({ ...day, shifts: [...day.shifts, { open: "17:00", close: "22:00" }] })}
+                    className="flex items-center gap-1 text-xs font-bold text-[var(--brand-navy-ink)]"
+                  >
+                    <Plus size={13} /> Lägg till tid
+                  </button>
+                </div>
+              ) : (
+                <span className="text-sm font-bold text-[var(--text-muted)]">Stängt</span>
+              )}
+            </div>
+          );
+        })}
+      </Surface>
+    </div>
+  );
+}
+
+const CREATE_STEPS = ["Grundinfo", "Kontakt", "Bilder", "Öppettider", "Drift", "Granska"] as const;
+
 export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -222,6 +359,8 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
   const [permanentDeleteOpen, setPermanentDeleteOpen] = useState(false);
   const [permanentDeleteName, setPermanentDeleteName] = useState("");
   const [pendingDraftState, setPendingDraftState] = useState<boolean | null>(null);
+  // Onboarding-steget för nyskapande (helsides-wizard, inte modal).
+  const [createStep, setCreateStep] = useState(0);
 
   const detail = useQuery({
     queryKey: detailQueryKey(restaurantId || null),
@@ -382,6 +521,215 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
 
   const detailData = detail.data;
 
+  // ── Nyskapande: helsides-onboarding i sex steg ──
+  if (isCreate) {
+    const stepValid = createStep === 0 ? form.name.trim().length >= 2 : true;
+    const openDays = DAYS.filter(({ key }) => !form.openingHours[key].closed && form.openingHours[key].shifts.length > 0);
+
+    return (
+      <div className="page-stack">
+        <PageHeader breadcrumb="Restauranger / Ny" title="Ny restaurang" onBack={() => router.push("/restaurants")} />
+
+        <div className="wizard-steps">
+          {CREATE_STEPS.map((label, i) => (
+            <div key={label} className={cn("wizard-step", i === createStep && "is-active", i < createStep && "is-done")}>
+              <span className="wizard-step-dot">{i < createStep ? <Check size={11} /> : i + 1}</span>
+              <span className="wizard-step-label">{label}</span>
+              {i < CREATE_STEPS.length - 1 && <span className="wizard-step-line" />}
+            </div>
+          ))}
+        </div>
+
+        <Surface className="p-5 sm:p-7">
+          {createStep === 0 && (
+            <div className="grid gap-5">
+              <div className="flex items-center gap-3">
+                <SectionIcon><Store size={16} /></SectionIcon>
+                <div>
+                  <p className="section-title">Grundinfo</p>
+                  <p className="section-subtitle">Det kunderna ser.</p>
+                </div>
+              </div>
+              <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
+                <Field label="Namn" required><Input value={form.name} onChange={(e) => set("name", e.target.value)} autoFocus /></Field>
+                <Field label="Mattyp"><Input value={form.cuisine} onChange={(e) => set("cuisine", e.target.value)} placeholder="Pizza, Sushi…" /></Field>
+                <Field label="Adress" className="sm:col-span-2">
+                  <GooglePlacesInput
+                    value={form.address}
+                    currentPlaceId={form.placeId}
+                    onChange={(text) => {
+                      set("address", text);
+                      if (form.placeId) {
+                        set("placeId", "");
+                        set("latitude", "");
+                        set("longitude", "");
+                      }
+                    }}
+                    onSelect={(p) => {
+                      setForm((current) => ({
+                        ...current,
+                        address: p.address,
+                        placeId: p.placeId,
+                        latitude: String(p.lat),
+                        longitude: String(p.lng),
+                        city: p.city || current.city,
+                        zip: p.postalCode || current.zip,
+                      }));
+                    }}
+                    placeholder="Börja skriva adress…"
+                  />
+                </Field>
+                <Field label="Stad"><Input value={form.city} onChange={(e) => set("city", e.target.value)} /></Field>
+                <Field label="Postnummer"><Input inputMode="numeric" value={form.zip} onChange={(e) => set("zip", e.target.value)} /></Field>
+                <Field label="Telefon"><Input type="tel" inputMode="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} /></Field>
+              </div>
+              <Field label="Beskrivning" optional>
+                <Textarea value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="Kort och gott — visas i appen." />
+              </Field>
+            </div>
+          )}
+
+          {createStep === 1 && (
+            <div className="grid gap-5">
+              <div className="flex items-center gap-3">
+                <SectionIcon><Contact size={16} /></SectionIcon>
+                <div>
+                  <p className="section-title">Kontakt & juridik</p>
+                  <p className="section-subtitle">För inloggning och utbetalningar.</p>
+                </div>
+              </div>
+              <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
+                <Field label="Kontakt-email (publik)"><Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="kontakt@restaurangen.se" /></Field>
+                <Field label="Admin-email" hint="Blir restaurangens inloggning."><Input type="email" value={form.adminEmail} onChange={(e) => set("adminEmail", e.target.value)} /></Field>
+                <Field label="Legalt namn"><Input value={form.legalName} onChange={(e) => set("legalName", e.target.value)} placeholder="ex: Palmyra Pizzeria AB" /></Field>
+                <Field label="Organisationsnummer"><Input value={form.organizationNumber} onChange={(e) => set("organizationNumber", e.target.value)} placeholder="559123-4567" /></Field>
+              </div>
+            </div>
+          )}
+
+          {createStep === 2 && (
+            <div className="grid gap-5">
+              <div className="flex items-center gap-3">
+                <SectionIcon><ImageIcon size={16} /></SectionIcon>
+                <div>
+                  <p className="section-title">Bilder</p>
+                  <p className="section-subtitle">Logga och omslag — går att lägga till senare.</p>
+                </div>
+              </div>
+              <div className="grid gap-5 sm:grid-cols-2">
+                <ImageUploadField label="Logotyp" kind="logo" restaurantId={restaurantId} value={form.imageUrl} onChange={(url) => set("imageUrl", url)} />
+                <ImageUploadField label="Omslagsbild" kind="hero" restaurantId={restaurantId} value={form.heroImageUrl} onChange={(url) => set("heroImageUrl", url)} />
+              </div>
+            </div>
+          )}
+
+          {createStep === 3 && (
+            <div className="grid gap-5">
+              <div className="flex items-center gap-3">
+                <SectionIcon><Calendar size={16} /></SectionIcon>
+                <div>
+                  <p className="section-title">Öppettider</p>
+                  <p className="section-subtitle">Styr när beställningar tas emot.</p>
+                </div>
+              </div>
+              <HoursEditor value={form.openingHours} onChange={(h) => setForm((prev) => ({ ...prev, openingHours: h }))} />
+            </div>
+          )}
+
+          {createStep === 4 && (
+            <div className="grid gap-5">
+              <div className="flex items-center gap-3">
+                <SectionIcon><Settings2 size={16} /></SectionIcon>
+                <div>
+                  <p className="section-title">Drift</p>
+                  <p className="section-subtitle">Tier, leverans och moms.</p>
+                </div>
+              </div>
+              <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
+                <Field label="Tier">
+                  <Select value={String(form.featuredClass)} onChange={(e) => set("featuredClass", Number(e.target.value))}>
+                    <option value="1">Gold</option>
+                    <option value="2">Silver</option>
+                    <option value="3">Standard</option>
+                  </Select>
+                </Field>
+                <Field label="Leveransmodell">
+                  <Select value={form.selfDelivery ? "self" : "platform"} onChange={(e) => set("selfDelivery", e.target.value === "self")}>
+                    <option value="platform">Vi levererar</option>
+                    <option value="self">Levererar själv</option>
+                  </Select>
+                </Field>
+                <Field label="Provisions-override" optional>
+                  <PercentInput placeholder="Global sats" value={form.commissionPctOverride} onValueChange={(value) => set("commissionPctOverride", value)} />
+                </Field>
+                <Field label="Moms">
+                  <Select value={form.vatPercent} onChange={(e) => set("vatPercent", e.target.value)}>
+                    <option value="6">6 % — avhämtning/leverans</option>
+                    <option value="12">12 % — restaurangtjänst</option>
+                    <option value="25">25 % — standard</option>
+                  </Select>
+                </Field>
+                <Field label="ETA-override" optional>
+                  <DurationInput min={25} max={60} placeholder="35" value={form.etaOverride} onValueChange={(value) => set("etaOverride", value)} />
+                </Field>
+              </div>
+            </div>
+          )}
+
+          {createStep === 5 && (
+            <div className="grid gap-5">
+              <div className="flex items-center gap-3">
+                <SectionIcon><CircleCheck size={16} /></SectionIcon>
+                <div>
+                  <p className="section-title">Granska</p>
+                  <p className="section-subtitle">Allt går att ändra efteråt.</p>
+                </div>
+              </div>
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                {[
+                  ["Namn", form.name || "—"],
+                  ["Mattyp", form.cuisine || "—"],
+                  ["Adress", form.address || "—"],
+                  ["Stad", form.city || "—"],
+                  ["Kontakt", form.email || "—"],
+                  ["Admin-inloggning", form.adminEmail || "—"],
+                  ["Tier", restaurantTierLabel(form.featuredClass)],
+                  ["Moms", `${form.vatPercent} %`],
+                  ["Leverans", form.selfDelivery ? "Levererar själv" : "Vi levererar"],
+                  ["Öppettider", openDays.length > 0 ? `${openDays.length} dagar öppet` : "Inga dagar öppna"],
+                  ["Logotyp", form.imageUrl ? "Uppladdad" : "Saknas"],
+                  ["Omslag", form.heroImageUrl ? "Uppladdad" : "Saknas"],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex items-baseline justify-between gap-3 rounded-[10px] bg-[var(--bg-panel-soft)] px-4 py-3">
+                    <span className="card-label">{label}</span>
+                    <span className="min-w-0 truncate text-[13px] font-bold text-[var(--text-primary)]">{value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Surface>
+
+        {saveError && <p className="field-message" role="alert">{saveError}</p>}
+
+        <div className="flex items-center justify-between gap-2">
+          <Button onClick={() => (createStep === 0 ? router.push("/restaurants") : setCreateStep(createStep - 1))}>
+            {createStep === 0 ? "Avbryt" : <><ArrowLeft size={14} /> Tillbaka</>}
+          </Button>
+          {createStep < CREATE_STEPS.length - 1 ? (
+            <Button variant="primary" disabled={!stepValid} onClick={() => setCreateStep(createStep + 1)}>
+              Nästa <ArrowRight size={14} />
+            </Button>
+          ) : (
+            <Button variant="primary" loading={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
+              <Save size={14} /> Skapa restaurang
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page-stack">
       {/* Header */}
@@ -428,6 +776,50 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
         )}
       />
 
+      {/* Restaurang-hero: identitet + status + genvägar i navy */}
+      {detailData ? (
+        <section className="hero-card flex flex-wrap items-center gap-5" style={{ padding: "20px 24px" }}>
+          {form.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={form.imageUrl} alt="" className="h-[64px] w-[64px] flex-none rounded-[16px] object-cover" style={{ boxShadow: "0 0 0 3px rgba(254,247,240,0.18)" }} />
+          ) : (
+            <span className="flex h-[64px] w-[64px] flex-none items-center justify-center rounded-[16px] bg-[rgba(254,247,240,0.12)] text-[22px] font-extrabold text-[var(--brand-cream)]">
+              {(form.name || "?").slice(0, 1).toUpperCase()}
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h2 className="text-[19px] font-extrabold tracking-[-0.02em] text-white">{form.name || "Restaurang"}</h2>
+              <span
+                className="rounded-full px-2.5 py-1 text-[10.5px] font-extrabold uppercase tracking-[0.05em]"
+                style={
+                  detailData.draft
+                    ? { background: "var(--brand-orange-soft)", color: "var(--brand-orange-ink)" }
+                    : detailData.isOpen
+                      ? { background: "rgba(74, 222, 128, 0.18)", color: "#86efac" }
+                      : { background: "rgba(254,247,240,0.14)", color: "rgba(254,247,240,0.75)" }
+                }
+              >
+                {detailData.draft ? "Utkast" : detailData.isOpen ? "Öppen nu" : "Stängd"}
+              </span>
+            </div>
+            <p className="mt-1 text-[12.5px] font-medium text-[rgba(254,247,240,0.62)]">
+              {[form.city, form.cuisine].filter(Boolean).join(" · ") || "—"}
+            </p>
+            <div className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1 text-[12px] font-semibold text-[rgba(254,247,240,0.75)]">
+              <span><Star size={11} className="-mt-0.5 mr-1 inline" aria-hidden />{form.rating}</span>
+              <span>{form.etaEffective} min</span>
+              <span>{restaurantTierLabel(form.featuredClass)}</span>
+            </div>
+          </div>
+          <div className="flex flex-none flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => router.push(`/menu?restaurantId=${restaurantId}`)}>Meny</Button>
+            <Button variant="secondary" onClick={() => router.push(`/zones?restaurantId=${restaurantId}`)}>Zoner</Button>
+            <Button variant="secondary" onClick={() => router.push(`/deals?tab=kampanjer&restaurantId=${restaurantId}`)}>Deals</Button>
+          </div>
+        </section>
+      ) : null}
+
       {saveError && <p className="rounded-xl bg-[rgba(239,68,68,0.1)] px-4 py-3 text-sm text-red-400">{saveError}</p>}
 
       {/* Tabs */}
@@ -450,9 +842,12 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
       {tab === "info" && (
         <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,.8fr)]">
           <Surface className="grid content-start gap-5 self-start p-5">
-            <div>
-              <p className="text-[15px] font-extrabold tracking-[-0.3px]">Grunduppgifter</p>
-              <p className="mt-1 text-xs text-[var(--text-muted)]">Information som visas för kunden och används i driften.</p>
+            <div className="flex items-center gap-3">
+              <SectionIcon><Store size={16} /></SectionIcon>
+              <div>
+                <p className="text-[15px] font-extrabold tracking-[-0.3px]">Grunduppgifter</p>
+                <p className="mt-0.5 text-xs text-[var(--text-muted)]">Visas för kunden och används i driften.</p>
+              </div>
             </div>
             <div className="grid gap-x-4 gap-y-3.5 sm:grid-cols-2">
               <Field label="Namn" required><Input value={form.name} onChange={(e) => set("name", e.target.value)} autoFocus={isCreate} /></Field>
@@ -506,7 +901,10 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
           </Surface>
           <div className="grid content-start gap-4">
             <Surface className="grid content-start gap-4 p-5">
-              <p className="text-[15px] font-extrabold tracking-[-0.3px]">Media</p>
+              <div className="flex items-center gap-3">
+                <SectionIcon><ImageIcon size={16} /></SectionIcon>
+                <p className="text-[15px] font-extrabold tracking-[-0.3px]">Media</p>
+              </div>
               <ImageUploadField label="Logotyp" kind="logo" restaurantId={restaurantId} value={form.imageUrl} onChange={(url) => set("imageUrl", url)} />
               <ImageUploadField label="Omslagsbild" kind="hero" restaurantId={restaurantId} value={form.heroImageUrl} onChange={(url) => set("heroImageUrl", url)} />
             </Surface>
@@ -577,14 +975,51 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 </div>
               </div>
             </Surface>
-            {!isCreate && (
-              <Surface className="flex flex-wrap gap-2 p-3">
-                <Button className="h-9 min-h-9 flex-1 text-xs" variant="secondary" onClick={() => setTab("hours")}>Öppettider ›</Button>
-                <Button className="h-9 min-h-9 flex-1 text-xs" variant="secondary" onClick={() => router.push(`/zones?restaurantId=${restaurantId}`)}>Zoner ›</Button>
-                <Button className="h-9 min-h-9 flex-1 text-xs" variant="secondary" onClick={() => router.push(`/menu?restaurantId=${restaurantId}`)}>Meny ›</Button>
-                <Button className="h-9 min-h-9 flex-1 text-xs" variant="secondary" onClick={() => router.push(`/deals?tab=kampanjer&restaurantId=${restaurantId}`)}>Deals ›</Button>
-              </Surface>
-            )}
+            {!isCreate && (() => {
+              // Lanserings-checklista — samma signaler som dashboardens notiser.
+              const checklist: Array<{ label: string; done: boolean; onClick?: () => void }> = [
+                { label: "Namn & adress", done: Boolean(form.name.trim() && form.address.trim()) },
+                { label: "Logotyp", done: Boolean(form.imageUrl) },
+                { label: "Omslagsbild", done: Boolean(form.heroImageUrl) },
+                { label: "Öppettider", done: DAYS.some(({ key }) => !form.openingHours[key].closed && form.openingHours[key].shifts.length > 0), onClick: () => setTab("hours") },
+                { label: "Meny", done: Boolean(detailData?.menu?.length), onClick: () => router.push(`/menu?restaurantId=${restaurantId}`) },
+                { label: "Admin-inloggning", done: Boolean(form.adminEmail.trim()) },
+              ];
+              const doneCount = checklist.filter((c) => c.done).length;
+              return (
+                <Surface className="p-5">
+                  <div className="mb-3 flex items-center gap-3">
+                    <SectionIcon><CircleCheck size={16} /></SectionIcon>
+                    <div>
+                      <p className="text-[15px] font-extrabold tracking-[-0.3px]">Klar för lansering</p>
+                      <p className="text-xs text-[var(--text-muted)]">{doneCount} av {checklist.length} klart</p>
+                    </div>
+                  </div>
+                  <div className="progress-track mb-3">
+                    <div className={cn("progress-fill", doneCount === checklist.length && "is-leader")} style={{ width: `${(doneCount / checklist.length) * 100}%` }} />
+                  </div>
+                  <div className="grid gap-1">
+                    {checklist.map((item) => (
+                      <button
+                        key={item.label}
+                        type="button"
+                        disabled={!item.onClick}
+                        onClick={item.onClick}
+                        className={cn("flex items-center gap-2.5 rounded-[9px] px-2 py-1.5 text-left text-[13px] font-semibold", item.onClick && "hover:bg-[var(--bg-hover)]")}
+                        style={{ cursor: item.onClick ? "pointer" : "default" }}
+                      >
+                        {item.done ? (
+                          <CircleCheck size={15} className="flex-none text-[var(--success)]" />
+                        ) : (
+                          <CircleDashed size={15} className="flex-none text-[var(--text-muted)]" />
+                        )}
+                        <span style={{ color: item.done ? "var(--text-secondary)" : "var(--text-primary)" }}>{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </Surface>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -674,108 +1109,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
       {/* Hours tab */}
       {tab === "hours" && (
         <div className="grid gap-4">
-          {/* Topbar-style actions */}
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                // Copy the first open day's shifts to every day, preserving each day's closed/open state.
-                const source = DAYS.map(({ key }) => form.openingHours[key]).find((d) => !d.closed && d.shifts.length > 0);
-                if (!source) return;
-                const template = source.shifts.map((s) => ({ ...s }));
-                setForm((prev) => ({
-                  ...prev,
-                  openingHours: DAYS.reduce((acc, { key }) => {
-                    const prevDay = prev.openingHours[key];
-                    acc[key] = prevDay.closed ? prevDay : { closed: false, shifts: template.map((s) => ({ ...s })) };
-                    return acc;
-                  }, {} as HoursForm),
-                }));
-              }}
-            >
-              Kopiera till alla dagar
-            </Button>
-          </div>
-
-          <Surface className="p-0 overflow-hidden">
-            {DAYS.map(({ key, label, short }, dayIdx) => {
-              const day = form.openingHours[key];
-              const isOpen = !day.closed;
-              const isToday = key === TODAY_KEY;
-              const updateDay = (next: DayHours) => setForm((prev) => ({ ...prev, openingHours: { ...prev.openingHours, [key]: next } }));
-              return (
-                <div
-                  key={key}
-                  className="flex flex-wrap items-center justify-between gap-4 px-5 py-4"
-                  style={{
-                    borderBottom: dayIdx < DAYS.length - 1 ? "1px solid var(--row-divider)" : "none",
-                    opacity: isOpen ? 1 : 0.6,
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className="flex h-[42px] w-[42px] items-center justify-center rounded-[10px] text-sm font-extrabold"
-                      style={{
-                        fontWeight: 800,
-                        background: isToday ? "var(--accent-soft)" : "var(--bg-page)",
-                        color: isToday ? "var(--accent)" : "var(--text-secondary)",
-                      }}
-                      title={label}
-                    >
-                      {short}
-                    </span>
-                    <Toggle
-                      ariaLabel={`${label}: ${isOpen ? "öppen" : "stängd"}`}
-                      checked={isOpen}
-                      onChange={(v) => updateDay({ closed: !v, shifts: v ? (day.shifts.length ? day.shifts : [{ open: "11:00", close: "22:00" }]) : [] })}
-                    />
-                  </div>
-
-                  {isOpen ? (
-                    <div className="flex flex-wrap items-center gap-3">
-                      {day.shifts.map((shift, idx) => (
-                        <div key={idx} className="flex items-center gap-2">
-                          <Input
-                            type="time"
-                            value={shift.open}
-                            onChange={(e) => updateDay({ ...day, shifts: day.shifts.map((s, i) => (i === idx ? { ...s, open: e.target.value } : s)) })}
-                            className="w-[120px] font-bold"
-                          />
-                          <span className="text-[var(--text-muted)]">–</span>
-                          <Input
-                            type="time"
-                            value={shift.close}
-                            onChange={(e) => updateDay({ ...day, shifts: day.shifts.map((s, i) => (i === idx ? { ...s, close: e.target.value } : s)) })}
-                            className="w-[120px] font-bold"
-                          />
-                          {day.shifts.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => updateDay({ ...day, shifts: day.shifts.filter((_, i) => i !== idx) })}
-                              aria-label="Ta bort tid"
-                              className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
-                            >
-                              <X size={15} />
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => updateDay({ ...day, shifts: [...day.shifts, { open: "17:00", close: "22:00" }] })}
-                        className="flex items-center gap-1 text-xs font-bold text-[var(--accent-ink)]"
-                      >
-                        <Plus size={13} /> Lägg till tid
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="text-sm font-bold text-[var(--text-muted)]">Stängt</span>
-                  )}
-                </div>
-              );
-            })}
-          </Surface>
-
+          <HoursEditor value={form.openingHours} onChange={(h) => setForm((prev) => ({ ...prev, openingHours: h }))} />
           <div className="flex items-center gap-2 text-[var(--text-muted)]">
             <Calendar size={15} />
             <span className="text-xs font-medium">
@@ -789,7 +1123,10 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
       {tab === "settings" && (
         <div className="grid items-start gap-4 lg:grid-cols-2">
           <Surface className="grid content-start gap-4 p-5">
-            <p className="text-[15px] font-extrabold tracking-[-0.3px]">Drift</p>
+            <div className="flex items-center gap-3">
+              <SectionIcon><Settings2 size={16} /></SectionIcon>
+              <p className="text-[15px] font-extrabold tracking-[-0.3px]">Drift</p>
+            </div>
             <Field label="Tier (abonnemang + ranking)">
               <Select value={String(form.featuredClass)} onChange={(e) => set("featuredClass", Number(e.target.value))}>
                 <option value="1">Gold</option>
@@ -836,7 +1173,10 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
             </Field>
           </Surface>
           <Surface className="grid content-start gap-4 p-5">
-            <p className="text-[15px] font-extrabold tracking-[-0.3px]">Övrigt</p>
+            <div className="flex items-center gap-3">
+              <SectionIcon><Star size={16} /></SectionIcon>
+              <p className="text-[15px] font-extrabold tracking-[-0.3px]">Övrigt</p>
+            </div>
             <Field label="Betyg">
               <NumberInput min={0} max={5} step={0.1} suffix="★" value={form.rating} onValueChange={(value) => set("rating", value)} />
             </Field>
