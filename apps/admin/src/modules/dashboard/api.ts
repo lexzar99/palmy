@@ -13,6 +13,14 @@ export interface ControlCenterSummary {
   totalRestaurants: number;
   activeCustomers: number;
   monthlyPayoutExposure: number;
+  periodRevenue: number;
+  periodOrders: number;
+  periodCommission: number;
+  periodPayoutExposure: number;
+  periodRefundAmount: number;
+  periodRefundCount: number;
+  pendingRefundAmount: number;
+  pendingRefundCount: number;
   avgTicket: number;
   avgRating: number;
   registeredCustomers?: number;
@@ -55,6 +63,7 @@ export interface ControlCenterRestaurantSnapshot {
   todayRevenue: number;
   todayOrders: number;
   monthRevenue: number;
+  periodRevenue?: number;
   liveOrders: number;
   pendingOrders: number;
   avgOrderValue: number;
@@ -70,6 +79,13 @@ export interface ControlCenterRestaurantSnapshot {
 
 export interface ControlCenterData {
   scope: { restaurantId: string | null; isSuperAdmin: boolean };
+  period: {
+    key: DashboardPeriodKey;
+    label: string;
+    from: string;
+    to: string;
+    timeZone: string;
+  };
   summary: ControlCenterSummary;
   liveStatusCounts: Record<string, number>;
   trend: Array<{ label: string; revenue: number; orders: number }>;
@@ -145,11 +161,13 @@ export interface SystemHealth {
 
 export interface ControlCenterParams {
   restaurantId?: string | null;
-  trendDays?: 7 | 30 | 90;
+  period?: DashboardPeriodKey;
 }
 
+export type DashboardPeriodKey = "today" | "yesterday" | "thisWeek" | "lastWeek" | "thisMonth" | "lastMonth";
+
 export const dashboardQueryKey = (params: ControlCenterParams = {}) =>
-  ["dashboard", "control-center", params.restaurantId ?? null, params.trendDays ?? 7] as const;
+  ["dashboard", "control-center", params.restaurantId ?? null, params.period ?? "thisMonth"] as const;
 export const healthQueryKey = ["dashboard", "health"] as const;
 
 // Lättviktig restauranglista för scope-väljaren (samma endpoint som menyn).
@@ -160,7 +178,7 @@ export const getRestaurantRefs = () => apiGet<RestaurantRef[]>("/restaurants");
 export const getControlCenter = (params: ControlCenterParams = {}) => {
   const search = new URLSearchParams();
   if (params.restaurantId) search.set("restaurantId", params.restaurantId);
-  if (params.trendDays && params.trendDays !== 7) search.set("trendDays", String(params.trendDays));
+  if (params.period && params.period !== "thisMonth") search.set("period", params.period);
   const qs = search.toString();
   return apiGet<ControlCenterData>(`/admin/control-center${qs ? `?${qs}` : ""}`);
 };

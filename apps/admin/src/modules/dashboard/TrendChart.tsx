@@ -51,11 +51,11 @@ export function TrendChart({ points }: { points: TrendPoint[] }) {
               onMouseLeave={() => setHoverIdx(null)}
               onFocus={() => setHoverIdx(i)}
               onBlur={() => setHoverIdx(null)}
-              className="flex min-w-0 flex-1 flex-col items-center gap-[9px]"
+              className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-[9px]"
               aria-label={`${p.label}: ${formatCurrency(p.revenue)}`}
             >
               <span
-                className="w-full rounded-t-lg transition-colors"
+                className="block w-full rounded-t-lg transition-colors"
                 style={{
                   height: `${h}%`,
                   background: isActive ? "var(--accent)" : "var(--accent-tintbar)",

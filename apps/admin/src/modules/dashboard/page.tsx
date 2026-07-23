@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { AlertCircle, ChevronDown, ChevronUp, Loader2, RefreshCw } from "lucide-react";
 import {
   dashboardQueryKey,
+  type DashboardPeriodKey,
   customerOverviewQueryKey,
   getControlCenter,
   getCustomerOverview,
@@ -21,7 +22,7 @@ import { AcceptingOrdersModeSelect } from "@/shared/components/restaurant-availa
 import type { AcceptingOrdersMode } from "@/shared/contracts/restaurants";
 import { availabilityReasonLabel } from "@/shared/contracts/restaurants";
 import {
-  formatCurrency,
+  formatCurrencyExact as formatCurrency,
   formatNumber,
   orderStatusLabel,
   orderStatusTone,
@@ -47,18 +48,27 @@ function useLocalBool(key: string, defaultValue: boolean) {
   return [value, toggle] as const;
 }
 
+const PERIOD_OPTIONS: Array<{ key: DashboardPeriodKey; label: string }> = [
+  { key: "today", label: "Idag" },
+  { key: "yesterday", label: "Igår" },
+  { key: "thisWeek", label: "Denna vecka" },
+  { key: "lastWeek", label: "Förra veckan" },
+  { key: "thisMonth", label: "Denna månad" },
+  { key: "lastMonth", label: "Förra månaden" },
+];
+
 export function DashboardPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const [showMore, toggleMore] = useLocalBool("dashboard:show-more", false);
   // Scope: hela dashboarden kan filtreras per restaurang (backend stödjer det
-  // redan via ?restaurantId). Trendfönstret styr bara grafen.
+  // redan via ?restaurantId). Periodfiltret styr bara statistik och grafer.
   const [restaurantScope, setRestaurantScope] = useState<string | null>(null);
-  const [trendDays, setTrendDays] = useState<7 | 30 | 90>(7);
+  const [period, setPeriod] = useState<DashboardPeriodKey>("thisMonth");
 
   const controlCenter = useQuery({
-    queryKey: dashboardQueryKey({ restaurantId: restaurantScope, trendDays }),
-    queryFn: () => getControlCenter({ restaurantId: restaurantScope, trendDays }),
+    queryKey: dashboardQueryKey({ restaurantId: restaurantScope, period }),
+    queryFn: () => getControlCenter({ restaurantId: restaurantScope, period }),
     placeholderData: (prev) => prev,
   });
   const restaurantRefs = useQuery({ queryKey: restaurantRefsQueryKey, queryFn: getRestaurantRefs });
@@ -121,10 +131,11 @@ export function DashboardPage() {
   const healthData = health.data;
 
   const attentionList = data.restaurantSnapshots.filter(
-    (r) => r.pendingOrders > 0 || !r.hasHours || r.reviewScore < 4.2,
+    (r) => r.pendingOrders > 0 || (!r.isOpen && r.liveOrders > 0) || r.reviewScore < 4.2,
   );
   const criticalAlerts = data.alerts.filter((a) => a.severity === "high" || a.severity === "medium");
   const totalAttention = attentionList.length + criticalAlerts.length;
+  const pendingLiveOrders = data.liveStatusCounts.PENDING || 0;
 
   return (
     <div className="page-stack">
@@ -162,21 +173,15 @@ export function DashboardPage() {
         }
       />
 
-      {/* ── Hero: går det bra (intäkt + live), brinner något (åtgärd) ── */}
+      {/* Live/ops: påverkas inte av rapportperioden. */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          label="Intäkt idag"
-          value={formatCurrency(data.summary.todayRevenue)}
-          sparkline={<Sparkline points="0,22 12,18 22,20 34,12 44,14 54,9 64,4" />}
-          detail={`${formatNumber(data.summary.todayOrders)} ordrar · snitt ${formatCurrency(data.summary.avgTicket)}`}
-        />
         <MetricCard
           label="Live ordrar"
           value={formatNumber(data.summary.liveOrders)}
           sparkline={<Sparkline points="0,24 10,20 20,22 30,14 40,16 52,8 64,5" />}
           detail={
-            healthData.operations.pendingOrders > 0 ? (
-              <span className="font-bold text-[var(--accent-ink)]">{formatNumber(healthData.operations.pendingOrders)} väntar accept</span>
+            pendingLiveOrders > 0 ? (
+              <span className="font-bold text-[var(--accent-ink)]">{formatNumber(pendingLiveOrders)} väntar accept</span>
             ) : (
               "Inget i kö"
             )
@@ -194,6 +199,11 @@ export function DashboardPage() {
           detail={data.summary.openRestaurants === data.summary.totalRestaurants ? "Alla igång" : `${data.summary.totalRestaurants - data.summary.openRestaurants} stängda`}
         />
         <MetricCard
+          label="Väntar accept"
+          value={formatNumber(pendingLiveOrders)}
+          detail={pendingLiveOrders > 0 ? "Kräver svar från partner" : "Ingen väntande order"}
+        />
+        <MetricCard
           label="Kräver åtgärd"
           value={formatNumber(totalAttention)}
           detail={
@@ -205,6 +215,49 @@ export function DashboardPage() {
           }
         />
       </div>
+
+      <Surface className="px-5 py-5">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="section-title">Periodstatistik</h2>
+            <p className="section-subtitle">{data.period.label} · {data.period.timeZone}</p>
+          </div>
+          <div className="segmented">
+            {PERIOD_OPTIONS.map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => setPeriod(option.key)}
+                className={period === option.key ? "is-active" : ""}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label="Intäkt period"
+            value={formatCurrency(data.summary.periodRevenue)}
+            detail={`${formatNumber(data.summary.periodOrders)} betalda order · snitt ${formatCurrency(data.summary.avgTicket)}`}
+          />
+          <MetricCard
+            label="ViaEats provision"
+            value={formatCurrency(data.summary.periodCommission)}
+            detail="Beräknad som i Ekonomi-fliken"
+          />
+          <MetricCard
+            label="Att överföra"
+            value={formatCurrency(data.summary.periodPayoutExposure)}
+            detail="Beräknad partnerutbetalning"
+          />
+          <MetricCard
+            label="Återbetalningar"
+            value={formatCurrency(data.summary.periodRefundAmount)}
+            detail={`${formatNumber(data.summary.periodRefundCount)} klara · ${formatNumber(data.summary.pendingRefundCount)} pending (${formatCurrency(data.summary.pendingRefundAmount)})`}
+          />
+        </div>
+      </Surface>
 
       {customerOverview.data ? (
         <Surface className="px-5 py-5">
@@ -229,19 +282,7 @@ export function DashboardPage() {
         <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="section-title">Omsättning</h2>
-            <p className="section-subtitle">Senaste {trendDays} dagarna</p>
-          </div>
-          <div className="segmented">
-            {([7, 30, 90] as const).map((days) => (
-              <button
-                key={days}
-                type="button"
-                onClick={() => setTrendDays(days)}
-                className={trendDays === days ? "is-active" : ""}
-              >
-                {days}d
-              </button>
-            ))}
+            <p className="section-subtitle">{data.period.label}</p>
           </div>
         </div>
         <div className="mt-4">
@@ -337,7 +378,7 @@ export function DashboardPage() {
           {/* Secondary metrics — intäkt/snittorder bor numera i hero-raden */}
           <div className="grid gap-4 sm:grid-cols-2">
             <MetricCard
-              label="Utbetalning (mån)"
+              label="Utbetalning (period)"
               value={formatCurrency(data.summary.monthlyPayoutExposure)}
             />
             <MetricCard
@@ -390,6 +431,10 @@ export function DashboardPage() {
                     )}
                     <p className="mt-0.5 truncate text-[11px] text-[var(--text-muted)]">
                       {availabilityReasonLabel[r.availabilityReason] ?? r.availabilityReason}
+                    </p>
+                    <p className="mt-1 text-[11px] font-semibold text-[var(--text-secondary)]">
+                      {formatCurrency(r.periodRevenue ?? r.monthRevenue)} period
+                      {r.commissionEstimate > 0 ? ` · ${formatCurrency(r.commissionEstimate)} provision` : ""}
                     </p>
                   </div>
                   <AcceptingOrdersModeSelect
