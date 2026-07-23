@@ -18,7 +18,7 @@ import { resolveOrCreateCity } from '../lib/cityResolver';
 import { cached, bustCache, bustRestaurantCaches } from '../lib/ttlCache';
 import { revalidateWebRestaurant } from '../lib/revalidate';
 import { menuCacheBust } from './menu';
-import { slugifyPathSegment } from '../lib/r2';
+import { deleteFromR2, listR2, r2Enabled, r2UrlToKey, slugifyPathSegment } from '../lib/r2';
 import { syncRestaurantImagePrefix } from '../lib/r2Rename';
 import { isCustomerVisibleDeal, isDealAvailableNow, parseApplicableRestaurantIds, parseDealProductIds } from '../lib/deals';
 import { audit } from '../lib/auditLog';
@@ -111,6 +111,17 @@ const parseJson = <T>(value: string | null | undefined, fallback: T): T => {
 const safeParseAnyJson = <T>(value: unknown, fallback: T): T => {
   if (typeof value === 'string') return parseJson<T>(value, fallback);
   return (value as T) ?? fallback;
+};
+
+const parseJsonStringArray = (value: string | null | undefined): string[] => {
+  const parsed = parseJson<unknown>(value, []);
+  return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+};
+
+const removeStringFromJsonArray = (value: string | null | undefined, itemToRemove: string): { json: string; removed: boolean } => {
+  const current = parseJsonStringArray(value);
+  const next = current.filter((item) => item !== itemToRemove);
+  return { json: JSON.stringify(next), removed: next.length !== current.length };
 };
 
 const restaurantSchema = z.object({
@@ -1137,6 +1148,287 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     }));
   } catch (err: any) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/:id/permanent-delete', authenticate, async (req: AuthRequest, res) => {
+  try {
+    if (req.admin?.role !== 'SUPER_ADMIN') {
+      res.status(403).json({ error: 'Kräver super admin-behörighet' });
+      return;
+    }
+
+    const restaurantId = req.params.id;
+    const confirmationName = typeof req.body?.confirmationName === 'string' ? req.body.confirmationName : '';
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        city: true,
+        imageUrl: true,
+        heroImageUrl: true,
+        offersImageUrl: true,
+        adminUserId: true,
+        city_relation: { select: { slug: true, name: true } },
+      },
+    });
+
+    if (!restaurant) {
+      res.status(404).json({ error: 'Restaurang hittades inte' });
+      return;
+    }
+    if (confirmationName !== restaurant.name) {
+      res.status(400).json({ error: `Skriv restaurangens namn exakt: ${restaurant.name}` });
+      return;
+    }
+
+    const [orderCount, payoutCount] = await Promise.all([
+      prisma.order.count({ where: { restaurantId } }),
+      prisma.restaurantPayout.count({ where: { restaurantId } }),
+    ]);
+    if (orderCount > 0 || payoutCount > 0) {
+      res.status(409).json({
+        error: 'Restaurangen har order- eller utbetalningshistorik och kan inte hårdraderas utan att förstöra ekonomiunderlag. Arkivera den istället.',
+        blockers: { orders: orderCount, payouts: payoutCount },
+      });
+      return;
+    }
+
+    const r2Configured = r2Enabled();
+    const citySlug = slugifyPathSegment(restaurant.city_relation?.slug || restaurant.city_relation?.name || restaurant.city || 'global') || 'global';
+    const restaurantSlug = slugifyPathSegment(restaurant.slug || restaurant.name || restaurant.id) || restaurant.id;
+    const r2Prefix = `${citySlug}/${restaurantSlug}/`;
+    const explicitR2Keys = new Set<string>();
+    const addR2Url = (url: string | null | undefined) => {
+      if (!r2Configured || !url) return;
+      const key = r2UrlToKey(url);
+      if (key) explicitR2Keys.add(key);
+    };
+
+    if (r2Configured) {
+      addR2Url(restaurant.imageUrl);
+      addR2Url(restaurant.heroImageUrl);
+      addR2Url(restaurant.offersImageUrl);
+      const [categories, products, extras, deals] = await Promise.all([
+        prisma.category.findMany({ where: { restaurantId }, select: { imageUrl: true } }),
+        prisma.product.findMany({
+          where: { category: { restaurantId } },
+          select: { imageUrl: true, discountImageUrl: true },
+        }),
+        prisma.extra.findMany({
+          where: { extraGroup: { restaurantId } },
+          select: { imageUrl: true },
+        }),
+        prisma.deal.findMany({ where: { restaurantId }, select: { imageUrl: true } }),
+      ]);
+      for (const category of categories) addR2Url(category.imageUrl);
+      for (const product of products) {
+        addR2Url(product.imageUrl);
+        addR2Url(product.discountImageUrl);
+      }
+      for (const extra of extras) addR2Url(extra.imageUrl);
+      for (const deal of deals) addR2Url(deal.imageUrl);
+    }
+
+    const database = await prisma.$transaction(async (tx) => {
+      const categoryRows = await tx.category.findMany({ where: { restaurantId }, select: { id: true } });
+      const categoryIds = categoryRows.map((category) => category.id);
+      const productRows = categoryIds.length
+        ? await tx.product.findMany({ where: { categoryId: { in: categoryIds } }, select: { id: true } })
+        : [];
+      const productIds = productRows.map((product) => product.id);
+      const extraGroupRows = await tx.extraGroup.findMany({ where: { restaurantId }, select: { id: true } });
+      const extraGroupIds = extraGroupRows.map((group) => group.id);
+      const extraRows = extraGroupIds.length
+        ? await tx.extra.findMany({ where: { extraGroupId: { in: extraGroupIds } }, select: { id: true } })
+        : [];
+      const directDealRows = await tx.deal.findMany({ where: { restaurantId }, select: { id: true } });
+      const directDealIds = directDealRows.map((deal) => deal.id);
+      const directDealIdSet = new Set(directDealIds);
+
+      const scopedDeals = await tx.deal.findMany({
+        where: { applicableRestaurantIds: { contains: restaurantId } },
+        select: { id: true, restaurantId: true, applicableRestaurantIds: true },
+      });
+      let dealReferencesRemoved = 0;
+      for (const deal of scopedDeals) {
+        if (deal.restaurantId === restaurantId) continue;
+        const next = removeStringFromJsonArray(deal.applicableRestaurantIds, restaurantId);
+        if (!next.removed) continue;
+        await tx.deal.update({ where: { id: deal.id }, data: { applicableRestaurantIds: next.json } });
+        dealReferencesRemoved += 1;
+      }
+
+      const discountCodes = await tx.discountCode.findMany({
+        where: { applicableRestaurantIds: { contains: restaurantId } },
+        select: { id: true, restaurantId: true, applicableRestaurantIds: true },
+      });
+      let discountCodeReferencesRemoved = 0;
+      for (const discountCode of discountCodes) {
+        if (discountCode.restaurantId === restaurantId) continue;
+        const next = removeStringFromJsonArray(discountCode.applicableRestaurantIds, restaurantId);
+        if (!next.removed) continue;
+        await tx.discountCode.update({ where: { id: discountCode.id }, data: { applicableRestaurantIds: next.json } });
+        discountCodeReferencesRemoved += 1;
+      }
+
+      const homeSections = await tx.homeCategorySection.findMany({
+        where: { manualRestaurantIds: { contains: restaurantId } },
+        select: { id: true, manualRestaurantIds: true },
+      });
+      let homeSectionsDetached = 0;
+      for (const section of homeSections) {
+        const next = removeStringFromJsonArray(section.manualRestaurantIds, restaurantId);
+        if (!next.removed) continue;
+        await tx.homeCategorySection.update({ where: { id: section.id }, data: { manualRestaurantIds: next.json } });
+        homeSectionsDetached += 1;
+      }
+
+      let settingsDealReferencesCleared = 0;
+      if (directDealIds.length) {
+        const settingsRows = await tx.restaurantSettings.findMany({
+          select: {
+            id: true,
+            welcomeDealId: true,
+            referralDealId: true,
+            referralInviteeDealId: true,
+            referralInviterDealId: true,
+          },
+        });
+        for (const settings of settingsRows) {
+          const patch: any = {};
+          for (const field of ['welcomeDealId', 'referralDealId', 'referralInviteeDealId', 'referralInviterDealId'] as const) {
+            const current = settings[field];
+            if (current && directDealIdSet.has(current)) {
+              patch[field] = null;
+              settingsDealReferencesCleared += 1;
+            }
+          }
+          if (Object.keys(patch).length > 0) {
+            await tx.restaurantSettings.update({ where: { id: settings.id }, data: patch });
+          }
+        }
+      }
+
+      const orderDrafts = await tx.orderDraft.deleteMany({ where: { data: { contains: restaurantId } } });
+      const notes = await tx.note.deleteMany({ where: { restaurantId } });
+      const pairingCodes = await tx.devicePairingCode.deleteMany({ where: { restaurantId } });
+      const devices = await tx.restaurantDevice.deleteMany({ where: { restaurantId } });
+      const terminalBenchmarks = await tx.terminalDeviceBenchmark.deleteMany({ where: { restaurantId } });
+      const printers = await tx.restaurantPrinter.deleteMany({ where: { restaurantId } });
+      const groupOrders = await tx.groupOrder.deleteMany({ where: { restaurantId } });
+      const dealCampaignsDetached = await tx.dealCampaign.updateMany({ where: { restaurantId }, data: { restaurantId: null } });
+      const brandMastersDetached = await tx.brand.updateMany({ where: { masterRestaurantId: restaurantId }, data: { masterRestaurantId: null } });
+      const discountCodesDeleted = await tx.discountCode.deleteMany({ where: { restaurantId } });
+
+      let productExtraLinks = 0;
+      const productExtraGroupFilters = [
+        ...(productIds.length ? [{ productId: { in: productIds } }] : []),
+        ...(extraGroupIds.length ? [{ extraGroupId: { in: extraGroupIds } }] : []),
+      ];
+      if (productExtraGroupFilters.length > 0) {
+        const deleted = await tx.productExtraGroup.deleteMany({ where: { OR: productExtraGroupFilters } });
+        productExtraLinks = deleted.count;
+      }
+
+      const extrasDeleted = extraGroupIds.length
+        ? await tx.extra.deleteMany({ where: { extraGroupId: { in: extraGroupIds } } })
+        : { count: 0 };
+      const extraGroupsDeleted = await tx.extraGroup.deleteMany({ where: { restaurantId } });
+      const productsDeleted = productIds.length
+        ? await tx.product.deleteMany({ where: { id: { in: productIds } } })
+        : { count: 0 };
+      const categoriesDeleted = await tx.category.deleteMany({ where: { restaurantId } });
+      const dealsDeleted = await tx.deal.deleteMany({ where: { restaurantId } });
+      const adminUsersDeleted = restaurant.adminUserId
+        ? await tx.adminUser.deleteMany({
+            where: { id: restaurant.adminUserId, role: { in: ['ADMIN', 'RESTAURANT_ADMIN', 'STAFF'] } },
+          })
+        : { count: 0 };
+
+      await tx.restaurant.delete({ where: { id: restaurantId } });
+
+      return {
+        categories: categoriesDeleted.count,
+        products: productsDeleted.count,
+        extraGroups: extraGroupsDeleted.count,
+        extras: extrasDeleted.count,
+        productExtraLinks,
+        deals: dealsDeleted.count,
+        dealReferencesRemoved,
+        discountCodes: discountCodesDeleted.count,
+        discountCodeReferencesRemoved,
+        dealCampaignsDetached: dealCampaignsDetached.count,
+        homeSectionsDetached,
+        brandMastersDetached: brandMastersDetached.count,
+        groupOrders: groupOrders.count,
+        orderDrafts: orderDrafts.count,
+        notes: notes.count,
+        devices: devices.count,
+        terminalBenchmarks: terminalBenchmarks.count,
+        pairingCodes: pairingCodes.count,
+        printers: printers.count,
+        adminUsers: adminUsersDeleted.count,
+        settingsDealReferencesCleared,
+      };
+    });
+
+    const r2 = {
+      configured: r2Configured,
+      prefix: r2Prefix,
+      deleted: 0,
+      failed: [] as Array<{ key: string; error: string }>,
+      skipped: !r2Configured,
+    };
+
+    if (r2Configured) {
+      const r2Keys = new Set(explicitR2Keys);
+      try {
+        const prefixedObjects = await listR2(r2Prefix, 5000);
+        for (const object of prefixedObjects) r2Keys.add(object.key);
+      } catch (error: any) {
+        r2.failed.push({ key: `${r2Prefix}*`, error: error?.message || String(error) });
+      }
+      for (const key of r2Keys) {
+        try {
+          await deleteFromR2(key);
+          r2.deleted += 1;
+        } catch (error: any) {
+          r2.failed.push({ key, error: error?.message || String(error) });
+        }
+      }
+    }
+
+    await audit(req, 'RESTAURANT_PERMANENT_DELETE', {
+      resourceType: 'Restaurant',
+      resourceId: restaurantId,
+      changes: {
+        name: restaurant.name,
+        slug: restaurant.slug,
+        database,
+        r2: { configured: r2.configured, prefix: r2.prefix, deleted: r2.deleted, failed: r2.failed.length },
+      },
+    });
+
+    bustRestaurantCaches(restaurant.slug);
+    bustCache('rest:detail', restaurant.id);
+    try { menuCacheBust(restaurantId); } catch { /* noop */ }
+    void revalidateWebRestaurant(restaurant.slug);
+    getIO().emit('settings:updated', {
+      restaurantId,
+      slug: restaurant.slug,
+      deleted: true,
+      draft: true,
+      archived: true,
+      availabilityReason: 'DELETED',
+    });
+
+    res.json({ success: true, deleted: true, restaurantId, database, r2 });
+  } catch (err) {
+    console.error('[restaurants permanent-delete] failed:', err);
+    res.status(500).json({ error: 'Kunde inte radera restaurang permanent' });
   }
 });
 

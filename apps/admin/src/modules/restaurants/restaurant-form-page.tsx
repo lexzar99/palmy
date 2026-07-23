@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import { DeliveryModeBadge } from "@/shared/components/delivery-mode";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Archive, Calendar, Plus, Save, Store, X } from "lucide-react";
+import { Archive, Calendar, Plus, Save, Store, Trash2, X } from "lucide-react";
 import {
   createRestaurant,
   archiveRestaurant,
   getRestaurantDetail,
   getRestaurantOrders,
   patchRestaurant,
+  permanentlyDeleteRestaurant,
   restaurantsQueryKey,
   type AcceptingOrdersMode,
   type RestaurantDetail,
@@ -29,6 +30,7 @@ import {
   IntegerInput,
   LoadingPanel,
   MetricCard,
+  Modal,
   NumberInput,
   PageHeader,
   PercentInput,
@@ -217,6 +219,8 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
   const [saveError, setSaveError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [permanentDeleteOpen, setPermanentDeleteOpen] = useState(false);
+  const [permanentDeleteName, setPermanentDeleteName] = useState("");
   const [pendingDraftState, setPendingDraftState] = useState<boolean | null>(null);
 
   const detail = useQuery({
@@ -332,6 +336,28 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
     },
   });
 
+  const permanentDeleteMutation = useMutation({ meta: { toast: false },
+    mutationFn: async () => {
+      if (!restaurantId) throw new Error("Restaurang saknas.");
+      return permanentlyDeleteRestaurant(restaurantId, permanentDeleteName);
+    },
+    onSuccess: async (result) => {
+      const r2Text = result.r2.configured
+        ? ` R2: ${result.r2.deleted} objekt raderade${result.r2.failed.length ? `, ${result.r2.failed.length} misslyckades` : ""}.`
+        : " R2 var inte konfigurerat.";
+      showToast({ type: "success", message: `Restaurangen raderades permanent.${r2Text}` });
+      await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      await queryClient.invalidateQueries({ queryKey: restaurantsQueryKey });
+      router.push("/restaurants");
+    },
+    onError: (error: any) => {
+      showToast({
+        type: "error",
+        message: error?.response?.data?.error || "Kunde inte radera restaurangen permanent.",
+      });
+    },
+  });
+
   if (!isCreate && detail.isLoading) {
     return (
       <div className="page-stack">
@@ -384,6 +410,18 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
             {!isCreate ? (
               <Button variant="danger" onClick={() => setDeleteConfirmOpen(true)} disabled={deleteMutation.isPending}>
                 <Archive size={14} /> Arkivera
+              </Button>
+            ) : null}
+            {!isCreate ? (
+              <Button
+                variant="danger"
+                onClick={() => {
+                  setPermanentDeleteName("");
+                  setPermanentDeleteOpen(true);
+                }}
+                disabled={permanentDeleteMutation.isPending}
+              >
+                <Trash2 size={14} /> Radera permanent
               </Button>
             ) : null}
           </div>
@@ -837,6 +875,55 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
         onClose={() => setDeleteConfirmOpen(false)}
         onConfirm={() => deleteMutation.mutate()}
       />
+
+      <Modal
+        open={permanentDeleteOpen}
+        title={`Radera ${form.name || "restaurangen"} permanent?`}
+        description="Detta tar bort restaurangen, menyn, kopplingar och R2-bilder. Restauranger med order- eller utbetalningshistorik blockeras och ska arkiveras istället."
+        size="sm"
+        onClose={() => {
+          if (permanentDeleteMutation.isPending) return;
+          setPermanentDeleteOpen(false);
+        }}
+        footer={
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              type="button"
+              onClick={() => setPermanentDeleteOpen(false)}
+              disabled={permanentDeleteMutation.isPending}
+            >
+              Avbryt
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              loading={permanentDeleteMutation.isPending}
+              disabled={permanentDeleteName !== form.name || !form.name}
+              onClick={() => permanentDeleteMutation.mutate()}
+            >
+              Radera permanent
+            </Button>
+          </div>
+        }
+      >
+        <div className="grid gap-4">
+          <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+            Den här åtgärden går inte att ångra. Skriv restaurangens namn exakt för att bekräfta.
+          </div>
+          <Field label="Bekräfta med exakt namn">
+            <Input
+              autoFocus
+              value={permanentDeleteName}
+              onChange={(event) => setPermanentDeleteName(event.target.value)}
+              placeholder={form.name}
+              autoComplete="off"
+            />
+          </Field>
+          <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] px-4 py-3 text-xs text-[var(--text-secondary)]">
+            Exakt namn: <span className="font-black text-[var(--text-primary)]">{form.name}</span>
+          </div>
+        </div>
+      </Modal>
 
       <ConfirmDialog
         open={pendingDraftState !== null}

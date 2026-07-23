@@ -180,4 +180,21 @@ export const patchRestaurant = (restaurantId: string, payload: Partial<Restauran
 export const archiveRestaurant = (restaurantId: string) =>
   apiDelete<{ success: boolean; archived: boolean }>(`/restaurants/${restaurantId}`);
 
+export interface PermanentlyDeleteRestaurantResult {
+  success: boolean;
+  deleted: boolean;
+  restaurantId: string;
+  database: Record<string, number>;
+  r2: {
+    configured: boolean;
+    prefix: string;
+    deleted: number;
+    failed: Array<{ key: string; error: string }>;
+    skipped: boolean;
+  };
+}
+
+export const permanentlyDeleteRestaurant = (restaurantId: string, confirmationName: string) =>
+  apiPost<PermanentlyDeleteRestaurantResult>(`/restaurants/${restaurantId}/permanent-delete`, { confirmationName });
+
 export type { ControlCenterRestaurantSnapshot };
