@@ -3,25 +3,42 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowRight,
+  BellRing,
+  ChevronDown,
+  ChevronUp,
+  ClipboardList,
+  Gift,
+  RefreshCw,
+  Search,
+  Star,
+  Store,
+  TicketPercent,
+} from "lucide-react";
 import {
   dashboardQueryKey,
   type DashboardPeriodKey,
   customerOverviewQueryKey,
   getControlCenter,
   getCustomerOverview,
+  getLaunchCampaign,
   getRestaurantRefs,
   getSystemHealth,
   healthQueryKey,
+  launchCampaignQueryKey,
   restaurantRefsQueryKey,
 } from "@/modules/dashboard/api";
 import { TrendChart } from "@/modules/dashboard/TrendChart";
+import { StatusDonut } from "@/modules/dashboard/StatusDonut";
 import { Badge, Button, ErrorPanel, MetricCard, PageHeader, Sparkline, Surface } from "@/shared/components/ui";
+import { useAdminSession } from "@/shared/hooks/use-admin-session";
+import { useUiStore } from "@/shared/store/ui-store";
 import {
   formatCurrencyExact as formatCurrency,
   formatNumber,
-  orderStatusLabel,
-  orderStatusTone,
+  shortText,
 } from "@/shared/utils/format";
 
 function useLocalBool(key: string, defaultValue: boolean) {
@@ -53,8 +70,44 @@ const PERIOD_OPTIONS: Array<{ key: DashboardPeriodKey; label: string }> = [
   { key: "lastMonth", label: "Förra månaden" },
 ];
 
+const QUICK_ACTIONS = [
+  { href: "/restaurants/new", label: "Ny restaurang", icon: Store, primary: false },
+  { href: "/deals/kampanj/new", label: "Ny kampanj", icon: Gift, primary: true },
+  { href: "/coupons", label: "Kuponger", icon: TicketPercent, primary: false },
+  { href: "/push", label: "Push-notis", icon: BellRing, primary: false },
+  { href: "/orders", label: "Liveordrar", icon: ClipboardList, primary: false },
+];
+
+function greetingForHour(hour: number) {
+  if (hour >= 5 && hour < 10) return "God morgon";
+  if (hour >= 10 && hour < 18) return "God dag";
+  return "God kväll";
+}
+
+function timeAgo(iso: string) {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) return "nyss";
+  if (minutes < 60) return `${minutes} min sedan`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} tim sedan`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? "igår" : `${days} dgr sedan`;
+}
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("") || "?";
+}
+
 export function DashboardPage() {
   const router = useRouter();
+  const session = useAdminSession();
+  const openPalette = useUiStore((s) => s.setPaletteOpen);
   const [showMore, toggleMore] = useLocalBool("dashboard:show-more", false);
   // Scope: hela dashboarden kan filtreras per restaurang (backend stödjer det
   // redan via ?restaurantId). Periodfiltret styr bara statistik och grafer.
@@ -76,6 +129,10 @@ export function DashboardPage() {
     queryKey: customerOverviewQueryKey,
     queryFn: getCustomerOverview,
     refetchInterval: 60_000,
+  });
+  const launchCampaign = useQuery({
+    queryKey: launchCampaignQueryKey({ days: 30, limit: 1 }),
+    queryFn: () => getLaunchCampaign({ days: 30, limit: 1 }),
   });
 
   if (controlCenter.isLoading || health.isLoading) {
@@ -123,43 +180,70 @@ export function DashboardPage() {
   const totalAttention = attentionList.length + criticalAlerts.length;
   const pendingLiveOrders = data.liveStatusCounts.PENDING || 0;
 
+  const firstName = session.data?.name?.split(/\s+/)[0];
+  const greeting = greetingForHour(new Date().getHours());
+  const todayLabel = new Intl.DateTimeFormat("sv-SE", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(new Date());
+
+  const topRestaurants = [...data.restaurantSnapshots]
+    .map((r) => ({ ...r, scopedRevenue: r.periodRevenue ?? r.monthRevenue }))
+    .sort((a, b) => b.scopedRevenue - a.scopedRevenue)
+    .slice(0, 5);
+  const topRevenueMax = Math.max(1, ...topRestaurants.map((r) => r.scopedRevenue));
+
+  const campaign = launchCampaign.data;
+  const campaignSendRate = campaign && campaign.totals.leads > 0
+    ? Math.min(100, Math.round((campaign.totals.couponsSent / campaign.totals.leads) * 100))
+    : 0;
+
   return (
     <div className="page-stack">
-      <PageHeader
-        title="Översikt"
-        breadcrumb="Drift"
-        actions={
-          <>
-            {/* Per-restaurang-vy: scopear ALLA siffror på sidan */}
-            <select
-              value={restaurantScope ?? ""}
-              onChange={(e) => setRestaurantScope(e.target.value || null)}
-              className="h-[38px] rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-page)] px-3 text-[13px] font-semibold text-[var(--text-secondary)] outline-none transition-colors hover:border-[var(--border-strong)]"
-              aria-label="Filtrera på restaurang"
-            >
-              <option value="">Alla restauranger</option>
-              {(restaurantRefs.data || []).map((r) => (
-                <option key={r.id} value={r.id}>{r.name}</option>
-              ))}
-            </select>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--success-soft)] px-3 py-1.5 text-[11.5px] font-extrabold text-[var(--success-text)]">
-              <span className="h-[7px] w-[7px] rounded-full bg-[var(--success)]" />
-              Produktion
-            </span>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                void controlCenter.refetch();
-                void health.refetch();
-              }}
-            >
-              <RefreshCw size={13} /> Uppdatera
-            </Button>
-          </>
-        }
-      />
+      {/* ── Hälsning + sök + scope ── */}
+      <div className="dash-greeting">
+        <div className="min-w-0">
+          <h1 className="dash-greeting-title">
+            {greeting}{firstName ? `, ${firstName}` : ""}!
+          </h1>
+          <p className="dash-greeting-sub">{todayLabel} · Här är läget för viaeats just nu.</p>
+        </div>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <button type="button" className="dash-search" onClick={() => openPalette(true)}>
+            <Search size={14} />
+            Sök i admin…
+            <kbd>⌘K</kbd>
+          </button>
+          {/* Per-restaurang-vy: scopear ALLA siffror på sidan */}
+          <select
+            value={restaurantScope ?? ""}
+            onChange={(e) => setRestaurantScope(e.target.value || null)}
+            className="h-[38px] rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-page)] px-3 text-[13px] font-semibold text-[var(--text-secondary)] outline-none transition-colors hover:border-[var(--border-strong)]"
+            aria-label="Filtrera på restaurang"
+          >
+            <option value="">Alla restauranger</option>
+            {(restaurantRefs.data || []).map((r) => (
+              <option key={r.id} value={r.id}>{r.name}</option>
+            ))}
+          </select>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--success-soft)] px-3 py-1.5 text-[11.5px] font-extrabold text-[var(--success-text)]">
+            <span className="h-[7px] w-[7px] rounded-full bg-[var(--success)]" />
+            Produktion
+          </span>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              void controlCenter.refetch();
+              void health.refetch();
+            }}
+          >
+            <RefreshCw size={13} /> Uppdatera
+          </Button>
+        </div>
+      </div>
 
-      {/* Live/ops: påverkas inte av rapportperioden. */}
+      {/* ── Live/ops-KPI:er: påverkas inte av rapportperioden ── */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="Live ordrar"
@@ -202,91 +286,130 @@ export function DashboardPage() {
         />
       </div>
 
-      <Surface className="px-5 py-5">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="section-title">Periodstatistik</h2>
-            <p className="section-subtitle">{data.period.label} · {data.period.timeZone}</p>
-          </div>
-          <div className="segmented">
-            {PERIOD_OPTIONS.map((option) => (
-              <button
-                key={option.key}
-                type="button"
-                onClick={() => setPeriod(option.key)}
-                className={period === option.key ? "is-active" : ""}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            label="Intäkt period"
-            value={formatCurrency(data.summary.periodRevenue)}
-            detail={`${formatNumber(data.summary.periodOrders)} betalda order · snitt ${formatCurrency(data.summary.avgTicket)}`}
-          />
-          <MetricCard
-            label="ViaEats provision"
-            value={formatCurrency(data.summary.periodCommission)}
-          />
-          <MetricCard
-            label="Att överföra"
-            value={formatCurrency(data.summary.periodPayoutExposure)}
-            detail="Beräknad partnerutbetalning"
-          />
-          <MetricCard
-            label="Återbetalningar"
-            value={formatCurrency(data.summary.periodRefundAmount)}
-            detail={`${formatNumber(data.summary.periodRefundCount)} klara · ${formatNumber(data.summary.pendingRefundCount)} pending (${formatCurrency(data.summary.pendingRefundAmount)})`}
-          />
-        </div>
-      </Surface>
-
-      {customerOverview.data ? (
-        <Surface className="px-5 py-5">
+      {/* ── Hero: intäkt i navy + högerkolumn med kampanj & orderstatus ── */}
+      <div className="grid gap-4 xl:grid-cols-12">
+        <section className="hero-card xl:col-span-8">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="section-title">Kundöversikt</h2>
-              <p className="section-subtitle">Gäster, registreringar, konvertering och återköp</p>
+              <p className="hero-stat-label">Intäkt · {data.period.label}</p>
+              <p className="hero-value mt-2.5">{formatCurrency(data.summary.periodRevenue)}</p>
+              <p className="mt-2 text-[12.5px] font-medium text-[rgba(254,247,240,0.7)]">
+                {formatNumber(data.summary.periodOrders)} betalda order · snitt {formatCurrency(data.summary.avgTicket)}
+              </p>
             </div>
-            <Button variant="secondary" onClick={() => router.push("/customers")}>Öppna kundflödet</Button>
+            <div className="segmented">
+              {PERIOD_OPTIONS.map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => setPeriod(option.key)}
+                  className={period === option.key ? "is-active" : ""}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="surface-muted px-4 py-4"><p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Gästkunder</p><p className="mt-2 text-2xl font-black">{formatNumber(customerOverview.data.guests)}</p><p className="mt-1 text-xs text-[var(--text-secondary)]">{formatNumber(customerOverview.data.repeatGuests)} beställer om</p></div>
-            <div className="surface-muted px-4 py-4"><p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Gäst → kund</p><p className="mt-2 text-2xl font-black">{(customerOverview.data.guestConversionRate * 100).toFixed(1)} %</p><p className="mt-1 text-xs text-[var(--text-secondary)]">{formatNumber(customerOverview.data.convertedFromGuest)} konverterade</p></div>
-            <div className="surface-muted px-4 py-4"><p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Registrerade kunder</p><p className="mt-2 text-2xl font-black">{formatNumber(customerOverview.data.registered)}</p><p className="mt-1 text-xs text-[var(--text-secondary)]">{formatNumber(customerOverview.data.newThisWeek)} nya denna vecka</p></div>
-            <div className="surface-muted px-4 py-4"><p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Återkommande kunder</p><p className="mt-2 text-2xl font-black">{formatNumber(customerOverview.data.repeatRegistered)}</p><p className="mt-1 text-xs text-[var(--text-secondary)]">registrerade med minst två order</p></div>
-          </div>
-        </Surface>
-      ) : null}
 
-      {/* ── Trend: omsättning/ordrar per dag — alltid synlig ── */}
-      <Surface className="px-5 py-5">
-        <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="section-title">Omsättning</h2>
-            <p className="section-subtitle">{data.period.label}</p>
+          <div className="mt-5">
+            <TrendChart points={data.trend} />
           </div>
+
+          <div className="mt-5 flex flex-wrap items-end justify-between gap-4 border-t border-[rgba(254,247,240,0.14)] pt-4">
+            <div className="grid grid-cols-3 gap-6">
+              <div>
+                <p className="hero-stat-label">Provision</p>
+                <p className="hero-stat-value">{formatCurrency(data.summary.periodCommission)}</p>
+              </div>
+              <div>
+                <p className="hero-stat-label">Att överföra</p>
+                <p className="hero-stat-value">{formatCurrency(data.summary.periodPayoutExposure)}</p>
+              </div>
+              <div>
+                <p className="hero-stat-label">Återbetalt</p>
+                <p className="hero-stat-value">{formatCurrency(data.summary.periodRefundAmount)}</p>
+              </div>
+            </div>
+            <Button variant="secondary" onClick={() => router.push("/finance")}>
+              Visa ekonomi <ArrowRight size={14} />
+            </Button>
+          </div>
+        </section>
+
+        <div className="grid content-start gap-4 xl:col-span-4">
+          {/* Kampanjkort — launch-kampanjens 30-dagarsläge */}
+          <Surface className="px-5 py-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="eyebrow">Pågående kampanj</p>
+                <h2 className="section-title mt-1.5">Launch-kampanj</h2>
+              </div>
+              <span className="flex h-[38px] w-[38px] flex-none items-center justify-center rounded-[11px] bg-[var(--brand-navy-soft)] text-[var(--brand-navy-ink)]">
+                <Gift size={17} />
+              </span>
+            </div>
+            {campaign ? (
+              <>
+                <div className="mt-4 grid grid-cols-3 gap-3">
+                  <div>
+                    <p className="card-label">Leads 30d</p>
+                    <p className="mt-1 text-lg font-extrabold">{formatNumber(campaign.totals.leadsInPeriod)}</p>
+                  </div>
+                  <div>
+                    <p className="card-label">Kuponger</p>
+                    <p className="mt-1 text-lg font-extrabold">{formatNumber(campaign.totals.couponsSent)}</p>
+                  </div>
+                  <div>
+                    <p className="card-label">Snitt/dag</p>
+                    <p className="mt-1 text-lg font-extrabold">{campaign.totals.averageDailyLeads.toFixed(1)}</p>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <div className="mb-1.5 flex justify-between text-[11.5px] font-bold">
+                    <span className="text-[var(--text-secondary)]">Kuponger skickade</span>
+                    <span className="text-[var(--text-primary)]">{campaignSendRate}%</span>
+                  </div>
+                  <div className="progress-track">
+                    <div className="progress-fill" style={{ width: `${campaignSendRate}%` }} />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="section-subtitle mt-3">Laddar kampanjdata…</p>
+            )}
+            <button
+              type="button"
+              onClick={() => router.push("/launch-campaign")}
+              className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-bold text-[var(--brand-navy-ink)] hover:underline"
+            >
+              Öppna kampanjen <ArrowRight size={13} />
+            </button>
+          </Surface>
+
+          {/* Orderstatus-donut */}
+          <Surface className="px-5 py-5">
+            <h2 className="section-title mb-4">Orderstatus live</h2>
+            <StatusDonut counts={data.liveStatusCounts} />
+          </Surface>
         </div>
-        <div className="mt-4">
-          <TrendChart points={data.trend} />
-        </div>
-        <div className="mt-3 flex flex-wrap gap-5 text-[12px] text-[var(--text-secondary)]">
-          <span>
-            Period: <span className="font-semibold text-[var(--text-primary)]">{formatCurrency(data.trend.reduce((s, p) => s + p.revenue, 0))}</span>
-          </span>
-          <span>
-            <span className="font-semibold text-[var(--text-primary)]">{formatNumber(data.trend.reduce((s, p) => s + p.orders, 0))}</span> ordrar
-          </span>
-          {restaurantScope && (
-            <span className="text-[var(--text-muted)]">
-              Visar: {(restaurantRefs.data || []).find((r) => r.id === restaurantScope)?.name ?? "vald restaurang"}
+      </div>
+
+      {/* ── Snabbåtgärder ── */}
+      <div className="quick-actions">
+        {QUICK_ACTIONS.map((action) => (
+          <button
+            key={action.href}
+            type="button"
+            onClick={() => router.push(action.href)}
+            className={`quick-action${action.primary ? " is-primary" : ""}`}
+          >
+            <span className="quick-action-icon">
+              <action.icon size={19} />
             </span>
-          )}
-        </div>
-      </Surface>
+            {action.label}
+          </button>
+        ))}
+      </div>
 
       {/* ── Attention list — only if something needs action ── */}
       {totalAttention > 0 && (
@@ -352,6 +475,99 @@ export function DashboardPage() {
         </Surface>
       )}
 
+      {/* ── Topprestauranger + händelseflöde ── */}
+      <div className="grid gap-4 xl:grid-cols-12">
+        <Surface className="px-5 py-5 xl:col-span-7">
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="section-title">Topprestauranger</h2>
+              <p className="section-subtitle">Omsättning · {data.period.label}</p>
+            </div>
+            <Button variant="secondary" onClick={() => router.push("/restaurants")}>Alla restauranger</Button>
+          </div>
+          {topRestaurants.length === 0 ? (
+            <p className="section-subtitle">Ingen försäljning i perioden.</p>
+          ) : (
+            <div className="grid gap-4">
+              {topRestaurants.map((r, i) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => router.push(`/restaurants/${r.id}`)}
+                  className="group text-left"
+                >
+                  <div className="mb-1.5 flex items-baseline justify-between gap-3">
+                    <span className="min-w-0 truncate text-[13.5px] font-bold text-[var(--text-primary)] group-hover:underline">
+                      {r.name}
+                    </span>
+                    <span className="flex-none text-[12.5px] font-bold text-[var(--text-secondary)]">
+                      {formatCurrency(r.scopedRevenue)}
+                    </span>
+                  </div>
+                  <div className="progress-track">
+                    <div
+                      className={`progress-fill${i === 0 ? " is-leader" : ""}`}
+                      style={{ width: `${Math.max(3, (r.scopedRevenue / topRevenueMax) * 100)}%` }}
+                    />
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </Surface>
+
+        <Surface className="px-5 py-5 xl:col-span-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="section-title">Senaste händelser</h2>
+            <Button variant="secondary" onClick={() => router.push("/reviews")}>Recensioner</Button>
+          </div>
+          {data.recentReviews.length === 0 ? (
+            <p className="section-subtitle">Inga nya recensioner ännu.</p>
+          ) : (
+            <div>
+              {data.recentReviews.slice(0, 5).map((review) => (
+                <div key={review.id} className="activity-row">
+                  <span className="activity-avatar">{initials(review.customerName)}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] leading-snug">
+                      <span className="font-bold text-[var(--text-primary)]">{review.customerName}</span>{" "}
+                      <span className="text-[var(--text-secondary)]">
+                        gav {review.rating} <Star size={11} className="inline -mt-0.5" aria-hidden />
+                        {review.restaurantName ? ` till ${review.restaurantName}` : ""}
+                      </span>
+                    </p>
+                    {review.review ? (
+                      <p className="mt-0.5 text-[12px] text-[var(--text-muted)]">{shortText(review.review, 80)}</p>
+                    ) : null}
+                  </div>
+                  <span className="flex-none text-[11px] font-semibold text-[var(--text-muted)]">
+                    {timeAgo(review.reviewedAt)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Surface>
+      </div>
+
+      {customerOverview.data ? (
+        <Surface className="px-5 py-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="section-title">Kundöversikt</h2>
+              <p className="section-subtitle">Gäster, registreringar, konvertering och återköp</p>
+            </div>
+            <Button variant="secondary" onClick={() => router.push("/customers")}>Öppna kundflödet</Button>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="surface-muted px-4 py-4"><p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Gästkunder</p><p className="mt-2 text-2xl font-black">{formatNumber(customerOverview.data.guests)}</p><p className="mt-1 text-xs text-[var(--text-secondary)]">{formatNumber(customerOverview.data.repeatGuests)} beställer om</p></div>
+            <div className="surface-muted px-4 py-4"><p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Gäst → kund</p><p className="mt-2 text-2xl font-black">{(customerOverview.data.guestConversionRate * 100).toFixed(1)} %</p><p className="mt-1 text-xs text-[var(--text-secondary)]">{formatNumber(customerOverview.data.convertedFromGuest)} konverterade</p></div>
+            <div className="surface-muted px-4 py-4"><p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Registrerade kunder</p><p className="mt-2 text-2xl font-black">{formatNumber(customerOverview.data.registered)}</p><p className="mt-1 text-xs text-[var(--text-secondary)]">{formatNumber(customerOverview.data.newThisWeek)} nya denna vecka</p></div>
+            <div className="surface-muted px-4 py-4"><p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Återkommande kunder</p><p className="mt-2 text-2xl font-black">{formatNumber(customerOverview.data.repeatRegistered)}</p><p className="mt-1 text-xs text-[var(--text-secondary)]">registrerade med minst två order</p></div>
+          </div>
+        </Surface>
+      ) : null}
+
       {/* ── Reveal: everything else ──────────────────── */}
       <button type="button" onClick={toggleMore} className="reveal-more">
         {showMore ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
@@ -369,43 +585,24 @@ export function DashboardPage() {
             />
           </div>
 
-          {/* Status + Top products */}
-          <div className="grid gap-4 xl:grid-cols-2">
-            <Surface className="px-7 py-6">
-              <h2 className="section-title mb-5">Orderstatus</h2>
-              <div className="grid gap-1.5 sm:grid-cols-2">
-                {Object.entries(data.liveStatusCounts).map(([status, count]) => (
-                  <div
-                    key={status}
-                    className="surface-muted flex items-center justify-between px-4 py-3"
-                  >
-                    <Badge tone={orderStatusTone(status) as "neutral" | "success" | "danger" | "warning" | "info"}>
-                      {orderStatusLabel(status)}
-                    </Badge>
-                    <span className="text-base font-semibold">{formatNumber(count)}</span>
+          {/* Top products */}
+          <Surface className="px-7 py-6">
+            <h2 className="section-title mb-5">Topprodukter</h2>
+            <div className="grid gap-1.5">
+              {data.topProducts.slice(0, 6).map((p, i) => (
+                <div
+                  key={`${p.name}-${i}`}
+                  className="surface-muted flex items-center justify-between px-4 py-3 text-sm"
+                >
+                  <span className="min-w-0 flex-1 truncate font-medium">{p.name}</span>
+                  <div className="flex shrink-0 gap-3 text-[var(--text-secondary)]">
+                    <span className="text-[12px]">{formatNumber(p.count)}×</span>
+                    <span className="font-semibold text-[var(--text-primary)]">{formatCurrency(p.revenue)}</span>
                   </div>
-                ))}
-              </div>
-            </Surface>
-
-            <Surface className="px-7 py-6">
-              <h2 className="section-title mb-5">Topprodukter</h2>
-              <div className="grid gap-1.5">
-                {data.topProducts.slice(0, 6).map((p, i) => (
-                  <div
-                    key={`${p.name}-${i}`}
-                    className="surface-muted flex items-center justify-between px-4 py-3 text-sm"
-                  >
-                    <span className="min-w-0 flex-1 truncate font-medium">{p.name}</span>
-                    <div className="flex shrink-0 gap-3 text-[var(--text-secondary)]">
-                      <span className="text-[12px]">{formatNumber(p.count)}×</span>
-                      <span className="font-semibold text-[var(--text-primary)]">{formatCurrency(p.revenue)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Surface>
-          </div>
+                </div>
+              ))}
+            </div>
+          </Surface>
 
           {/* System health */}
           <Surface className="px-7 py-6">

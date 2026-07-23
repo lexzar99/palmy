@@ -10,6 +10,7 @@ import {
   Store,
 } from "lucide-react";
 import { cn } from "@/shared/utils/cn";
+import { useUiStore } from "@/shared/store/ui-store";
 import { ADMIN_ROUTES, ADMIN_SECTIONS, ADMIN_SECTION_LABELS } from "@/shared/navigation/admin-routes";
 
 type CommandGroup = string;
@@ -224,20 +225,23 @@ function CommandPaletteContent({ onClose }: { onClose: () => void }) {
 
 /**
  * Global hook — listens for Cmd+K / Ctrl+K and toggles the palette.
+ * State lives in the ui-store so any view (e.g. dashboardens sökfält)
+ * can open the palette via useUiStore.
  */
 export function useCommandPalette() {
-  const [open, setOpen] = useState(false);
+  const open = useUiStore((s) => s.paletteOpen);
+  const setOpen = useUiStore((s) => s.setPaletteOpen);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        setOpen((v) => !v);
+        setOpen(!useUiStore.getState().paletteOpen);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [setOpen]);
 
   return { open, openPalette: () => setOpen(true), close: () => setOpen(false) };
 }

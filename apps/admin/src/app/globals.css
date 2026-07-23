@@ -37,6 +37,15 @@
   --brand-orange-ink: #b5360d;
   --brand-orange-soft: #fff0ea;
 
+  /* ── Navy — sekundär brandfärg (paneler, plattor, staplar). Cream/vit
+     text på navy enligt brand-guiden. Orange förblir "viktiga grejer". ── */
+  --brand-navy: #0a2340;
+  --brand-navy-strong: #10315a;
+  --brand-navy-ink: #0a2340;          /* navy som text/ikon på ljus tint */
+  --brand-navy-soft: rgba(10, 35, 64, 0.07);
+  --brand-navy-bar: #24466f;          /* progressbars, donutsegment */
+  --brand-cream: #fef7f0;
+
   /* Bakåtkompatibla alias. Nya moduler använder de semantiska tokens ovan. */
   --background: var(--bg-page);
   --surface: var(--bg-panel);
@@ -89,6 +98,14 @@
   --brand-orange-strong: #ff7547;
   --brand-orange-ink: #ff9b79;
   --brand-orange-soft: rgba(240, 79, 26, 0.14);
+
+  /* Navy i mörkt läge: lyfts något så panelen syns mot near-black. */
+  --brand-navy: #0d2a4c;
+  --brand-navy-strong: #143a68;
+  --brand-navy-ink: #9dbde4;
+  --brand-navy-soft: rgba(93, 143, 201, 0.14);
+  --brand-navy-bar: #3c689c;
+  --brand-cream: #fef7f0;
 
   --success: #4ade80;  --success-text: #86efac; --success-soft: rgba(74, 222, 128, 0.1);
   --danger: #fb7185;   --danger-text: #fda4af;  --danger-soft: rgba(251, 113, 133, 0.08);
@@ -637,6 +654,224 @@ button {
 
 .metric-card:hover {
   border-color: var(--border-strong);
+}
+
+/* ─────────────────────────────────────────────
+   Dashboard: hälsning + sök
+   ───────────────────────────────────────────── */
+
+.dash-greeting {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.dash-greeting-title {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+
+.dash-greeting-sub {
+  margin-top: 5px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.dash-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 220px;
+  padding: 9px 12px;
+  border-radius: 11px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-panel);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.dash-search:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+}
+
+.dash-search kbd {
+  margin-left: auto;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--bg-hover);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+/* ─────────────────────────────────────────────
+   Hero-kort — navy panel med inbäddad graf.
+   Skinnar om nästlade komponenter (TrendChart,
+   .segmented) via lokala token-overrides.
+   ───────────────────────────────────────────── */
+
+.hero-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--brand-cream) 10%, transparent);
+  background: linear-gradient(135deg, var(--brand-navy) 0%, var(--brand-navy-strong) 100%);
+  color: var(--brand-cream);
+  padding: 22px 24px;
+
+  --text-primary: #ffffff;
+  --text-secondary: rgba(254, 247, 240, 0.75);
+  --text-muted: rgba(254, 247, 240, 0.5);
+  --accent: var(--brand-orange);
+  --accent-tintbar: rgba(254, 247, 240, 0.22);
+  --bg-panel: rgba(254, 247, 240, 0.12);
+  --bg-page: rgba(254, 247, 240, 0.07);
+  --bg-hover: rgba(254, 247, 240, 0.1);
+  --border-subtle: rgba(254, 247, 240, 0.14);
+  --border-strong: rgba(254, 247, 240, 0.22);
+}
+
+.hero-value {
+  font-size: 38px;
+  font-weight: 800;
+  letter-spacing: -1.5px;
+  line-height: 1;
+  color: #ffffff;
+}
+
+.hero-stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: rgba(254, 247, 240, 0.55);
+}
+
+.hero-stat-value {
+  margin-top: 4px;
+  font-size: 16px;
+  font-weight: 750;
+  color: #ffffff;
+}
+
+/* ─────────────────────────────────────────────
+   Snabbåtgärder — ikonplattor i navy-tint,
+   horisontell scroll på mobil
+   ───────────────────────────────────────────── */
+
+.quick-actions {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.quick-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 10px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-align: center;
+  transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+
+.quick-action:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
+.quick-action-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--brand-navy-soft);
+  color: var(--brand-navy-ink);
+}
+
+.quick-action.is-primary .quick-action-icon {
+  background: var(--brand-orange-soft);
+  color: var(--brand-orange);
+}
+
+@media (max-width: 767px) {
+  .quick-actions {
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+  .quick-actions::-webkit-scrollbar { display: none; }
+  .quick-action { min-width: 104px; flex: none; }
+}
+
+/* ─────────────────────────────────────────────
+   Progressbars (topprestauranger)
+   ───────────────────────────────────────────── */
+
+.progress-track {
+  height: 7px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--brand-navy-bar);
+  transition: width 300ms ease;
+}
+
+.progress-fill.is-leader {
+  background: var(--brand-orange);
+}
+
+/* ─────────────────────────────────────────────
+   Aktivitetsflöde
+   ───────────────────────────────────────────── */
+
+.activity-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 11px 0;
+}
+
+.activity-row + .activity-row {
+  border-top: 1px solid var(--row-divider);
+}
+
+.activity-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 10px;
+  background: var(--brand-navy-soft);
+  color: var(--brand-navy-ink);
+  font-size: 12.5px;
+  font-weight: 800;
 }
 
 /* ─────────────────────────────────────────────
