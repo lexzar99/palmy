@@ -3,15 +3,15 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, Plus, RefreshCw, Search } from "lucide-react";
+import { ChevronRight, Plus, RefreshCw, Search, Star } from "lucide-react";
 import {
   getRestaurantOverview,
   patchRestaurant,
   restaurantsQueryKey,
   type ControlCenterRestaurantSnapshot,
 } from "@/modules/restaurants/api";
-import { Badge, Button, EmptyState, ErrorPanel, Input, LoadingPanel, PageHeader, Select, Surface } from "@/shared/components/ui";
-import { AcceptingOrdersModeToggle, RestaurantAvailabilitySummary } from "@/shared/components/restaurant-availability";
+import { Button, EmptyState, ErrorPanel, Input, LoadingPanel, PageHeader, Select, Surface } from "@/shared/components/ui";
+import { AcceptingOrdersModeToggle } from "@/shared/components/restaurant-availability";
 import type { AcceptingOrdersMode } from "@/shared/contracts/restaurants";
 import { cn } from "@/shared/utils/cn";
 
@@ -124,185 +124,84 @@ export function RestaurantsPage() {
         )}
       </div>
 
-      <Surface className="overflow-hidden p-0">
-        {filtered.length === 0 ? (
-          <div className="p-6"><EmptyState title="Inga restauranger matchar sökningen" /></div>
-        ) : (
-          <>
-            <div className="hidden lg:block" role="table">
-            {/* Header */}
-            <div
-              role="row"
-              className="grid items-center gap-4 border-b border-[var(--border-subtle)] bg-[var(--bg-panel-soft)] px-4 py-2.5 text-[10px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]"
-              style={{ gridTemplateColumns: "minmax(280px,1fr) 170px 72px 92px 32px" }}
-            >
-              <span>Restaurang</span>
-              <span>Status</span>
-              <span>Betyg</span>
-              <span>Ordrar idag</span>
-              <span />
-            </div>
-            {filtered.map((r, i) => (
-              <RestaurantRow
-                key={r.id}
-                restaurant={r}
-                isLast={i === filtered.length - 1}
-                onOpen={() => router.push(`/restaurants/${r.id}`)}
-                onChangeMode={(mode) => statusMutation.mutate({ id: r.id, mode })}
-                togglePending={statusMutation.isPending && statusMutation.variables?.id === r.id}
-              />
-            ))}
-            </div>
-            <div className="divide-y divide-[var(--row-divider)] lg:hidden">
-              {filtered.map((restaurant) => (
-                <RestaurantMobileCard
-                  key={restaurant.id}
-                  restaurant={restaurant}
-                  onOpen={() => router.push(`/restaurants/${restaurant.id}`)}
-                  onChangeMode={(mode) => statusMutation.mutate({ id: restaurant.id, mode })}
-                  togglePending={statusMutation.isPending && statusMutation.variables?.id === restaurant.id}
-                />
-              ))}
-            </div>
-          </>
-        )}
-      </Surface>
-    </div>
-  );
-}
-
-function RestaurantRow({
-  restaurant: r,
-  isLast,
-  onOpen,
-  onChangeMode,
-  togglePending,
-}: {
-  restaurant: ControlCenterRestaurantSnapshot;
-  isLast: boolean;
-  onOpen: () => void;
-  onChangeMode: (mode: AcceptingOrdersMode) => void;
-  togglePending: boolean;
-}) {
-  const avatar = r.imageUrl || r.heroImageUrl;
-  return (
-    <div
-      role="row"
-      className={cn(
-        "grid items-center gap-4 px-4 py-2.5 text-[13px] transition-colors hover:bg-[var(--bg-hover)]",
-        !isLast && "border-b border-[var(--row-divider)]",
-      )}
-      style={{ gridTemplateColumns: "minmax(280px,1fr) 170px 72px 92px 32px" }}
-    >
-      {/* Restaurang */}
-      <span className="flex items-center gap-3">
-        {avatar ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={avatar}
-            alt=""
-            className="h-9 w-9 shrink-0 rounded-[8px] object-cover"
-            onError={(e) => {
-              const img = e.currentTarget;
-              img.style.display = "none";
-              (img.nextElementSibling as HTMLElement | null)?.style.removeProperty("display");
-            }}
-          />
-        ) : null}
-        <span
-          className="h-9 w-9 shrink-0 rounded-[8px] border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)]"
-          style={{ display: avatar ? "none" : "block" }}
-        />
-        <span className="min-w-0">
-          <span className="flex items-center gap-2">
-            <button type="button" onClick={onOpen} className="block truncate text-left font-bold tracking-[-0.01em] hover:text-[var(--accent-ink)]">
-              {r.name}
-            </button>
-            {r.draft && (
-              <span className="shrink-0 rounded-md border border-[var(--row-divider)] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)]">
-                Utkast
-              </span>
-            )}
-          </span>
-          <span className="block truncate text-[11.5px] text-[var(--text-muted)]">{r.city || r.slug}</span>
-        </span>
-      </span>
-
-      {/* Status */}
-      <span className="grid gap-0.5">
-        <AcceptingOrdersModeToggle
-          className="w-full"
-          aria-label={`Beställningsläge för ${r.name}`}
-          value={r.acceptingOrdersMode}
-          disabled={togglePending}
-          onValueChange={onChangeMode}
-        />
-        <span className={cn("text-[10px] font-bold", r.isOpen ? "text-[var(--success-text)]" : "text-[var(--warning-text)]")}>
-          {r.isOpen ? "Öppen nu" : "Stängd nu"}
-        </span>
-      </span>
-
-      {/* Betyg */}
-      <span className="font-bold">{r.reviewScore ? r.reviewScore.toFixed(1) : "—"}</span>
-
-      {/* Ordrar idag */}
-      <span>{r.todayOrders}</span>
-
-      {/* Chevron → detalj */}
-      <span className="flex justify-end">
-        <button type="button" onClick={onOpen} aria-label={`Öppna ${r.name}`} className="text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]">
-          <ChevronRight size={18} />
-        </button>
-      </span>
-    </div>
-  );
-}
-
-function RestaurantMobileCard({
-  restaurant: r,
-  onOpen,
-  onChangeMode,
-  togglePending,
-}: {
-  restaurant: ControlCenterRestaurantSnapshot;
-  onOpen: () => void;
-  onChangeMode: (mode: AcceptingOrdersMode) => void;
-  togglePending: boolean;
-}) {
-  const avatar = r.imageUrl || r.heroImageUrl;
-  return (
-    <article className="grid gap-4 p-4">
-      <div className="flex items-start gap-3">
-        {avatar ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={avatar} alt="" className="h-11 w-11 shrink-0 rounded-xl object-cover" />
-        ) : (
-          <span className="h-11 w-11 shrink-0 rounded-xl bg-[var(--accent-soft)]" aria-hidden />
-        )}
-        <div className="min-w-0 flex-1">
-          <button type="button" onClick={onOpen} className="block max-w-full truncate text-left text-sm font-bold">
-            {r.name}
-          </button>
-          <p className="truncate text-xs text-[var(--text-muted)]">{r.city || r.slug}</p>
+      {filtered.length === 0 ? (
+        <Surface className="p-6"><EmptyState title="Inga restauranger matchar sökningen" /></Surface>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((r) => (
+            <RestaurantCard
+              key={r.id}
+              restaurant={r}
+              onOpen={() => router.push(`/restaurants/${r.id}`)}
+              onChangeMode={(mode) => statusMutation.mutate({ id: r.id, mode })}
+              togglePending={statusMutation.isPending && statusMutation.variables?.id === r.id}
+            />
+          ))}
         </div>
-        <Badge tone={r.isOpen ? "success" : "warning"}>{r.isOpen ? "Öppen" : "Stängd"}</Badge>
+      )}
+    </div>
+  );
+}
+
+/** Ett kort per restaurang — samma komponent på alla skärmstorlekar. */
+function RestaurantCard({
+  restaurant: r,
+  onOpen,
+  onChangeMode,
+  togglePending,
+}: {
+  restaurant: ControlCenterRestaurantSnapshot;
+  onOpen: () => void;
+  onChangeMode: (mode: AcceptingOrdersMode) => void;
+  togglePending: boolean;
+}) {
+  const avatar = r.imageUrl || r.heroImageUrl;
+  return (
+    <article className="flex flex-col gap-3.5 rounded-[16px] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-4 transition-[border-color,transform] duration-150 hover:-translate-y-0.5 hover:border-[var(--border-strong)]">
+      {/* Identitet — klickbar yta in till detaljsidan */}
+      <button type="button" onClick={onOpen} className="flex min-w-0 items-center gap-3 text-left">
+        {avatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={avatar} alt="" className="h-12 w-12 shrink-0 rounded-[12px] object-cover" />
+        ) : (
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[12px] bg-[var(--brand-navy-soft)] text-[16px] font-extrabold text-[var(--brand-navy-ink)]" aria-hidden>
+            {r.name.slice(0, 1).toUpperCase()}
+          </span>
+        )}
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            <span className="truncate text-[14.5px] font-bold tracking-[-0.01em] text-[var(--text-primary)]">{r.name}</span>
+            {r.draft && <span className="badge badge-accent shrink-0">Utkast</span>}
+          </span>
+          <span className="mt-0.5 flex items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
+            <span
+              className="h-[7px] w-[7px] shrink-0 rounded-full"
+              style={{ background: r.isOpen ? "var(--success)" : "var(--warning)" }}
+              aria-hidden
+            />
+            {r.isOpen ? "Öppen nu" : "Stängd nu"}
+            <span aria-hidden>·</span>
+            <span className="truncate">{r.city || r.slug}</span>
+          </span>
+        </span>
+        <ChevronRight size={17} className="shrink-0 text-[var(--text-muted)]" />
+      </button>
+
+      {/* Nyckeltal */}
+      <div className="flex items-center gap-4 text-[12px] font-semibold text-[var(--text-secondary)]">
+        <span className="inline-flex items-center gap-1"><Star size={12} className="text-[var(--brand-orange)]" aria-hidden /> {r.reviewScore ? r.reviewScore.toFixed(1) : "—"}</span>
+        <span>{r.todayOrders} ordrar idag</span>
+        {r.pendingOrders > 0 && <span className="badge badge-warning ml-auto">{r.pendingOrders} väntar</span>}
       </div>
 
-      <RestaurantAvailabilitySummary isOpen={r.isOpen} reason={r.availabilityReason} compact />
-
-      <div className="grid grid-cols-2 gap-2 text-xs">
-        <div className="surface-muted px-3 py-2"><span className="text-[var(--text-muted)]">Betyg</span><strong className="mt-0.5 block">{r.reviewScore ? r.reviewScore.toFixed(1) : "—"}</strong></div>
-        <div className="surface-muted px-3 py-2"><span className="text-[var(--text-muted)]">Ordrar idag</span><strong className="mt-0.5 block">{r.todayOrders}</strong></div>
-      </div>
-
+      {/* Beställningsläge */}
       <AcceptingOrdersModeToggle
+        className="max-w-none"
         aria-label={`Beställningsläge för ${r.name}`}
         value={r.acceptingOrdersMode}
         disabled={togglePending}
         onValueChange={onChangeMode}
       />
-
-      <Button variant="secondary" onClick={onOpen}>Öppna restaurangen <ChevronRight size={16} /></Button>
     </article>
   );
 }

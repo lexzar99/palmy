@@ -9,7 +9,7 @@ import { getOrder, getOrders, orderDetailQueryKey, ordersQueryKey, refundOrder, 
 import { CustomerModal } from "@/modules/customers/page";
 import { NotesPanel } from "@/shared/components/notes-panel";
 import { LiveMap } from "@/shared/components/live-map";
-import { Badge, Button, ConfirmDialog, DurationInput, EmptyState, ErrorPanel, Field, Input, Modal, MoneyInput, PageHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
+import { Badge, Button, ConfirmDialog, DurationInput, EmptyState, ErrorPanel, Field, Input, Modal, MoneyInput, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, orderStatusTone, orderTypeLabel, paymentStatusLabel, refundBadge } from "@/shared/utils/format";
 
 const DELIVERY_STEPS = ["PENDING", "PREPARING", "DELIVERING", "DELIVERED"] as const;
@@ -1027,10 +1027,11 @@ function OrderRowBase({ order, nowMs, isAdvancing, onOpen, onOpenCustomer, onAdv
           if (event.target !== event.currentTarget) return;
           if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(order.id); }
         }}
-        className="hidden cursor-pointer items-center gap-3 border-b border-[var(--row-divider)] px-[18px] py-[13px] text-[13px] transition-colors last:border-b-0 hover:bg-[var(--bg-hover)] lg:grid"
-        style={{ gridTemplateColumns: ORDERS_GRID, ...(isPending ? { background: "var(--warning-soft)" } : {}) }}
+        className={`order-card hidden items-center gap-3 px-[18px] py-[13px] text-[13px] lg:grid${isPending ? " is-pending" : ""}`}
+        style={{ gridTemplateColumns: ORDERS_GRID }}
       >
         <div className="flex min-w-0 items-center gap-2">
+          {isLive ? <span className="live-dot" aria-hidden /> : null}
           <span className={`${MONO} truncate text-[12px] font-bold text-[var(--text-primary)]`}>{order.orderNumber}</span>
         </div>
 
@@ -1075,12 +1076,12 @@ function OrderRowBase({ order, nowMs, isAdvancing, onOpen, onOpenCustomer, onAdv
           if (event.target !== event.currentTarget) return;
           if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(order.id); }
         }}
-        className="cursor-pointer border-b border-[var(--row-divider)] bg-[var(--bg-panel)] px-4 py-3 transition-colors last:border-b-0 hover:bg-[var(--bg-hover)] lg:hidden"
-        style={isPending ? { background: "var(--warning-soft)" } : undefined}
+        className={`order-card px-4 py-3 lg:hidden${isPending ? " is-pending" : ""}`}
       >
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              {isLive ? <span className="live-dot" aria-hidden /> : null}
               <span className={`${MONO} text-[11.5px] font-bold text-[var(--text-primary)]`}>{order.orderNumber}</span>
               <span className="text-[11px] text-[var(--text-muted)]">{orderTypeLabel(order.type)}</span>
               {order.scheduledFor ? <Badge tone="warning">Förbeställd</Badge> : null}
@@ -1230,79 +1231,75 @@ export function OrdersPage() {
         }
       />
 
-      <Surface className="px-4 py-4 sm:px-5">
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative w-full sm:max-w-xl">
-              <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-              <Input className="input-with-leading-icon" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Sök order, kund, telefon, restaurang" />
-            </div>
-            <span className="shrink-0 text-[12px] font-semibold text-[var(--text-muted)]">{formatNumber(filteredOrders.length)} visade</span>
+      {/* Sök + statusfilter */}
+      <div className="grid gap-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative w-full sm:max-w-xl">
+            <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+            <Input className="input-with-leading-icon" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Sök order, kund, telefon, restaurang" />
           </div>
-          <div className="min-w-0">
-            <Tabs value={status} options={statusTabs} onChange={changeStatus} scroll />
-          </div>
+          <span className="shrink-0 text-[12px] font-semibold text-[var(--text-muted)]">{formatNumber(filteredOrders.length)} visade</span>
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+          {statusTabs.map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              onClick={() => changeStatus(item.value)}
+              className={`chip shrink-0${status === item.value ? " is-active" : ""}`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {filteredOrders.length === 0 ? (
+        <Surface className="px-6 py-6"><EmptyState title="Inga ordrar i den här vyn" /></Surface>
+      ) : (
+        <>
+        <div className="grid gap-2">
+          {filteredOrders.map((order) => (
+            <OrderRow
+              key={order.id}
+              order={order}
+              nowMs={nowMs}
+              isAdvancing={advancingId === order.id}
+              onOpen={openOrder}
+              onOpenCustomer={openCustomer}
+              onAdvance={advanceOrder}
+            />
+          ))}
         </div>
 
-        {filteredOrders.length === 0 ? (
-          <div className="mt-6"><EmptyState title="Inga ordrar i den här vyn" /></div>
-        ) : (
-          <>
-          <div className="mt-5 overflow-hidden rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-panel)]">
-            {/* Header-rad */}
-            <div
-              className="hidden gap-3 border-b border-[var(--border-subtle)] bg-[var(--bg-panel-soft)] px-[18px] py-[10px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)] lg:grid"
-              style={{ gridTemplateColumns: ORDERS_GRID }}
-            >
-              <span>Order</span>
-              <span>Restaurang</span>
-              <span>Kund</span>
-              <span>Status</span>
-              <span>Tid</span>
-              <span className="text-right">Åtgärd</span>
+        {/* Pagination — bara om mer än en sida */}
+        {totalPages > 1 && (
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-[var(--text-secondary)]">
+              Sida <strong>{page}</strong> av <strong>{totalPages}</strong> ({orders.data.total} ordrar totalt)
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                className="flex-1 sm:flex-none"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1 || orders.isFetching}
+              >
+                Föregående
+              </Button>
+              <Button
+                variant="secondary"
+                className="flex-1 sm:flex-none"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages || orders.isFetching}
+              >
+                Nästa
+              </Button>
             </div>
-            {filteredOrders.map((order) => (
-              <OrderRow
-                key={order.id}
-                order={order}
-                nowMs={nowMs}
-                isAdvancing={advancingId === order.id}
-                onOpen={openOrder}
-                onOpenCustomer={openCustomer}
-                onAdvance={advanceOrder}
-              />
-            ))}
           </div>
-
-          {/* Pagination — bara om mer än en sida */}
-          {totalPages > 1 && (
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-[var(--text-secondary)]">
-                Sida <strong>{page}</strong> av <strong>{totalPages}</strong> ({orders.data.total} ordrar totalt)
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="secondary"
-                  className="flex-1 sm:flex-none"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1 || orders.isFetching}
-                >
-                  Föregående
-                </Button>
-                <Button
-                  variant="secondary"
-                  className="flex-1 sm:flex-none"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages || orders.isFetching}
-                >
-                  Nästa
-                </Button>
-              </div>
-            </div>
-          )}
-          </>
         )}
-      </Surface>
+        </>
+      )}
 
       <OrderDetailsModal
         orderId={activeOrderId}

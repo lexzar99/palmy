@@ -45,16 +45,19 @@ type ModeToggleProps = {
 
 /** Compact three-state control used wherever the operator changes order mode. */
 export function AcceptingOrdersModeToggle({ value, onValueChange, disabled, className, "aria-label": ariaLabel }: ModeToggleProps) {
-  const options: Array<{ value: AcceptingOrdersMode; label: string; title: string }> = [
-    { value: "SCHEDULED", label: "Schema", title: acceptingOrdersModeLabel.SCHEDULED },
-    { value: "FORCE_OPEN", label: "Öppet", title: acceptingOrdersModeLabel.FORCE_OPEN },
-    { value: "FORCE_CLOSED", label: "Pausat", title: acceptingOrdersModeLabel.FORCE_CLOSED },
+  // Grid med tre lika kolumner + nowrap: texten kan aldrig klippas eller
+  // radbrytas oavsett hur smal container/mobil-vyn är (tidigare flex-1 +
+  // min-w-0 lät knapparna krympa under textbredden → "glitchad" label).
+  const options: Array<{ value: AcceptingOrdersMode; label: string; title: string; activeClass: string }> = [
+    { value: "SCHEDULED", label: "Schema", title: acceptingOrdersModeLabel.SCHEDULED, activeClass: "bg-[var(--brand-navy)] text-[var(--brand-cream)]" },
+    { value: "FORCE_OPEN", label: "Öppet", title: acceptingOrdersModeLabel.FORCE_OPEN, activeClass: "bg-[var(--success-soft)] text-[var(--success-text)]" },
+    { value: "FORCE_CLOSED", label: "Pausat", title: acceptingOrdersModeLabel.FORCE_CLOSED, activeClass: "bg-[var(--warning-soft)] text-[var(--warning-text)]" },
   ];
   return (
     <div
       role="group"
       aria-label={ariaLabel}
-      className={cn("inline-flex min-w-0 rounded-[9px] border border-[var(--border-subtle)] bg-[var(--bg-panel-soft)] p-1", className)}
+      className={cn("grid w-full max-w-[300px] grid-cols-3 gap-0.5 rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-panel-soft)] p-1", className)}
     >
       {options.map((option) => (
         <button
@@ -65,10 +68,10 @@ export function AcceptingOrdersModeToggle({ value, onValueChange, disabled, clas
           disabled={disabled}
           onClick={() => onValueChange(option.value)}
           className={cn(
-            "min-w-0 flex-1 rounded-[6px] px-2 py-1.5 text-[11px] font-bold transition-colors",
+            "whitespace-nowrap rounded-[7px] px-1 py-1.5 text-center text-[11px] font-bold leading-none transition-colors",
             value === option.value
-              ? "bg-[var(--bg-panel)] text-[var(--text-primary)] shadow-[0_1px_2px_rgba(17,17,19,0.12)]"
-              : "text-[var(--text-muted)] hover:text-[var(--text-primary)]",
+              ? option.activeClass
+              : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]",
             disabled && "cursor-wait opacity-60",
           )}
         >

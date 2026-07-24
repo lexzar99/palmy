@@ -2652,3 +2652,56 @@ button {
     align-self: stretch;
   }
 }
+
+/* ─────────────────────────────────────────────
+   Ordrar: kortrader + live-puls
+   ───────────────────────────────────────────── */
+
+.order-card {
+  cursor: pointer;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  background: var(--bg-panel);
+  transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+
+.order-card:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+  transform: translateY(-1px);
+}
+
+/* Väntande order = det enda som skriker: orange kant + varm ton. */
+.order-card.is-pending {
+  border-color: color-mix(in srgb, var(--brand-orange) 45%, transparent);
+  background: var(--warning-soft);
+}
+
+.live-dot {
+  position: relative;
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--success);
+}
+
+.live-dot::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 999px;
+  border: 2px solid var(--success);
+  opacity: 0.5;
+  animation: live-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes live-ping {
+  0% { transform: scale(0.6); opacity: 0.6; }
+  80%, 100% { transform: scale(1.5); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot::after { animation: none; opacity: 0; }
+}
