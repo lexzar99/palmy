@@ -64,6 +64,8 @@ import {
 } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
 import { NotesPanel } from "@/shared/components/notes-panel";
+import { CompanyLookup } from "@/modules/restaurants/company-lookup";
+import type { CompanyLookupResult } from "@/modules/restaurants/api";
 import { getRestaurantDevices } from "@/modules/restaurant-devices/api";
 import GooglePlacesInput from "@/shared/components/google-places-input";
 import { AcceptingOrdersModeToggle, RestaurantAvailabilitySummary } from "@/shared/components/restaurant-availability";
@@ -407,6 +409,20 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
   const set = <K extends keyof FormState>(key: K, val: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: val }));
 
+  // Bolagsuppslaget fyller juridik + adress. Restaurangens visningsnamn och
+  // redan ifyllda fält lämnas orörda — det legala namnet är sällan det namn
+  // kunden känner igen.
+  const applyCompany = (company: CompanyLookupResult) =>
+    setForm((prev) => ({
+      ...prev,
+      legalName: company.legalName || prev.legalName,
+      organizationNumber: company.orgNumber || prev.organizationNumber,
+      name: prev.name.trim() || company.legalName || prev.name,
+      address: company.street || prev.address,
+      zip: company.zip || prev.zip,
+      city: company.city || prev.city,
+    }));
+
   const saveMutation = useMutation({ meta: { toast: false },
     mutationFn: async () => {
       if (!form.name.trim()) throw new Error("Restaurangen måste ha ett namn.");
@@ -599,8 +615,11 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
         <Surface className="onb-panel p-5 sm:p-7">
           {createStep === 0 && (
             <div className="grid gap-5">
+              <CompanyLookup onApply={applyCompany} />
               <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
-                <Field label="Namn" required><Input value={form.name} onChange={(e) => set("name", e.target.value)} autoFocus /></Field>
+                <Field label="Namn" required hint="Namnet kunden ser — behöver inte vara det legala."><Input value={form.name} onChange={(e) => set("name", e.target.value)} autoFocus /></Field>
+                <Field label="Organisationsnummer"><Input value={form.organizationNumber} onChange={(e) => set("organizationNumber", e.target.value)} placeholder="559123-4567" /></Field>
+                <Field label="Legalt namn" className="sm:col-span-2"><Input value={form.legalName} onChange={(e) => set("legalName", e.target.value)} placeholder="ex: Palmyra Pizzeria AB" /></Field>
                 <Field label="Mattyp"><Input value={form.cuisine} onChange={(e) => set("cuisine", e.target.value)} placeholder="Pizza, Sushi…" /></Field>
                 <Field label="Adress" className="sm:col-span-2">
                   <GooglePlacesInput
@@ -643,7 +662,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
               <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
                 <Field label="Kontakt-email (publik)"><Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="kontakt@restaurangen.se" /></Field>
                 <Field label="Admin-email" hint="Blir restaurangens inloggning."><Input type="email" value={form.adminEmail} onChange={(e) => set("adminEmail", e.target.value)} /></Field>
-                <Field label="Legalt namn"><Input value={form.legalName} onChange={(e) => set("legalName", e.target.value)} placeholder="ex: Palmyra Pizzeria AB" /></Field>
+                <Field label="Legalt namn" hint="Hämtat i steg 1 — ändra vid behov."><Input value={form.legalName} onChange={(e) => set("legalName", e.target.value)} placeholder="ex: Palmyra Pizzeria AB" /></Field>
                 <Field label="Organisationsnummer"><Input value={form.organizationNumber} onChange={(e) => set("organizationNumber", e.target.value)} placeholder="559123-4567" /></Field>
               </div>
             </div>
@@ -971,6 +990,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 <p className="mt-0.5 text-xs text-[var(--text-muted)]">Används för utbetalningar och support.</p>
               </div>
             </div>
+            <CompanyLookup onApply={applyCompany} compact />
             <div className="grid gap-x-4 gap-y-3.5 sm:grid-cols-2 xl:grid-cols-4">
               <Field label="Kontakt-email (publik)">
                 <Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="kontakt@restaurangen.se" />

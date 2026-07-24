@@ -198,3 +198,24 @@ export const permanentlyDeleteRestaurant = (restaurantId: string, confirmationNa
   apiPost<PermanentlyDeleteRestaurantResult>(`/restaurants/${restaurantId}/permanent-delete`, { confirmationName });
 
 export type { ControlCenterRestaurantSnapshot };
+
+/* ── Företagsuppslag (foretagsapi.se via vår backend-proxy) ──
+   Nyckeln ligger server-side; kvoten är 500 uppslag/månad. */
+export interface CompanyLookupResult {
+  orgNumber: string | null;
+  legalName: string | null;
+  street: string | null;
+  zip: string | null;
+  city: string | null;
+  status: string | null;
+  companyForm: string | null;
+  registeredAt: string | null;
+  vatRegistered: boolean | null;
+  fSkatt: boolean | null;
+}
+
+export const lookupCompanyByOrgNumber = (orgNumber: string) =>
+  apiPost<CompanyLookupResult>("/admin/company-lookup", { orgNumber });
+
+export const searchCompaniesByName = (query: string) =>
+  apiPost<{ companies: CompanyLookupResult[] }>("/admin/company-search", { query });
