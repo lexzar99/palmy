@@ -4,12 +4,17 @@
  * Nyckeln stannar server-side (kvoten är 500 uppslag/månad, så den får
  * aldrig ligga i webbläsaren där vem som helst kan bränna den).
  *
- * POST /api/admin/company-lookup  { orgNumber }  → ett företag
- * POST /api/admin/company-search  { query }      → namnförslag
+ * POST /api/admin/company-search  { query } → upp till 5 träffar
  *
- * Svarsfälten hos leverantören är inte publikt dokumenterade, därför
- * normaliserar pick()/pickAddress() en bred uppsättning tänkbara nycklar
- * (svenska och engelska) till vår egen stabila form.
+ * OBS: leverantören har INGET uppslag på organisationsnummer — både
+ * /v1/search och /v1/bulk söker på namn. Skickar man ett org.nummer
+ * matchas det mot siffror i bolagsnamn och ger fel företag. Därför
+ * exponerar vi bara namnsökning; org.numret kommer med i träffen.
+ *
+ * Verifierat svarsschema (2026-07-24):
+ *   { companies: [{ name, orgNumber, legalForm, registrationDate,
+ *                   deregistrationDate, postalAddress: { street, city,
+ *                   postalCode }, businessDescription, ... }] }
  */
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
@@ -29,132 +34,54 @@ const lookupLimiter = rateLimit({
   message: { error: 'För många företagsuppslag. Vänta en stund.' },
 });
 
-/** Plockar första ifyllda värdet bland tänkbara nyckelnamn. */
-function pick(source: Record<string, any>, keys: string[]): string | null {
-  for (const key of keys) {
-    const value = source?.[key];
-    if (typeof value === 'string' && value.trim()) return value.trim();
-    if (typeof value === 'number') return String(value);
-  }
-  return null;
+/** 10 siffror → NNNNNN-NNNN. Lämnar okända format orörda. */
+function formatOrgNumber(value: string): string {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (digits.length === 10) return `${digits.slice(0, 6)}-${digits.slice(6)}`;
+  if (digits.length === 12) return `${digits.slice(2, 8)}-${digits.slice(8)}`;
+  return String(value || '');
 }
 
-/** Adressen kan ligga platt eller nästlad under address/postadress/besoksadress. */
-function pickAddress(raw: Record<string, any>) {
-  const nested =
-    raw?.address ||
-    raw?.postadress ||
-    raw?.postAddress ||
-    raw?.besoksadress ||
-    raw?.visitingAddress ||
-    {};
-  const source = { ...raw, ...(typeof nested === 'object' && nested ? nested : {}) };
+/** Leverantören skickar ort i VERSALER ("STOCKHOLM") — vi vill "Stockholm". */
+function titleCase(value: string | null): string | null {
+  if (!value) return null;
+  return value
+    .toLowerCase()
+    .replace(/(^|[\s\-/])([a-zåäö])/g, (_, prefix: string, letter: string) => prefix + letter.toUpperCase());
+}
 
-  return {
-    street: pick(source, ['street', 'gatuadress', 'adress', 'addressLine1', 'utdelningsadress', 'deliveryAddress']),
-    zip: pick(source, ['zip', 'postnummer', 'postalCode', 'postnr', 'zipCode']),
-    city: pick(source, ['city', 'postort', 'ort', 'stad', 'town', 'postTown']),
-  };
+function text(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 /**
- * Normaliserar leverantörens företagspost till vår form. Verksamhets-
- * beskrivningen (bio) hämtas medvetet INTE — vi vill bara ha det juridiska
- * och adressuppgifterna.
+ * Normaliserar en företagspost. Verksamhetsbeskrivningen (businessDescription)
+ * hämtas medvetet INTE — vi vill bara ha juridik och adress.
  */
-function normalizeCompany(raw: Record<string, any>) {
+function normalizeCompany(raw: any) {
   if (!raw || typeof raw !== 'object') return null;
-  const address = pickAddress(raw);
-  const orgNumber = pick(raw, ['orgNumber', 'organisationsnummer', 'organisationsNummer', 'orgnr', 'organizationNumber']);
-  const name = pick(raw, ['name', 'namn', 'legalName', 'foretagsnamn', 'companyName', 'juridiskNamn']);
+  const name = text(raw.name);
+  const orgNumber = text(raw.orgNumber);
+  if (!name && !orgNumber) return null;
 
-  if (!orgNumber && !name) return null;
+  const address = raw.postalAddress && typeof raw.postalAddress === 'object' ? raw.postalAddress : {};
+  const deregisteredAt = text(raw.deregistrationDate);
 
   return {
     orgNumber: orgNumber ? formatOrgNumber(orgNumber) : null,
     legalName: name,
-    street: address.street,
-    zip: address.zip,
-    city: address.city,
-    status: pick(raw, ['status', 'foretagsstatus', 'companyStatus', 'avregistreringsdatum'] ),
-    companyForm: pick(raw, ['companyForm', 'bolagsform', 'foretagsform', 'legalForm']),
-    registeredAt: pick(raw, ['registrationDate', 'registreringsdatum', 'registeredAt']),
-    vatRegistered: raw?.momsregistrerad ?? raw?.vatRegistered ?? null,
-    fSkatt: raw?.fSkatt ?? raw?.fskatt ?? raw?.hasFTax ?? null,
+    street: text(address.street),
+    zip: text(address.postalCode),
+    city: titleCase(text(address.city)),
+    companyForm: text(raw.legalForm),
+    registeredAt: text(raw.registrationDate),
+    // Avregistrerade bolag ska synas tydligt i admin — inte tyst väljas.
+    deregisteredAt,
+    active: !deregisteredAt,
   };
 }
 
-/** 10 siffror → NNNNNN-NNNN. Lämnar okända format orörda. */
-function formatOrgNumber(value: string): string {
-  const digits = value.replace(/\D/g, '');
-  if (digits.length === 10) return `${digits.slice(0, 6)}-${digits.slice(6)}`;
-  if (digits.length === 12) return `${digits.slice(2, 8)}-${digits.slice(8)}`;
-  return value;
-}
-
-/** Leverantörens svar kan vara ett objekt, {data}, {company} eller en lista. */
-function extractRecords(payload: any): Record<string, any>[] {
-  if (!payload) return [];
-  if (Array.isArray(payload)) return payload;
-  for (const key of ['results', 'data', 'companies', 'foretag', 'items', 'hits']) {
-    const value = payload[key];
-    if (Array.isArray(value)) return value;
-    if (value && typeof value === 'object') return [value];
-  }
-  if (payload.company && typeof payload.company === 'object') return [payload.company];
-  if (typeof payload === 'object') return [payload];
-  return [];
-}
-
-async function callProvider(path: string, body: Record<string, unknown>) {
-  const response = await fetch(`${BASE_URL}${path}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-  trackApiCall('foretagsapi').catch(() => {});
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    const error = new Error(`foretagsapi ${response.status}: ${text.slice(0, 200)}`);
-    (error as any).status = response.status;
-    throw error;
-  }
-  return response.json();
-}
-
-/** POST /api/admin/company-lookup — exakt uppslag på organisationsnummer. */
-router.post('/company-lookup', authenticate, requireSuperAdmin, lookupLimiter, async (req: AuthRequest, res) => {
-  const orgNumberRaw = String((req.body as { orgNumber?: string })?.orgNumber || '').trim();
-  const digits = orgNumberRaw.replace(/\D/g, '');
-
-  if (!API_KEY) {
-    return res.status(503).json({ error: 'Företagsuppslag är inte konfigurerat (FORETAGSAPI_KEY saknas).' });
-  }
-  if (digits.length !== 10 && digits.length !== 12) {
-    return res.status(400).json({ error: 'Ange ett organisationsnummer med 10 siffror.' });
-  }
-
-  try {
-    const payload = await callProvider('/search-by-org-number', { orgNumber: formatOrgNumber(digits) });
-    const company = extractRecords(payload).map(normalizeCompany).find(Boolean);
-    if (!company) {
-      return res.status(404).json({ error: 'Hittade inget företag med det organisationsnumret.' });
-    }
-    res.json(company);
-  } catch (error: any) {
-    console.error('[company-lookup] failed:', error?.message || error);
-    const status = error?.status === 429 ? 429 : 502;
-    res.status(status).json({
-      error: status === 429 ? 'Månadskvoten för företagsuppslag är slut.' : 'Kunde inte hämta företagsuppgifter just nu.',
-    });
-  }
-});
-
-/** POST /api/admin/company-search — namnsökning, max 5 förslag. */
+/** POST /api/admin/company-search — namnsökning, max 5 träffar. */
 router.post('/company-search', authenticate, requireSuperAdmin, lookupLimiter, async (req: AuthRequest, res) => {
   const query = String((req.body as { query?: string })?.query || '').trim();
 
@@ -164,17 +91,42 @@ router.post('/company-search', authenticate, requireSuperAdmin, lookupLimiter, a
   if (query.length < 2) {
     return res.status(400).json({ error: 'Sök på minst två tecken.' });
   }
+  // Ett rent sifferinmatat org.nummer matchas mot siffror i bolagsnamn och
+  // ger fel företag — bättre att säga till än att returnera skräp.
+  if (/^[\d\s-]+$/.test(query)) {
+    return res.status(400).json({ error: 'Sök på företagsnamn — org.numret hämtas automatiskt.' });
+  }
 
   try {
-    const payload = await callProvider('/search', { q: query, limit: 5 });
-    const companies = extractRecords(payload).map(normalizeCompany).filter(Boolean);
+    const response = await fetch(`${BASE_URL}/search`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ q: query, limit: 5 }),
+    });
+    trackApiCall('foretagsapi').catch(() => {});
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      console.error('[company-search] provider error:', response.status, body.slice(0, 200));
+      const quotaHit = response.status === 429 || response.status === 402;
+      return res.status(quotaHit ? 429 : 502).json({
+        error: quotaHit
+          ? 'Månadskvoten för företagsuppslag är slut.'
+          : 'Kunde inte söka företag just nu.',
+      });
+    }
+
+    const payload = (await response.json()) as { companies?: unknown[] };
+    const companies = Array.isArray(payload?.companies)
+      ? payload.companies.map(normalizeCompany).filter(Boolean)
+      : [];
     res.json({ companies });
   } catch (error: any) {
     console.error('[company-search] failed:', error?.message || error);
-    const status = error?.status === 429 ? 429 : 502;
-    res.status(status).json({
-      error: status === 429 ? 'Månadskvoten för företagsuppslag är slut.' : 'Kunde inte söka företag just nu.',
-    });
+    res.status(502).json({ error: 'Kunde inte söka företag just nu.' });
   }
 });
 

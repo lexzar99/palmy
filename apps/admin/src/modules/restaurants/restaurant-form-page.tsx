@@ -615,7 +615,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
         <Surface className="onb-panel p-5 sm:p-7">
           {createStep === 0 && (
             <div className="grid gap-5">
-              <CompanyLookup onApply={applyCompany} />
+              <CompanyLookup onApply={applyCompany} defaultQuery={form.name} />
               <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
                 <Field label="Namn" required hint="Namnet kunden ser — behöver inte vara det legala."><Input value={form.name} onChange={(e) => set("name", e.target.value)} autoFocus /></Field>
                 <Field label="Organisationsnummer"><Input value={form.organizationNumber} onChange={(e) => set("organizationNumber", e.target.value)} placeholder="559123-4567" /></Field>
@@ -990,7 +990,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 <p className="mt-0.5 text-xs text-[var(--text-muted)]">Används för utbetalningar och support.</p>
               </div>
             </div>
-            <CompanyLookup onApply={applyCompany} compact />
+            <CompanyLookup onApply={applyCompany} defaultQuery={form.legalName || form.name} compact />
             <div className="grid gap-x-4 gap-y-3.5 sm:grid-cols-2 xl:grid-cols-4">
               <Field label="Kontakt-email (publik)">
                 <Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="kontakt@restaurangen.se" />

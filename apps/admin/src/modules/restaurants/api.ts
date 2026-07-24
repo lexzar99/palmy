@@ -200,22 +200,19 @@ export const permanentlyDeleteRestaurant = (restaurantId: string, confirmationNa
 export type { ControlCenterRestaurantSnapshot };
 
 /* ── Företagsuppslag (foretagsapi.se via vår backend-proxy) ──
-   Nyckeln ligger server-side; kvoten är 500 uppslag/månad. */
+   Nyckeln ligger server-side; kvoten är 500 uppslag/månad. Leverantören
+   stöder bara namnsökning — org.numret kommer med i träffen. */
 export interface CompanyLookupResult {
   orgNumber: string | null;
   legalName: string | null;
   street: string | null;
   zip: string | null;
   city: string | null;
-  status: string | null;
   companyForm: string | null;
   registeredAt: string | null;
-  vatRegistered: boolean | null;
-  fSkatt: boolean | null;
+  deregisteredAt: string | null;
+  active: boolean;
 }
-
-export const lookupCompanyByOrgNumber = (orgNumber: string) =>
-  apiPost<CompanyLookupResult>("/admin/company-lookup", { orgNumber });
 
 export const searchCompaniesByName = (query: string) =>
   apiPost<{ companies: CompanyLookupResult[] }>("/admin/company-search", { query });
