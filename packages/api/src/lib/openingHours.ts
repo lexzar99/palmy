@@ -108,9 +108,11 @@ function parseTimeMinutes(value: unknown): number | null {
 }
 
 /**
- * Returns the next scheduled opening after the current Stockholm calendar day.
- * Used for terminal "closed for today": the restaurant should return to
- * schedule automatically and never become permanently force-closed.
+ * Returns the next scheduled shift start strictly after `now` (Stockholm time).
+ * Used for terminal "closed until next shift": the restaurant should return to
+ * schedule automatically and never become permanently force-closed. Today's
+ * still-upcoming shifts count — closing 01:29 during a night shift reopens at
+ * today's 10:00 shift, not tomorrow's first opening.
  */
 export function nextOpeningAfterToday(
   openingHours: any | string | null | undefined,
@@ -126,15 +128,16 @@ export function nextOpeningAfterToday(
   const hasRegular = hours.regular && Object.keys(hours.regular).length > 0;
   if (allKeys.length === 0 && !hasRegular) return fallback;
 
-  for (let offset = 1; offset <= 14; offset += 1) {
+  for (let offset = 0; offset <= 14; offset += 1) {
     const date = addLocalDays(base, offset);
     const candidates = slotsFor(dayDataFor(hours, date))
       .map((slot) => parseTimeMinutes(slot?.open))
       .filter((value): value is number => value !== null)
       .sort((a, b) => a - b);
-    if (candidates.length === 0) continue;
-    const first = candidates[0];
-    return stockholmLocalToUtc(date.year, date.month, date.day, Math.floor(first / 60), first % 60);
+    for (const minutes of candidates) {
+      const opening = stockholmLocalToUtc(date.year, date.month, date.day, Math.floor(minutes / 60), minutes % 60);
+      if (opening.getTime() > now.getTime()) return opening;
+    }
   }
 
   return fallback;
