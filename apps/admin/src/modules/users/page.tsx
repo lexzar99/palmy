@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -24,9 +24,8 @@ import {
 } from "@/modules/users/api";
 import { logoutAdminSession } from "@/shared/auth/storage";
 import { useAdminSession } from "@/shared/hooks/use-admin-session";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Tabs } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
-import { TwoFAPage } from "@/modules/two-fa/page";
 import { cn } from "@/shared/utils/cn";
 import { formatDate } from "@/shared/utils/format";
 
@@ -460,17 +459,9 @@ function StaffCard({ member, isSelf = false, onOpen }: { member: StaffRecord; is
   );
 }
 
-type UsersTab = "anvandare" | "sakerhet";
-
 export function UsersPage() {
   const router = useRouter();
   const session = useAdminSession();
-  const searchParams = useSearchParams();
-  const tabParam = searchParams.get("tab");
-  const tab: UsersTab = tabParam === "sakerhet" ? "sakerhet" : "anvandare";
-  const changeTab = (t: UsersTab) => {
-    router.replace(`/users?tab=${t}`, { scroll: false });
-  };
   const [wizardOpen, setWizardOpen] = useState(false);
   const [activeMember, setActiveMember] = useState<StaffRecord | null>(null);
 
@@ -496,21 +487,8 @@ export function UsersPage() {
       <PageHeader
         breadcrumb="System"
         title="Personal"
-        actions={tab === "anvandare" ? <Button variant="primary" onClick={() => setWizardOpen(true)}><Plus size={13} /> Nytt konto</Button> : undefined}
+        actions={<Button variant="primary" onClick={() => setWizardOpen(true)}><Plus size={13} /> Nytt konto</Button>}
       />
-
-      <Tabs<UsersTab>
-        value={tab}
-        onChange={changeTab}
-        options={[
-          { value: "anvandare", label: "Användare" },
-          { value: "sakerhet", label: "Säkerhet (2FA)" },
-        ]}
-      />
-
-      {tab === "sakerhet" && <TwoFAPage embedded />}
-
-      {tab === "anvandare" && (<>
 
       <Surface className="px-5 py-5">
         <div className="mb-4 flex items-center justify-between">
@@ -557,7 +535,6 @@ export function UsersPage() {
 
       <CreateAccountWizard open={wizardOpen} onClose={() => setWizardOpen(false)} />
       <StaffModal open={Boolean(activeMember)} member={activeMember} onClose={() => setActiveMember(null)} />
-      </>)}
     </div>
   );
 }

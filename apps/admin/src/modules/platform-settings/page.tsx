@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Save, Check, AlertCircle } from "lucide-react";
-import { Button, Field, Input, PageHeader, Textarea, Toggle } from "@/shared/components/ui";
+import { AlertCircle, Building2, Check, CreditCard, FileText, Headset, Loader2, Save, Smartphone } from "lucide-react";
+import { Button, Field, Input, PageHeader, Surface, Textarea, Toggle } from "@/shared/components/ui";
 import {
   getPlatformSettings,
   platformSettingsQueryKey,
@@ -79,109 +79,105 @@ function PlatformSettingsEditor({ initialForm }: { initialForm: PlatformSettings
     },
   });
 
+  const saveError = saveMutation.isError
+    ? (saveMutation.error as { response?: { data?: { error?: string } }; message?: string } | undefined)?.response?.data?.error
+      || (saveMutation.error as { message?: string } | undefined)?.message
+      || "Okänt fel"
+    : null;
+
   return (
     <div className="page-stack">
-      <PageHeader
-        breadcrumb="System"
-        title="Plattform"
-        actions={
-          <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-            {saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : savedFlash ? <Check size={16} /> : <Save size={16} />}
-            {saveMutation.isPending ? "Sparar..." : savedFlash ? "Sparat!" : "Spara ändringar"}
-          </Button>
-        }
-      />
+      <PageHeader breadcrumb="System" title="Plattform" />
 
-      {saveMutation.isError && (
-        <div className="surface px-5 py-4">
-          <div className="flex items-start gap-3">
-            <AlertCircle size={18} className="mt-0.5 shrink-0" style={{ color: "var(--danger)" }} />
-            <div className="text-sm">
-              <div className="font-bold mb-0.5">Kunde inte spara</div>
-              <div style={{ color: "var(--text-secondary)" }}>
-                {(saveMutation.error as { response?: { data?: { error?: string } }; message?: string } | undefined)
-                  ?.response?.data?.error
-                  || (saveMutation.error as { message?: string } | undefined)?.message
-                  || "Okänt fel"}
-              </div>
-            </div>
-          </div>
+      {/* Navy hero — identitet + spara i ett */}
+      <section className="hero-card flex flex-wrap items-center gap-5" style={{ padding: "20px 24px" }}>
+        <span className="flex h-[52px] w-[52px] flex-none items-center justify-center rounded-[15px] bg-[rgba(254,247,240,0.12)] text-[var(--brand-cream)]">
+          <Building2 size={22} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[18px] font-extrabold tracking-[-0.02em] text-white">
+            {form.companyName?.trim() || "Plattformsinställningar"}
+          </h2>
+          <p className="mt-0.5 text-[12.5px] font-medium text-[rgba(254,247,240,0.62)]">
+            {form.organizationNumber?.trim()
+              ? `Org.nr ${form.organizationNumber}`
+              : "Används i appen, supportflöden och systemutskick"}
+          </p>
         </div>
+        <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+          {saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : savedFlash ? <Check size={16} /> : <Save size={16} />}
+          {saveMutation.isPending ? "Sparar…" : savedFlash ? "Sparat!" : "Spara"}
+        </Button>
+      </section>
+
+      {saveError && (
+        <Surface className="flex items-start gap-3 px-5 py-4">
+          <AlertCircle size={18} className="mt-0.5 shrink-0 text-[var(--danger)]" />
+          <div className="text-sm">
+            <p className="font-bold">Kunde inte spara</p>
+            <p className="text-[var(--text-secondary)]">{saveError}</p>
+          </div>
+        </Surface>
       )}
 
-      <div className="flex items-center justify-between rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-panel-soft)] px-5 py-4">
-        <div>
-          <p className="text-[13px] font-extrabold">Plattformens grundinställningar</p>
-          <p className="mt-1 text-[12px] text-[var(--text-secondary)]">Ändringar här används i appen, supportflöden och systemutskick.</p>
-        </div>
-        <span className="hidden items-center gap-2 text-[12px] font-semibold text-[var(--text-secondary)] sm:flex">
-          <span className="h-2 w-2 rounded-full bg-[var(--success)]" /> Aktiv
-        </span>
-      </div>
-
-      <div className="grid items-start gap-4 lg:grid-cols-12">
-        {/* Företagsuppgifter — juridiskt namn, org.nr, momsreg.nr (companyAddress kept here) */}
-        <div className="surface px-5 py-5 lg:col-span-7">
-          <div className="text-[16px] font-extrabold tracking-[-0.3px]">Företagsuppgifter</div>
-          <div className="text-[12px] text-[var(--text-muted)] mt-0.5">Juridiskt namn och registrering</div>
-
-          <SettingRow label="Juridiskt namn" first>
-            <Input
-              value={form.companyName || ""}
-              onChange={(e) => setForm((p) => ({ ...p, companyName: e.target.value }))}
-              placeholder="ViaEats AB"
-            />
-          </SettingRow>
-          <SettingRow label="Org.nr">
-            <Input
-              value={form.organizationNumber || ""}
-              onChange={(e) => setForm((p) => ({ ...p, organizationNumber: e.target.value }))}
-              placeholder="559123-4567"
-            />
-          </SettingRow>
-          <SettingRow label="Företagsadress" align="start">
-            <Textarea
-              value={form.companyAddress || ""}
-              onChange={(e) => setForm((p) => ({ ...p, companyAddress: e.target.value }))}
-              placeholder={"ViaEats AB\nKungsgatan 1\n111 22 Stockholm"}
-              rows={3}
-            />
-          </SettingRow>
-        </div>
-
-        {/* Betalning & utbetalning — Adyen badge + system-mejl avsändare */}
-        <div className="surface px-5 py-5 lg:col-span-5">
-          <div className="text-[16px] font-extrabold tracking-[-0.3px]">Betalning &amp; utbetalning</div>
-          <div className="text-[12px] text-[var(--text-muted)] mt-0.5">Adyen och systemavsändare</div>
-
-          <div className="flex items-center justify-between border-t border-[var(--row-divider)] mt-[13px] pt-[14px] pb-[13px]">
-            <span className="text-[13px] font-semibold">Adyen-konto</span>
-            <span className="badge badge-success">Kopplat</span>
+      <div className="grid items-start gap-4 xl:grid-cols-2">
+        {/* Företagsuppgifter */}
+        <SettingsCard icon={<Building2 size={16} />} title="Företagsuppgifter" hint="Juridiskt namn och registrering">
+          <div className="grid gap-x-4 gap-y-3.5 sm:grid-cols-2">
+            <Field label="Juridiskt namn">
+              <Input
+                value={form.companyName || ""}
+                onChange={(e) => setForm((p) => ({ ...p, companyName: e.target.value }))}
+                placeholder="ViaEats AB"
+              />
+            </Field>
+            <Field label="Org.nr">
+              <Input
+                value={form.organizationNumber || ""}
+                onChange={(e) => setForm((p) => ({ ...p, organizationNumber: e.target.value }))}
+                placeholder="559123-4567"
+              />
+            </Field>
+            <Field label="Företagsadress" className="sm:col-span-2">
+              <Textarea
+                value={form.companyAddress || ""}
+                onChange={(e) => setForm((p) => ({ ...p, companyAddress: e.target.value }))}
+                placeholder={"ViaEats AB\nKungsgatan 1\n111 22 Stockholm"}
+                rows={3}
+              />
+            </Field>
           </div>
-          <SettingRow label="No-reply (avsändare)">
-            <Input
-              type="email"
-              value={form.noReplyEmail || ""}
-              onChange={(e) => setForm((p) => ({ ...p, noReplyEmail: e.target.value }))}
-              placeholder="no-reply@viaeats.se"
-            />
-          </SettingRow>
-          <SettingRow label="Privacy / DPO-mejl">
-            <Input
-              type="email"
-              value={form.privacyEmail || ""}
-              onChange={(e) => setForm((p) => ({ ...p, privacyEmail: e.target.value }))}
-              placeholder="privacy@viaeats.se"
-            />
-          </SettingRow>
-        </div>
+        </SettingsCard>
 
-        {/* Support & kontakt — span 2; 3-col inputs + Live-chatt toggle (reusing showDiscountedRail) */}
-        <div className="surface px-5 py-5 lg:col-span-8">
-          <div className="text-[16px] font-extrabold tracking-[-0.3px]">Support &amp; kontakt</div>
-          <div className="text-[12px] text-[var(--text-muted)] mt-0.5">Visas för kunder i appen och i kvitton</div>
+        {/* Betalning & systemavsändare */}
+        <SettingsCard icon={<CreditCard size={16} />} title="Betalning & utskick" hint="Betalleverantör och systemavsändare">
+          <div className="mb-4 flex items-center justify-between rounded-[11px] bg-[var(--bg-panel-soft)] px-4 py-3">
+            <span className="text-[13px] font-semibold">Betalleverantör</span>
+            <span className="badge badge-success">Mollie</span>
+          </div>
+          <div className="grid gap-x-4 gap-y-3.5 sm:grid-cols-2">
+            <Field label="No-reply (avsändare)">
+              <Input
+                type="email"
+                value={form.noReplyEmail || ""}
+                onChange={(e) => setForm((p) => ({ ...p, noReplyEmail: e.target.value }))}
+                placeholder="no-reply@viaeats.se"
+              />
+            </Field>
+            <Field label="Privacy / DPO-mejl">
+              <Input
+                type="email"
+                value={form.privacyEmail || ""}
+                onChange={(e) => setForm((p) => ({ ...p, privacyEmail: e.target.value }))}
+                placeholder="privacy@viaeats.se"
+              />
+            </Field>
+          </div>
+        </SettingsCard>
 
-          <div className="mt-4 grid gap-x-4 gap-y-3 md:grid-cols-2">
+        {/* Support & kontakt */}
+        <SettingsCard icon={<Headset size={16} />} title="Support & kontakt" hint="Visas för kunder i appen och i kvitton" className="xl:col-span-2">
+          <div className="grid gap-x-4 gap-y-3.5 sm:grid-cols-2 xl:grid-cols-4">
             <Field label="Support-mejl">
               <Input
                 type="email"
@@ -212,7 +208,7 @@ function PlatformSettingsEditor({ initialForm }: { initialForm: PlatformSettings
                 placeholder="info@viaeats.se"
               />
             </Field>
-            <Field label="Postadress">
+            <Field label="Postadress" className="sm:col-span-2 xl:col-span-4">
               <Textarea
                 value={form.contactAddress || ""}
                 onChange={(e) => setForm((p) => ({ ...p, contactAddress: e.target.value }))}
@@ -221,64 +217,65 @@ function PlatformSettingsEditor({ initialForm }: { initialForm: PlatformSettings
               />
             </Field>
           </div>
+        </SettingsCard>
 
-        </div>
+        {/* Om oss */}
+        <SettingsCard icon={<FileText size={16} />} title="Om oss" hint="Texten på Om oss-sidan">
+          <Textarea
+            value={form.aboutBody || ""}
+            onChange={(e) => setForm((p) => ({ ...p, aboutBody: e.target.value }))}
+            placeholder="ViaEats är en plattform som…"
+            rows={7}
+          />
+        </SettingsCard>
 
-        {/* Om oss-text — span 2 */}
-        <div className="surface px-5 py-5 lg:col-span-8">
-          <div className="text-[16px] font-extrabold tracking-[-0.3px]">Om oss</div>
-          <div className="text-[12px] text-[var(--text-muted)] mt-0.5">Texten på Om oss-sidan</div>
-          <div className="mt-[14px]">
-            <Textarea
-              value={form.aboutBody || ""}
-              onChange={(e) => setForm((p) => ({ ...p, aboutBody: e.target.value }))}
-              placeholder="ViaEats är en plattform som..."
-              rows={7}
-            />
-          </div>
-        </div>
-
-        <div className="surface px-5 py-5 lg:col-span-4">
-          <div className="text-[16px] font-extrabold tracking-[-0.3px]">Appinnehåll</div>
-          <div className="mt-0.5 text-[12px] text-[var(--text-muted)]">Styr vad som lyfts på startsidan</div>
-          <div className="mt-4 flex items-center justify-between gap-4 border-t border-[var(--row-divider)] pt-4">
-            <div>
-              <div className="text-[13px] font-semibold">Rabatterade raden</div>
-              <div className="mt-1 text-[11.5px] leading-[1.4] text-[var(--text-muted)]">Visa karusellen med nedsatta priser i appen.</div>
+        {/* Appinnehåll */}
+        <SettingsCard icon={<Smartphone size={16} />} title="Appinnehåll" hint="Styr vad som lyfts på startsidan">
+          <div className="flex items-center justify-between gap-4 rounded-[11px] bg-[var(--bg-panel-soft)] px-4 py-3.5">
+            <div className="min-w-0">
+              <p className="text-[13px] font-bold text-[var(--text-primary)]">Rabatterade raden</p>
+              <p className="mt-0.5 text-[11.5px] leading-[1.4] text-[var(--text-muted)]">Visa karusellen med nedsatta priser i appen.</p>
             </div>
             <Toggle
               checked={form.showDiscountedRail ?? true}
               onChange={(v) => setForm((p) => ({ ...p, showDiscountedRail: v }))}
             />
           </div>
-          <div className="mt-5 rounded-xl bg-[var(--bg-panel-soft)] px-3.5 py-3 text-[11.5px] leading-[1.45] text-[var(--text-secondary)]">
-            Ändringar publiceras när du sparar plattformen.
-          </div>
-        </div>
-
+          <p className="mt-4 text-[11.5px] leading-[1.45] text-[var(--text-muted)]">
+            Ändringar publiceras när du sparar.
+          </p>
+        </SettingsCard>
       </div>
     </div>
   );
 }
 
-/** A label/control row that matches the design's divider-separated card rows. */
-function SettingRow({
-  label,
+/** Kort med navy ikonplatta — samma mönster som dashboard och 2FA. */
+function SettingsCard({
+  icon,
+  title,
+  hint,
+  className,
   children,
-  first = false,
-  align = "center",
 }: {
-  label: string;
+  icon: React.ReactNode;
+  title: string;
+  hint: string;
+  className?: string;
   children: React.ReactNode;
-  first?: boolean;
-  align?: "center" | "start";
 }) {
   return (
-    <div
-      className={`flex justify-between gap-4 border-t border-[var(--row-divider)] pt-[14px] pb-[13px] ${first ? "mt-[13px]" : ""} ${align === "start" ? "items-start" : "items-center"}`}
-    >
-      <span className="text-[13px] font-semibold shrink-0 pt-1.5">{label}</span>
-      <div className="min-w-0 flex-1 max-w-[260px]">{children}</div>
-    </div>
+    <Surface className={`px-5 py-5 ${className ?? ""}`}>
+      <div className="mb-4 flex items-center gap-3">
+        <span className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[10px] bg-[var(--brand-navy-soft)] text-[var(--brand-navy-ink)]">
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <p className="text-[15px] font-extrabold tracking-[-0.3px]">{title}</p>
+          <p className="text-xs text-[var(--text-muted)]">{hint}</p>
+        </div>
+      </div>
+      {children}
+    </Surface>
   );
 }

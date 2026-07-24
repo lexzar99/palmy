@@ -1,6 +1,6 @@
-import { redirect } from "next/navigation";
+import { TwoFAPage } from "@/modules/two-fa/page";
 
-// 2FA bor numera som flik under Användare.
+// Säkerhet är en egen sida — tidigare låg den som flik under Personal.
 export default function TwoFARoutePage() {
-  redirect("/users?tab=sakerhet");
+  return <TwoFAPage />;
 }

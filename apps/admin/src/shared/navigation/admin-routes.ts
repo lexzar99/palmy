@@ -88,7 +88,7 @@ export const ADMIN_ROUTES: AdminRouteDefinition[] = [
   route({ id: "api-health", href: "/api-health", label: "API-status", icon: Gauge, section: "system", keywords: "uptime hälsa status" }),
   route({ id: "audit-log", href: "/audit-log", label: "Audit-logg", icon: History, section: "system", keywords: "logg compliance revision" }),
   route({ id: "platform-settings", href: "/platform-settings", label: "Plattformsinställningar", shortLabel: "Plattform", icon: Building2, section: "system", keywords: "företag company settings integrationer" }),
-  route({ id: "two-factor", href: "/users?tab=sakerhet", label: "2FA & enheter", icon: Shield, section: "system", keywords: "totp säkerhet trusted devices" }),
+  route({ id: "two-factor", href: "/2fa", label: "Säkerhet", icon: Shield, section: "system", keywords: "2fa totp säkerhet trusted devices betrodda enheter" }),
 ];
 
 const SECTION_LABELS: Record<AdminSectionId, string> = {

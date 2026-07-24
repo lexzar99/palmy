@@ -60,8 +60,6 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
     if (!isActiveAdminHref(pathname, href)) return false;
     if (id === "tiers") return searchParams.get("tab") === "tiers";
     if (id === "finance") return searchParams.get("tab") !== "tiers";
-    if (id === "two-factor") return searchParams.get("tab") === "sakerhet";
-    if (id === "users") return searchParams.get("tab") !== "sakerhet";
     return true;
   };
 
