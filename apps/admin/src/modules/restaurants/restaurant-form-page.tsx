@@ -8,7 +8,9 @@ import {
   Archive,
   ArrowLeft,
   ArrowRight,
+  Building2,
   Calendar,
+  MapPin,
   Check,
   CircleCheck,
   CircleDashed,
@@ -349,8 +351,10 @@ function HoursEditor({ value, onChange }: { value: HoursForm; onChange: (next: H
 }
 
 const CREATE_STEPS: Array<{ label: string; hint: string; icon: LucideIcon }> = [
-  { label: "Grundinfo", hint: "Namn, adress och mattyp", icon: Store },
-  { label: "Kontakt", hint: "E-post och juridik", icon: Contact },
+  { label: "Företaget", hint: "Hämta juridiken från bolagsregistret", icon: Building2 },
+  { label: "Namnet", hint: "Vad kunderna ser i appen", icon: Store },
+  { label: "Adressen", hint: "Var restaurangen ligger", icon: MapPin },
+  { label: "Kontakt", hint: "Telefon och e-post", icon: Contact },
   { label: "Bilder", hint: "Logga och omslag", icon: ImageIcon },
   { label: "Öppettider", hint: "När det går att beställa", icon: Calendar },
   { label: "Drift", hint: "Tier, leverans och moms", icon: Settings2 },
@@ -556,7 +560,8 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
 
   // ── Nyskapande: helsides-onboarding i sex steg ──
   if (isCreate) {
-    const stepValid = createStep === 0 ? form.name.trim().length >= 2 : true;
+    // Namnsteget är enda kravet — resten kan fyllas i efteråt.
+    const stepValid = createStep === 1 ? form.name.trim().length >= 2 : true;
     const openDays = DAYS.filter(({ key }) => !form.openingHours[key].closed && form.openingHours[key].shifts.length > 0);
 
     const active = CREATE_STEPS[createStep];
@@ -613,101 +618,169 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
         </div>
 
         <Surface className="onb-panel p-5 sm:p-7">
+          {/* 0 · Företaget — bara uppslaget och det juridiska */}
           {createStep === 0 && (
             <div className="grid gap-5">
-              <CompanyLookup onApply={applyCompany} defaultQuery={form.name} />
+              <CompanyLookup onApply={applyCompany} />
               <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
-                <Field label="Namn" required hint="Namnet kunden ser — behöver inte vara det legala."><Input value={form.name} onChange={(e) => set("name", e.target.value)} autoFocus /></Field>
-                <Field label="Organisationsnummer"><Input value={form.organizationNumber} onChange={(e) => set("organizationNumber", e.target.value)} placeholder="559123-4567" /></Field>
-                <Field label="Legalt namn" className="sm:col-span-2"><Input value={form.legalName} onChange={(e) => set("legalName", e.target.value)} placeholder="ex: Palmyra Pizzeria AB" /></Field>
-                <Field label="Mattyp"><Input value={form.cuisine} onChange={(e) => set("cuisine", e.target.value)} placeholder="Pizza, Sushi…" /></Field>
-                <Field label="Adress" className="sm:col-span-2">
-                  <GooglePlacesInput
-                    value={form.address}
-                    currentPlaceId={form.placeId}
-                    onChange={(text) => {
-                      set("address", text);
-                      if (form.placeId) {
-                        set("placeId", "");
-                        set("latitude", "");
-                        set("longitude", "");
-                      }
-                    }}
-                    onSelect={(p) => {
-                      setForm((current) => ({
-                        ...current,
-                        address: p.address,
-                        placeId: p.placeId,
-                        latitude: String(p.lat),
-                        longitude: String(p.lng),
-                        city: p.city || current.city,
-                        zip: p.postalCode || current.zip,
-                      }));
-                    }}
-                    placeholder="Börja skriva adress…"
-                  />
-                </Field>
-                <Field label="Stad"><Input value={form.city} onChange={(e) => set("city", e.target.value)} /></Field>
-                <Field label="Postnummer"><Input inputMode="numeric" value={form.zip} onChange={(e) => set("zip", e.target.value)} /></Field>
-                <Field label="Telefon"><Input type="tel" inputMode="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} /></Field>
+                <Field label="Organisationsnummer"><Input value={form.organizationNumber} onChange={(e) => set("organizationNumber", e.target.value)} placeholder="10 siffror" inputMode="numeric" /></Field>
+                <Field label="Legalt namn"><Input value={form.legalName} onChange={(e) => set("legalName", e.target.value)} placeholder="Bolagets registrerade namn" /></Field>
               </div>
+              <p className="field-hint">Hoppa över om restaurangen inte är registrerad än — allt går att fylla i senare.</p>
+            </div>
+          )}
+
+          {/* 1 · Namnet — ett stort fält i fokus */}
+          {createStep === 1 && (
+            <div className="grid gap-5">
+              <Field label="Restaurangens namn" required className="onb-hero-field">
+                <Input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Namnet kunderna känner igen" autoFocus />
+              </Field>
+              <Field label="Mattyp" hint="Visas som etikett i appen.">
+                <Input value={form.cuisine} onChange={(e) => set("cuisine", e.target.value)} placeholder="Pizza, Sushi, Libanesiskt…" />
+              </Field>
               <Field label="Beskrivning" optional>
-                <Textarea value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="Kort och gott — visas i appen." />
+                <Textarea value={form.description} onChange={(e) => set("description", e.target.value)} rows={3} placeholder="Kort och gott — visas i appen." />
               </Field>
             </div>
           )}
 
-          {createStep === 1 && (
+          {/* 2 · Adressen */}
+          {createStep === 2 && (
             <div className="grid gap-5">
+              <Field label="Gatuadress" className="onb-hero-field">
+                <GooglePlacesInput
+                  value={form.address}
+                  currentPlaceId={form.placeId}
+                  onChange={(text) => {
+                    set("address", text);
+                    if (form.placeId) {
+                      set("placeId", "");
+                      set("latitude", "");
+                      set("longitude", "");
+                    }
+                  }}
+                  onSelect={(p) => {
+                    setForm((current) => ({
+                      ...current,
+                      address: p.address,
+                      placeId: p.placeId,
+                      latitude: String(p.lat),
+                      longitude: String(p.lng),
+                      city: p.city || current.city,
+                      zip: p.postalCode || current.zip,
+                    }));
+                  }}
+                  placeholder="Börja skriva adress…"
+                />
+              </Field>
               <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
-                <Field label="Kontakt-email (publik)"><Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="kontakt@restaurangen.se" /></Field>
+                <Field label="Postnummer"><Input inputMode="numeric" value={form.zip} onChange={(e) => set("zip", e.target.value)} /></Field>
+                <Field label="Stad"><Input value={form.city} onChange={(e) => set("city", e.target.value)} /></Field>
+              </div>
+              {form.latitude && form.longitude ? (
+                <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--success-text)]">
+                  <Check size={14} /> Koordinater hämtade — zonberäkning fungerar.
+                </p>
+              ) : (
+                <p className="field-hint">Välj en adress ur listan så hämtas koordinater automatiskt.</p>
+              )}
+            </div>
+          )}
+
+          {/* 3 · Kontakt */}
+          {createStep === 3 && (
+            <div className="grid gap-5">
+              <Field label="Telefon" className="onb-hero-field">
+                <Input type="tel" inputMode="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="070-123 45 67" autoFocus />
+              </Field>
+              <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
+                <Field label="Kontakt-email" hint="Publik — visas för kunder."><Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="kontakt@restaurangen.se" /></Field>
                 <Field label="Admin-email" hint="Blir restaurangens inloggning."><Input type="email" value={form.adminEmail} onChange={(e) => set("adminEmail", e.target.value)} /></Field>
-                <Field label="Legalt namn" hint="Hämtat i steg 1 — ändra vid behov."><Input value={form.legalName} onChange={(e) => set("legalName", e.target.value)} placeholder="ex: Palmyra Pizzeria AB" /></Field>
-                <Field label="Organisationsnummer"><Input value={form.organizationNumber} onChange={(e) => set("organizationNumber", e.target.value)} placeholder="559123-4567" /></Field>
               </div>
             </div>
           )}
 
-          {createStep === 2 && (
+          {/* 4 · Bilder */}
+          {createStep === 4 && (
             <div className="grid gap-5">
               <div className="grid gap-5 sm:grid-cols-2">
                 <ImageUploadField label="Logotyp" kind="logo" restaurantId={restaurantId} value={form.imageUrl} onChange={(url) => set("imageUrl", url)} />
                 <ImageUploadField label="Omslagsbild" kind="hero" restaurantId={restaurantId} value={form.heroImageUrl} onChange={(url) => set("heroImageUrl", url)} />
               </div>
+              <p className="field-hint">Går att lägga till senare — restaurangen kan skapas utan bilder.</p>
             </div>
           )}
 
-          {createStep === 3 && (
+          {/* 5 · Öppettider */}
+          {createStep === 5 && (
             <div className="grid gap-5">
               <HoursEditor value={form.openingHours} onChange={(h) => setForm((prev) => ({ ...prev, openingHours: h }))} />
             </div>
           )}
 
-          {createStep === 4 && (
-            <div className="grid gap-5">
+          {/* 6 · Drift — valkort istället för dropdowns */}
+          {createStep === 6 && (
+            <div className="grid gap-6">
+              <div className="grid gap-2.5">
+                <span className="field-label">Tier</span>
+                <div className="onb-choices">
+                  {[
+                    { value: 1, title: "Gold", sub: "Högst i listan" },
+                    { value: 2, title: "Silver", sub: "Prioriterad" },
+                    { value: 3, title: "Standard", sub: "Normal ranking" },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => set("featuredClass", option.value)}
+                      className={cn("onb-choice", form.featuredClass === option.value && "is-selected")}
+                    >
+                      <span className="onb-choice-title">{option.title}</span>
+                      <span className="onb-choice-sub">{option.sub}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid gap-2.5">
+                <span className="field-label">Leveransmodell</span>
+                <div className="onb-choices">
+                  <button type="button" onClick={() => set("selfDelivery", false)} className={cn("onb-choice", !form.selfDelivery && "is-selected")}>
+                    <span className="onb-choice-title">Vi levererar</span>
+                    <span className="onb-choice-sub">Våra kurirer kör</span>
+                  </button>
+                  <button type="button" onClick={() => set("selfDelivery", true)} className={cn("onb-choice", form.selfDelivery && "is-selected")}>
+                    <span className="onb-choice-title">Levererar själv</span>
+                    <span className="onb-choice-sub">Restaurangen kör</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid gap-2.5">
+                <span className="field-label">Moms</span>
+                <div className="onb-choices">
+                  {[
+                    { value: "6", title: "6 %", sub: "Avhämtning/leverans" },
+                    { value: "12", title: "12 %", sub: "Restaurangtjänst" },
+                    { value: "25", title: "25 %", sub: "Standard" },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => set("vatPercent", option.value)}
+                      className={cn("onb-choice", form.vatPercent === option.value && "is-selected")}
+                    >
+                      <span className="onb-choice-title">{option.title}</span>
+                      <span className="onb-choice-sub">{option.sub}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
-                <Field label="Tier">
-                  <Select value={String(form.featuredClass)} onChange={(e) => set("featuredClass", Number(e.target.value))}>
-                    <option value="1">Gold</option>
-                    <option value="2">Silver</option>
-                    <option value="3">Standard</option>
-                  </Select>
-                </Field>
-                <Field label="Leveransmodell">
-                  <Select value={form.selfDelivery ? "self" : "platform"} onChange={(e) => set("selfDelivery", e.target.value === "self")}>
-                    <option value="platform">Vi levererar</option>
-                    <option value="self">Levererar själv</option>
-                  </Select>
-                </Field>
                 <Field label="Provisions-override" optional>
                   <PercentInput placeholder="Global sats" value={form.commissionPctOverride} onValueChange={(value) => set("commissionPctOverride", value)} />
-                </Field>
-                <Field label="Moms">
-                  <Select value={form.vatPercent} onChange={(e) => set("vatPercent", e.target.value)}>
-                    <option value="6">6 % — avhämtning/leverans</option>
-                    <option value="12">12 % — restaurangtjänst</option>
-                    <option value="25">25 % — standard</option>
-                  </Select>
                 </Field>
                 <Field label="ETA-override" optional>
                   <DurationInput min={25} max={60} placeholder="35" value={form.etaOverride} onValueChange={(value) => set("etaOverride", value)} />
@@ -716,7 +789,8 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
             </div>
           )}
 
-          {createStep === 5 && (
+          {/* 7 · Granska */}
+          {createStep === 7 && (
             <div className="grid gap-5">
               <div className="grid gap-2.5 sm:grid-cols-2">
                 {[

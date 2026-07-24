@@ -216,3 +216,6 @@ export interface CompanyLookupResult {
 
 export const searchCompaniesByName = (query: string) =>
   apiPost<{ companies: CompanyLookupResult[] }>("/admin/company-search", { query });
+
+export const lookupCompanyByOrgNumber = (orgNumber: string) =>
+  apiPost<CompanyLookupResult>("/admin/company-lookup", { orgNumber });

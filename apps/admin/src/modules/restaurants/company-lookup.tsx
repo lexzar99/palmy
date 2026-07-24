@@ -19,9 +19,9 @@ function addressLine(company: CompanyLookupResult) {
  * Söker upp ett svenskt bolag och fyller formuläret med juridiska uppgifter
  * och adress. Verksamhetsbeskrivningen hämtas inte — bara det vi behöver.
  *
- * Leverantören saknar uppslag på organisationsnummer (siffror matchas mot
- * bolagsnamn och ger fel företag), därför söker vi på namn och plockar
- * org.numret ur träffen.
+ * Samma fält tar både organisationsnummer och namn: rena siffror kör exakt
+ * uppslag, text kör namnsökning. (Skickas ett org.nummer som namnsökning
+ * matchas siffrorna mot bolagsnamn och ger fel företag.)
  */
 export function CompanyLookup({
   onApply,
@@ -37,9 +37,21 @@ export function CompanyLookup({
   const [query, setQuery] = useState(defaultQuery);
   const [applied, setApplied] = useState<string | null>(null);
 
+  const digits = query.replace(/\D/g, "");
+  const looksLikeOrgNumber = /^[\d\s-]+$/.test(query.trim()) && query.trim().length > 0;
+  const orgNumberReady = looksLikeOrgNumber && (digits.length === 10 || digits.length === 12);
+
   const search = useMutation({
     mutationFn: () => searchCompaniesByName(query.trim()),
-    onSuccess: () => setApplied(null),
+    onSuccess: (result) => {
+      setApplied(null);
+      // Exakt org.nr-träff: applicera direkt, inget att välja mellan.
+      if (looksLikeOrgNumber && result.companies.length === 1) {
+        const company = result.companies[0];
+        onApply(company);
+        setApplied(company.legalName || company.orgNumber);
+      }
+    },
   });
 
   const error = apiError(search.error);
@@ -57,7 +69,7 @@ export function CompanyLookup({
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[14px] font-extrabold tracking-[-0.2px] text-[var(--text-primary)]">Hämta från bolagsregistret</p>
-          <p className="text-xs text-[var(--text-muted)]">Sök på företagsnamn — org.nummer och adress fylls i automatiskt.</p>
+          <p className="text-xs text-[var(--text-muted)]">Org.nummer eller företagsnamn — adress och juridik fylls i automatiskt.</p>
         </div>
       </div>
 
@@ -65,27 +77,31 @@ export function CompanyLookup({
         className="flex flex-wrap items-center gap-2"
         onSubmit={(event) => {
           event.preventDefault();
-          if (query.trim().length >= 2) search.mutate();
+          if (looksLikeOrgNumber ? orgNumberReady : query.trim().length >= 2) search.mutate();
         }}
       >
         <Input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="ex: Palmyra Pizzeria AB"
+          placeholder="Org.nummer eller företagsnamn"
           className="min-w-0 flex-1 sm:max-w-[280px]"
-          aria-label="Företagsnamn"
+          aria-label="Organisationsnummer eller företagsnamn"
         />
         <Button
           type="submit"
           variant="primary"
-          disabled={query.trim().length < 2 || search.isPending}
+          disabled={(looksLikeOrgNumber ? !orgNumberReady : query.trim().length < 2) || search.isPending}
           loading={search.isPending}
         >
-          {!search.isPending && <Search size={14} />} Sök
+          {!search.isPending && <Search size={14} />} {looksLikeOrgNumber ? "Hämta" : "Sök"}
         </Button>
       </form>
 
-      {companies.length > 0 && (
+      {looksLikeOrgNumber && !orgNumberReady && (
+        <p className="text-[12px] text-[var(--text-muted)]">Ett organisationsnummer har 10 siffror.</p>
+      )}
+
+      {companies.length > 0 && !applied && (
         <div className="grid gap-1.5">
           {companies.map((company, i) => (
             <button
@@ -114,7 +130,11 @@ export function CompanyLookup({
         </div>
       )}
 
-      {noHits && <p className="text-[12.5px] text-[var(--text-muted)]">Inga träffar — prova hela det registrerade namnet.</p>}
+      {noHits && (
+        <p className="text-[12.5px] text-[var(--text-muted)]">
+          {looksLikeOrgNumber ? "Inget bolag med det numret." : "Inga träffar — prova hela det registrerade namnet."}
+        </p>
+      )}
 
       {applied && (
         <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--success-text)]">

@@ -4,12 +4,14 @@
  * Nyckeln stannar server-side (kvoten är 500 uppslag/månad, så den får
  * aldrig ligga i webbläsaren där vem som helst kan bränna den).
  *
- * POST /api/admin/company-search  { query } → upp till 5 träffar
+ * POST /api/admin/company-lookup  { orgNumber } → exakt träff
+ * POST /api/admin/company-search  { query }     → upp till 5 namnträffar
  *
- * OBS: leverantören har INGET uppslag på organisationsnummer — både
- * /v1/search och /v1/bulk söker på namn. Skickar man ett org.nummer
- * matchas det mot siffror i bolagsnamn och ger fel företag. Därför
- * exponerar vi bara namnsökning; org.numret kommer med i träffen.
+ * Båda går mot /v1/search. Parametern avgör sökläget:
+ *   { org_number: "5567037485" }  → exakt uppslag (snake_case!)
+ *   { q: "namn", limit: 5 }       → fuzzy namnsökning
+ * Skickar man ett org.nummer som `q` matchas siffrorna mot bolagsnamn och
+ * ger fel företag — därför är lägena separerade.
  *
  * Verifierat svarsschema (2026-07-24):
  *   { companies: [{ name, orgNumber, legalForm, registrationDate,
@@ -81,6 +83,61 @@ function normalizeCompany(raw: any) {
   };
 }
 
+/** Anropar leverantörens /v1/search. Kastar med .status vid HTTP-fel. */
+async function callSearch(body: Record<string, unknown>) {
+  const response = await fetch(`${BASE_URL}/search`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  trackApiCall('foretagsapi').catch(() => {});
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    const error = new Error(`foretagsapi ${response.status}: ${text.slice(0, 200)}`);
+    (error as any).status = response.status;
+    throw error;
+  }
+
+  const payload = (await response.json()) as { companies?: unknown[] };
+  return Array.isArray(payload?.companies) ? payload.companies.map(normalizeCompany).filter(Boolean) : [];
+}
+
+function failureResponse(res: any, error: any, context: string) {
+  console.error(`[${context}] failed:`, error?.message || error);
+  const quotaHit = error?.status === 429 || error?.status === 402;
+  return res.status(quotaHit ? 429 : 502).json({
+    error: quotaHit ? 'Månadskvoten för företagsuppslag är slut.' : 'Kunde inte hämta företagsuppgifter just nu.',
+  });
+}
+
+/** POST /api/admin/company-lookup — exakt uppslag på organisationsnummer. */
+router.post('/company-lookup', authenticate, requireSuperAdmin, lookupLimiter, async (req: AuthRequest, res) => {
+  const digits = String((req.body as { orgNumber?: string })?.orgNumber || '').replace(/\D/g, '');
+
+  if (!API_KEY) {
+    return res.status(503).json({ error: 'Företagsuppslag är inte konfigurerat (FORETAGSAPI_KEY saknas).' });
+  }
+  if (digits.length !== 10 && digits.length !== 12) {
+    return res.status(400).json({ error: 'Ange ett organisationsnummer med 10 siffror.' });
+  }
+
+  try {
+    // Leverantören vill ha 10 siffror utan bindestreck i org_number.
+    const companies = await callSearch({ org_number: digits.slice(-10) });
+    const company = companies[0];
+    if (!company) {
+      return res.status(404).json({ error: 'Hittade inget företag med det organisationsnumret.' });
+    }
+    res.json(company);
+  } catch (error: any) {
+    return failureResponse(res, error, 'company-lookup');
+  }
+});
+
 /** POST /api/admin/company-search — namnsökning, max 5 träffar. */
 router.post('/company-search', authenticate, requireSuperAdmin, lookupLimiter, async (req: AuthRequest, res) => {
   const query = String((req.body as { query?: string })?.query || '').trim();
@@ -91,42 +148,17 @@ router.post('/company-search', authenticate, requireSuperAdmin, lookupLimiter, a
   if (query.length < 2) {
     return res.status(400).json({ error: 'Sök på minst två tecken.' });
   }
-  // Ett rent sifferinmatat org.nummer matchas mot siffror i bolagsnamn och
-  // ger fel företag — bättre att säga till än att returnera skräp.
-  if (/^[\d\s-]+$/.test(query)) {
-    return res.status(400).json({ error: 'Sök på företagsnamn — org.numret hämtas automatiskt.' });
-  }
-
   try {
-    const response = await fetch(`${BASE_URL}/search`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ q: query, limit: 5 }),
-    });
-    trackApiCall('foretagsapi').catch(() => {});
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      console.error('[company-search] provider error:', response.status, body.slice(0, 200));
-      const quotaHit = response.status === 429 || response.status === 402;
-      return res.status(quotaHit ? 429 : 502).json({
-        error: quotaHit
-          ? 'Månadskvoten för företagsuppslag är slut.'
-          : 'Kunde inte söka företag just nu.',
-      });
-    }
-
-    const payload = (await response.json()) as { companies?: unknown[] };
-    const companies = Array.isArray(payload?.companies)
-      ? payload.companies.map(normalizeCompany).filter(Boolean)
-      : [];
+    // Ett rent sifferinmatat värde är ett org.nummer — kör exakt uppslag
+    // istället för fuzzy namnmatchning (som annars ger fel bolag).
+    const digits = query.replace(/\D/g, '');
+    const isOrgNumber = /^[\d\s-]+$/.test(query) && (digits.length === 10 || digits.length === 12);
+    const companies = isOrgNumber
+      ? await callSearch({ org_number: digits.slice(-10) })
+      : await callSearch({ q: query, limit: 5 });
     res.json({ companies });
   } catch (error: any) {
-    console.error('[company-search] failed:', error?.message || error);
-    res.status(502).json({ error: 'Kunde inte söka företag just nu.' });
+    return failureResponse(res, error, 'company-search');
   }
 });
 
