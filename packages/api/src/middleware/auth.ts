@@ -134,6 +134,10 @@ export const resolveAdminSessionFromToken = async (token: string) => {
     id: admin.id,
     email: admin.email,
     name: admin.name,
+    // Profilfälten driver avataren i sidomenyn, dashboardens topbar och
+    // inloggningens andra steg — utan dem faller allt tillbaka på initialer.
+    username: admin.username ?? null,
+    avatarUrl: admin.avatarUrl ?? null,
     role: admin.role,
     restaurantId: scope.restaurantId,
     restaurantSlug: scope.restaurantSlug,
