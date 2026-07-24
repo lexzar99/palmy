@@ -50,16 +50,16 @@ function Kpi({ label, value, accent }: { label: string; value: React.ReactNode; 
       className="rounded-[14px] border p-[15px]"
       style={
         accent
-          ? { background: "#fff7f3", borderColor: "color-mix(in srgb, var(--accent) 25%, transparent)" }
+          ? { background: "var(--brand-navy-soft)", borderColor: "color-mix(in srgb, var(--brand-navy-bar) 30%, transparent)" }
           : { background: "var(--bg-panel, #fff)", borderColor: "var(--border-subtle)" }
       }
     >
-      <p className="text-[12px] font-semibold" style={{ color: accent ? "var(--accent-ink)" : "var(--text-secondary)" }}>
+      <p className="text-[12px] font-semibold" style={{ color: accent ? "var(--brand-navy-ink)" : "var(--text-secondary)" }}>
         {label}
       </p>
       <p
         className="mt-[7px] text-[24px] font-extrabold tracking-[-0.7px] tabular-nums"
-        style={{ color: accent ? "var(--accent-ink)" : "var(--text-primary)" }}
+        style={{ color: accent ? "var(--brand-navy-ink)" : "var(--text-primary)" }}
       >
         {value}
       </p>
@@ -283,7 +283,7 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
                 {automaticRecovery > 0 ? <CalcRow label="Automatisk recovery för sena refunds" value={automaticRecovery} minus /> : null}
               </>
             )}
-            <div className={`mt-3 flex items-center justify-between rounded-xl px-4 py-3 text-white ${isOwed ? "bg-[#B45309]" : "bg-[var(--accent-strong,#111)]"}`}>
+            <div className={`mt-3 flex items-center justify-between rounded-xl px-4 py-3 text-white ${isOwed ? "bg-[#B45309]" : "bg-[var(--brand-navy)]"}`}>
               <span className="font-bold">{isOwed ? "Att fakturera restaurangen" : "Att överföra till restaurangen"}</span>
               <span className="text-xl font-black tabular-nums">{formatCurrency(net)}</span>
             </div>

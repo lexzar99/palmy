@@ -58,9 +58,13 @@ export function RestaurantDevicesPage() {
     queryKey,
     queryFn: () => getRestaurantDevices(restaurantId),
     enabled: Boolean(restaurantId),
-    // Poll: så en nyparad platta dyker upp automatiskt (operatören slipper
-    // refresha sidan), och status flippar till "Länkad" inom några sekunder.
-    refetchInterval: restaurantId ? 3500 : false,
+    // Snabb poll behövs BARA medan en parningskod är aktiv — då väntar
+    // operatören på att plattan ska dyka upp. Resten av tiden ändras listan
+    // sällan, och 3,5 s dygnet runt kostade ~1 000 DB-anrop i timmen.
+    refetchInterval: (query) => {
+      if (!restaurantId) return false;
+      return query.state.data?.pendingCode ? 3500 : 30_000;
+    },
     refetchOnWindowFocus: true,
   });
 

@@ -66,7 +66,7 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   };
 
   // Kräver åtgärd-badges: ordrar som väntar accept + systemvarningar.
-  const health = useQuery({ queryKey: healthQueryKey, queryFn: getSystemHealth, refetchInterval: 60_000, retry: false });
+  const health = useQuery({ queryKey: healthQueryKey, queryFn: getSystemHealth, refetchInterval: 300_000, retry: false });
   const navBadges: Record<string, number> = {
     "/orders": health.data?.operations.pendingOrders ?? 0,
     "/dashboard": health.data?.alerts.filter((a) => a.level === "warning").length ?? 0,

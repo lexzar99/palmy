@@ -230,7 +230,7 @@ export function CouriersPage() {
       <Surface className="px-5 py-4">
         <div className="flex gap-2">
           {TABS.map((t) => (
-            <button key={t.id} onClick={() => setTab(t.id)} className={`rounded-lg px-4 py-2 text-sm font-bold transition ${tab === t.id ? "bg-[var(--accent-strong,#111)] text-white" : "border border-[var(--border-subtle)] text-[var(--text-secondary)]"}`}>
+            <button key={t.id} onClick={() => setTab(t.id)} className={`rounded-lg px-4 py-2 text-sm font-bold transition ${tab === t.id ? "bg-[var(--brand-navy)] text-[var(--brand-cream)]" : "border border-[var(--border-subtle)] text-[var(--text-secondary)]"}`}>
               {t.label}
             </button>
           ))}
@@ -362,7 +362,7 @@ export function CouriersPage() {
                               type="button"
                               aria-label={`Öppna ${c.name}`}
                               onClick={() => router.push(`/couriers/${c.id}`)}
-                              className="text-[var(--text-muted)] transition-colors hover:text-[var(--accent)]"
+                              className="text-[var(--text-muted)] transition-colors hover:text-[var(--brand-navy-ink)]"
                             >
                               <ChevronRight size={18} />
                             </button>

@@ -1760,36 +1760,92 @@ button {
    Data table
    ───────────────────────────────────────────── */
 
+/* Tabellramen: rundad, egen scroll och en mjuk kant-fade som visar att
+   det finns mer innehåll i sidled på smala skärmar. */
 .table-shell {
   overflow-x: auto;
+  border-radius: 14px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-panel);
+  scrollbar-width: thin;
+}
+
+/* Ligger tabellen redan i en .surface behövs ingen dubbel ram. */
+.surface > .table-shell,
+.surface .table-shell {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .data-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 .data-table th,
 .data-table td {
-  padding: 14px 16px;
+  padding: 13px 18px;
   border-bottom: 1px solid var(--row-divider);
   text-align: left;
   vertical-align: middle;
   font-size: 13px;
 }
 
-.data-table th {
+/* Sticky huvud — långa listor tappar aldrig kolumnrubrikerna. */
+.data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding-top: 12px;
+  padding-bottom: 12px;
   font-size: 10.5px;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--text-muted);
-  background: transparent;
-  border-bottom-color: var(--border-subtle);
+  background: var(--bg-panel-soft);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
+}
+
+.data-table tbody tr {
+  transition: background 120ms ease;
 }
 
 .data-table tbody tr:hover {
-  background: var(--bg-hover);
+  background: var(--brand-navy-soft);
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Första kolumnen är nästan alltid identiteten — låt den bära tyngden. */
+.data-table tbody td:first-child {
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+/* Sifferkolumner blir läsbara med tabulära siffror. */
+.data-table td {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Klickbara rader signalerar det. */
+.data-table tbody tr[role="button"],
+.data-table tbody tr.is-clickable {
+  cursor: pointer;
+}
+
+@media (max-width: 767px) {
+  .data-table th,
+  .data-table td {
+    padding: 11px 14px;
+    font-size: 12.5px;
+  }
 }
 
 /* ─────────────────────────────────────────────

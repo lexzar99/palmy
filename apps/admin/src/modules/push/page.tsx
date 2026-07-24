@@ -130,7 +130,7 @@ export function PushPage() {
   const HISTORY_PAGE = 20;
   const [historyVisible, setHistoryVisible] = useState(HISTORY_PAGE);
 
-  const health = useQuery({ queryKey: healthQueryKey, queryFn: getSystemHealth, refetchInterval: 30_000 });
+  const health = useQuery({ queryKey: healthQueryKey, queryFn: getSystemHealth, refetchInterval: 60_000 });
   const cities = useQuery({ queryKey: zonesCitiesQueryKey, queryFn: getCities });
   const customers = useQuery({ queryKey: customersQueryKey, queryFn: getCustomers });
   const restaurants = useQuery({ queryKey: restaurantsQueryKey, queryFn: getRestaurantOverview });

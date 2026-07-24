@@ -146,7 +146,7 @@ export function CustomerModal({ customerId, open, onClose }: { customerId: strin
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="grid min-w-0 grid-cols-2 gap-2 sm:flex">
             {data ? <Button className="min-w-0 justify-center px-2 sm:px-4" variant="danger" onClick={() => deleteMutation.mutate()}>Radera kund</Button> : null}
-            {data ? <a href={`/api/admin/customers/${data.id}/gdpr-export`} download className="inline-flex min-w-0 items-center justify-center rounded-lg border border-[var(--border-subtle)] px-2 py-2 text-center text-xs font-bold uppercase tracking-[0.04em] text-[var(--text-primary)] transition-colors hover:border-[var(--accent)] sm:px-3 sm:tracking-[0.08em]">GDPR-export</a> : null}
+            {data ? <a href={`/api/admin/customers/${data.id}/gdpr-export`} download className="inline-flex min-w-0 items-center justify-center rounded-lg border border-[var(--border-subtle)] px-2 py-2 text-center text-xs font-bold uppercase tracking-[0.04em] text-[var(--text-primary)] transition-colors hover:border-[var(--brand-navy-bar)] sm:px-3 sm:tracking-[0.08em]">GDPR-export</a> : null}
           </div>
           <div className="grid min-w-0 grid-cols-2 gap-2 sm:flex">
             <Button className="min-w-0 justify-center" onClick={onClose}>Stäng</Button>
@@ -188,8 +188,8 @@ export function CustomerModal({ customerId, open, onClose }: { customerId: strin
                   <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--text-muted)]">Adresser</p>
                   {data.address || data.city || data.zip ? (
                     <div className="mt-4 flex items-start gap-3">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] bg-[var(--accent-soft)]">
-                        <MapPin size={13} className="text-[var(--accent)]" />
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] bg-[var(--brand-navy-soft)]">
+                        <MapPin size={13} className="text-[var(--brand-navy-ink)]" />
                       </span>
                       <div className="min-w-0">
                         <p className="text-[13px] font-bold text-[var(--text-primary)]">Adress</p>
@@ -527,7 +527,7 @@ export function CustomersPage() {
                         <span className="truncate font-bold text-[var(--text-primary)]">{customer.name || "—"}</span>
                         {customer.isGuest ? <Badge tone="warning">Gäst</Badge> : null}
                         {customer.accountAgeDays !== undefined && customer.accountAgeDays <= 7 && (
-                          <span className="text-[10px] uppercase tracking-wider text-[var(--accent)]">ny</span>
+                          <span className="text-[10px] uppercase tracking-wider text-[var(--brand-navy-ink)]">ny</span>
                         )}
                         {(customer.fraudFlags || []).map((flag) => (
                           <Badge key={flag} tone="danger">{FRAUD_FLAG_LABEL[flag]}</Badge>

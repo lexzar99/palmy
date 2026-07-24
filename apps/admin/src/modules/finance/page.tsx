@@ -101,7 +101,7 @@ export function FinancePage() {
               <button
                 key={k}
                 onClick={() => setPreset(k)}
-                className="rounded-full border border-[var(--border-subtle)] px-3.5 py-1.5 text-sm font-semibold transition hover:bg-[var(--accent-soft)]"
+                className="rounded-full border border-[var(--border-subtle)] px-3.5 py-1.5 text-sm font-semibold transition hover:bg-[var(--brand-navy-soft)]"
               >
                 {label}
               </button>
@@ -131,12 +131,12 @@ export function FinancePage() {
               className="metric-card"
               style={{
                 background: "#FFF7F3",
-                borderColor: "color-mix(in srgb, var(--accent) 25%, transparent)",
+                borderColor: "color-mix(in srgb, var(--brand-navy-bar) 30%, transparent)",
               }}
             >
-              <p className="kpi-label" style={{ color: "var(--accent-ink)" }}>Att betala ut</p>
+              <p className="kpi-label" style={{ color: "var(--brand-navy-ink)" }}>Att betala ut</p>
               <div className="mt-2.5">
-                <p className="kpi-value" style={{ fontSize: 26, letterSpacing: "-0.8px", color: "var(--accent-ink)" }}>
+                <p className="kpi-value" style={{ fontSize: 26, letterSpacing: "-0.8px", color: "var(--brand-navy-ink)" }}>
                   {totals ? formatCurrency(totals.payout) : "—"}
                 </p>
               </div>

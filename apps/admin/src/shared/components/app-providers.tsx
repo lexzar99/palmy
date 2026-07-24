@@ -44,6 +44,14 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
           queries: {
             refetchOnWindowFocus: false,
             retry: 1,
+            // Adminvyer öppnas ofta om (flikbyten, navigering fram och
+            // tillbaka). 30 s färskhet gör att samma data inte hämtas på nytt
+            // vid varje montering — märkbart mindre DB-egress utan att någon
+            // vy känns inaktuell. Vyer med eget refetchInterval styr själva.
+            staleTime: 30_000,
+            // Polling pausas när fliken är dold (React Query-default), så en
+            // glömd flik i bakgrunden kostar ingenting.
+            refetchIntervalInBackground: false,
           },
           mutations: {
             retry: 0,

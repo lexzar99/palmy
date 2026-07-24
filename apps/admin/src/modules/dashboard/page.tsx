@@ -122,7 +122,8 @@ export function DashboardPage() {
   const health = useQuery({
     queryKey: healthQueryKey,
     queryFn: getSystemHealth,
-    refetchInterval: 30_000,
+    // Översikt, inte live-orderskärm — 60 s räcker och halverar egressen.
+    refetchInterval: 60_000,
   });
   const customerOverview = useQuery({
     queryKey: customerOverviewQueryKey,
