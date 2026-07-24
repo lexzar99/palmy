@@ -2,6 +2,8 @@ export interface StoredAdminSession {
   id: string;
   email: string;
   name?: string;
+  username?: string | null;
+  avatarUrl?: string | null;
   role: string;
   restaurantId?: string | null;
   restaurantSlug?: string | null;

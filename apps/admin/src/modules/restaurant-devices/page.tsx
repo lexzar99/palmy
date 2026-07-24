@@ -14,6 +14,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { CityRestaurantPicker } from "@/shared/components/city-restaurant-picker";
+import creamSmiley from "../../../../../Logotyp/exports/smiley-cream-transparent.png";
+import brandPattern from "../../../../../Logotyp/exports/background-pattern-navy-wide.png";
 import {
   Badge,
   Button,
@@ -90,6 +92,7 @@ export function RestaurantDevicesPage() {
   const data: RestaurantDevicesResponse | undefined = devicesQuery.data;
   const devices = data?.devices ?? [];
   const pendingCode = data?.pendingCode ?? null;
+  const onlineCount = devices.filter((device) => device.status === "linked").length;
 
   const copyCode = async () => {
     if (!pendingCode) return;
@@ -115,22 +118,31 @@ export function RestaurantDevicesPage() {
         }
       />
 
-      {/* Kontext: välj restaurang för att se DESS kopplade enheter. Enheter
-          är restaurang-specifika, så listan är alltid scopad till en
-          restaurang, aldrig en platt lista över alla restauranger. */}
-      <Surface className="p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      {/* Navy-hero: plats-väljare + status i ett. Enheter är restaurang-
+          specifika, så listan är alltid scopad till en restaurang. */}
+      <section className="hero-card" style={{ padding: "20px 22px" }}>
+        <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <p className="eyebrow mb-2">Plats</p>
-            <CityRestaurantPicker value={restaurantId} onChange={setRestaurantId} />
+            <p className="hero-stat-label">Plats</p>
+            <div className="mt-2.5">
+              <CityRestaurantPicker value={restaurantId} onChange={setRestaurantId} />
+            </div>
           </div>
           {restaurantId ? (
-            <Button variant="secondary" onClick={() => devicesQuery.refetch()} disabled={busy}>
-              <RefreshCw size={14} className="mr-1.5 inline" /> Uppdatera
-            </Button>
+            <div className="flex flex-none items-center gap-3">
+              <div className="text-right">
+                <p className="hero-stat-label">Online</p>
+                <p className="hero-stat-value">
+                  {onlineCount}<span className="text-[rgba(254,247,240,0.5)]"> / {devices.length}</span>
+                </p>
+              </div>
+              <Button variant="secondary" onClick={() => devicesQuery.refetch()} disabled={busy}>
+                <RefreshCw size={14} className={busy ? "animate-spin" : undefined} />
+              </Button>
+            </div>
           ) : null}
         </div>
-      </Surface>
+      </section>
 
       {!restaurantId ? (
         <Surface className="px-6 py-16 text-center">
@@ -141,25 +153,9 @@ export function RestaurantDevicesPage() {
       ) : devicesQuery.isLoading ? (
         <LoadingPanel label="Laddar enheter…" />
       ) : (
-        <Surface className="overflow-hidden p-0">
-          <div className="flex items-center justify-between gap-3 border-b border-[var(--row-divider)] px-[18px] py-4">
-            <div><p className="text-[15px] font-extrabold tracking-[-0.3px]">Kopplade enheter</p><p className="mt-0.5 text-xs text-[var(--text-muted)]">Plattor och skrivare som kan ta emot restaurangens order.</p></div>
-            <span className="text-xs font-bold text-[var(--text-muted)]">{devices.length} totalt</span>
-          </div>
-          {/* Desktop table */}
-          <div
-            className="hidden items-center px-[18px] py-[11px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)] md:grid"
-            style={{ gridTemplateColumns: "1.4fr 1.1fr 1fr 90px 64px", borderBottom: "1px solid var(--row-divider)" }}
-          >
-            <span>Enhet{devices.length > 0 ? ` (${devices.length})` : ""}</span>
-            <span>ID</span>
-            <span>Senast aktiv</span>
-            <span>Status</span>
-            <span />
-          </div>
-
+        <div className="grid gap-4">
           {devices.length === 0 ? (
-            <div className="px-6 py-14">
+            <Surface className="px-6 py-14">
               <EmptyState
                 title="Ingen enhet parad ännu"
                 description="Tryck på Koppla enhet, generera en kod och skriv in den i ViaEats Business-appen på enheten."
@@ -170,120 +166,80 @@ export function RestaurantDevicesPage() {
                   </Button>
                 }
               />
-            </div>
+            </Surface>
           ) : (
-            <div className="max-h-[460px] overflow-y-auto">
-              {devices.map((device, idx) => {
-              const linked = device.status === "linked";
-              return (
-                <div
-                  key={device.id}
-                  className="grid gap-3 px-4 py-4 text-[13px] md:grid-cols-[1.4fr_1.1fr_1fr_90px_64px] md:items-center md:gap-0 md:px-[18px] md:py-[13px]"
-                  style={{
-                    borderBottom: idx === devices.length - 1 ? "none" : "1px solid var(--row-divider)",
-                  }}
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]"
-                      style={{
-                        background: linked
-                          ? "var(--accent-soft)"
-                          : "var(--danger-soft)",
-                      }}
-                    >
-                      <Tablet size={17} color={linked ? "var(--accent)" : "var(--danger)"} />
-                    </div>
-                    <span className="min-w-0">
-                      <span className="block truncate font-bold text-[var(--text-primary)]">
-                        {device.label ||
-                          [device.deviceBrand, device.deviceModel].filter(Boolean).join(" ") ||
-                          "Enhet"}
+            <div className="grid gap-3 lg:grid-cols-2">
+              {devices.map((device) => {
+                const linked = device.status === "linked";
+                const model = [device.deviceBrand, device.deviceModel].filter(Boolean).join(" ");
+                return (
+                  <Surface key={device.id} className="device-card">
+                    <div className="flex items-start gap-3.5">
+                      <span className={`device-icon${linked ? " is-online" : ""}`}>
+                        <Tablet size={19} />
+                        {linked && <span className="device-pulse" aria-hidden />}
                       </span>
-                      {/* Modellraden följer enheten även när den är utloggad,
-                          så man alltid vet vilken fysisk platta raden gäller. */}
-                      {(device.deviceModel || device.appVersion) ? (
-                        <span className="block truncate text-[11px] font-medium text-[var(--text-muted)]">
-                          {[
-                            device.label
-                              ? [device.deviceBrand, device.deviceModel].filter(Boolean).join(" ")
-                              : null,
-                            device.osVersion ? `Android ${device.osVersion}` : null,
-                            device.appVersion ? `App v${device.appVersion}` : null,
-                          ]
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="min-w-0 truncate text-[14.5px] font-extrabold tracking-[-0.2px] text-[var(--text-primary)]">
+                            {device.label || model || "Enhet"}
+                          </p>
+                          <Badge tone={linked ? "success" : "warning"}>{linked ? "Online" : "Utloggad"}</Badge>
+                        </div>
+                        <p className="mt-0.5 truncate text-[12px] text-[var(--text-muted)]">
+                          {[device.label ? model : null, device.osVersion ? `Android ${device.osVersion}` : null, device.appVersion ? `v${device.appVersion}` : null]
                             .filter(Boolean)
-                            .join(" · ")}
-                        </span>
-                      ) : null}
-                    </span>
-                  </div>
-                  <span className="min-w-0 font-mono text-[11px] text-[var(--text-secondary)] md:truncate md:text-[12px]">
-                    <span className="mr-2 font-sans font-bold text-[var(--text-muted)] md:hidden">ID</span>
-                    {device.deviceId.slice(0, 18)}…
-                  </span>
-                  <span className="text-[12px] text-[var(--text-secondary)] md:text-[13px]">
-                    <span className="mr-2 font-bold text-[var(--text-muted)] md:hidden">Senast aktiv</span>
-                    {formatWhen(device.lastSeenAt)}
-                  </span>
-                  <span className="flex items-center justify-between md:block">
-                    <span className="font-bold text-[var(--text-muted)] md:hidden">Status</span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <span
-                        className="h-[7px] w-[7px] shrink-0 rounded-full"
-                        style={{ background: linked ? "var(--success)" : "var(--warning)" }}
-                      />
-                      <Badge tone={linked ? "success" : "warning"}>
-                        {linked ? "Online" : "Utloggad"}
-                      </Badge>
-                    </span>
-                  </span>
-                  <div className="flex items-center justify-end gap-1.5 border-t border-[var(--row-divider)] pt-3 md:border-0 md:pt-0">
-                    {linked ? (
-                      // Logga ut FÖRST — delete är inte tillgängligt på en
-                      // inloggad platta (annars loggas den inte ut innan den
-                      // tas bort).
-                      <Button
-                        variant="danger"
-                        disabled={busy}
-                        onClick={() => revokeMutation.mutate(device.id)}
-                        aria-label="Logga ut"
-                        title="Logga ut"
-                      >
-                        <LogOut size={15} />
-                      </Button>
-                    ) : (
-                      <>
-                        <Button
-                          variant="primary"
-                          disabled={busy}
-                          onClick={() => restoreMutation.mutate(device.id)}
-                          aria-label="Logga in igen"
-                          title="Logga in igen"
-                        >
-                          <LogIn size={15} />
+                            .join(" · ") || "Ingen enhetsinfo"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="card-label">Senast aktiv</p>
+                        <p className="mt-1 text-[12.5px] font-bold text-[var(--text-secondary)]">{formatWhen(device.lastSeenAt)}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="card-label">Enhets-ID</p>
+                        <p className="mt-1 truncate font-mono text-[11.5px] text-[var(--text-muted)]" title={device.deviceId}>
+                          {device.deviceId.slice(0, 16)}…
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2 border-t border-[var(--row-divider)] pt-3.5">
+                      {linked ? (
+                        // Logga ut FÖRST — delete är inte tillgängligt på en
+                        // inloggad platta (annars loggas den inte ut innan den
+                        // tas bort).
+                        <Button variant="danger" disabled={busy} onClick={() => revokeMutation.mutate(device.id)}>
+                          <LogOut size={14} /> Logga ut
                         </Button>
-                        <Button
-                          variant="secondary"
-                          disabled={busy}
-                          aria-label="Ta bort"
-                          title="Ta bort"
-                          onClick={() => {
-                            if (window.confirm("Ta bort enheten helt? Enheten loggas ut och kan paras om med en ny kod (även till en annan restaurang).")) {
-                              deleteMutation.mutate(device.id);
-                            }
-                          }}
-                        >
-                          <Trash2 size={15} />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
+                      ) : (
+                        <>
+                          <Button variant="primary" disabled={busy} onClick={() => restoreMutation.mutate(device.id)}>
+                            <LogIn size={14} /> Logga in igen
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            disabled={busy}
+                            onClick={() => {
+                              if (window.confirm("Ta bort enheten helt? Enheten loggas ut och kan paras om med en ny kod (även till en annan restaurang).")) {
+                                deleteMutation.mutate(device.id);
+                              }
+                            }}
+                          >
+                            <Trash2 size={14} /> Ta bort
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </Surface>
+                );
               })}
             </div>
           )}
-        </Surface>
+        </div>
       )}
 
       {/* Koppla enhet: stad → restaurang → enhetskod */}
@@ -318,37 +274,33 @@ export function RestaurantDevicesPage() {
           </div>
 
           {/* Steg 2 — ange på enheten */}
-          <div
-            className="flex min-h-[250px] flex-col items-center justify-center rounded-[14px] p-6 text-center"
-            style={{ background: "#111113" }}
-          >
-            <p className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#9CA3AF]">
+          <div className="pairing-stage" style={{ backgroundImage: `url(${brandPattern.src})` }}>
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.09em] text-[rgba(254,247,240,0.55)]">
               Steg 2 · ange på enheten
             </p>
             {pendingCode ? (
               <>
-                <p
-                  className="mt-5 max-w-full break-all font-mono text-[clamp(28px,10vw,40px)] font-extrabold leading-none tracking-[0.12em] text-white"
-                  style={{ wordBreak: "break-all" }}
-                >
-                  {pendingCode.code}
-                </p>
+                <p className="pairing-code">{pendingCode.code}</p>
                 <Button variant="secondary" className="mt-5" onClick={copyCode}>
-                  {copied ? <Check size={15} className="mr-1.5 inline" /> : <Copy size={15} className="mr-1.5 inline" />}
+                  {copied ? <Check size={15} /> : <Copy size={15} />}
                   {copied ? "Kopierad" : "Kopiera kod"}
                 </Button>
-                <p className="mt-5 flex max-w-full items-start gap-2 text-[12px] leading-relaxed text-white/70">
+                <p className="mt-5 flex items-center gap-2 text-[12px] text-[rgba(254,247,240,0.7)]">
                   <RefreshCw size={13} className="animate-spin opacity-70" />
-                  Väntar på att plattan parar. Giltig till {formatWhen(pendingCode.expiresAt)} i din lokala tid.
+                  Väntar på att plattan parar…
                 </p>
-                <p className="mt-2 max-w-[30ch] text-[12px] leading-relaxed text-white/60">
-                  Engångskoden gäller i upp till 24 timmar. Upprepade klick visar samma kod och ändrar inte den du redan skickat.
+                <p className="mt-2 max-w-[32ch] text-[11.5px] leading-relaxed text-[rgba(254,247,240,0.5)]">
+                  Giltig till {formatWhen(pendingCode.expiresAt)}. Upprepade klick visar samma kod.
                 </p>
               </>
             ) : (
-              <p className="mt-5 max-w-[30ch] text-[13px] leading-relaxed text-white/60">
-                Välj restaurang och tryck på Generera enhetskod. Koden visas här att skriva in på plattan.
-              </p>
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={creamSmiley.src} alt="" className="mt-5 h-16 w-16 object-contain opacity-90" />
+                <p className="mt-4 max-w-[30ch] text-[13px] leading-relaxed text-[rgba(254,247,240,0.6)]">
+                  Välj restaurang och generera en kod — den visas här att skriva in på plattan.
+                </p>
+              </>
             )}
           </div>
         </div>

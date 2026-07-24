@@ -90,7 +90,7 @@ export const resolveAdminSessionFromToken = async (token: string) => {
 
   const admin = await prisma.adminUser.findFirst({
     where: { id: payload.id, isActive: true },
-    select: { id: true, email: true, name: true, role: true, isActive: true },
+    select: { id: true, email: true, name: true, username: true, avatarUrl: true, role: true, isActive: true },
   });
 
   if (!admin) {

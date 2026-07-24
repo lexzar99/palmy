@@ -309,7 +309,12 @@ export function DashboardPage() {
           </div>
 
           <button type="button" className="dash-avatar" onClick={() => router.push("/users")} aria-label="Min profil" title={profileName}>
-            {initials(profileName)}
+            {session.data?.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={session.data.avatarUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              initials(profileName)
+            )}
           </button>
         </div>
       </div>

@@ -314,7 +314,14 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
           }}
           title="Öppna användare"
         >
-          <span className="sidebar-profile-avatar" aria-hidden>{nameInitials(profileName)}</span>
+          <span className="sidebar-profile-avatar" aria-hidden>
+            {session.data?.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={session.data.avatarUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              nameInitials(profileName)
+            )}
+          </span>
           <span className="min-w-0 flex-1">
             <span className="sidebar-profile-name truncate">{profileName}</span>
             <span className="sidebar-profile-role">Superadmin</span>

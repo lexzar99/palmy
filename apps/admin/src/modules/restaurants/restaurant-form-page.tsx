@@ -442,12 +442,15 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
       }
       const payload = mapFormToPayload(form);
       if (restaurantId) return patchRestaurant(restaurantId, payload);
-      return createRestaurant(payload);
+      // Nya restauranger föds som utkast — de publiceras medvetet från
+      // detaljsidan när checklistan är grön.
+      return createRestaurant({ ...payload, draft: true });
     },
     onSuccess: async (saved) => {
       setSaveError(null);
       if (isCreate) {
         await queryClient.invalidateQueries({ queryKey: restaurantsQueryKey });
+        showToast({ type: "success", message: "Sparad som utkast — publicera när allt är klart." });
         router.push(`/restaurants/${(saved as any).id}`);
         return;
       }
@@ -561,7 +564,8 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
   // ── Nyskapande: helsides-onboarding i sex steg ──
   if (isCreate) {
     // Namnsteget är enda kravet — resten kan fyllas i efteråt.
-    const stepValid = createStep === 1 ? form.name.trim().length >= 2 : true;
+    const canSaveDraft = form.name.trim().length >= 2;
+    const stepValid = createStep === 1 ? canSaveDraft : true;
     const openDays = DAYS.filter(({ key }) => !form.openingHours[key].closed && form.openingHours[key].shifts.length > 0);
 
     const active = CREATE_STEPS[createStep];
@@ -582,7 +586,6 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 <button
                   key={step.label}
                   type="button"
-                  disabled={i > createStep}
                   onClick={() => setCreateStep(i)}
                   className={cn("onb-track-item", i === createStep && "is-active", done && "is-done")}
                 >
@@ -819,20 +822,35 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
 
         {saveError && <p className="field-message" role="alert">{saveError}</p>}
 
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <Button disabled={createStep === 0} onClick={() => setCreateStep(createStep - 1)}>
             <ArrowLeft size={14} /> Tillbaka
           </Button>
-          {createStep < CREATE_STEPS.length - 1 ? (
-            <Button variant="primary" disabled={!stepValid} onClick={() => setCreateStep(createStep + 1)}>
-              Nästa <ArrowRight size={14} />
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Utkast kan sparas från vilket steg som helst så länge namnet
+                finns — resten fylls i på detaljsidan. */}
+            <Button
+              disabled={!canSaveDraft || saveMutation.isPending}
+              loading={saveMutation.isPending}
+              onClick={() => saveMutation.mutate()}
+              title={canSaveDraft ? undefined : "Ange restaurangens namn först"}
+            >
+              <Save size={14} /> Spara utkast
             </Button>
-          ) : (
-            <Button variant="primary" loading={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
-              <Save size={14} /> Skapa restaurang
-            </Button>
-          )}
+            {createStep < CREATE_STEPS.length - 1 ? (
+              <Button variant="primary" disabled={!stepValid} onClick={() => setCreateStep(createStep + 1)}>
+                Nästa <ArrowRight size={14} />
+              </Button>
+            ) : (
+              <Button variant="primary" disabled={!canSaveDraft || saveMutation.isPending} loading={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
+                Skapa restaurang <ArrowRight size={14} />
+              </Button>
+            )}
+          </div>
         </div>
+        <p className="text-center text-[12px] text-[var(--text-muted)] sm:text-left">
+          Restaurangen skapas som utkast och syns inte för kunder förrän du publicerar den.
+        </p>
         </div>
       </div>
     );
