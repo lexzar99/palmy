@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { io } from "socket.io-client";
 import {
   Check,
   Copy,
@@ -58,17 +59,36 @@ export function RestaurantDevicesPage() {
     queryKey,
     queryFn: () => getRestaurantDevices(restaurantId),
     enabled: Boolean(restaurantId),
-    // Snabb poll behövs BARA medan en parningskod är aktiv — då väntar
-    // operatören på att plattan ska dyka upp. Resten av tiden ändras listan
-    // sällan, och 3,5 s dygnet runt kostade ~1 000 DB-anrop i timmen.
-    refetchInterval: (query) => {
-      if (!restaurantId) return false;
-      return query.state.data?.pendingCode ? 3500 : 30_000;
-    },
+    // Ingen poll när inget händer: plattan PUSHAR sin status via socket
+    // ("device:updated") och vi hämtar om då. Enda undantaget är medan en
+    // parningskod är aktiv — då väntar operatören på att enheten ska dyka
+    // upp, och koden kan dessutom hinna gå ut medan vyn står öppen.
+    refetchInterval: (query) => (restaurantId && query.state.data?.pendingCode ? 3500 : false),
     refetchOnWindowFocus: true,
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey });
+  const invalidate = useCallback(
+    () => queryClient.invalidateQueries({ queryKey }),
+    [queryClient, queryKey],
+  );
+
+  // Socket-lyssnare: enheten talar om när den parats, startat session eller
+  // loggats ut. Offline enhet = noll trafik mot databasen.
+  useEffect(() => {
+    if (!restaurantId) return;
+    const socket = io(typeof window !== "undefined" ? window.location.origin : "", {
+      path: "/socket.io",
+      transports: ["websocket", "polling"],
+      withCredentials: true,
+    });
+    socket.on("connect", () => socket.emit("join:admin"));
+    socket.on("device:updated", (payload: { restaurantId?: string }) => {
+      if (!payload?.restaurantId || payload.restaurantId === restaurantId) void invalidate();
+    });
+    return () => {
+      socket.disconnect();
+    };
+  }, [restaurantId, invalidate]);
 
   const generateMutation = useMutation({
     mutationFn: () => generatePairingCode(restaurantId),

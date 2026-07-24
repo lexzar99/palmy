@@ -201,6 +201,21 @@ async function rotateTerminalSession(input: {
 
 // POST /api/terminal/pair  { code, deviceId, pushToken?, label? }
 // Engångsparning. Binder device-id → restaurang och returnerar tokens.
+/**
+ * Talar om för adminpanelen att en enhets status ändrats (parad, ny session,
+ * utloggad). Panelen lyssnar och hämtar om listan — därför behöver den inte
+ * polla alls, vilket tog bort ~1 000 DB-anrop i timmen per öppen enhetsvy.
+ * Best effort: en trasig socket får aldrig fälla terminal-anropet.
+ */
+export function notifyDeviceChanged(restaurantId: string, reason: string) {
+  try {
+    getIO().to('admin-room').emit('device:updated', { restaurantId, reason });
+    getIO().to(`admin-room:${restaurantId}`).emit('device:updated', { restaurantId, reason });
+  } catch {
+    /* socket nere — panelen faller tillbaka på sin långsamma säkerhetspoll */
+  }
+}
+
 router.post('/pair', async (req, res) => {
   try {
     const { code, deviceId, pushToken, label, client } = (req.body || {}) as {
@@ -336,6 +351,7 @@ router.post('/pair', async (req, res) => {
       });
     }
 
+    notifyDeviceChanged(pairing.restaurantId, 'paired');
     res.json(terminalSessionPayload(ensured, String(deviceId), refreshToken));
   } catch (error) {
     console.error('[terminal/pair] error:', error);
@@ -400,6 +416,7 @@ router.post('/session', async (req, res) => {
         restaurantId: device.restaurantId,
       });
     }
+    notifyDeviceChanged(device.restaurantId, 'session');
     res.json(rotated);
   } catch (error) {
     console.error('[terminal/session] error:', error);

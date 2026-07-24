@@ -6,6 +6,7 @@ import prisma from '../lib/prisma';
 import { authenticate, requireSuperAdmin, autoRoleGate, AuthRequest } from '../middleware/auth';
 import { audit } from '../lib/auditLog';
 import { getIO } from '../lib/socket';
+import { notifyDeviceChanged } from './terminal';
 import { eatsmartCatalog, getCatalogStats } from '../lib/eatsmartCatalog';
 import { slugify, uniqueMenuSlug } from '../lib/slug';
 import { formatDealForClient, getDealScopeType, parseDealProductIds, parseDealTargetIds, PARTNER_DEAL_MARKER } from '../lib/deals';
@@ -6165,6 +6166,7 @@ router.post('/devices/:id/revoke', authenticate, requireSuperAdmin, async (req, 
       }, 250);
     } catch (_) {}
     await audit(req as AuthRequest, 'DEVICE_REVOKE', { resourceType: 'RestaurantDevice', resourceId: req.params.id });
+    if (device?.restaurantId) notifyDeviceChanged(device.restaurantId, 'revoked');
     res.json({ success: true });
   } catch (error) {
     console.error('[devices revoke] error:', error);
@@ -6175,11 +6177,13 @@ router.post('/devices/:id/revoke', authenticate, requireSuperAdmin, async (req, 
 // POST /devices/:id/restore — åter-aktivera (logga in igen).
 router.post('/devices/:id/restore', authenticate, requireSuperAdmin, async (req, res) => {
   try {
-    await (prisma as any).restaurantDevice.update({
+    const restored = await (prisma as any).restaurantDevice.update({
       where: { id: req.params.id },
       data: { revoked: false },
+      select: { restaurantId: true },
     });
     await audit(req as AuthRequest, 'DEVICE_RESTORE', { resourceType: 'RestaurantDevice', resourceId: req.params.id });
+    if (restored?.restaurantId) notifyDeviceChanged(restored.restaurantId, 'restored');
     res.json({ success: true });
   } catch (error) {
     console.error('[devices restore] error:', error);
@@ -6235,6 +6239,7 @@ router.delete('/devices/:id', authenticate, requireSuperAdmin, async (req, res) 
       } catch (_) {}
     }
     await audit(req as AuthRequest, 'DEVICE_DELETE', { resourceType: 'RestaurantDevice', resourceId: req.params.id });
+    if (device?.restaurantId) notifyDeviceChanged(device.restaurantId, 'deleted');
     res.json({ success: true });
   } catch (error) {
     console.error('[devices delete] error:', error);
