@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -113,9 +113,9 @@ test("session refresh splits customer cleanup from stale push revocation", () =>
   assert.match(sessionRoute, /verifyActivePlatformCustomer\(token, nextCustomerId\)/);
 
   const profile = read("app/profile/page.tsx");
-  assert.match(profile, /Stale platform session[\s\S]*clearPlatformSessionForRefresh\(\)/);
-  assert.match(profile, /forcing fresh exchange[\s\S]*clearPlatformSessionForRefresh\(\)/);
-  assert.match(profile, /isLoggedOutMark\(\) && !hasExplicitLoginIntent\(\)/);
+  assert.match(profile, /const authenticated = await getPlatformSessionStatus\(\)/);
+  assert.match(profile, /if \(authenticated\) await fetchData\(\)/);
+  assert.doesNotMatch(profile, /clearPlatformSessionForRefresh|oauth-token|hasExplicitLoginIntent|isLoggedOutMark/);
 });
 
 test("guest order web access uses scoped HttpOnly sessions and clean deep links", () => {
@@ -180,12 +180,8 @@ test("native auth never transports bearer tokens in custom-scheme URLs", () => {
   assert.doesNotMatch(redirectPolicy, /viaeats:\/\//);
 });
 
-test("OAuth exchange logging never serializes Axios request config or id token", () => {
-  const source = read("app/api/auth/[...nextauth]/route.ts");
-  const failureBlock = source.match(/catch \(err\) \{([\s\S]*?)\n\s*}/)?.[1] || "";
-  assert.match(failureBlock, /axios\.isAxiosError\(err\)/);
-  assert.doesNotMatch(failureBlock, /console\.error\([^\n]*err\)/);
-  assert.doesNotMatch(source, /console\.error\("OAuth token exchange failed:",\s*err\)/);
+test("legacy customer NextAuth OAuth route is removed", () => {
+  assert.equal(existsSync(new URL("../app/api/auth/[...nextauth]/route.ts", import.meta.url)), false);
 });
 
 test("saved deal links have a real detail route", () => {

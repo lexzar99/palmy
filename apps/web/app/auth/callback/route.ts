@@ -1,19 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 
 /**
- * Supabase Auth callback — handles Google and Apple OAuth redirects.
- *
- * Supabase redirects here after Google / Apple / Phone sign-in with a ?code=.
- * VIKTIGT: session-cookies från exchangeCodeForSession MÅSTE bindas till exakt
- * den NextResponse vi returnerar. Tidigare skrevs de via next/headers cookies()
- * och försvann när vi returnerade en NY NextResponse.redirect() → sessionen
- * persistade inte ("Apple loggar in men sidan loggar inte in efter redirect").
+ * Legacy Supabase redirect callback.
+ * Customer verification is phone-only and happens directly in PhoneAuth with
+ * SMS OTP, so hosted OAuth redirects must not create a customer web session.
  */
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/profile";
   const nativeRedirect = searchParams.get("native_redirect");
 
   // Slutdestination bestäms upp-front så cookies kan bindas till rätt response.
@@ -32,40 +26,12 @@ export async function GET(request: NextRequest) {
   if (nativeRedirect) {
     return NextResponse.json(
       {
-        error: "Uppdatera ViaEats-appen för att logga in",
+        error: "Uppdatera ViaEats-appen för nummerverifiering",
         code: "NATIVE_AUTH_UPDATE_REQUIRED",
       },
       { status: 410, headers: { "Cache-Control": "no-store" } },
     );
   }
 
-  // Bygg redirect-responsen FÖRST och låt Supabase skriva session-cookies på DEN.
-  const response = NextResponse.redirect(`${baseUrl}${next}`);
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => request.cookies.getAll(),
-        setAll: (cookiesToSet) =>
-          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options)),
-      },
-    },
-  );
-
-  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-  if (error || !data.session) {
-    return NextResponse.redirect(`${baseUrl}/profile?error=auth_callback_failed`);
-  }
-
-  const provider = String(data.user?.app_metadata?.provider || "").toLowerCase();
-  if (provider !== "google" && provider !== "apple") {
-    // Email/password and magic-link sessions are intentionally not customer
-    // login methods. Phone OTP is completed directly in PhoneAuth and does not
-    // use this OAuth callback.
-    return NextResponse.redirect(`${baseUrl}/profile?error=unsupported_auth_method`);
-  }
-
-  // Web: returnera responsen som bär session-cookies → kunden är inloggad.
-  return response;
+  return NextResponse.redirect(`${baseUrl}/profile?error=unsupported_auth_method`);
 }

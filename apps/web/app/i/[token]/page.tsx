@@ -4,7 +4,7 @@ import ViaEatsWordmark from "@/components/ViaEatsWordmark";
 import { API_URL } from "@/lib/api";
 
 // Invite-landning — /i/<token>. Riktig välkomstsida (inte längre en tyst
-// redirect): visar vem som bjöd in, belöningen, och en tydlig "Skapa konto"-CTA.
+// redirect): visar vem som bjöd in, belöningen, och en tydlig nummer-CTA.
 // Cookien dlv_ref sätts klient-sida (RefCookie) + token bärs i ?ref på CTA:n.
 export const dynamic = "force-dynamic";
 
@@ -52,7 +52,7 @@ export default async function InviteLandingPage({ params }: { params: Promise<{ 
                 {inviter ? `${inviter} bjöd in dig till ViaEats` : "Du är inbjuden till ViaEats"}
               </h1>
               <p className="text-[14px] leading-snug" style={{ color: "var(--text-secondary)" }}>
-                Skapa ett konto och få bonusen efter din första beställning. Mat hemkört, snabbt och enkelt.
+                Verifiera ditt nummer och få bonusen efter din första beställning. Mat hemkört, snabbt och enkelt.
               </p>
             </div>
 
@@ -80,7 +80,7 @@ export default async function InviteLandingPage({ params }: { params: Promise<{ 
                 className="flex h-[54px] w-full items-center justify-center rounded-2xl text-[15px] font-semibold transition-all active:scale-[0.99]"
                 style={{ backgroundColor: "var(--text-primary)", color: "var(--bg-primary)" }}
               >
-                Skapa konto
+                Verifiera nummer
               </Link>
               <Link
                 href={`/?ref=${clean}`}

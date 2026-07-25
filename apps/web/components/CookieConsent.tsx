@@ -250,7 +250,7 @@ export default function CookieConsent() {
                   className="text-[11px] leading-snug"
                   style={{ color: "var(--text-secondary)" }}
                 >
-                  Session, varukorg och inloggning. Utan dessa fungerar inte
+                  Session, varukorg och nummerverifiering. Utan dessa fungerar inte
                   beställningen.
                 </p>
               </div>

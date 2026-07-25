@@ -43,7 +43,7 @@ export const messages: Record<Locale, Messages> = {
     "profile.logout": "Logga ut",
     "nav.myOrders": "Mina beställningar",
     "nav.orders": "Beställningar",
-    "nav.login": "Logga in",
+    "nav.login": "Profil",
     "nav.profile": "Profil",
     "nav.cart": "Kundvagn",
     "nav.theme.toLight": "Byt till ljust läge",
@@ -177,8 +177,8 @@ export const messages: Record<Locale, Messages> = {
     "cart.submit.zoneError": "Fel leveransadress",
     "cart.submit.checking": "Kontrollerar adress…",
     "cart.guest.banner": "Du handlar som gäst.",
-    "cart.guest.loginLink": "Logga in",
-    "cart.guest.bannerSuffix": "för sparade adresser och personliga erbjudanden.",
+    "cart.guest.loginLink": "Verifiera nummer",
+    "cart.guest.bannerSuffix": "för orderhistorik och snabbare support.",
 
     // ── Order tracking ────────────────────────────────────────────────────
     "order.title": "Order",
@@ -215,17 +215,17 @@ export const messages: Record<Locale, Messages> = {
     "order.error.myOrders": "Mina ordrar",
 
     // ── Auth (login/register) ─────────────────────────────────────────────
-    "auth.register.subtitle": "Verifiera säkert med SMS, Google eller Apple.",
+    "auth.register.subtitle": "Verifiera säkert med SMS.",
     "auth.email": "E-postadress",
     "auth.firstName": "Förnamn",
     "auth.lastName": "Efternamn",
     "auth.phone": "Telefon",
-    "auth.noAccount": "Inget konto?",
-    "auth.hasAccount": "Har du redan ett konto?",
+    "auth.noAccount": "Vill du spara ordrar?",
+    "auth.hasAccount": "Har du redan verifierat numret?",
     "auth.createAccount": "Skapa ett",
-    "auth.signIn": "Logga in",
-    "auth.oauth.google": "Fortsätt med Google",
-    "auth.oauth.apple": "Fortsätt med Apple",
+    "auth.signIn": "Verifiera nummer",
+    "auth.oauth.google": "Fortsätt med nummer",
+    "auth.oauth.apple": "Fortsätt med nummer",
 
     // ── Common ────────────────────────────────────────────────────────────
     "common.kr": "kr",
@@ -262,7 +262,7 @@ export const messages: Record<Locale, Messages> = {
     "profile.logout": "Log out",
     "nav.myOrders": "My orders",
     "nav.orders": "Orders",
-    "nav.login": "Sign in",
+    "nav.login": "Profile",
     "nav.profile": "Profile",
     "nav.cart": "Cart",
     "nav.theme.toLight": "Switch to light mode",
@@ -395,7 +395,7 @@ export const messages: Record<Locale, Messages> = {
     "cart.submit.zoneError": "Wrong delivery address",
     "cart.submit.checking": "Checking address…",
     "cart.guest.banner": "You're checking out as a guest.",
-    "cart.guest.loginLink": "Sign in",
+    "cart.guest.loginLink": "Verify number",
     "cart.guest.bannerSuffix": "for saved addresses and personal offers.",
 
     // ── Order tracking ────────────────────────────────────────────────────
@@ -433,17 +433,17 @@ export const messages: Record<Locale, Messages> = {
     "order.error.myOrders": "My orders",
 
     // ── Auth ──────────────────────────────────────────────────────────────
-    "auth.register.subtitle": "Only 30 seconds, no verification required.",
+    "auth.register.subtitle": "Verify securely by SMS.",
     "auth.email": "Email address",
     "auth.firstName": "First name",
     "auth.lastName": "Last name",
     "auth.phone": "Phone",
-    "auth.noAccount": "No account?",
-    "auth.hasAccount": "Already have an account?",
-    "auth.createAccount": "Create one",
-    "auth.signIn": "Sign in",
-    "auth.oauth.google": "Continue with Google",
-    "auth.oauth.apple": "Continue with Apple",
+    "auth.noAccount": "Want to save orders?",
+    "auth.hasAccount": "Already verified your number?",
+    "auth.createAccount": "Verify number",
+    "auth.signIn": "Verify number",
+    "auth.oauth.google": "Continue with number",
+    "auth.oauth.apple": "Continue with number",
 
     // ── Common ────────────────────────────────────────────────────────────
     "common.kr": "kr",

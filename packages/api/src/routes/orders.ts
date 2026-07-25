@@ -455,8 +455,10 @@ router.post('/', async (req: Request, res: Response) => {
         return res.status(401).json({ error: 'Kundkontot är inte tillgängligt' });
       }
       authenticatedUserId = authUser.id;
-      // Force use official profile phone to prevent discount abuse.
-      if (authUser.phone) data.customerPhone = authUser.phone;
+      // Keep the order contact phone from checkout. The verified profile is
+      // attached through userId, so a parent can order to a child's phone without
+      // changing their saved number.
+      if (!String(data.customerPhone || '').trim() && authUser.phone) data.customerPhone = authUser.phone;
     }
 
     // Hard gate: a Google/Apple-signed user without a verified phone cannot
@@ -1185,6 +1187,7 @@ router.post('/', async (req: Request, res: Response) => {
       };
       if (
         userDealMeta.ownerPhone &&
+        !authenticatedUserId &&
         normalizeCouponPhone(userDealMeta.ownerPhone) !== normalizeCouponPhone(data.customerPhone)
       ) {
         throw new OrderValidationError('Kupongen tillhör ett annat telefonnummer');

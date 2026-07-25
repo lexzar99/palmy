@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
+import { buildRestaurantStatusMaintenance } from '../lib/restaurantStatusMaintenance';
 import { nextOpeningAfterToday } from '../lib/openingHours';
 import { normalizeDeliveryZones } from '../utils/deliveryZones';
 import { moneyDto, parseOre, sekToOre } from '../utils/money';
@@ -75,6 +76,49 @@ const closedForToday = resolveRestaurantAvailability({
 assert.equal(closedForToday.reason, 'RESTAURANT_PAUSED');
 assert.equal(closedForToday.configuredMode, 'SCHEDULED');
 assert.equal(closedForToday.legacyManualIsOpen, true);
+const expiredPauseDuringOpenHours = buildRestaurantStatusMaintenance({
+  openingHours: dailyWindow,
+  scheduledOpenNow: true,
+  acceptingOrdersMode: 'SCHEDULED',
+  pausedUntil: '2026-07-10T11:59:59.000Z',
+}, now);
+assert.equal(expiredPauseDuringOpenHours.pauseExpired, true);
+assert.deepEqual(expiredPauseDuringOpenHours.update, { pausedUntil: null });
+assert.equal(
+  resolveRestaurantAvailability(expiredPauseDuringOpenHours.restaurantForAvailability, {}, now).reason,
+  'SCHEDULE_OPEN',
+);
+const expiredPauseAfterClosing = buildRestaurantStatusMaintenance({
+  openingHours: dailyWindow,
+  scheduledOpenNow: true,
+  acceptingOrdersMode: 'SCHEDULED',
+  pausedUntil: '2026-07-10T18:59:59.000Z',
+}, new Date('2026-07-10T19:05:00.000Z')); // Friday 21:05 Stockholm
+assert.equal(expiredPauseAfterClosing.pauseExpired, true);
+assert.deepEqual(expiredPauseAfterClosing.update, { scheduledOpenNow: false, pausedUntil: null });
+assert.equal(
+  resolveRestaurantAvailability(
+    expiredPauseAfterClosing.restaurantForAvailability,
+    {},
+    new Date('2026-07-10T19:05:00.000Z'),
+  ).reason,
+  'OUTSIDE_OPENING_HOURS',
+);
+const nextMorningAfterClosedForToday = buildRestaurantStatusMaintenance({
+  openingHours: dailyWindow,
+  scheduledOpenNow: false,
+  acceptingOrdersMode: 'SCHEDULED',
+  pausedUntil: null,
+}, new Date('2026-07-11T09:00:00.000Z')); // Saturday 11:00 Stockholm
+assert.deepEqual(nextMorningAfterClosedForToday.update, { scheduledOpenNow: true });
+assert.equal(
+  resolveRestaurantAvailability(
+    nextMorningAfterClosedForToday.restaurantForAvailability,
+    {},
+    new Date('2026-07-11T09:00:00.000Z'),
+  ).reason,
+  'SCHEDULE_OPEN',
+);
 const expiredOverride = resolveRestaurantAvailability({
     openingHours: '{}',
     acceptingOrdersMode: 'FORCE_CLOSED',

@@ -1,6 +1,6 @@
 "use client";
 
-// Landskods-väljare för telefon-inloggning. Native <select> = PWA-säker, ingen
+// Landskods-väljare för nummerverifiering. Native <select> = PWA-säker, ingen
 // overflow, följer temat. Begränsad till våra marknader; Sverige som standard.
 const COUNTRIES = [
   { code: "+46", flag: "🇸🇪", name: "Sverige" },
@@ -13,14 +13,17 @@ const COUNTRIES = [
 export default function PhoneCountrySelect({
   value,
   onChange,
+  disabled = false,
 }: {
   value: string;
   onChange: (code: string) => void;
+  disabled?: boolean;
 }) {
   return (
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
       aria-label="Landskod"
       style={{
         height: 48,
@@ -34,7 +37,8 @@ export default function PhoneCountrySelect({
         fontSize: 15,
         fontWeight: 600,
         outline: "none",
-        cursor: "pointer",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.6 : 1,
       }}
     >
       {COUNTRIES.map((c) => (

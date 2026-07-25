@@ -70,7 +70,7 @@ export const homePagePending = {
 
     // ── Loyalty banner ───────────────────────────────────────────────────
     "home.loyalty.title": "Personliga erbjudanden och orderhistorik",
-    "home.loyalty.subtitle": "Logga in gratis — du kan alltid beställa utan konto",
+    "home.loyalty.subtitle": "Verifiera nummer när du vill spara ordrar",
 
     // ── Errors / empty states ────────────────────────────────────────────
     "home.cityEmpty.title": "Vi har inte kommit till {city} ännu",
@@ -104,7 +104,7 @@ export const homePagePending = {
     "home.deal.badge.global": "Globalt",
     "home.deal.defaultTitle": "Erbjudande",
     "home.deal.yourCode": "Din kod: {code}",
-    "home.deal.linkedToAccount": "Knutet till ditt konto",
+    "home.deal.linkedToAccount": "Knutet till din profil",
     "home.deal.percentOff": "{value}% rabatt",
     "home.deal.krOff": "{value} kr rabatt",
     "home.deal.autoApplied": "Används automatiskt vid köp.",
@@ -184,7 +184,7 @@ export const homePagePending = {
 
     // ── Loyalty banner ───────────────────────────────────────────────────
     "home.loyalty.title": "Personal offers and order history",
-    "home.loyalty.subtitle": "Sign in for free — you can always order without an account",
+    "home.loyalty.subtitle": "Verify your number when you want to save orders",
 
     // ── Errors / empty states ────────────────────────────────────────────
     "home.cityEmpty.title": "We haven't reached {city} yet",
@@ -218,7 +218,7 @@ export const homePagePending = {
     "home.deal.badge.global": "Global",
     "home.deal.defaultTitle": "Offer",
     "home.deal.yourCode": "Your code: {code}",
-    "home.deal.linkedToAccount": "Linked to your account",
+    "home.deal.linkedToAccount": "Linked to your profile",
     "home.deal.percentOff": "{value}% off",
     "home.deal.krOff": "{value} kr off",
     "home.deal.autoApplied": "Applied automatically at checkout.",

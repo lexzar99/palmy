@@ -339,6 +339,146 @@ router.post('/link-phone', authenticateUser, async (req: any, res: any) => {
   }
 });
 
+// POST /api/profile/change-phone
+// Säker nummerändring: kräver en färsk SMS-session för både nuvarande och nytt
+// nummer. Det gör telefonnumret till enda kundnyckel utan Google/Apple-kopplingar.
+router.post('/change-phone', authenticateUser, async (req: any, res: any) => {
+  try {
+    const {
+      oldPhone,
+      oldVerificationToken,
+      newPhone,
+      newVerificationToken,
+    } = req.body as {
+      oldPhone?: string;
+      oldVerificationToken?: string;
+      newPhone?: string;
+      newVerificationToken?: string;
+    };
+    const requestedOldPhone = normalizeReferralPhone(oldPhone);
+    const requestedNewPhone = normalizeReferralPhone(newPhone);
+    if (!requestedOldPhone || !requestedNewPhone) {
+      return res.status(400).json({ error: 'Telefonnummer krävs' });
+    }
+    if (requestedOldPhone === requestedNewPhone) {
+      return res.status(400).json({ error: 'Det nya numret är samma som det gamla' });
+    }
+    if (!supabaseAdmin || !oldVerificationToken || !newVerificationToken) {
+      return res.status(401).json({
+        error: 'Verifiera båda numren med SMS först',
+        code: 'VERIFIED_PHONE_SESSIONS_REQUIRED',
+      });
+    }
+
+    const account = await (prisma as any).user.findUnique({
+      where: { id: req.user.id },
+      select: { id: true, phone: true, firstName: true, lastName: true, name: true, email: true, image: true, isVerified: true },
+    });
+    const currentPhone = normalizeReferralPhone(account?.phone);
+    if (!account || !currentPhone || currentPhone !== requestedOldPhone) {
+      return res.status(409).json({ error: 'Det gamla numret matchar inte din profil' });
+    }
+
+    const verifyPhoneProof = async (token: string, expectedPhone: string) => {
+      const { data: { user: verifiedUser }, error } = await supabaseAdmin!.auth.getUser(token);
+      const verifiedPhone = normalizeReferralPhone(verifiedUser?.phone);
+      return !error &&
+        verifiedUser &&
+        hasVerifiedSupabasePhone(verifiedUser) &&
+        verifiedPhone === expectedPhone;
+    };
+
+    if (!await verifyPhoneProof(oldVerificationToken, requestedOldPhone)) {
+      return res.status(401).json({
+        error: 'SMS-koden för gamla numret kunde inte verifieras',
+        code: 'OLD_PHONE_VERIFICATION_FAILED',
+      });
+    }
+    if (!await verifyPhoneProof(newVerificationToken, requestedNewPhone)) {
+      return res.status(401).json({
+        error: 'SMS-koden för nya numret kunde inte verifieras',
+        code: 'NEW_PHONE_VERIFICATION_FAILED',
+      });
+    }
+
+    const existingWithNewPhone = await (prisma as any).user.findFirst({
+      where: {
+        id: { not: req.user.id },
+        phone: { in: referralPhoneVariants(requestedNewPhone) },
+        deletedAt: null,
+      },
+      select: { id: true, isGuest: true, isActive: true },
+    });
+    if (existingWithNewPhone && (!existingWithNewPhone.isGuest || existingWithNewPhone.isActive === false)) {
+      return res.status(409).json({
+        error: 'Det nya numret används redan. Kontakta support om det är ditt nummer.',
+        code: 'PHONE_ALREADY_IN_USE',
+      });
+    }
+
+    const updated = await (prisma as any).$transaction(async (tx: any) => {
+      if (existingWithNewPhone?.isGuest) {
+        await Promise.all([
+          tx.order.updateMany({ where: { userId: existingWithNewPhone.id }, data: { userId: req.user.id } }),
+          tx.userDeal.updateMany({ where: { userId: existingWithNewPhone.id }, data: { userId: req.user.id } }),
+          tx.customerDeal.updateMany({ where: { userId: existingWithNewPhone.id }, data: { userId: req.user.id } }),
+          tx.savedAddress.updateMany({ where: { userId: existingWithNewPhone.id }, data: { userId: req.user.id } }),
+        ]);
+        await tx.user.update({
+          where: { id: existingWithNewPhone.id },
+          data: {
+            phone: null,
+            isActive: false,
+            isGuest: false,
+            isVerified: false,
+            deletedAt: new Date(),
+            name: '',
+            firstName: null,
+            lastName: null,
+          },
+        });
+      }
+
+      return tx.user.update({
+        where: { id: req.user.id },
+        data: {
+          phone: requestedNewPhone,
+          isVerified: true,
+          isGuest: false,
+        },
+        select: { id: true, name: true, firstName: true, lastName: true, phone: true, email: true, isVerified: true, image: true },
+      });
+    });
+
+    invalidateCachedCustomerIdentity(req.user.id);
+    if (existingWithNewPhone?.id) invalidateCachedCustomerIdentity(existingWithNewPhone.id);
+
+    const first = (updated.firstName || '').trim();
+    const last = (updated.lastName || '').trim();
+    const profileComplete = Boolean(first && last);
+    return res.json({
+      user: {
+        ...updated,
+        needsPhone: false,
+        needsName: !profileComplete,
+        profileComplete,
+      },
+    });
+  } catch (error: any) {
+    console.error('[change-phone] error:', error?.stack || error?.message || error);
+    if (['P2002', 'P2003', 'P2025'].includes(error?.code)) {
+      return res.status(409).json({
+        error: 'Numret kunde inte bytas säkert. Försök igen eller kontakta support.',
+        code: 'PHONE_CHANGE_CONFLICT',
+      });
+    }
+    return res.status(500).json({
+      error: 'Kunde inte byta nummer',
+      ...(process.env.NODE_ENV !== 'production' ? { detail: error?.message } : {}),
+    });
+  }
+});
+
 // GET /api/profile/orders
 // Konverterar öre → kr på alla penning-fält INNAN respons så att frontend
 // (profile + orders-sidor) kan rendera direkt utan `/100`. Tidigare returnerades

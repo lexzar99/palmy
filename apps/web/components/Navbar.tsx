@@ -144,7 +144,7 @@ const Navbar = () => {
               className="text-sm font-semibold transition-colors"
               style={{ color: "var(--text-primary)" }}
             >
-              {t("nav.login")}
+              {t("nav.profile")}
             </Link>
           )}
 

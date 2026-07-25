@@ -1,0 +1,98 @@
+<title>Så funkar de tre zonerna</title>
+<style>
+:root{--bg:#fbfaf8;--fg:#17140f;--muted:#6d6660;--line:#e3ded7;--card:#fff;--road:#cfc8bd;
+--grey:#8b96a5;--greyl:#4a5567;--band:#c9a227;--ac:#ea580c;--ok:#16a34a}
+@media (prefers-color-scheme:dark){:root{--bg:#100f0e;--fg:#f3eee8;--muted:#9c948d;--line:#2b2825;--card:#181615;--road:#514a42;--grey:#5a6675;--greyl:#9daabb;--band:#e0b83a;--ac:#fb923c;--ok:#4ade80}}
+:root[data-theme=dark]{--bg:#100f0e;--fg:#f3eee8;--muted:#9c948d;--line:#2b2825;--card:#181615;--road:#514a42;--grey:#5a6675;--greyl:#9daabb;--band:#e0b83a;--ac:#fb923c;--ok:#4ade80}
+:root[data-theme=light]{--bg:#fbfaf8;--fg:#17140f;--muted:#6d6660;--line:#e3ded7;--card:#fff;--road:#cfc8bd;--grey:#8b96a5;--greyl:#4a5567;--band:#c9a227;--ac:#ea580c;--ok:#16a34a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.w{max-width:960px;margin:0 auto;padding:40px 22px 70px}
+h1{font-size:clamp(24px,4.2vw,33px);margin:0 0 8px;letter-spacing:-.022em;line-height:1.15}
+.sub{color:var(--muted);margin:0 0 32px;font-size:15px}
+h2{font-size:20px;margin:42px 0 14px;letter-spacing:-.012em}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
+svg{display:block;width:100%;height:auto}
+.steps{display:grid;gap:14px;margin:22px 0}
+.step{display:grid;grid-template-columns:44px 1fr;gap:15px;align-items:start;
+background:var(--card);border:1px solid var(--line);border-radius:13px;padding:16px 18px}
+.step .num{width:44px;height:44px;border-radius:11px;display:grid;place-items:center;font-weight:800;font-size:19px;color:#fff}
+.step h3{margin:0 0 3px;font-size:17px;letter-spacing:-.01em}
+.step .rule{display:inline-block;margin:9px 0 0;padding:3px 10px;border-radius:20px;font-size:13px;font-weight:600}
+.step p{margin:4px 0 0;font-size:14.5px}
+.step p.why{color:var(--muted);font-size:13.5px;margin-top:7px}
+.sc{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+table{border-collapse:collapse;width:100%;min-width:540px;font-size:14.5px}
+th,td{padding:11px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.n{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--ac);border-radius:10px;padding:15px 18px;margin:20px 0;font-size:15px}
+.n b{color:var(--ac)}
+.cap{color:var(--muted);font-size:13px;margin:12px 4px 0}
+</style>
+<div class="w">
+<h1>Så funkar de tre zonerna</h1>
+<p class="sub">Förenklad skiss. Restaurangen i mitten, föraren kör utåt. Vad kunden får se beror på vilken zon föraren befinner sig i.</p>
+
+<div class="card">
+<svg viewBox="0 0 760 610" role="img" aria-label="Skiss: innerzon, identifieringsband och commit-zon">
+<g stroke="var(--road)" stroke-width="3" fill="none" stroke-linecap="round"><path d="M380.0 300.0 L380.0 26.0"/><path d="M380.0 300.0 L573.7 106.3"/><path d="M380.0 300.0 L654.0 300.0"/><path d="M380.0 300.0 L573.7 493.7"/><path d="M380.0 300.0 L380.0 574.0"/><path d="M380.0 300.0 L186.3 493.7"/><path d="M380.0 300.0 L106.0 300.0"/><path d="M380.0 300.0 L186.3 106.3"/><path d="M380.0 150.0 L438.5 46.7"/><path d="M380.0 150.0 L321.5 46.7"/><path d="M521.4 158.6 L600.5 162.2"/><path d="M521.4 158.6 L517.8 79.5"/><path d="M510.0 300.0 L633.3 358.5"/><path d="M510.0 300.0 L633.3 241.5"/><path d="M518.6 438.6 L517.8 520.5"/><path d="M518.6 438.6 L600.5 437.8"/><path d="M380.0 528.0 L321.5 553.3"/><path d="M380.0 528.0 L438.5 553.3"/><path d="M228.7 451.3 L159.5 437.8"/><path d="M228.7 451.3 L242.2 520.5"/><path d="M244.0 300.0 L126.7 241.5"/><path d="M244.0 300.0 L126.7 358.5"/><path d="M255.5 175.5 L242.2 79.5"/><path d="M255.5 175.5 L159.5 162.2"/></g>
+<path d="M411.3 209.2 L428.8 158.2 L331.2 158.2 L348.7 209.2 Z" fill="var(--band)" fill-opacity=".12" stroke="var(--band)" stroke-width="1.6" stroke-dasharray="7 5"/><path d="M448.3 266.7 L559.8 212.3 L467.7 120.2 L413.3 231.7 Z" fill="var(--band)" fill-opacity=".12" stroke="var(--band)" stroke-width="1.6" stroke-dasharray="7 5"/><path d="M485.0 336.1 L502.9 342.3 L502.9 257.7 L485.0 263.9 Z" fill="var(--band)" fill-opacity=".12" stroke="var(--band)" stroke-width="1.6" stroke-dasharray="7 5"/><path d="M413.3 368.3 L465.9 476.2 L556.2 385.9 L448.3 333.3 Z" fill="var(--band)" fill-opacity=".12" stroke="var(--band)" stroke-width="1.6" stroke-dasharray="7 5"/><path d="M347.1 395.5 L305.8 515.6 L454.2 515.6 L412.9 395.5 Z" fill="var(--band)" fill-opacity=".12" stroke="var(--band)" stroke-width="1.6" stroke-dasharray="7 5"/><path d="M316.2 331.1 L187.7 393.8 L286.2 492.3 L348.9 363.8 Z" fill="var(--band)" fill-opacity=".12" stroke="var(--band)" stroke-width="1.6" stroke-dasharray="7 5"/><path d="M279.8 265.5 L251.4 255.7 L251.4 344.3 L279.8 334.5 Z" fill="var(--band)" fill-opacity=".12" stroke="var(--band)" stroke-width="1.6" stroke-dasharray="7 5"/><path d="M347.6 233.5 L302.8 141.8 L221.8 222.8 L313.5 267.6 Z" fill="var(--band)" fill-opacity=".12" stroke="var(--band)" stroke-width="1.6" stroke-dasharray="7 5"/>
+<path d="M428.8 158.2 L462.0 61.7 L298.0 61.7 L331.2 158.2 Z" fill="#22c55e" fill-opacity=".3" stroke="#22c55e" stroke-width="2.4"/><path d="M559.8 212.3 L606.5 189.5 L490.5 73.5 L467.7 120.2 Z" fill="#3b82f6" fill-opacity=".3" stroke="#3b82f6" stroke-width="2.4"/><path d="M502.9 342.3 L618.3 382.0 L618.3 218.0 L502.9 257.7 Z" fill="#a855f7" fill-opacity=".3" stroke="#a855f7" stroke-width="2.4"/><path d="M465.9 476.2 L490.5 526.5 L606.5 410.5 L556.2 385.9 Z" fill="#ec4899" fill-opacity=".3" stroke="#ec4899" stroke-width="2.4"/><path d="M305.8 515.6 L298.0 538.3 L462.0 538.3 L454.2 515.6 Z" fill="#ef4444" fill-opacity=".3" stroke="#ef4444" stroke-width="2.4"/><path d="M187.7 393.8 L153.5 410.5 L269.5 526.5 L286.2 492.3 Z" fill="#f59e0b" fill-opacity=".3" stroke="#f59e0b" stroke-width="2.4"/><path d="M251.4 255.7 L141.7 218.0 L141.7 382.0 L251.4 344.3 Z" fill="#06b6d4" fill-opacity=".3" stroke="#06b6d4" stroke-width="2.4"/><path d="M302.8 141.8 L269.5 73.5 L153.5 189.5 L221.8 222.8 Z" fill="#84cc16" fill-opacity=".3" stroke="#84cc16" stroke-width="2.4"/>
+<path d="M495.0 300.0 L467.8 263.6 L436.6 243.4 L414.4 216.9 L380.0 200.0 L347.5 221.5 L324.8 244.8 L295.0 264.8 L270.0 300.0 L298.7 333.7 L327.0 353.0 L343.6 387.8 L380.0 405.0 L411.4 375.8 L436.6 356.6 L472.4 338.3 Z" fill="var(--grey)" fill-opacity=".62" stroke="var(--greyl)" stroke-width="2.8"/>
+<circle cx="380.0" cy="150.0" r="6" fill="var(--bg)" stroke="#22c55e" stroke-width="2.8"/><circle cx="521.4" cy="158.6" r="6" fill="var(--bg)" stroke="#3b82f6" stroke-width="2.8"/><circle cx="510.0" cy="300.0" r="6" fill="var(--bg)" stroke="#a855f7" stroke-width="2.8"/><circle cx="518.6" cy="438.6" r="6" fill="var(--bg)" stroke="#ec4899" stroke-width="2.8"/><circle cx="380.0" cy="528.0" r="6" fill="var(--bg)" stroke="#ef4444" stroke-width="2.8"/><circle cx="228.7" cy="451.3" r="6" fill="var(--bg)" stroke="#f59e0b" stroke-width="2.8"/><circle cx="244.0" cy="300.0" r="6" fill="var(--bg)" stroke="#06b6d4" stroke-width="2.8"/><circle cx="255.5" cy="175.5" r="6" fill="var(--bg)" stroke="#84cc16" stroke-width="2.8"/><text x="380.0" y="18.0" text-anchor="middle" font-size="12.5" font-weight="700" fill="#22c55e">tidig</text><text x="662.0" y="300.0" text-anchor="middle" font-size="12.5" font-weight="700" fill="#a855f7">tidig</text><text x="380.0" y="582.0" text-anchor="middle" font-size="12.5" font-weight="700" fill="#ef4444">sen</text>
+<circle cx="380" cy="300" r="9" fill="var(--ac)" stroke="var(--bg)" stroke-width="3"/>
+<g><circle cx="323.6" cy="320.5" r="17" fill="var(--greyl)" stroke="var(--bg)" stroke-width="3"/><text x="323.6" y="327" text-anchor="middle" font-size="19" font-weight="800" fill="#fff">1</text></g><g><circle cx="479" cy="201" r="17" fill="var(--band)" stroke="var(--bg)" stroke-width="3"/><text x="479" y="207.5" text-anchor="middle" font-size="19" font-weight="800" fill="#fff">2</text></g><g><circle cx="571" cy="300" r="17" fill="#a855f7" stroke="var(--bg)" stroke-width="3"/><text x="571" y="306.5" text-anchor="middle" font-size="19" font-weight="800" fill="#fff">3</text></g>
+</svg>
+<p class="cap"><b>1</b> grå innerzon · <b>2</b> streckat band · <b>3</b> fylld commit-zon. Kilarna börjar på olika avstånd från mitten. Det är inte slarv i skissen — varje utfartsled har sitt eget commit-avstånd, mellan 1 500 och 3 265 m beroende på hur snabbt vägarna grenar sig.</p>
+</div>
+
+<h2>Vad varje zon betyder</h2>
+<div class="steps">
+<div class="step">
+<div class="num" style="background:var(--greyl)">1</div>
+<div>
+<h3>Grå innerzon — inom 1 500 m <em>körväg</em></h3>
+<p>Knölig och inte rund, för att den mäts längs vägen. Lunds gågator tvingar bilen runt: 1 500 m körning tar dig 250 m från restaurangen åt ett håll och 1 000 m åt ett annat.</p>
+<span class="rule" style="background:color-mix(in srgb,var(--greyl) 18%,transparent);color:var(--fg)">Ingen tracking. Kunden ser bara ETA.</span>
+<p class="why">Föraren har inte valt riktning än — och hela leveransen tar 4–5 minuter.</p>
+</div>
+</div>
+<div class="step">
+<div class="num" style="background:var(--band)">2</div>
+<div>
+<h3>Streckat band — identifieringszonen</h3>
+<p>Vi vet <b>vilken utfartsled</b> föraren tog. Vi vet <b>inte</b> vart hon ska — från den vägen når hon fortfarande flera stadsdelar.</p>
+<span class="rule" style="background:color-mix(in srgb,var(--band) 20%,transparent);color:var(--fg)">Bara ETA. Ingen karta.</span>
+<p class="why">Här ligger hela risken: hon kan vara på väg till en annan stadsdel — eller till en Foodora-order vi inte känner till.</p>
+</div>
+</div>
+<div class="step">
+<div class="num" style="background:var(--ok)">3</div>
+<div>
+<h3>Fylld färgad zon — commit-zonen</h3>
+<p>Föraren har passerat <b>sista korsningen där hon kunde ha svängt mot en annan sektor</b> (ringen ◯). Alla vägar härifrån leder in i den här kilen.</p>
+<span class="rule" style="background:color-mix(in srgb,var(--ok) 20%,transparent);color:var(--fg)">Kartan får visas.</span>
+<p class="why">Olika färger = olika utfartsleder. Varje färg är en egen sektor med eget commit-avstånd.</p>
+</div>
+</div>
+</div>
+
+<h2>Två riktiga resor från centrala Lund</h2>
+<div class="sc"><table>
+<thead><tr><th>Var föraren är</th><th>Mot Nöbbelöv (S12)</th><th>Mot Klostergården (S7)</th></tr></thead>
+<tbody>
+<tr><td><b>0–1 500 m</b><br><span style="color:var(--muted)">grå innerzon</span></td>
+<td>"Maten är på väg" + ETA</td><td>"Maten är på väg" + ETA</td></tr>
+<tr><td><b>1 500–3 141 m</b><br><span style="color:var(--muted)">streckat band</span></td>
+<td><b style="color:var(--ok)">Karta redan här</b> — commit ligger på 1 500 m, alltså direkt vid grå kant</td>
+<td>Fortfarande bara ETA. Vägen mot Klostergården, S:t Lars och Stora Råby är <b>samma väg</b> ända till 3 043 m</td></tr>
+<tr><td><b>Efter commit</b><br><span style="color:var(--muted)">fylld zon</span></td>
+<td>Karta under ~halva resan</td>
+<td>Blir färgat först efter 3 141 m — men då är bebyggda Lund nästan slut. Kunden får <b>i praktiken aldrig karta</b></td></tr>
+</tbody></table></div>
+
+<div class="n"><b>Därför är södra Lund nästan bara streckat.</b> Alla sydliga vägar följer samma vägrygg i 3 043 m och skiljs först vid en enda punkt (55.69087, 13.18646). Fram till dit går det inte att avgöra om föraren ska till Klostergården, S:t Lars eller Stora Råby. Västerut skiljs vägarna redan efter 790 m — därför fungerar kartan bra dit.</div>
+
+<p class="cap">Skissen är förenklad och idealiserad för att förklara principen. Den riktiga, OSRM-beräknade kartan finns i <b>lund-tracking-zones.html</b>.</p>
+</div>

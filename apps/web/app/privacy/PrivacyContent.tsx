@@ -72,7 +72,7 @@ export default function PrivacyContent({ company }: { company: CompanyProps }) {
               Vilka uppgifter samlar vi in?
             </h2>
             <ul className="space-y-3" style={{ color: "var(--text-secondary)" }}>
-              <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Konto:</strong> namn, e-post från Google/Apple när den delas och verifierat telefonnummer. Kundkonton har inget ViaEats-lösenord.</span></li>
+              <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Profil:</strong> namn och verifierat telefonnummer när du väljer att spara orderhistorik.</span></li>
               <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Launchintresse:</strong> namn, e-post, tidpunkt för ditt samtycke samt status för den reserverade kupongen. Vi sparar ingen separat besöksidentifierare, referrer eller klickhistorik för launchsidan.</span></li>
               <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Beställningar:</strong> orderhistorik, leveransadresser, valda restauranger och rätter.</span></li>
               <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Betalning:</strong> hanteras av Mollie. Vi lagrar aldrig kortnummer eller CVC.</span></li>
@@ -90,7 +90,7 @@ export default function PrivacyContent({ company }: { company: CompanyProps }) {
               Vi behandlar dina uppgifter på följande grunder:
             </p>
             <ul className="space-y-3" style={{ color: "var(--text-secondary)" }}>
-              <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Avtal (GDPR art. 6.1 b):</strong> hantera ditt konto, vidarebefordra beställningar till restauranger, ta betalt och skicka orderstatus.</span></li>
+              <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Avtal (GDPR art. 6.1 b):</strong> hantera din profil när du verifierar nummer, vidarebefordra beställningar till restauranger, ta betalt och skicka orderstatus.</span></li>
               <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Rättslig förpliktelse (art. 6.1 c):</strong> bokföring och skattekrav.</span></li>
               <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Samtycke (art. 6.1 a):</strong> manuell kontakt om launchkupongen samt valfri analys och felrapportering. Analyticsamtycke ändras via cookie-inställningarna; launchsamtycke återkallas genom att kontakta oss.</span></li>
             </ul>
@@ -109,7 +109,7 @@ export default function PrivacyContent({ company }: { company: CompanyProps }) {
               Lagringstid
             </h2>
             <p className="leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-              Kontouppgifter sparas så länge ditt konto är aktivt. När du raderar kontot tas dina
+              Profiluppgifter sparas så länge din profil är aktiv. När du raderar profilen tas dina
               personuppgifter bort inom 30 dagar, med undantag för order- och bokföringsunderlag
               som enligt Bokföringslagen (1999:1078) ska sparas i sju (7) år. Uppgifter om
               launchintresse sparas tills du återkallar samtycket eller den manuella

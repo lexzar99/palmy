@@ -4,18 +4,25 @@ import fs from "node:fs";
 
 const authApi = fs.readFileSync(new URL("../../../packages/api/src/routes/auth.ts", import.meta.url), "utf8");
 const phoneAuth = fs.readFileSync(new URL("../components/PhoneAuth.tsx", import.meta.url), "utf8");
-const socialAuth = fs.readFileSync(new URL("../components/SocialAuthButton.tsx", import.meta.url), "utf8");
 const callback = fs.readFileSync(new URL("../app/auth/callback/route.ts", import.meta.url), "utf8");
-const nextAuth = fs.readFileSync(new URL("../app/api/auth/[...nextauth]/route.ts", import.meta.url), "utf8");
+const socialAuthPath = new URL("../components/SocialAuthButton.tsx", import.meta.url);
+const nextAuthPath = new URL("../app/api/auth/[...nextauth]/route.ts", import.meta.url);
 
-test("customer UI exposes only phone, Google and Apple sign-in", () => {
+test("customer UI exposes only phone number verification", () => {
   assert.match(phoneAuth, /signInWithOtp\(\{ phone:/);
   assert.match(phoneAuth, /verifyOtp\(\{ phone:/);
-  assert.doesNotMatch(phoneAuth, /signInWithPassword|password:/);
-  assert.match(socialAuth, /provider: "google" \| "apple"/);
-  assert.doesNotMatch(socialAuth, /magic|email.*otp/i);
-  assert.match(nextAuth, /GoogleProvider/);
-  assert.match(nextAuth, /AppleProvider/);
+  assert.doesNotMatch(phoneAuth, /signInWithPassword|signInWithOAuth|password:|email/i);
+  assert.equal(fs.existsSync(socialAuthPath), false);
+  assert.equal(fs.existsSync(nextAuthPath), false);
+
+  for (const relativePath of [
+    "../app/login/page.tsx",
+    "../app/register/page.tsx",
+    "../app/profile/page.tsx",
+  ]) {
+    const source = fs.readFileSync(new URL(relativePath, import.meta.url), "utf8");
+    assert.doesNotMatch(source, /SocialAuthButton|GoogleProvider|AppleProvider|signInWithOAuth/);
+  }
 });
 
 test("backend rejects email auth and requires verified phone proof", () => {
@@ -25,10 +32,10 @@ test("backend rejects email auth and requires verified phone proof", () => {
   assert.doesNotMatch(authApi, /router\.post\('\/(?:login-user|register-user|forgot-password|reset-password|verify-email)'/);
 });
 
-test("OAuth callback refuses Supabase email and magic-link sessions", () => {
-  assert.match(callback, /provider !== "google" && provider !== "apple"/);
+test("legacy OAuth callback never creates a customer web session", () => {
+  assert.doesNotMatch(callback, /exchangeCodeForSession|provider !== "google" && provider !== "apple"/);
   assert.match(callback, /unsupported_auth_method/);
-  assert.doesNotMatch(callback, /handles OAuth and magic-link redirects/);
+  assert.doesNotMatch(callback, /sign-in|sign in|GoogleProvider|AppleProvider|signInWithOAuth/);
 });
 
 test("retired password and email-verification pages do not exist", () => {

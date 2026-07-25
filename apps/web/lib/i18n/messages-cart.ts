@@ -21,9 +21,9 @@ export const cartPagePending = {
     "cart.empty.titleAccent": "tom",
 
     // Login-prompt banner
-    "cart.loginPrompt.cta": "Logga in",
-    "cart.loginPrompt.body": "för orderhistorik, du kan beställa utan konto.",
-    "cart.loginPrompt.account": "Konto",
+    "cart.loginPrompt.cta": "Verifiera nummer",
+    "cart.loginPrompt.body": "för orderhistorik och snabbare support.",
+    "cart.loginPrompt.account": "Profil",
 
     // Cart-row helper text
     "cart.tapToEdit": "Tryck för att redigera",
@@ -129,9 +129,9 @@ export const cartPagePending = {
     "cart.empty.titleAccent": "empty",
 
     // Login-prompt banner
-    "cart.loginPrompt.cta": "Sign in",
-    "cart.loginPrompt.body": "for order history, you can still order as a guest.",
-    "cart.loginPrompt.account": "Sign up",
+    "cart.loginPrompt.cta": "Verify number",
+    "cart.loginPrompt.body": "for order history and faster support.",
+    "cart.loginPrompt.account": "Profile",
 
     // Cart-row helper text
     "cart.tapToEdit": "Tap to edit",

@@ -253,6 +253,7 @@ export default function CartPage() {
   }, []);
 
   const [user, setUser] = useState<any>(null);
+  const [profilePhone, setProfilePhone] = useState("");
   const [orderType, setOrderType] = useState<"PICKUP" | "DELIVERY">(() => {
     if (typeof window === "undefined") return "DELIVERY";
     // Startsidans grind är sanningen för leverans/avhämtning. Läs dess
@@ -382,7 +383,7 @@ export default function CartPage() {
   const lastCheckedCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
   // Välkomsterbjudande från admin (GET /api/welcome-offer). Driver kassans
   // "FÖRSTA BESTÄLLNING"-toggle. eligible/discountKr beräknas server-side
-  // utifrån audience + första-N-order (per telefon) + inloggning.
+  // utifrån audience + första-N-order (per telefon) + verifierad profil.
   const [welcomeOffer, setWelcomeOffer] = useState<{
     active: boolean;
     eligible: boolean;
@@ -1155,11 +1156,12 @@ export default function CartPage() {
 
       if (userRes.data) {
         setUser(userRes.data);
+        setProfilePhone(userRes.data.phone || "");
         setFormData((prev) => ({
           ...prev,
           customerName: userRes.data.name || prev.customerName,
           customerPhone: userRes.data.phone || prev.customerPhone,
-          // Email pre-fyllt från inloggad profil (krävs av Klarna m.fl. server-
+          // Email pre-fyllt från verifierad profil om det finns (krävs av Klarna m.fl. server-
           // side, så tomt fält → Stripe rejectar mitt-flow). Pre-fyll bara om
           // användaren inte redan börjat editera fältet.
           customerEmail: prev.customerEmail || userRes.data.email || "",
@@ -1545,7 +1547,7 @@ export default function CartPage() {
   }, [items, currentRestaurantId, setBogoChoice, t, hasCatalogDiscountedItems]);
 
   // Välkomsterbjudande — hämta server-side beräknat erbjudande för kassan.
-  // subtotal + telefon (för första-N-order) + inloggning skickas med så
+  // subtotal + telefon (för första-N-order) + verifieringsstatus skickas med så
   // backend kan avgöra eligibility. Debounce så telefon-typning inte hammrar.
   useEffect(() => {
     if (hasCatalogDiscountedItems || discountableSubtotal <= 0) { setWelcomeOffer(null); return; }
@@ -1929,7 +1931,7 @@ export default function CartPage() {
   // ── Abandon en pre-skapad AWAITING_PAYMENT-order ───────────────────────────
   // Anropas när kunden avbryter (Stripe redirect_status=failed/cancelled) eller
   // navigerar bort från cart-sidan utan att slutföra betalning. Backend gör
-  // owner-check via accessToken eller inloggningscookie och stämmer av PSP:n.
+  // owner-check via accessToken eller platform-cookie och stämmer av PSP:n.
   // Idempotent: säker att kalla flera gånger.
   const abandonPendingOrder = useCallback(async (orderId: string): Promise<void> => {
     try {
@@ -2002,7 +2004,7 @@ export default function CartPage() {
       setError(t("cart.errors.namePhoneRequired"));
       return;
     }
-    // E-post är frivilligt — gäster anger bara namn + telefon. Inloggade har den
+    // E-post är frivilligt — gäster anger bara namn + telefon. Verifierade profiler har den
     // förifylld ur profilen. Backend skickar e-posten som valfritt till Mollie.
     // Anges en e-post måste den vara giltig; tom tillåts och skickas som undefined.
     if (!isTestFlow) {
@@ -2920,7 +2922,7 @@ export default function CartPage() {
                   <div className="p-4 rounded-2xl border flex items-center gap-3" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
                     <UserIcon size={16} className="text-zinc-400 shrink-0" />
                     <p className="text-[10px] font-bold leading-snug flex-1" style={{ color: "var(--text-secondary)" }}>
-                      {embedMode ? "Du beställer som gäst – inget konto behövs." : <>{t("cart.guest.banner")}{" "}
+                      {embedMode ? "Du beställer som gäst – du kan beställa direkt." : <>{t("cart.guest.banner")}{" "}
                         <Link href="/profile" className="underline hover:opacity-70" style={{ color: "var(--text-primary)" }}>{t("cart.guest.loginLink")}</Link>{" "}
                         {t("cart.guest.bannerSuffix")}</>}
                     </p>
@@ -2990,8 +2992,6 @@ export default function CartPage() {
                           const inputCls = "flex-1 h-full bg-transparent outline-none text-[16px] sm:text-[15px] font-medium";
                           const inputStyle = { color: "var(--text-primary)", border: "none" as const };
 
-                          // INLOGGAD: uppgifterna är redan kända → visa dem hopfällda
-                          // och läs-bara (klicka för att se), som rabattkod-raden.
                           if (user) {
                             const readRow = (label: string, value: string) => value ? (
                               <div className="flex items-baseline gap-3 py-1.5">
@@ -2999,16 +2999,43 @@ export default function CartPage() {
                                 <span className="flex-1 min-w-0 text-[14.5px] font-medium break-words" style={{ color: "var(--text-primary)" }}>{value}</span>
                               </div>
                             ) : null;
-                            // INLOGGAD: namn/telefon/epost hopfällt (klick för att se).
-                            // Leverans-/pickup-läget visas i den orange statusraden ovan.
+                            const phoneInvalid = formData.customerPhone.length > 0 && formData.customerPhone.replace(/\D/g, '').length < 8;
                             return (
                               <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-muted)", backgroundColor: "var(--bg-card)" }}>
                                 <div className="px-4">
-                                  <CartCollapsibleRow first label={t("cart.yourInfo.title")} hint={formData.customerName || "Inloggad"} icon={<UserIcon size={15} style={{ color: "var(--text-secondary)" }} />}>
-                                    <div className="pt-0.5">
+                                  <CartCollapsibleRow first label={t("cart.yourInfo.title")} hint={formData.customerName || "Verifierad"} icon={<UserIcon size={15} style={{ color: "var(--text-secondary)" }} />}>
+                                    <div className="pt-0.5 space-y-2">
                                       {readRow(t("cart.fields.name"), formData.customerName)}
-                                      {readRow(t("cart.fields.phone"), formData.customerPhone)}
-                                      {readRow(t("cart.fields.email"), formData.customerEmail)}
+                                      <div>
+                                        <label className="block text-[12px] font-semibold mb-1" style={{ color: phoneInvalid ? "#C0392B" : "var(--text-secondary)" }}>
+                                          Telefon för denna order
+                                        </label>
+                                        <input
+                                          value={formData.customerPhone}
+                                          onChange={e => setFormData({ ...formData, customerPhone: e.target.value })}
+                                          type="tel"
+                                          inputMode="tel"
+                                          autoComplete="tel"
+                                          className="w-full h-11 rounded-xl px-3.5 bg-transparent outline-none text-[15px] font-medium"
+                                          style={{ border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+                                          placeholder="070 000 00 00"
+                                        />
+                                        {phoneInvalid && <p className="pt-1 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.phoneTooShort")}</p>}
+                                        {profilePhone && formData.customerPhone.trim() !== profilePhone.trim() ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => setFormData({ ...formData, customerPhone: profilePhone })}
+                                            className="mt-2 text-[12px] font-bold"
+                                            style={{ color: "var(--color-gold-500)" }}
+                                          >
+                                            Använd mitt nummer igen
+                                          </button>
+                                        ) : (
+                                          <p className="pt-1 text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
+                                            Ändra bara om du beställer åt någon annan. Nästa beställning använder ditt verifierade nummer igen.
+                                          </p>
+                                        )}
+                                      </div>
                                     </div>
                                   </CartCollapsibleRow>
                                 </div>
@@ -3290,7 +3317,7 @@ export default function CartPage() {
                         <div className="mt-8 p-4 rounded-2xl border flex items-center gap-3" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
                           <UserIcon size={16} className="text-zinc-400 shrink-0" />
                           <p className="text-[10px] font-bold leading-snug flex-1" style={{ color: "var(--text-secondary)" }}>
-                            {embedMode ? "Du beställer som gäst – inget konto behövs." : <>{t("cart.guest.banner")}{" "}
+                            {embedMode ? "Du beställer som gäst – du kan beställa direkt." : <>{t("cart.guest.banner")}{" "}
                               <Link href="/profile" className="underline hover:opacity-70" style={{ color: "var(--text-primary)" }}>{t("cart.guest.loginLink")}</Link>{" "}
                               {t("cart.guest.bannerSuffix")}</>}
                           </p>

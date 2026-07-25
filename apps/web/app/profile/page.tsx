@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useEffect, useState, useCallback } from "react";
-import { SessionProvider, signOut, useSession } from "next-auth/react";
 import axios from "axios";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
@@ -12,20 +11,14 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { API_URL } from "@/lib/api";
 import { toE164Phone } from "@/lib/phone";
 import {
   clearPlatformSession,
-  clearPlatformSessionForRefresh,
   getPlatformSessionStatus,
-  persistPlatformSession,
   markLoggedOut,
-  isLoggedOutMark,
-  hasExplicitLoginIntent,
   LAST_CUSTOMER_ID_KEY,
 } from "@/lib/platformSessionClient";
 import ConfirmModal from "@/components/ConfirmModal";
-import SocialAuthButton from "@/components/SocialAuthButton";
 import PhoneAuth from "@/components/PhoneAuth";
 import PhoneCountrySelect from "@/components/PhoneCountrySelect";
 import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
@@ -62,7 +55,7 @@ const PAYMENT_OPTIONS: {
 
 // ─── Country codes ─────────────────────────────────────────────────────────
 // Landskods-väljare flyttad till delade <PhoneCountrySelect> (begränsad lista,
-// Sverige som standard) — används av både telefon-inloggning och nummer-grinden.
+// Sverige som standard) — används av både nummerverifiering och nummer-grinden.
 
 
 /**
@@ -75,6 +68,25 @@ const SUPPORTED_LOCALES = [
   { code: "sv", label: "Svenska", flag: "🇸🇪" },
   { code: "en", label: "English", flag: "🇬🇧" },
 ] as const;
+
+function splitProfileName(value?: string | null) {
+  const clean = String(value || "").trim().replace(/\s+/g, " ");
+  const parts = clean.split(" ").filter(Boolean);
+  return {
+    firstName: parts[0] || "",
+    lastName: parts.slice(1).join(" "),
+  };
+}
+
+function splitProfilePhone(value?: string | null) {
+  const raw = String(value || "").trim();
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return { country: "+46", number: "" };
+  if (raw.startsWith("+46") || digits.startsWith("46")) {
+    return { country: "+46", number: digits.replace(/^46/, "") };
+  }
+  return { country: "+46", number: raw.startsWith("0") ? raw : digits };
+}
 
 function LanguagePickerRow() {
   // Riktig i18n: locale + setLocale från LocaleProvider (byter UI direkt och
@@ -159,7 +171,6 @@ function ProfileContent() {
   const [preferredPayment, setPreferredPayment] = useState<PreferredPaymentMethod>("APPLE_PAY");
   const [paymentMethods, setPaymentMethods] = useState<SavedPaymentMethod[]>([]);
   const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(false);
-  const [hasVisited, setHasVisited] = useState(false);
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -172,35 +183,24 @@ function ProfileContent() {
   // Saved addresses state
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
 
-  // Auth: inloggning sker på dedikerade /login-sidan (inte inline här).
-  const [isLoggingOut, setIsLoggingOut] = useState(false); // To fix logout bug
-
   // Edit profile
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editShowNameInput, setEditShowNameInput] = useState(false); // For new phone users
-  const [editEmail, setEditEmail] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // Inline namn-komplettering för Apple-användare som saknar namn (Apple skickar
-  // fullName bara vid första auktoriseringen och Supabase fångar det inte alltid
-  // på webben). Vi ber om namnet direkt istället för att skicka bort användaren
-  // till appleid.apple.com för att återkalla åtkomst.
-  const [appleName, setAppleName] = useState("");
-  const [appleNameSaving, setAppleNameSaving] = useState(false);
+  const [missingName, setMissingName] = useState("");
+  const [missingNameSaving, setMissingNameSaving] = useState(false);
 
-  // Namn-komplettering (onboarding-grind). Visas när kontot saknar namn helt
-  // (t.ex. Apple, som bara ger namnet första gången och ofta inte alls på
-  // webben). Google ger för-/efternamn och telefon-signup samlar in dem i
-  // PhoneAuth → de träffar aldrig den här grinden. Efter namnet kedjas
-  // telefon-grinden (om numret saknas) automatiskt.
+  // Namn-komplettering. Visas när en verifierad telefonprofil saknar namn helt.
+  // PhoneAuth fyller normalt detta direkt, men äldre profiler eller importerade
+  // orderkopplingar kan fortfarande behöva kompletteras.
   const [completeFirst, setCompleteFirst] = useState("");
   const [completeLast, setCompleteLast] = useState("");
   const [completeNameSaving, setCompleteNameSaving] = useState(false);
   const [completeNameError, setCompleteNameError] = useState("");
  
-  // Add phone for OAuth users (Transition to OTP)
   const [showAddPhone, setShowAddPhone] = useState(false);
   const [addPhoneCountry, setAddPhoneCountry] = useState("+46");
   const [addPhoneNum, setAddPhoneNum] = useState("");
@@ -208,7 +208,17 @@ function ProfileContent() {
   const [addPhoneError, setAddPhoneError] = useState("");
   const [addPhoneStep, setAddPhoneStep] = useState<"phone" | "code">("phone");
   const [addPhoneCode, setAddPhoneCode] = useState("");
-  const [isChangingPhone, setIsChangingPhone] = useState(false); // Link to edit phone number
+  const [isChangingPhone, setIsChangingPhone] = useState(false);
+  const [changePhoneStep, setChangePhoneStep] = useState<"oldPhone" | "oldCode" | "newPhone" | "newCode">("oldPhone");
+  const [changeOldCountry, setChangeOldCountry] = useState("+46");
+  const [changeOldNum, setChangeOldNum] = useState("");
+  const [changeOldCode, setChangeOldCode] = useState("");
+  const [changeOldToken, setChangeOldToken] = useState("");
+  const [changeNewCountry, setChangeNewCountry] = useState("+46");
+  const [changeNewNum, setChangeNewNum] = useState("");
+  const [changeNewCode, setChangeNewCode] = useState("");
+  const [changePhoneLoading, setChangePhoneLoading] = useState(false);
+  const [changePhoneError, setChangePhoneError] = useState("");
 
   // Modal states
   const [deleteAccountModalOpen, setDeleteAccountModalOpen] = useState(false);
@@ -221,12 +231,10 @@ function ProfileContent() {
       // Parallelise ALL 5 fetches — used to do addresses serially after the
       // first 4 which made the profile page wait an extra ~300-500ms for
       // the second round trip. Each call is independent.
-      // Profilen gate:ar HELA sidan — om den failar blir user=null → utloggad-vyn
-      // ("logga in igen") visas trots att kontot skapades. Vid en FRISK OAuth-token
-      // kan platform-cookien behöva en tick att propagera → GET /profile kan 401:a
-      // direkt efter persistPlatformSession. Retrya därför profil-hämtningen några
-      // gånger innan vi ger upp. Sekundärdata (orders/deals/adresser) failar tyst så
-      // de aldrig strandar användaren i utloggad-vyn.
+      // Profilen gate:ar hela sidan. Direkt efter SMS-verifiering kan
+      // platform-cookien behöva en tick att propagera, så profilhämtningen får
+      // några försök innan vi ger upp. Sekundärdata failar tyst så användaren
+      // inte fastnar i verifieringsvyn av ett sidofel.
       let profileRes: any = null;
       let lastErr: any = null;
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -252,7 +260,6 @@ function ProfileContent() {
       setHasPlatformSession(true);
       setUser(profileRes.data);
       setEditName(profileRes.data.name || "");
-      setEditEmail(profileRes.data.email || "");
       setOrders(
         (Array.isArray(ordersRes.data) ? ordersRes.data : []).filter((order: any) => {
           const status = String(order?.status || "").toUpperCase();
@@ -283,18 +290,16 @@ function ProfileContent() {
       setAvailableDeals(((claimedRes.data?.available || []) as any[]).filter(isProfileDeal));
       setSavedAddresses(addrRes.data || []);
 
-      // If user has no phone, prompt them to add one
+      // Äldre/importerade profiler utan nummer får slutföra verifieringen här.
       if (!profileRes.data.phone) {
         setShowAddPhone(true);
       } else {
         setShowAddPhone(false);
       }
     } catch (err: any) {
-      // ALDRIG auto-logga-ut härifrån. Tidigare buggade detta så att
-      // Apple-OAuth-redirect triggade en falsk logout direkt efter inloggning.
-      // Även 401 från /api/platform/profile kan vara timing-relaterat (cookie
-      // hunnit inte propagera) snarare än verklig session-utgång — låt user
-      // manuellt logga ut via knappen om sessionen är borta.
+      // ALDRIG auto-glöm verifieringen härifrån. Även 401 från /api/platform/profile
+      // kan vara timing-relaterat, så låt användaren själv glömma verifieringen
+      // via knappen om sessionen verkligen är borta.
       const status = err?.response?.status;
       console.error(
         `[fetchData] error status=${status} message=${err?.message || err}. NOT auto-logging out. User can refresh or click logout if needed.`,
@@ -328,279 +333,21 @@ function ProfileContent() {
     return () => window.removeEventListener("storage", onCustomerStorage);
   }, [fetchData]);
 
-  // ─── OAuth Session Exchange ──────────────────────────────────────────────
-  const { data: session, status } = useSession();
-  const platformToken = session?.platformToken;
-  
   useEffect(() => {
-    if (status === "authenticated" && platformToken && !isLoggingOut && !isLoggedOutMark()) {
-      // Avoid overwriting a freshly verified local session with stale OAuth data.
-      const isVerifiedLocally = user?.isVerified === true;
-      if (!hasPlatformSession && !isVerifiedLocally) {
-        void (async () => {
-          try {
-            await persistPlatformSession(platformToken);
-            setHasPlatformSession(true);
-            await fetchData();
-          } catch {
-            setLoading(false);
-          }
-        })();
-      }
-    }
-  }, [status, platformToken, user, fetchData, isLoggingOut, hasPlatformSession]);
-
-  // ─── Supabase Auth session ───────────────────────────────────────────────
-  useEffect(() => {
-    const supabase = createSupabaseBrowserClient();
-    let exchanging = false;
-
-    /**
-     * När Supabase säger att vi är inloggade (Google/Apple OAuth) har
-     * vi BARA en Supabase-session — inte vårt platform-JWT som backend kräver
-     * för /api/platform/profile. Vi måste BYTA Supabase-token mot platform-
-     * token via POST /api/auth/oauth-token.
-     */
-    const exchangeSupabaseForPlatformToken = async (
-      sbSession: any,
-      forceExchange = false,
-    ) => {
-      if (exchanging) return;
-      exchanging = true;
-      console.log("[OAuth] Starting Supabase → platform token exchange (force=", forceExchange, ")");
-      try {
-        // Om vi inte tvingar nytt byte: kolla om vi redan har en giltig
-        // platform-session. (Tvingar gör vi vid SIGNED_IN-event eftersom
-        // den gamla cookien kan vara stale från en annan användare.)
-        if (!forceExchange) {
-          const alreadyAuthed = await getPlatformSessionStatus();
-          if (alreadyAuthed) {
-            console.log("[OAuth] Already has platform session, fetching data");
-            setHasPlatformSession(true);
-            try {
-              await fetchData();
-              return;
-            } catch {
-              // fetchData failed (token kanske stale) → fall through till byte
-              console.warn("[OAuth] Stale platform session, forcing exchange");
-              await clearPlatformSessionForRefresh();
-            }
-          }
-        }
-
-        const sbUser = sbSession.user;
-        const meta = sbUser?.user_metadata || {};
-        const email =
-          sbUser?.email ||
-          meta.email ||
-          meta.preferred_username ||
-          null;
-        // Apple ger namn ENDAST vid första auktorisering. Plocka allt vi
-        // möjligen får från Supabase user_metadata.
-        const oauthFirst = (
-          meta.first_name ||
-          meta.given_name ||
-          meta.firstName ||
-          ""
-        ).trim();
-        const oauthLast = (
-          meta.last_name ||
-          meta.family_name ||
-          meta.lastName ||
-          ""
-        ).trim();
-        const oauthFullName = (
-          meta.full_name ||
-          meta.name ||
-          [oauthFirst, oauthLast].filter(Boolean).join(" ")
-        ).trim();
-        const oauthHasName = !!(oauthFirst || oauthLast || oauthFullName);
-
-        console.log("[OAuth] Supabase user:", {
-          email,
-          provider: sbUser?.app_metadata?.provider,
-          hasUser: !!sbUser,
-          oauthFirst,
-          oauthLast,
-          oauthFullName,
-          oauthHasName,
-          rawMetaKeys: Object.keys(meta),
-        });
-
-        // Telefon-session (lösenordsfri SMS-OTP) saknar e-post — byt Supabase-
-        // token mot platform-JWT via phone-token istället för att ge upp (annars
-        // rensades cookien här och användaren loggades ut direkt efter koden).
-        if (!email && sbUser?.phone) {
-          try {
-            const exRes = await axios.post(
-              `${API_URL}/api/auth/phone-token`,
-              {},
-              { headers: { Authorization: `Bearer ${sbSession.access_token}` } },
-            );
-            if (exRes.data?.token) {
-              await persistPlatformSession(exRes.data.token);
-              setHasPlatformSession(true);
-              await fetchData();
-              return;
-            }
-          } catch (e) {
-            console.warn("[OAuth] phone-token exchange failed", e);
-          }
-        }
-        if (!email) {
-          console.warn("[OAuth] No email/phone from Supabase user — cannot exchange");
-          setLoading(false);
-          return;
-        }
-        const provider =
-          (sbUser?.app_metadata?.provider as string | undefined) ||
-          "supabase";
-        const providerId = sbUser?.id || "";
-        const image = meta.avatar_url || meta.picture || null;
-
-        console.log("[OAuth] POST /api/auth/oauth-token", { email, provider });
-        const res = await axios.post(
-          `${API_URL}/api/auth/oauth-token`,
-          {
-            email,
-            // Skicka tomt namn om OAuth inte gav något — backend lägger
-            // INTE in placeholder då, och gates till "complete profile" istället.
-            name: oauthFullName || "",
-            provider,
-            providerId,
-            image,
-          },
-          {
-            // Backend litar aldrig på body-fälten för identitet. Den verifierar
-            // Supabase-sessionen och hämtar email/provider-id direkt därifrån.
-            headers: { Authorization: `Bearer ${sbSession.access_token}` },
-          },
-        );
-
-        const platformToken = res.data?.token;
-        if (!platformToken) {
-          console.error("[OAuth] Backend returned no token", res.data);
-          throw new Error("no platform token");
-        }
-        console.log("[OAuth] Got platform token, persisting…");
-
-        await persistPlatformSession(platformToken);
-
-        // STRICT APPLE SIGN-IN PERSISTENCE (samma logik som RN useAppleAuth):
-        // ───────────────────────────────────────────────────────────────────
-        // Apple skickar fullName ENDAST vid första auktoriseringen. Om OAuth
-        // gav oss namn OCH backend's DB är fortfarande tom (firstName +
-        // lastName båda null) → PATCH:a in det NU. Om DB redan har namn,
-        // rör vi inget (single-source-of-truth).
-        if (oauthHasName) {
-          try {
-            const profileNow = await axios.get("/api/platform/profile");
-            const storedFirst = (profileNow.data?.firstName || "").trim();
-            const storedLast = (profileNow.data?.lastName || "").trim();
-            if (!storedFirst && !storedLast) {
-              console.log(
-                "[OAuth] DB tom + OAuth gav namn → PATCH:ar förnamn/efternamn",
-                { oauthFirst, oauthLast }
-              );
-              await axios.patch("/api/platform/profile", {
-                firstName: oauthFirst || undefined,
-                lastName: oauthLast || undefined,
-                name:
-                  oauthFullName ||
-                  [oauthFirst, oauthLast].filter(Boolean).join(" ") ||
-                  undefined,
-              });
-            } else {
-              console.log(
-                "[OAuth] DB hade redan namn — IGNORERAR OAuth-namnet (single-source-of-truth)"
-              );
-            }
-          } catch (err) {
-            console.warn("[OAuth] Name-persist PATCH failed:", err);
-          }
-        }
-
-        console.log("[OAuth] Platform session persisted, fetching profile");
-        setHasPlatformSession(true);
-        await fetchData();
-        console.log("[OAuth] ✓ Login complete");
-      } catch (err: any) {
-        console.error(
-          "[OAuth] Supabase → platform token exchange FAILED:",
-          err?.response?.data || err?.message || err
-        );
-        setLoading(false);
-      } finally {
-        exchanging = false;
-      }
-    };
-
-    // Initial mount-strategi:
-    // Om Supabase har en session = användaren kommer just från Apple/Google-
-    // callback. Den platform_session-cookie som finns kvar är förmodligen
-    // STALE (från tidigare test-session, gammal user-id, gammal JWT_SECRET).
-    // Force-clear cookien + kör exchange direkt så vi får en fresh JWT.
-    //
-    // Om Supabase INTE har session: kolla om platform-cookien funkar via
-    // fetchData. Om den failar med 401 stannar vi kvar utan auto-logout
-    // (kontrollerat utlogg via knappen istället).
+    let cancelled = false;
     void (async () => {
-      const { data: { session: sbSession } } = await supabase.auth.getSession();
-      console.log(
-        "[OAuth] Initial mount: hasSupabaseSession =",
-        !!sbSession?.access_token,
-      );
-
-      if (sbSession?.access_token) {
-        // Medvetet utloggad? En kvarvarande Supabase-session (cookies rensas inte
-        // alltid rent) får INTE auto-logga in igen. Riv sessionen, stanna utloggad
-        // tills explicit login (då rensas spärren).
-        if (isLoggedOutMark() && !hasExplicitLoginIntent()) {
-          await supabase.auth.signOut().catch(() => {});
-          setLoading(false);
-          return;
-        }
-        // Fresh OAuth-flöde — alltid byt till fresh platform JWT, oavsett
-        // om gammal cookie finns. Stale cookies orsakade 401-loop tidigare.
-        console.log("[OAuth] Supabase session detected — forcing fresh exchange");
-        await clearPlatformSessionForRefresh().catch(() => {});
-        await exchangeSupabaseForPlatformToken(sbSession, true);
-        return;
-      }
-
-      // Ingen Supabase-session — testa platform-cookien
       const authenticated = await getPlatformSessionStatus();
-      console.log("[OAuth] Initial mount: hasPlatformSession =", authenticated);
-      if (authenticated) {
-        setHasPlatformSession(true);
-        await fetchData();
-      } else {
-        setLoading(false);
-      }
+      if (cancelled) return;
+      setHasPlatformSession(authenticated);
+      if (authenticated) await fetchData();
+      else setLoading(false);
     })();
-
-    // Lyssna på framtida auth-state-changes (t.ex. när användaren klickar
-    // Google-knappen på samma session och kommer tillbaka)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, sbSession) => {
-        console.log("[OAuth] auth state change:", event, "hasSession=", !!sbSession?.access_token);
-        if (event === "SIGNED_IN" && sbSession?.access_token) {
-          // Medvetet utloggad → ignorera (annars auto-återinlogg = flappning).
-          if (isLoggedOutMark() && !hasExplicitLoginIntent()) return;
-          // Tvinga nytt token-byte vid SIGNED_IN för att inte använda en
-          // stale platform-cookie från en tidigare misslyckad inloggning.
-          void exchangeSupabaseForPlatformToken(sbSession, true);
-        }
-      }
-    );
-
-    return () => subscription.unsubscribe();
+    return () => { cancelled = true; };
   }, [fetchData]);
 
-  // Invite-attribution för ALLA inloggningssätt (Google/Apple/telefon). Endast
-  // PhoneAuth gjorde det förut → OAuth-invitees fick ingen Referral → ingen
-  // 200-belöning. Här kopplas dlv_ref-cookien när en session finns. Idempotent
-  // (inviteeUserId @unique); cookien rensas efter.
+  // Invite-attribution för verifierade telefonprofiler. Här kopplas
+  // dlv_ref-cookien när en session finns. Idempotent (inviteeUserId @unique);
+  // cookien rensas efter.
   useEffect(() => {
     if (!hasPlatformSession || !user) return;
     const ref = document.cookie.match(/(?:^|; )dlv_ref=([^;]+)/)?.[1];
@@ -614,12 +361,6 @@ function ProfileContent() {
       .then(() => { document.cookie = "dlv_ref=; path=/; max-age=0; samesite=lax"; })
       .catch(() => { /* tyst — blockerar aldrig */ });
   }, [hasPlatformSession, user]);
-
-  useEffect(() => {
-    const visited = localStorage.getItem("platform_has_visited");
-    if (visited) setHasVisited(true);
-    else localStorage.setItem("platform_has_visited", "true");
-  }, []);
 
   useEffect(() => {
     const syncPreferredPayment = (event?: StorageEvent) => {
@@ -665,6 +406,103 @@ function ProfileContent() {
 
 
   const addPhoneFull = () => toE164Phone(addPhoneCountry, addPhoneNum);
+  const changeOldFull = () => toE164Phone(changeOldCountry, changeOldNum);
+  const changeNewFull = () => toE164Phone(changeNewCountry, changeNewNum);
+
+  const openChangePhone = () => {
+    const parts = splitProfilePhone(user?.phone);
+    setChangeOldCountry(parts.country);
+    setChangeOldNum(parts.number);
+    setChangeOldCode("");
+    setChangeOldToken("");
+    setChangeNewCountry("+46");
+    setChangeNewNum("");
+    setChangeNewCode("");
+    setChangePhoneError("");
+    setChangePhoneStep("oldPhone");
+    setIsChangingPhone(true);
+  };
+
+  const sendPhoneCode = async (phone: string) => {
+    const supabase = createSupabaseBrowserClient();
+    const { error } = await supabase.auth.signInWithOtp({ phone });
+    if (error) throw error;
+  };
+
+  const handleSendOldPhoneCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setChangePhoneLoading(true);
+    setChangePhoneError("");
+    try {
+      await sendPhoneCode(changeOldFull());
+      setChangePhoneStep("oldCode");
+    } catch (err: any) {
+      setChangePhoneError(err?.message || "Kunde inte skicka kod till gamla numret.");
+    } finally {
+      setChangePhoneLoading(false);
+    }
+  };
+
+  const handleVerifyOldPhoneCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setChangePhoneLoading(true);
+    setChangePhoneError("");
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { data, error } = await supabase.auth.verifyOtp({ phone: changeOldFull(), token: changeOldCode.trim(), type: "sms" });
+      if (error) throw error;
+      const token = data.session?.access_token || (await supabase.auth.getSession()).data.session?.access_token;
+      if (!token) throw new Error("SMS-sessionen kunde inte verifieras.");
+      setChangeOldToken(token);
+      setChangePhoneStep("newPhone");
+    } catch (err: any) {
+      setChangePhoneError(err?.message?.toLowerCase().includes("expired") ? "Koden har gått ut. Skicka en ny." : "Fel kod, försök igen.");
+    } finally {
+      setChangePhoneLoading(false);
+    }
+  };
+
+  const handleSendNewPhoneCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setChangePhoneLoading(true);
+    setChangePhoneError("");
+    try {
+      await sendPhoneCode(changeNewFull());
+      setChangePhoneStep("newCode");
+    } catch (err: any) {
+      setChangePhoneError(err?.message || "Kunde inte skicka kod till nya numret.");
+    } finally {
+      setChangePhoneLoading(false);
+    }
+  };
+
+  const handleVerifyNewPhoneCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setChangePhoneLoading(true);
+    setChangePhoneError("");
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { data, error } = await supabase.auth.verifyOtp({ phone: changeNewFull(), token: changeNewCode.trim(), type: "sms" });
+      if (error) throw error;
+      const newToken = data.session?.access_token || (await supabase.auth.getSession()).data.session?.access_token;
+      if (!newToken || !changeOldToken) throw new Error("Verifiera båda numren med SMS först.");
+      const res = await axios.post(`/api/platform/profile/change-phone`, {
+        oldPhone: changeOldFull(),
+        oldVerificationToken: changeOldToken,
+        newPhone: changeNewFull(),
+        newVerificationToken: newToken,
+      });
+      await supabase.auth.signOut().catch(() => {});
+      setUser((prev: any) => ({ ...(prev || {}), ...(res.data?.user || {}), phone: res.data?.user?.phone || changeNewFull(), isVerified: true }));
+      await fetchData();
+      setIsChangingPhone(false);
+      toast("Numret är bytt", "success");
+    } catch (err: any) {
+      setChangePhoneError(err?.response?.data?.error || err?.message || "Kunde inte byta nummer.");
+    } finally {
+      setChangePhoneLoading(false);
+    }
+  };
 
   const lockPhone = async (fullPhone: string, phoneVerificationToken: string) => {
     const res = await axios.post(`/api/platform/profile/link-phone`, {
@@ -682,8 +520,8 @@ function ProfileContent() {
     setAddPhoneCode("");
   };
 
-  // OAuth-konton (Google/Apple) utan nummer: verifiera numret via SMS (Supabase
-  // phone_change) och lås det. Smarta fall:
+  // Äldre/importerade profiler utan nummer: verifiera numret via SMS och lås det.
+  // Smarta fall:
   //  - nytt nummer → SMS-kod (steg "code").
   //  - numret tillhör redan ett telefon-konto → slå ihop det (var redan
   //    verifierat) utan ny kod.
@@ -745,8 +583,8 @@ function ProfileContent() {
         throw new Error("SMS-sessionen kunde inte verifieras. Försök igen.");
       }
       await lockPhone(addPhoneFull(), phoneVerificationToken);
-      // Verifieringen klar → kontot är komplett och inloggat. Skicka till hem-
-      // sidan (i stället för att stanna kvar på /profile efter inloggningen).
+      // Verifieringen är klar. Skicka vidare till startsidan i stället för att
+      // stanna kvar i kompletteringsvyn.
       router.push("/");
     } catch (err: any) {
       // Skilj på fel kod, utgången kod och backend-konflikt (numret på annat konto).
@@ -764,8 +602,9 @@ function ProfileContent() {
     e.preventDefault();
     setIsSaving(true);
     try {
-      await axios.patch(`/api/platform/profile`, { name: editName, email: editEmail });
-      setUser((prev: any) => ({ ...prev, name: editName, email: editEmail }));
+      const parts = splitProfileName(editName);
+      await axios.patch(`/api/platform/profile`, { firstName: parts.firstName, lastName: parts.lastName, name: editName.trim() });
+      setUser((prev: any) => ({ ...prev, name: editName.trim(), firstName: parts.firstName, lastName: parts.lastName }));
       setSaveSuccess(true);
       setTimeout(() => { setSaveSuccess(false); setIsEditing(false); }, 1500);
     } catch {
@@ -775,10 +614,10 @@ function ProfileContent() {
     }
   };
 
-  const handleSaveAppleName = async () => {
-    const full = appleName.trim().replace(/\s+/g, " ");
+  const handleSaveMissingName = async () => {
+    const full = missingName.trim().replace(/\s+/g, " ");
     if (!full) return;
-    setAppleNameSaving(true);
+    setMissingNameSaving(true);
     try {
       const parts = full.split(" ");
       const firstName = parts[0];
@@ -786,11 +625,11 @@ function ProfileContent() {
       await axios.patch(`/api/platform/profile`, { firstName, lastName, name: full });
       setUser((prev: any) => ({ ...prev, name: full, firstName, lastName }));
       setEditName(full);
-      setAppleName("");
+      setMissingName("");
     } catch {
       alert(t("profile.editForm.saveError"));
     } finally {
-      setAppleNameSaving(false);
+      setMissingNameSaving(false);
     }
   };
 
@@ -822,7 +661,6 @@ function ProfileContent() {
   };
 
   const handleLogout = async () => {
-    setIsLoggingOut(true);
     markLoggedOut(); // spärra auto-återinlogg från kvarvarande Supabase-session
     try {
       await clearPlatformSession();
@@ -834,15 +672,10 @@ function ProfileContent() {
       // localStorage rensas redan av clearPlatformSession (platform_quick_addresses
       // m.fl.) men React-state måste nollas separat.
       setSavedAddresses([]);
-      // Sign out of both Supabase and NextAuth (legacy)
-      const supabase = createSupabaseBrowserClient();
-      await Promise.allSettled([
-        supabase.auth.signOut(),
-        signOut({ redirect: false }),
-      ]);
-      toast(t("profile.logoutToast"), "info");
-    } finally {
-      setIsLoggingOut(false);
+      await createSupabaseBrowserClient().auth.signOut().catch(() => {});
+      toast("Verifieringen är glömd på den här enheten", "info");
+    } catch {
+      toast("Kunde inte glömma verifieringen just nu", "error");
     }
   };
 
@@ -899,24 +732,29 @@ function ProfileContent() {
       <div className="min-h-screen flex flex-col items-center justify-center px-6 py-20 pb-28" style={{ backgroundColor: "var(--bg-primary)" }}>
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm space-y-3.5">
 
-          {/* Header — kompakt. ViaEats-lockupen (samma som startskärmen) i
-              stället för en generisk lås-ikon. */}
           <div className="text-center space-y-2">
             <div className="flex justify-center">
               <ViaEatsWordmark size="sm" />
             </div>
             <h1 className="text-[22px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
-              {hasVisited ? t("auth.welcomeBack.title.welcome") : t("auth.welcomeBack.title.create")}{" "}
-              <span style={{ color: "var(--text-primary)" }}>{hasVisited ? t("auth.welcomeBack.title.welcomeAccent") : t("auth.welcomeBack.title.createAccent")}</span>
+              Verifiera ditt nummer
             </h1>
+            <p className="mx-auto max-w-xs text-[14px] font-medium leading-5" style={{ color: "var(--text-secondary)" }}>
+              Spara ordrar och få snabbare support med bara ditt telefonnummer.
+            </p>
           </div>
 
-          {/* Lösenordsfritt: Apple, Google eller telefon. Allt kopplas till
-              numret — samma konto oavsett hur du loggar in nästa gång. */}
           <div className="flex flex-col gap-2.5 pt-1">
-            <SocialAuthButton provider="apple" />
-            <SocialAuthButton provider="google" />
-            <PhoneAuth />
+            <PhoneAuth
+              buttonLabel="Fortsätt med nummer"
+              redirectTo={null}
+              onCompleted={(profile) => {
+                setHasPlatformSession(true);
+                setUser(profile);
+                setLoading(true);
+                void fetchData();
+              }}
+            />
           </div>
 
           <ReferralProfileCard />
@@ -963,10 +801,9 @@ function ProfileContent() {
     );
   }
 
-  // ─── Namn-grind (t.ex. Apple utan namn) ───────────────────────────────────
-  // Visas när kontot saknar namn HELT. Google/telefon har redan namn → hoppar
-  // över. Ligger FÖRE telefon-grinden så sekvensen blir: förnamn+efternamn →
-  // nummer. Efter namnet sätts blir needsName false och telefon-grinden tar vid.
+  // ─── Namn-grind ─────────────────────────────────────────────────────────
+  // Visas när profilen saknar namn helt. Ligger före nummer-grinden så
+  // sekvensen blir: förnamn+efternamn → nummer.
   const needsName =
     !user.name?.trim() && !user.firstName?.trim() && !user.lastName?.trim();
   if (needsName) {
@@ -1033,15 +870,13 @@ function ProfileContent() {
     );
   }
 
-  // ─── Add phone prompt (for OAuth users without phone) ─────────────────────
+  // ─── Add phone prompt (legacy/imported profiles without phone) ────────────
   if (showAddPhone) {
     return (
       <div className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
         <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm space-y-6">
-          {/* Tillbaka = börja om. Nummer-verifieringen är OBLIGATORISK och kan
-              INTE skippas — man kommer aldrig in i profilen utan verifierat
-              nummer. Loggar ut → auth-startvyn (välj annat SSO / logga in med
-              nummer). markLoggedOut hindrar auto-återinlogg från Supabase-sessionen. */}
+          {/* Tillbaka = börja om. Nummer-verifieringen är obligatorisk för att
+              kunna spara orderhistorik och supportdata på profilen. */}
           <button
             type="button"
             onClick={async () => {
@@ -1118,6 +953,89 @@ function ProfileContent() {
     );
   }
 
+  if (isChangingPhone) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
+        <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm space-y-6">
+          <button
+            type="button"
+            onClick={() => setIsChangingPhone(false)}
+            aria-label={t("common.back")}
+            className="w-9 h-9 rounded-full flex items-center justify-center transition-colors hover:bg-[var(--bg-deep)]"
+            style={{ border: "1px solid var(--line-strong)", color: "var(--text-primary)" }}
+          >
+            <ArrowLeft size={16} strokeWidth={2} />
+          </button>
+          <div className="text-center space-y-3">
+            <div className="w-16 h-16 bg-[var(--bg-deep)] rounded-2xl flex items-center justify-center text-[var(--text-secondary)] mx-auto"><Phone size={28} /></div>
+            <h2 className="text-[22px] font-bold tracking-tight">Byt nummer</h2>
+            <p className="text-[color:var(--text-secondary)] text-sm leading-relaxed">
+              Verifiera ditt gamla nummer och ditt nya nummer med SMS.
+            </p>
+          </div>
+
+          {changePhoneStep === "oldPhone" && (
+            <form onSubmit={handleSendOldPhoneCode} className="space-y-4">
+              <div className="flex gap-2">
+                <PhoneCountrySelect value={changeOldCountry} onChange={setChangeOldCountry} disabled />
+                <input
+                  required
+                  disabled
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  value={changeOldNum}
+                  className="rounded-2xl py-4 px-5 font-bold outline-none opacity-60"
+                  style={{ flex: 1, minWidth: 0, backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+                />
+              </div>
+              {changePhoneError && <p className="text-[12.5px] text-center font-medium" style={{ color: "#dc2626" }}>{changePhoneError}</p>}
+              <button type="submit" disabled={changePhoneLoading || !changeOldNum.trim()} className="w-full py-5 bg-gold-500 text-zinc-950 rounded-2xl font-bold text-sm active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-60">
+                {changePhoneLoading ? <Loader2 className="animate-spin" size={20} /> : "Skicka kod till gamla numret"}
+              </button>
+            </form>
+          )}
+
+          {changePhoneStep === "oldCode" && (
+            <form onSubmit={handleVerifyOldPhoneCode} className="space-y-4">
+              <p className="text-center text-[13px]" style={{ color: "var(--text-secondary)" }}>Vi skickade en kod till {changeOldFull()}.</p>
+              <input required inputMode="numeric" autoComplete="one-time-code" value={changeOldCode} onChange={e => setChangeOldCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="123456" className="w-full rounded-2xl py-4 px-5 font-bold text-center outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)", letterSpacing: "0.3em", fontSize: 18 }} />
+              {changePhoneError && <p className="text-[12.5px] text-center font-medium" style={{ color: "#dc2626" }}>{changePhoneError}</p>}
+              <button type="submit" disabled={changePhoneLoading || changeOldCode.length < 4} className="w-full py-5 bg-gold-500 text-zinc-950 rounded-2xl font-bold text-sm active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-60">
+                {changePhoneLoading ? <Loader2 className="animate-spin" size={20} /> : "Verifiera gamla numret"}
+              </button>
+            </form>
+          )}
+
+          {changePhoneStep === "newPhone" && (
+            <form onSubmit={handleSendNewPhoneCode} className="space-y-4">
+              <div className="flex gap-2">
+                <PhoneCountrySelect value={changeNewCountry} onChange={setChangeNewCountry} />
+                <input required type="tel" inputMode="tel" autoComplete="tel" value={changeNewNum} onChange={e => setChangeNewNum(e.target.value)} placeholder="070 000 00 00" className="rounded-2xl py-4 px-5 font-bold placeholder:text-[color:var(--text-secondary)] outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]" style={{ flex: 1, minWidth: 0, backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
+              </div>
+              {changePhoneError && <p className="text-[12.5px] text-center font-medium" style={{ color: "#dc2626" }}>{changePhoneError}</p>}
+              <button type="submit" disabled={changePhoneLoading || !changeNewNum.trim()} className="w-full py-5 bg-gold-500 text-zinc-950 rounded-2xl font-bold text-sm active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-60">
+                {changePhoneLoading ? <Loader2 className="animate-spin" size={20} /> : "Skicka kod till nya numret"}
+              </button>
+            </form>
+          )}
+
+          {changePhoneStep === "newCode" && (
+            <form onSubmit={handleVerifyNewPhoneCode} className="space-y-4">
+              <p className="text-center text-[13px]" style={{ color: "var(--text-secondary)" }}>Vi skickade en kod till {changeNewFull()}.</p>
+              <input required inputMode="numeric" autoComplete="one-time-code" value={changeNewCode} onChange={e => setChangeNewCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="123456" className="w-full rounded-2xl py-4 px-5 font-bold text-center outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)", letterSpacing: "0.3em", fontSize: 18 }} />
+              {changePhoneError && <p className="text-[12.5px] text-center font-medium" style={{ color: "#dc2626" }}>{changePhoneError}</p>}
+              <button type="submit" disabled={changePhoneLoading || changeNewCode.length < 4} className="w-full py-5 bg-gold-500 text-zinc-950 rounded-2xl font-bold text-sm active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-60">
+                {changePhoneLoading ? <Loader2 className="animate-spin" size={20} /> : "Byt nummer"}
+              </button>
+              <button type="button" onClick={() => { setChangePhoneStep("newPhone"); setChangePhoneError(""); }} className="w-full text-center text-[13px]" style={{ color: "var(--text-secondary)" }}>Ändra nya numret</button>
+            </form>
+          )}
+        </motion.div>
+      </div>
+    );
+  }
+
   // ─── Logged in ────────────────────────────────────────────────────────────
   return (
     <>
@@ -1159,14 +1077,7 @@ function ProfileContent() {
           </div>
         )}
 
-        {/*
-          Apple-användare som saknar namn — Apple skickar fullName ENDAST
-          vid första auktorisering. Om vi missade det (eller appen
-          registrerades med tomt namn) måste användaren avregistrera Apple
-          för ViaEats i sina iCloud-inställningar och logga in igen.
-        */}
-        {(user.oauthProvider === "apple" || user.oauthProvider === "supabase") &&
-          (!user.firstName || !user.lastName) && (
+        {(!user.firstName || !user.lastName) && (
             <div
               className="mt-4 p-4 rounded-2xl"
               style={{
@@ -1184,31 +1095,31 @@ function ProfileContent() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-[14px] font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
-                    {t("profile.appleNoName.title")}
+                    Komplettera namn
                   </h3>
                   <p
                     className="text-[12px] mt-1 leading-snug"
                     style={{ color: "var(--text-secondary)" }}
                   >
-                    {t("profile.appleNoName.intro")}
+                    Förnamn och efternamn gör orderhistorik och support tydligare.
                   </p>
                   <div className="flex items-center gap-2 mt-3">
                     <input
-                      value={appleName}
-                      onChange={(e) => setAppleName(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") handleSaveAppleName(); }}
-                      placeholder={t("profile.appleNoName.placeholder")}
+                      value={missingName}
+                      onChange={(e) => setMissingName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleSaveMissingName(); }}
+                      placeholder="För- och efternamn"
                       autoComplete="name"
                       className="flex-1 min-w-0 rounded-xl py-2.5 px-3.5 text-[13px] font-semibold outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]"
                       style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
                     />
                     <button
-                      onClick={handleSaveAppleName}
-                      disabled={!appleName.trim() || appleNameSaving}
+                      onClick={handleSaveMissingName}
+                      disabled={!missingName.trim() || missingNameSaving}
                       className="shrink-0 rounded-xl px-4 py-2.5 text-[13px] font-bold active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center"
                       style={{ backgroundColor: "var(--text-primary)", color: "var(--bg-secondary)" }}
                     >
-                      {appleNameSaving ? <Loader2 size={15} className="animate-spin" /> : t("profile.appleNoName.save")}
+                      {missingNameSaving ? <Loader2 size={15} className="animate-spin" /> : "Spara"}
                     </button>
                   </div>
                 </div>
@@ -1216,7 +1127,6 @@ function ProfileContent() {
             </div>
           )}
 
-        {/* Phone missing warning for OAuth users */}
         {!user.phone && (
           <button
             onClick={() => setShowAddPhone(true)}
@@ -1562,19 +1472,24 @@ function ProfileContent() {
           {/* Overview */}
           {activeTab === "overview" && (
             <motion.div key="ov" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-3.5">
-              <div className="rounded-2xl p-[18px] flex items-center gap-[15px] shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-                <div className="h-[60px] w-[60px] rounded-full bg-[#111113] text-white flex items-center justify-center shrink-0">
-                  <span className="text-[23px] font-extrabold">
+              <div className="rounded-2xl p-[22px] shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+                <div className="flex items-center gap-[16px]">
+                  <div className="h-[72px] w-[72px] rounded-full bg-[#111113] text-white flex items-center justify-center shrink-0">
+                    <span className="text-[28px] font-extrabold">
                     {(user.name || "ViaEats").trim().charAt(0).toUpperCase() || "D"}
-                  </span>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[19px] font-extrabold tracking-normal truncate" style={{ color: "var(--text-primary)" }}>
-                    {user.name || "Profil"}
-                  </p>
-                  <p className="mt-0.5 text-[12.5px] font-medium truncate" style={{ color: "var(--text-secondary)" }}>
-                    {user.phone || user.email || "Medlem hos ViaEats"}
-                  </p>
+                    </span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[26px] font-black tracking-tight truncate" style={{ color: "var(--text-primary)" }}>
+                      {user.name || "Din profil"}
+                    </p>
+                    <p className="mt-1 text-[13px] font-bold truncate" style={{ color: "var(--text-secondary)" }}>
+                      {user.phone || "Nummer verifierat"}
+                    </p>
+                    <span className="mt-3 inline-flex rounded-full px-3 py-1 text-[11px] font-black" style={{ backgroundColor: "var(--gold-soft)", color: "var(--gold-ink)" }}>
+                      Nummer verifierat
+                    </span>
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -1582,7 +1497,7 @@ function ProfileContent() {
                     selectProfileTab("settings");
                     setIsEditing(true);
                   }}
-                  className="text-[13px] font-extrabold active:scale-95 transition-all"
+                  className="mt-5 h-11 w-full rounded-xl text-[13px] font-extrabold active:scale-95 transition-all"
                   style={{ color: "var(--color-gold-500)" }}
                 >
                   Ändra
@@ -1595,6 +1510,7 @@ function ProfileContent() {
                 {[
                   { key: "deals", icon: Tag, title: "Mina deals", subtitle: deals.length ? `${deals.length} aktiva` : "Rabatter & koder", action: () => selectProfileTab("deals") },
                   { key: "orders", icon: History, title: "Orderhistorik", subtitle: `${orders.length} ordrar`, action: () => selectProfileTab("orders") },
+                  { key: "phone", icon: Phone, title: "Byt nummer", subtitle: user.phone || "Verifiera gammalt och nytt nummer", action: openChangePhone },
                   { key: "support", icon: MessageCircle, title: "Support", subtitle: "Hjälp & kontakt", action: () => router.push("/contact") },
                   { key: "favorites", icon: Heart, title: "Favoriter", subtitle: "Sparade ställen", action: () => router.push("/discover") },
                   { key: "settings", icon: Settings, title: "Notiser & inställningar", subtitle: locale === "sv" ? "Svenska" : "English", action: () => selectProfileTab("settings") },
@@ -1626,7 +1542,7 @@ function ProfileContent() {
                 style={{ border: "1px solid var(--border-muted)", color: "var(--danger, #dc2626)" }}
               >
                 <LogOut size={18} />
-                Logga ut
+                Glöm på den här enheten
               </button>
             </motion.div>
           )}
@@ -1737,7 +1653,7 @@ function ProfileContent() {
                 >
                   <span className="flex items-center gap-3.5">
                     <Trash2 size={20} strokeWidth={1.9} className="text-rose-500" />
-                    <span className="text-[15px] font-bold text-rose-500">{t("profile.settings.deleteAccount")}</span>
+                    <span className="text-[15px] font-bold text-rose-500">Radera profil</span>
                   </span>
                   <ChevronRight size={18} className="text-rose-500" />
                 </button>
@@ -1770,12 +1686,16 @@ function ProfileContent() {
                   <input value={editName} onChange={e => setEditName(e.target.value)} className="w-full rounded-2xl py-4 px-6 font-bold outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
                 </div>
                 <div>
-                  <label className="text-[12px] font-medium text-[color:var(--text-secondary)] ml-1 mb-1 block">{t("profile.editForm.email")}</label>
-                  <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder={t("auth.emailPlaceholder")} className="w-full rounded-2xl py-4 px-6 font-bold outline-none focus:ring-2 focus:ring-[color:var(--line-strong)]" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
-                </div>
-                <div>
-                  <label className="text-[12px] font-medium text-[color:var(--text-secondary)] ml-1 mb-1 block">{t("profile.editForm.phoneLocked")}</label>
-                  <input disabled value={user.phone || t("profile.overview.notSet")} className="w-full rounded-2xl py-4 px-6 font-bold cursor-not-allowed opacity-50" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-secondary)" }} />
+                  <label className="text-[12px] font-medium text-[color:var(--text-secondary)] ml-1 mb-1 block">Telefon</label>
+                  <button
+                    type="button"
+                    onClick={openChangePhone}
+                    className="w-full rounded-2xl py-4 px-6 font-bold text-left flex items-center justify-between"
+                    style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+                  >
+                    <span>{user.phone || t("profile.overview.notSet")}</span>
+                    <span className="text-[12px]" style={{ color: "var(--color-gold-500)" }}>Byt</span>
+                  </button>
                 </div>
               </div>
               <button
@@ -1805,9 +1725,9 @@ function ProfileContent() {
           alert(err.response?.data?.error || t("profile.deleteAccount.errorGeneric"));
         }
       }}
-      title={t("profile.deleteAccount.title")}
-      message={t("profile.deleteAccount.message")}
-      confirmText={t("profile.deleteAccount.confirm")}
+      title="Radera profil?"
+      message="Detta går inte att ångra. Dina personuppgifter tas bort och orderhistorik kan anonymiseras av bokföringsskäl."
+      confirmText="Ja, radera profil"
       cancelText={t("common.cancel")}
     />
 
@@ -1840,10 +1760,8 @@ function ProfileContent() {
 
 export default function ProfilePage() {
   return (
-    <SessionProvider>
-      <Suspense fallback={<ProfileSkeleton />}>
-        <ProfileContent />
-      </Suspense>
-    </SessionProvider>
+    <Suspense fallback={<ProfileSkeleton />}>
+      <ProfileContent />
+    </Suspense>
   );
 }

@@ -4,14 +4,12 @@ import { useEffect, useState } from "react";
 import { Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import SocialAuthButton from "@/components/SocialAuthButton";
 import PhoneAuth from "@/components/PhoneAuth";
 import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import ReferralProfileCard from "@/components/ReferralProfileCard";
 
-// auth-input-stilen används av PhoneAuth (telefon/kod-fälten). Behålls även
-// efter att e-post/lösenord-inloggningen tagits bort.
+// auth-input-stilen används av PhoneAuth (telefon/kod-fälten).
 const AUTH_CSS = `
 .auth-input {
   width: 100%;
@@ -41,7 +39,7 @@ export default function LoginPage() {
   const { t } = useTranslation();
   const [checking, setChecking] = useState(true);
 
-  // Redan inloggad → skicka direkt till profilen (ingen login-vy då).
+  // Redan verifierad → skicka direkt till profilen.
   useEffect(() => {
     let active = true;
     void (async () => {
@@ -100,32 +98,20 @@ export default function LoginPage() {
           <ArrowLeft size={16} strokeWidth={2} />
         </button>
 
-        {/* Header */}
         <div className="space-y-1.5">
           <h1 className="text-[26px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
-            {t("auth.login.title")}
+            Verifiera ditt nummer
           </h1>
           <p className="text-[14.5px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-            {t("auth.login.subtitle")}
+            Spara ordrar och få snabbare support med bara ditt telefonnummer.
           </p>
         </div>
 
-        {/* Apple, Google eller telefon — lösenordsfritt, allt kopplat till numret */}
         <div className="flex flex-col gap-2.5">
-          <SocialAuthButton provider="apple" />
-          <SocialAuthButton provider="google" />
-          <PhoneAuth />
+          <PhoneAuth buttonLabel="Fortsätt med nummer" />
         </div>
 
         <ReferralProfileCard />
-
-        {/* Registrera */}
-        <p className="text-center text-[14px]" style={{ color: "var(--text-secondary)" }}>
-          {t("auth.login.newHere")}{" "}
-          <Link href="/register" className="font-semibold" style={{ color: "var(--text-primary)" }}>
-            {t("auth.login.create")}
-          </Link>
-        </p>
 
         {/* Juridik/kontakt */}
         <p className="text-center text-[12.5px] pt-2" style={{ color: "var(--text-secondary)" }}>

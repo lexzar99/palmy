@@ -4,7 +4,6 @@ import { Suspense, useEffect } from "react";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import SocialAuthButton from "@/components/SocialAuthButton";
 import PhoneAuth from "@/components/PhoneAuth";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
@@ -33,8 +32,6 @@ const AUTH_CSS = `
 }
 `;
 
-// Skapa konto = som att logga in: Apple, Google eller telefon (lösenordsfritt).
-// Telefon är manuell-vägen: nummer → SMS-kod → förnamn → efternamn → e-post.
 function RegisterContent() {
   const searchParams = useSearchParams();
   const { t } = useTranslation();
@@ -65,29 +62,18 @@ function RegisterContent() {
           <ArrowLeft size={16} strokeWidth={2} />
         </Link>
 
-        {/* Header */}
         <div className="space-y-1.5">
           <h1 className="text-[26px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
-            {t("auth.register.title")}
+            Verifiera ditt nummer
           </h1>
           <p className="text-[14.5px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-            {t("auth.register.subSaveHistory")}
+            Spara ordrar och få snabbare support med bara ditt telefonnummer.
           </p>
         </div>
 
-        {/* Apple, Google eller telefon */}
         <div className="flex flex-col gap-2.5">
-          <SocialAuthButton provider="apple" />
-          <SocialAuthButton provider="google" />
-          <PhoneAuth />
+          <PhoneAuth buttonLabel="Fortsätt med nummer" />
         </div>
-
-        <p className="text-center text-[14px]" style={{ color: "var(--text-secondary)" }}>
-          {t("auth.hasAccount")}{" "}
-          <Link href="/login" className="font-semibold" style={{ color: "var(--text-primary)" }}>
-            {t("auth.signIn")}
-          </Link>
-        </p>
       </div>
     </div>
   );

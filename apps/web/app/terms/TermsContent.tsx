@@ -140,7 +140,7 @@ export default function TermsContent({ company }: { company: CompanyProps }) {
               samtycke via cookie-bannern.
             </p>
             <p className="mt-3 leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-              Uppgifterna lagras så länge ditt konto är aktivt. Underlag som omfattas av
+              Uppgifterna lagras så länge din profil är aktiv. Underlag som omfattas av
               bokföringsplikt sparas i sju (7) år enligt Bokföringslagen (1999:1078). Du har rätt
               till tillgång, rättelse, radering, dataportabilitet och att invända mot behandlingen.
               Se vår{" "}

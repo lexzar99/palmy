@@ -332,15 +332,15 @@ const PHASES: ChecklistPhase[] = [
         id: "rebuild-ios",
         title: "iOS rebuild med nytt bundle ID",
         description:
-          "cd ios && pod install + Xcode rebuild. Verifiera Push, Sign in with Apple, Live Activities funkar.",
+          "cd ios && pod install + Xcode rebuild. Verifiera Push, telefon-OTP, Live Activities och Apple Pay funkar.",
         who: "Du",
         effort: "1/2 dag",
       },
       {
-        id: "service-id-apple",
-        title: "Service ID i Apple Developer + Supabase",
+        id: "phone-otp-supabase",
+        title: "Telefon-OTP i Supabase/Twilio",
         description:
-          "Skapa Services ID för web sign-in (com.nyttnamn.web). Verifiera return URL till Supabase. Update Supabase Client IDs-listan.",
+          "Verifiera att SMS-provider, rate-limit och redirectfria OTP-flödet är korrekt konfigurerat för webben och appen.",
         who: "Du",
         effort: "30 min",
       },
@@ -348,7 +348,7 @@ const PHASES: ChecklistPhase[] = [
         id: "twilio-cleanup",
         title: "Verifiera lösenordsfri telefon-OTP",
         description:
-          "Kundauth ska bara erbjuda Supabase SMS-OTP, Google och Apple. Testa ny och befintlig telefon, fel kod, utgången kod och rate-limit. Ingen e-post-/lösenordsinloggning får synas.",
+          "Kundauth ska bara erbjuda SMS-OTP. Testa ny och befintlig telefon, fel kod, utgången kod och rate-limit. Ingen e-post eller social auth får synas.",
         who: "Båda",
         effort: "30 min",
       },
@@ -510,7 +510,7 @@ const PHASES: ChecklistPhase[] = [
         id: "fix-rejection",
         title: "Om reject: åtgärda + resubmit",
         description:
-          "Vanliga reject-orsaker: Sign in with Apple-saknad, privacy-manifest-fel, krasch i specifikt flöde, inkomplett metadata. Resubmit-cykel ~1-2 dagar.",
+          "Vanliga reject-orsaker: privacy-manifest-fel, krasch i specifikt flöde, inkomplett metadata eller bruten nummerverifiering. Resubmit-cykel ~1-2 dagar.",
         who: "Båda",
         effort: "Variabel",
       },

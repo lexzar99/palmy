@@ -21,8 +21,8 @@ export default function MobileAuthPage() {
             Uppdatering krävs
           </h1>
           <p className="text-sm leading-relaxed text-zinc-300">
-            Den här appversionens inloggning är avstängd av säkerhetsskäl.
-            Uppdatera ViaEats-appen innan du loggar in igen.
+            Den här appversionens verifiering är avstängd av säkerhetsskäl.
+            Uppdatera ViaEats-appen innan du verifierar numret igen.
           </p>
         </div>
         <p className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">

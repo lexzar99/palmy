@@ -124,7 +124,7 @@ export default function OrdersPage() {
     let active = true;
 
     const loadLoggedIn = async () => {
-      // Samma endpoint + statusfilter som profilens order-flik. Inloggade
+      // Samma endpoint + statusfilter som profilens order-flik. Verifierade
       // orderlänkar behöver ingen PII i URL:en; proxyn skickar sessionen.
       const [ordersRes, profileRes] = await Promise.all([
         axios.get(`/api/platform/profile/orders`).catch(() => ({ data: [] })),
@@ -351,8 +351,8 @@ export default function OrdersPage() {
             <p className="text-[12.5px] leading-[18px]" style={{ color: "var(--text-secondary)" }}>
               {t("orders.localNote")}
             </p>
-            <Link href="/login" className="mt-1.5 inline-block text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>
-              {t("nav.login")}
+            <Link href="/profile" className="mt-1.5 inline-block text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>
+              Verifiera nummer
             </Link>
           </div>
         )}

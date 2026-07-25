@@ -11,7 +11,7 @@ import { API_URL } from "@/lib/api";
 import { toE164Phone } from "@/lib/phone";
 import PhoneCountrySelect from "@/components/PhoneCountrySelect";
 
-// Egen input-stil så komponenten funkar var som helst (login/register/profil)
+// Egen input-stil så komponenten funkar var som helst (profil/ordertracking)
 // utan att sidan behöver injicera auth-input-CSS.
 const PA_CSS = `
 .pa-input {
@@ -31,27 +31,83 @@ const PA_CSS = `
 .pa-input::placeholder { color: var(--text-secondary); opacity: 0.55; }
 `;
 
-// Lösenordsfri telefon-inloggning via Supabase phone-OTP, i FLERA steg:
-//   nummer → SMS-kod → förnamn → efternamn → e-post (kvitto) → inloggad + deal.
-// Återkommande användare (har redan namn) hoppar över namn-stegen och loggas in
-// direkt. Allt kopplas till numret; inget lösenord. Kräver att en SMS-leverantör
-// är aktiverad i Supabase Auth — tills dess visas ett vänligt fel.
-type Step = "phone" | "code" | "firstName" | "lastName" | "email";
+type Step = "phone" | "code" | "firstName" | "lastName";
 
-export default function PhoneAuth() {
+type PhoneAuthProps = {
+  buttonLabel?: string;
+  buttonClassName?: string;
+  prefilledPhone?: string | null;
+  lockedPhone?: boolean;
+  prefilledName?: string | null;
+  startOpen?: boolean;
+  redirectTo?: string | null;
+  onCompleted?: (profile: any) => void;
+};
+
+function splitName(value?: string | null) {
+  const clean = String(value || "").trim().replace(/\s+/g, " ");
+  if (!clean) return { firstName: "", lastName: "" };
+  const parts = clean.split(" ");
+  return {
+    firstName: parts[0] || "",
+    lastName: parts.slice(1).join(" "),
+  };
+}
+
+function phoneParts(value?: string | null) {
+  const raw = String(value || "").trim();
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return { country: "+46", number: "" };
+  if (raw.startsWith("+46") || digits.startsWith("46")) {
+    return { country: "+46", number: digits.replace(/^46/, "") };
+  }
+  return { country: "+46", number: raw.startsWith("0") ? raw : digits };
+}
+
+function hasStoredName(profile: any) {
+  return Boolean(
+    String(profile?.firstName || "").trim() ||
+    String(profile?.lastName || "").trim() ||
+    String(profile?.name || "").trim(),
+  );
+}
+
+export default function PhoneAuth({
+  buttonLabel = "Fortsätt med nummer",
+  buttonClassName,
+  prefilledPhone,
+  lockedPhone = false,
+  prefilledName,
+  startOpen = false,
+  redirectTo = "/profile",
+  onCompleted,
+}: PhoneAuthProps) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const initialPhone = phoneParts(prefilledPhone);
+  const initialName = splitName(prefilledName);
+  const [open, setOpen] = useState(startOpen);
   const [step, setStep] = useState<Step>("phone");
-  const [country, setCountry] = useState("+46");
-  const [num, setNum] = useState("");
+  const [country, setCountry] = useState(initialPhone.country);
+  const [num, setNum] = useState(initialPhone.number);
   const [code, setCode] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
+  const [firstName, setFirstName] = useState(initialName.firstName);
+  const [lastName, setLastName] = useState(initialName.lastName);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const fullPhone = () => toE164Phone(country, num);
+  const complete = (profile: any) => {
+    try {
+      const phone = String(profile?.phone || fullPhone()).trim();
+      const name = String(profile?.name || [profile?.firstName, profile?.lastName].filter(Boolean).join(" ") || prefilledName || "").trim();
+      if (phone) localStorage.setItem("guest_phone", phone);
+      if (name) localStorage.setItem("guest_name", name);
+    } catch {
+      /* blocked storage should not stop verification */
+    }
+    onCompleted?.(profile);
+    if (redirectTo) router.push(redirectTo);
+  };
 
   const attributeInvite = async () => {
     const cookieRef = document.cookie.match(/(?:^|; )dlv_ref=([^;]+)/)?.[1];
@@ -63,7 +119,7 @@ export default function PhoneAuth() {
         channel: "web",
       });
     } catch {
-      /* tyst — blockerar aldrig inloggningen */
+      /* tyst — blockerar aldrig verifieringen */
     }
   };
 
@@ -78,10 +134,6 @@ export default function PhoneAuth() {
     markExplicitLoginStarted();
     try {
       const supabase = createSupabaseBrowserClient();
-      // An old Apple/Google Supabase session must not win a new explicit
-      // phone-login attempt. Leaving it around caused profile bootstrap to
-      // exchange the social session after the SMS succeeded, showing a second
-      // phone-verification gate.
       await supabase.auth.signOut().catch(() => {});
       const { error: err } = await supabase.auth.signInWithOtp({ phone: fullPhone() });
       if (err) throw err;
@@ -91,7 +143,7 @@ export default function PhoneAuth() {
       if (m.includes("rate") || m.includes("limit") || m.includes("too many")) {
         setError("För många SMS-försök just nu. Vänta en stund och försök igen.");
       } else if (m.includes("phone provider") || m.includes("sms provider") || m.includes("not enabled") || m.includes("not configured")) {
-        setError("SMS-inloggning är inte aktiverad än. Prova Google eller Apple så länge.");
+        setError("SMS-verifiering är inte aktiverad än. Försök igen senare.");
       } else {
         setError(err?.message || "Kunde inte skicka koden. Kontrollera numret.");
       }
@@ -100,7 +152,7 @@ export default function PhoneAuth() {
     }
   };
 
-  // Steg 2: verifiera koden → session. Ny användare → namn-stegen, annars klart.
+  // Steg 2: verifiera koden. Saknas namn sparar vi förnamn + efternamn.
   const verify = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -121,20 +173,30 @@ export default function PhoneAuth() {
       const platformToken = ex.data?.token;
       if (!platformToken) throw new Error("Ingen platform-session");
       await persistPlatformSession(platformToken);
-      // Platform-sessionen är nu den enda kundsessionen vi behöver. Lämna
-      // inte SMS-sessionen kvar till /profile, annars kan profilens Supabase-
-      // bootstrap starta ett andra tokenbyte/telefonsteg.
       await supabase.auth.signOut().catch(() => {});
       await attributeInvite();
-      // Återkommande (har namn) → logga in direkt. Ny → samla namn/efternamn/mail.
+      let profile = ex.data?.user;
       try {
         const me = await axios.get("/api/platform/profile");
-        if (me.data?.firstName || me.data?.name) {
-          router.push("/profile");
-          return;
-        }
+        profile = me.data || profile;
       } catch {
-        /* om profil-koll fallerar, fortsätt till namn-insamling */
+        /* fortsätt med backend-svaret om profilhämtning fallerar */
+      }
+      if (profile && hasStoredName(profile)) {
+        complete(profile);
+        return;
+      }
+      const prefill = splitName(prefilledName);
+      if (prefill.firstName && prefill.lastName) {
+        const full = `${prefill.firstName} ${prefill.lastName}`;
+        await axios.patch("/api/platform/profile", {
+          firstName: prefill.firstName,
+          lastName: prefill.lastName,
+          name: full,
+        });
+        const me = await axios.get("/api/platform/profile").catch(() => ({ data: { ...(profile || {}), firstName: prefill.firstName, lastName: prefill.lastName, name: full, phone: fullPhone() } }));
+        complete(me.data);
+        return;
       }
       setStep("firstName");
       setLoading(false);
@@ -144,7 +206,6 @@ export default function PhoneAuth() {
     }
   };
 
-  // Sista steget (e-post): spara namn + mail, logga in, dealen är redan kopplad.
   const finish = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -154,9 +215,9 @@ export default function PhoneAuth() {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         name: `${firstName.trim()} ${lastName.trim()}`.trim(),
-        email: email.trim() || undefined,
       });
-      router.push("/profile");
+      const me = await axios.get("/api/platform/profile").catch(() => ({ data: { firstName: firstName.trim(), lastName: lastName.trim(), name: `${firstName.trim()} ${lastName.trim()}`.trim(), phone: fullPhone() } }));
+      complete(me.data);
     } catch {
       setError("Kunde inte spara uppgifterna.");
       setLoading(false);
@@ -180,10 +241,10 @@ export default function PhoneAuth() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="w-full h-[50px] rounded-xl text-[15px] font-semibold flex items-center justify-center gap-2.5 transition-opacity active:scale-[0.99]"
+        className={buttonClassName || "w-full h-[50px] rounded-xl text-[15px] font-semibold flex items-center justify-center gap-2.5 transition-opacity active:scale-[0.99]"}
         style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--line-strong)", color: "var(--text-primary)" }}
       >
-        <Phone size={17} /> Fortsätt med telefon
+        <Phone size={17} /> {buttonLabel}
       </button>
     );
   }
@@ -198,8 +259,8 @@ export default function PhoneAuth() {
             <Back onClick={() => setOpen(false)} />
           </div>
           <div className="flex gap-2">
-            <PhoneCountrySelect value={country} onChange={setCountry} />
-            <input type="tel" inputMode="tel" autoComplete="tel" required placeholder="70 123 45 67" value={num} onChange={(e) => setNum(e.target.value)} className="pa-input" style={{ flex: 1, minWidth: 0 }} />
+            <PhoneCountrySelect value={country} onChange={setCountry} disabled={lockedPhone} />
+            <input type="tel" inputMode="tel" autoComplete="tel" required disabled={lockedPhone} placeholder="70 123 45 67" value={num} onChange={(e) => setNum(e.target.value)} className="pa-input disabled:opacity-60" style={{ flex: 1, minWidth: 0 }} />
           </div>
           {error && <p className="text-[13px] text-rose-600 leading-snug">{error}</p>}
           {goldBtn("Skicka kod", loading || !num)}
@@ -215,7 +276,7 @@ export default function PhoneAuth() {
           <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>Vi skickade en kod till {fullPhone()}.</p>
           <input inputMode="numeric" autoComplete="one-time-code" required placeholder="123456" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} className="pa-input" style={{ letterSpacing: "0.3em", textAlign: "center", fontSize: 18 }} />
           {error && <p className="text-[13px] text-rose-600 leading-snug">{error}</p>}
-          {goldBtn("Verifiera", loading || code.length < 4)}
+          {goldBtn("Verifiera nummer", loading || code.length < 4)}
         </form>
       )}
 
@@ -228,25 +289,14 @@ export default function PhoneAuth() {
       )}
 
       {step === "lastName" && (
-        <form onSubmit={(e) => { e.preventDefault(); if (lastName.trim()) setStep("email"); }} className="space-y-3">
+        <form onSubmit={finish} className="space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-[14px] font-semibold" style={{ color: "var(--text-primary)" }}>Ditt efternamn</p>
             <Back onClick={() => setStep("firstName")} />
           </div>
           <input type="text" autoComplete="family-name" required placeholder="Efternamn" value={lastName} onChange={(e) => setLastName(e.target.value)} className="pa-input" autoFocus />
-          {goldBtn("Nästa", !lastName.trim())}
-        </form>
-      )}
-
-      {step === "email" && (
-        <form onSubmit={finish} className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-[14px] font-semibold" style={{ color: "var(--text-primary)" }}>E-post för kvitto</p>
-            <Back onClick={() => setStep("lastName")} />
-          </div>
-          <input type="email" inputMode="email" autoComplete="email" placeholder="namn@exempel.se" value={email} onChange={(e) => setEmail(e.target.value)} className="pa-input" autoFocus />
           {error && <p className="text-[13px] text-rose-600 leading-snug">{error}</p>}
-          {goldBtn("Klar", loading)}
+          {goldBtn("Klar", loading || !lastName.trim())}
         </form>
       )}
     </div>
