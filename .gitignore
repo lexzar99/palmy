@@ -105,3 +105,8 @@ builds/
 
 # Temp logs
 tmp/
+*.log
+
+# car-os: lokalt Flutter-projekt, ~1 GB varav mestadels byggartefakter.
+# Ska aldrig till GitHub.
+car-os/
