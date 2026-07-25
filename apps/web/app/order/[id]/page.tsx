@@ -14,6 +14,7 @@ import { addSkippedReviewOrderId, isReviewSkipped } from "@/lib/reviewPrompt";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import dynamic from "next/dynamic";
 import { OrderTrackingCard } from "@/components/OrderTrackingCard";
+import { BreathingTrackingPanel } from "@/components/BreathingTracking";
 import { forgetRawOrderAccessToken, readOrderHistory, saveOrderToHistory } from "@/lib/orderHistory";
 import { rememberActiveOrder } from "@/lib/activeOrder";
 import { ensureKioskAccess } from "@/lib/kioskAccessClient";
@@ -24,6 +25,8 @@ import {
   trustedPartnerOrigin,
 } from "@/lib/embedPartner";
 import { orderTrackingCopy, orderTrackingProgress } from "@/lib/orderTrackingPresentation";
+import PhoneAuth from "@/components/PhoneAuth";
+import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
 
 // Live-karta laddas bara på klienten (Leaflet behöver window).
 const CourierTrackingMap = dynamic(() => import("@/components/CourierTrackingMap"), { ssr: false });
@@ -314,6 +317,8 @@ const OrderStatusPage = () => {
   const [pushAvailable, setPushAvailable] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+  const [showPhoneVerifyPrompt, setShowPhoneVerifyPrompt] = useState(false);
+  const [phoneVerifyPrefillName, setPhoneVerifyPrefillName] = useState("");
 
   useEffect(() => {
     if (!orderId) return;
@@ -516,6 +521,39 @@ const OrderStatusPage = () => {
     const t = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(t);
   }, [order?.status]);
+
+  useEffect(() => {
+    if (!order?.id || !order.customerPhone || isTerminal(order.status) || embedMode) {
+      setShowPhoneVerifyPrompt(false);
+      return;
+    }
+    let active = true;
+    const key = `viaeats.phoneVerifyPrompt.dismissed.${order.id}`;
+    try {
+      setPhoneVerifyPrefillName(localStorage.getItem("guest_name") || "");
+      if (localStorage.getItem(key) === "1") {
+        setShowPhoneVerifyPrompt(false);
+        return;
+      }
+    } catch {
+      /* storage unavailable: still allow prompt */
+    }
+    void getPlatformSessionStatus()
+      .then((verified) => {
+        if (active) setShowPhoneVerifyPrompt(!verified);
+      })
+      .catch(() => {
+        if (active) setShowPhoneVerifyPrompt(true);
+      });
+    return () => { active = false; };
+  }, [order?.id, order?.customerPhone, order?.status, embedMode]);
+
+  const dismissPhoneVerifyPrompt = () => {
+    if (order?.id) {
+      try { localStorage.setItem(`viaeats.phoneVerifyPrompt.dismissed.${order.id}`, "1"); } catch { /* noop */ }
+    }
+    setShowPhoneVerifyPrompt(false);
+  };
 
   // Recensionen visas inline (mellan status och detaljer) så fort ordern är
   // levererad och inte redan betygsatt. Läs in ev. tidigare "stäng"-val så
@@ -746,7 +784,11 @@ const OrderStatusPage = () => {
   const orderNo = order.orderNumber ? `#${order.orderNumber}` : `#${String(order.id || "").slice(-6).toUpperCase()}`;
   const hasRestCoords = typeof order.restaurantLat === "number" && typeof order.restaurantLng === "number";
   const hasCustomerCoords = typeof order.deliveryLatitude === "number" && typeof order.deliveryLongitude === "number";
-  const showMapFullscreen = order.type === "DELIVERY" && !isSelf && !isRejected && isOnWay && !isCompleted && hasRestCoords && hasCustomerCoords;
+  // Webben tar aldrig över hela skärmen som appen gör — spårningen är en
+  // vanlig, dedikerad sida. Kartan bor i andningspanelen i stället.
+  const showMapFullscreen = false;
+  const hasLiveMap = order.type === "DELIVERY" && !isSelf && !isRejected && isOnWay && !isCompleted && hasRestCoords && hasCustomerCoords;
+  void hasLiveMap;
   const activeStep = isCompleted ? stepDefs.length - 1 : Math.max(0, currentIdx);
   const progressRatio = isCompleted ? 1 : Math.max(0.22, Math.min(1, (activeStep + 1) / stepDefs.length));
   const etaMinutes = courierEnRoute
@@ -1211,44 +1253,51 @@ const OrderStatusPage = () => {
           <span className="ml-auto text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>{orderNo}</span>
         </div>
 
-        <div className="mt-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.1em]" style={{ color: "var(--text-secondary)" }}>ORDER {order.orderNumber ? `#${order.orderNumber}` : ""}</p>
-          <h1 className="mt-0.5 text-[28px] font-black tracking-tight" style={{ color: "var(--text-primary)" }}>{isPickup ? "Din avhämtning" : "Din order"}</h1>
-        </div>
-
-        {isCompleted
-          ? CompletedReviewCard()
-          : isPickup && currentStatus === "READY"
-            ? PickupReadyCard()
-            : StatusCard()}
-
-        {!isPickup ? (
-          <div className="mt-3.5 overflow-hidden rounded-[18px] border bg-white shadow-sm" style={{ borderColor: "rgba(17,17,19,0.07)" }}>
-            {DestRowWeb({ mini: "Levereras till", main: custAddr || restName, icon: MapPin })}
-            {DestRowWeb({ mini: "Restaurang", main: restName, sub: restAddr, icon: Store, call: true, sep: true })}
+        {/* Andningstemat bär hela sidan. Ingen karta för self-delivery, och
+            för vi-levererar dyker den upp först när budet hämtat maten. */}
+        {isRejected ? (
+          StatusCard()
+        ) : (
+          <div className="mt-3">
+            <BreathingTrackingPanel
+              order={order}
+              courier={courierPos}
+              onOpenInfo={() => setShowReceipt(true)}
+            />
           </div>
-        ) : null}
+        )}
 
-        {ContactActionsWeb({ primaryLabel: isPickup ? "Ring restaurang" : "Kontakta restaurang" })}
+        {isCompleted ? CompletedReviewCard() : null}
 
-        <button
-          type="button"
-          onClick={() => setShowReceipt(true)}
-          className={`mt-3.5 flex w-full items-center gap-3.5 rounded-[18px] border bg-white p-4 text-left shadow-sm ${embedMode ? "sticky z-[1100]" : ""}`}
-          style={{
-            borderColor: "rgba(17,17,19,0.07)",
-            bottom: embedMode ? "calc(env(safe-area-inset-bottom, 0px) + 5rem)" : undefined,
-          }}
-        >
-          <span className="grid h-[46px] w-[46px] place-items-center rounded-[13px]" style={{ backgroundColor: "#FFF0EA", color: "#F0531C" }}>
-            <Receipt size={21} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>Orderinfo & kvitto</span>
-            <span className="mt-0.5 block truncate text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>Se rätter, restaurang och pris</span>
-          </span>
-          <ChevronDown size={20} className="-rotate-90" style={{ color: "#C2C2C6" }} />
-        </button>
+        {showPhoneVerifyPrompt && (
+          <div className="mt-3.5 rounded-[18px] border bg-white p-4 shadow-sm" style={{ borderColor: "rgba(17,17,19,0.07)" }}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[16px] font-black tracking-tight" style={{ color: "var(--text-primary)" }}>Spara den här ordern</p>
+                <p className="mt-1 text-[12.5px] font-semibold leading-5" style={{ color: "var(--text-secondary)" }}>
+                  Verifiera ditt nummer för orderhistorik och snabbare support.
+                </p>
+              </div>
+              <button type="button" onClick={dismissPhoneVerifyPrompt} className="shrink-0 rounded-full p-1.5" aria-label="Dölj" style={{ color: "var(--text-secondary)" }}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="mt-3">
+              <PhoneAuth
+                buttonLabel="Verifiera nummer"
+                prefilledPhone={order.customerPhone}
+                lockedPhone
+                prefilledName={phoneVerifyPrefillName}
+                redirectTo={null}
+                onCompleted={() => {
+                  setShowPhoneVerifyPrompt(false);
+                  void fetchOrder({ silent: true });
+                }}
+              />
+            </div>
+          </div>
+        )}
+
       </div>
       {OrderInfoOverlayWeb}
     </div>

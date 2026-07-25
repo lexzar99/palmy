@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Bike, Check, ChevronRight, Navigation, Package, ShoppingBag, X } from "lucide-react";
 import { motion } from "framer-motion";
 import { orderTrackingCopy, orderTrackingProgress } from "@/lib/orderTrackingPresentation";
+import { phaseHeadline, phaseTint, resolvePhase } from "@/components/BreathingTracking";
 
 const CourierTrackingMap = dynamic(() => import("@/components/CourierTrackingMap"), { ssr: false });
 
@@ -32,6 +33,101 @@ function etaLabel(order: any, now = Date.now()) {
   return type === "PICKUP" ? "ca 10m" : "Snart";
 }
 
+/**
+ * Hemskärmens pågående order — avsiktligt tunn. Restaurang, ett statusord och
+ * klockslaget. Allt annat finns ett tryck bort på spårningssidan, så kortet
+ * behöver inte upprepa det.
+ */
+function CompactTrackingCard({ order, href, className = "" }: { order: any; href?: string; className?: string }) {
+  const phase = resolvePhase(order);
+  const tint = phaseTint(phase);
+  const status = String(order.status || "PENDING").toUpperCase();
+  const isCancelled = ["CANCELLED", "REJECTED", "DELIVERY_FAILED"].includes(status);
+  const accent = isCancelled ? "#C0392B" : tint;
+  const restaurantLabel = order.restaurantName || order.restaurant?.name || "Din restaurang";
+  const activeIndex = phase === "waiting" ? 0 : phase === "preparing" ? 1 : 2;
+
+  const target = order.etaRevisedAt ?? order.etaEndsAt ?? null;
+  const clock = target
+    ? new Date(target).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })
+    : null;
+  const headline = isCancelled ? "Avbruten" : phaseHeadline(phase);
+  const done = phase === "done" || phase === "readyForPickup";
+
+  const body = (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`relative isolate overflow-hidden rounded-[24px] bg-white p-4 ${className}`}
+      style={{
+        border: "1px solid rgba(17,17,19,0.07)",
+        boxShadow: "0 10px 26px rgba(17,17,19,0.07)",
+      }}
+    >
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -right-16 -top-20 h-44 w-44 rounded-full"
+        style={{ background: `radial-gradient(circle, ${accent}2e 0%, transparent 70%)` }}
+      />
+
+      <div className="relative flex items-center gap-3.5">
+        <span className="relative grid h-11 w-11 shrink-0 place-items-center">
+          {!isCancelled && !done ? (
+            <motion.span
+              aria-hidden
+              className="absolute inset-0 rounded-full"
+              style={{ backgroundColor: accent, opacity: 0.16 }}
+              animate={{ scale: [0.86, 1.12, 0.86] }}
+              transition={{ duration: phase === "waiting" ? 1.6 : 4.4, repeat: Infinity, ease: "easeInOut" }}
+            />
+          ) : null}
+          <span className="relative h-[13px] w-[13px] rounded-full" style={{ backgroundColor: accent }} />
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[16px] font-black tracking-tight" style={{ color: "var(--text-primary)" }}>
+            {restaurantLabel}
+          </p>
+          <p className="mt-0.5 truncate text-[12.5px] font-bold" style={{ color: accent }}>
+            {headline}
+          </p>
+        </div>
+
+        <div className="shrink-0 text-right">
+          {clock && !isCancelled && !done ? (
+            <p className="text-[22px] font-black leading-none tracking-[-0.02em] tabular-nums" style={{ color: "var(--text-primary)" }}>
+              {clock}
+            </p>
+          ) : (
+            <span className="grid h-9 w-9 place-items-center rounded-full" style={{ backgroundColor: `${accent}1f`, color: accent }}>
+              {isCancelled ? <X size={17} /> : <Check size={18} />}
+            </span>
+          )}
+        </div>
+
+        <ChevronRight size={17} className="shrink-0" style={{ color: "#C6C6CA" }} />
+      </div>
+
+      {!isCancelled ? (
+        <div className="relative mt-3.5 flex gap-1.5">
+          {[0, 1, 2].map((index) => (
+            <motion.span
+              key={index}
+              className="h-[4px] flex-1 rounded-full"
+              initial={false}
+              animate={{ backgroundColor: index <= activeIndex ? accent : "rgba(17,17,19,0.09)" }}
+              transition={{ duration: 0.5 }}
+            />
+          ))}
+        </div>
+      ) : null}
+    </motion.div>
+  );
+
+  if (!href) return body;
+  return <Link href={href} className="block">{body}</Link>;
+}
+
 export function OrderTrackingCard({
   order,
   href,
@@ -46,6 +142,8 @@ export function OrderTrackingCard({
   full?: boolean;
 }) {
   const [now] = useState(() => Date.now());
+  // Hemskärmens variant är ett eget, mycket tunnare kort.
+  if (!full) return <CompactTrackingCard order={order} href={href} className={className} />;
   const status = String(order.status || "PENDING").toUpperCase();
   const type = String(order.orderType || order.type || "DELIVERY").toUpperCase();
   const isPickup = type === "PICKUP";
