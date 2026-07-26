@@ -201,7 +201,8 @@ type PromoCardItem =
   | { id: string; kind: "sponsor"; sponsor: SponsorData }
   | { id: string; kind: "appDeal"; appDeal: HomeAppDeal }
   | { id: string; kind: "pulseChampion"; module: HomePulseModule }
-  | { id: string; kind: "pulseHighlight"; module: HomePulseModule; restaurant: PulseRailRestaurant; badge: string };
+  | { id: string; kind: "pulseHighlight"; module: HomePulseModule; restaurant: PulseRailRestaurant; badge: string }
+  | { id: string; kind: "currentRestaurant"; restaurant: Restaurant; badge: string; theme: string };
 
 function getPromoSnap(rail: HTMLDivElement) {
   const first = rail.children[0] as HTMLElement | undefined;
@@ -382,6 +383,8 @@ function pulseGradient(theme?: string | null) {
       return "linear-gradient(135deg, #F0601F 0%, #B8291A 100%)";
     case "forest":
       return "linear-gradient(135deg, #21945C 0%, #0D5C3D 100%)";
+    case "berry":
+      return "linear-gradient(135deg, #B84588 0%, #70215E 100%)";
     case "midnight":
       return "linear-gradient(135deg, #292E4D 0%, #0D1024 100%)";
     case "gold":
@@ -577,6 +580,55 @@ function HighlightPromoCard({ restaurant, badge, onOpen, imagePriority = false }
         <span className="mt-1 flex items-center gap-2 text-[12px] font-bold text-white/90">
           {restaurant.cuisine || "Restaurang"}
           {restaurant.rating ? <span className="text-[var(--gold)]">★ {restaurant.rating.toFixed(1)}</span> : null}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+function currentTheme(theme?: string | null) {
+  switch ((theme || "").toUpperCase()) {
+    case "ORANGE": case "SUNRISE": return "ember";
+    case "GREEN": case "FRESH": return "forest";
+    case "PURPLE": case "BERRY": return "berry";
+    case "NAVY": case "MIDNIGHT": return "midnight";
+    case "GOLD": return "gold";
+    default: return "sky";
+  }
+}
+
+function currentCardSurface(theme: string) {
+  switch (currentTheme(theme)) {
+    case "ember": return "#FFF0E7";
+    case "forest": return "#EAF9EF";
+    case "berry": return "#FBEFFA";
+    case "midnight": return "#EEF1FF";
+    case "gold": return "#FFF7E4";
+    default: return "#EAF7FF";
+  }
+}
+
+// Samma stora bildformat som Swift: matbilden väcker sug, den ljusa
+// informationsytan gör att text och alla badges alltid går att läsa.
+function CurrentRestaurantPromoCard({ restaurant, badge, theme, onOpen, imagePriority = false }: { restaurant: Restaurant; badge: string; theme: string; onOpen: (slug: string) => void; imagePriority?: boolean }) {
+  const image = absoluteMediaUrl(restaurant.heroImageUrl || restaurant.imageUrl);
+  const resolvedTheme = currentTheme(theme);
+  return (
+    <button type="button" onClick={() => onOpen(restaurant.slug)} className="swift-promo-card overflow-hidden text-left" style={{ background: currentCardSurface(resolvedTheme) }}>
+      <span className="relative block h-[60%] overflow-hidden">
+        {image ? (
+          <span role="img" aria-label={restaurant.name} className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url("${optimizedImageUrl(image, 1800, 90)}")` }} />
+        ) : <span className="absolute inset-0" style={{ background: pulseGradient(resolvedTheme) }} />}
+        <span className="absolute inset-0 opacity-25" style={{ background: pulseGradient(resolvedTheme) }} />
+        <span className="absolute left-3 top-3 inline-flex h-6 items-center rounded-full bg-black/45 px-2.5 text-[10px] font-black uppercase tracking-[0.06em] text-white">{badge}</span>
+      </span>
+      <span className="flex h-[40%] flex-col items-center justify-center px-4 text-center">
+        <span className="block max-w-full truncate text-[22px] font-black leading-tight text-[var(--ink)]">{restaurant.name}</span>
+        <span className="mt-1 block max-w-full truncate text-[12px] font-bold text-[var(--muted)]">{restaurant.cuisine || "Restaurang"}</span>
+        <span className="mt-2 flex max-w-full flex-wrap justify-center gap-1.5">
+          {(restaurant.featuredClass === 1 || restaurant.featuredClass === 2) && <FeaturedBadge featuredClass={restaurant.featuredClass} />}
+          {restaurant.homeDealMaxPercent && restaurant.homeDealMaxPercent > 0 && <span className="rounded-md bg-[var(--gold)] px-2 py-0.5 text-[11px] font-black text-[var(--ink)]">Upp till {restaurant.homeDealMaxPercent}%</span>}
+          {(restaurant.homeFreeDelivery === true || (typeof restaurant.deliveryFee === "number" && restaurant.deliveryFee <= 0)) && <span className="rounded-md bg-[#237A4A] px-2 py-0.5 text-[11px] font-black text-white">Fri leverans</span>}
         </span>
       </span>
     </button>
@@ -1610,23 +1662,54 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
   }, [resolvedHomeCategorySections, primarySelectedSection, selectedTodayRestaurants]);
 
   const promoCards = useMemo<PromoCardItem[]>(() => {
-    const extras: PromoCardItem[] = [];
-    const champion = pulseModules.find((module) => module.type === "CHAMPION" && module.restaurant);
-    if (champion) extras.push({ id: `pulse-champion-${champion.id}`, kind: "pulseChampion", module: champion });
-    extras.push(...appDeals.slice(0, 7).map((appDeal) => ({ id: `app-deal-${appDeal.id}`, kind: "appDeal" as const, appDeal })));
-    // Trendar/Ny i stan kommer numera genom sponsors-feeden som SHOWCASE-kort
-    // (pulsen slutade emittera TRENDING/NEW_RESTAURANTS), så vi injicerar dem
-    // inte längre här — det skulle bara dubblera.
+    // Högst fem stora, olika kort. Manuella sponsor-/showcase-kort har förtur
+    // och visar sin egen admin-skrivna badge. Resten fylls med riktiga
+    // signalsorter och adminstyrda kategorier — ingen "admin-utvald"-copy
+    // läcker någonsin till kunden.
+    const result: PromoCardItem[] = [];
+    const usedSlugs = new Set<string>();
+    const add = (item: PromoCardItem, slug?: string | null) => {
+      if (result.length >= 5) return;
+      const key = slug?.trim().toLowerCase();
+      if (key && usedSlugs.has(key)) return;
+      result.push(item);
+      if (key) usedSlugs.add(key);
+    };
 
-    const sponsorCards: PromoCardItem[] = sponsors.map((sponsor) => ({ id: `sponsor-${sponsor.id}`, kind: "sponsor" as const, sponsor }));
-    const base: PromoCardItem[] = [];
-    const max = Math.max(sponsorCards.length, extras.length);
-    for (let i = 0; i < max; i++) {
-      if (sponsorCards[i]) base.push(sponsorCards[i]);
-      if (extras[i]) base.push(extras[i]);
-    }
-    return base;
-  }, [sponsors, appDeals, pulseModules]);
+    sponsors.forEach((sponsor) => add(
+      { id: `sponsor-${sponsor.id}`, kind: "sponsor", sponsor },
+      sponsor.restaurantSlug || (sponsor.linkType === "RESTAURANT" ? sponsor.linkTarget : null),
+    ));
+
+    const champion = pulseModules.find((module) => module.type === "CHAMPION" && module.restaurant);
+    if (champion?.restaurant) add({ id: `pulse-champion-${champion.id}`, kind: "pulseChampion", module: champion }, champion.restaurant.slug);
+
+    pulseModules
+      .filter((module) => ["FASTEST_TODAY", "TRENDING"].includes(module.type))
+      .forEach((module) => {
+        const restaurant = module.restaurants?.[0];
+        if (restaurant) add({ id: `pulse-${module.id}-${restaurant.id}`, kind: "pulseHighlight", module, restaurant, badge: module.title }, restaurant.slug);
+      });
+
+    resolvedHomeCategorySections
+      .slice()
+      .sort((left, right) => (left.sortOrder ?? 0) - (right.sortOrder ?? 0))
+      .forEach((section) => {
+        const restaurant = section.restaurants[0];
+        if (!restaurant) return;
+        const key = `${section.slug} ${section.title}`.toLowerCase();
+        const badge = key.includes("fri") ? "Fri leverans"
+          : key.includes("betyg") || key.includes("omtyckt") ? "Mest omtyckt"
+          : key.includes("snabb") ? "Snabbast idag"
+          : section.title;
+        add({ id: `category-${section.id}-${restaurant.id}`, kind: "currentRestaurant", restaurant, badge, theme: section.presentation?.accent || "BLUE" }, restaurant.slug);
+      });
+
+    // En ny stad kan ha få historiska signaler. Visa då ett verkligt alternativ
+    // från API-listan, aldrig placeholder-data.
+    filtered.forEach((restaurant) => add({ id: `fallback-${restaurant.id}`, kind: "currentRestaurant", restaurant, badge: "Utvalt idag", theme: "ORANGE" }, restaurant.slug));
+    return result;
+  }, [sponsors, pulseModules, resolvedHomeCategorySections, filtered]);
   const renderedPromoCards = showAllPromoCards ? promoCards : promoCards.slice(0, 1);
 
   const getDealForRestaurant = useCallback((restaurantId: string) => {
@@ -1819,7 +1902,8 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                     ? `Upp till ${dealPercent}%`
                     : badges.regular?.rewardLabel || "";
                   const showFeatured = r.featuredClass === 1 || r.featuredClass === 2;
-                  if (!showFeatured && !badges.bogo && !regularLabel) return null;
+                  const showFreeDelivery = r.homeFreeDelivery === true || (typeof r.deliveryFee === "number" && r.deliveryFee <= 0);
+                  if (!showFeatured && !badges.bogo && !regularLabel && !showFreeDelivery) return null;
                   return (
                     <div className={`absolute ${railDimReason ? "top-11" : "top-3"} left-3 z-20 flex flex-wrap gap-1.5 max-w-[calc(100%-1.5rem)]`}>
                       <FeaturedBadge featuredClass={r.featuredClass} />
@@ -1831,6 +1915,11 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                       {regularLabel && (
                         <span className="bg-gold-500 text-[12px] font-semibold px-2 py-0.5 rounded-md" style={{ color: "#141416" }}>
                           {regularLabel}
+                        </span>
+                      )}
+                      {showFreeDelivery && (
+                        <span className="bg-[#237A4A] text-[12px] font-semibold px-2 py-0.5 rounded-md text-white">
+                          Fri leverans
                         </span>
                       )}
                     </div>
@@ -2096,8 +2185,10 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                       />
                     ) : item.kind === "pulseChampion" ? (
                       <ChampionPromoCard module={item.module} onOpen={openRestaurantSlug} imagePriority={shouldPrioritizeImage} />
-                    ) : (
+                    ) : item.kind === "pulseHighlight" ? (
                       <HighlightPromoCard restaurant={item.restaurant} badge={item.badge} onOpen={openRestaurantSlug} imagePriority={shouldPrioritizeImage} />
+                    ) : (
+                      <CurrentRestaurantPromoCard restaurant={item.restaurant} badge={item.badge} theme={item.theme} onOpen={openRestaurantSlug} imagePriority={shouldPrioritizeImage} />
                     )}
                   </div>
                 );
@@ -2373,7 +2464,8 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                                 ? `Upp till ${dealPercent}%`
                                 : badges.regular?.rewardLabel || "";
                               const showFeatured = r.featuredClass === 1 || r.featuredClass === 2;
-                              if (!showFeatured && !badges.bogo && !regularLabel) return null;
+                              const showFreeDelivery = r.homeFreeDelivery === true || (typeof r.deliveryFee === "number" && r.deliveryFee <= 0);
+                              if (!showFeatured && !badges.bogo && !regularLabel && !showFreeDelivery) return null;
                               return (
                                 <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-1.5 max-w-[calc(100%-1.5rem)]">
                                   <FeaturedBadge featuredClass={r.featuredClass} />
@@ -2385,6 +2477,11 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                                   {regularLabel && (
                                     <span className="bg-gold-500 text-[12px] font-semibold px-2 py-0.5 rounded-md" style={{ color: "#141416" }}>
                                       {regularLabel}
+                                    </span>
+                                  )}
+                                  {showFreeDelivery && (
+                                    <span className="bg-[#237A4A] text-[12px] font-semibold px-2 py-0.5 rounded-md text-white">
+                                      Fri leverans
                                     </span>
                                   )}
                                 </div>

@@ -30,6 +30,15 @@ export interface HomeCategorySection {
   maxRestaurants: number;
   manualRestaurantIds: string[];
   filters: HomeCategoryFilters;
+  // Visuella val från admin. Samma data finns i /home-categories/feed och
+  // används av Aktuellt för att ge varje kategori en egen, ljus coverfärg.
+  presentation?: {
+    layout?: "MEDIUM_RAIL" | "LARGE_RAIL" | "GRID";
+    accent?: "ORANGE" | "BLUE" | "GREEN" | "PURPLE" | "NAVY" | string | null;
+    accentColor?: string | null;
+    backgroundColor?: string | null;
+    icon?: string | null;
+  } | null;
 }
 
 interface RestaurantLike {
