@@ -440,6 +440,10 @@ router.post('/deliveries/:id/picked-up', requireCourier, async (req: CourierRequ
     throw error;
   });
   if (!order) return res.status(409).json({ error: 'Ordern uppdaterades på en annan enhet. Försök igen.' });
+  // Ordertiming-statistik: kurirens hämtning är på väg-övergången.
+  void import('../lib/orderTimingStats').then(({ recordOrderOnWay }) =>
+    recordOrderOnWay(order as any),
+  );
   const liveCourier = await overlayCourierLivePosition(req.courier);
   const etaByOrder = await refreshCourierActiveEtas(req.courier.id, { sink: 'durable-event', courier: liveCourier });
   const eta = etaByOrder.get(d.orderId) ?? null;
@@ -526,6 +530,10 @@ router.post('/deliveries/:id/complete', requireCourier, async (req: CourierReque
   }
   void import('./referrals').then(({ maybeTriggerReferralReward }) =>
     maybeTriggerReferralReward(order.id),
+  );
+  // Ordertiming-statistik: kurirlevererade ordrar räknas med samma utfallsdata.
+  void import('../lib/orderTimingStats').then(({ recordOrderDelivered }) =>
+    recordOrderDelivered(order as any, deliveredAt),
   );
   const liveCourier = await overlayCourierLivePosition(req.courier);
   const eta = await refreshOrderEta(d.orderId, { sink: 'durable-event', courierId: req.courier.id, courier: liveCourier });

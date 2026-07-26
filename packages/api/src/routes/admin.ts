@@ -41,6 +41,8 @@ import { moneyDto, nullableMoneyDto } from '../utils/money';
 import { isRestaurantOrderTransitionAllowed } from '../lib/orderStatusMachine';
 import { buildAdminReceiptData, getServerPrintArtifact, warmServerPrintArtifacts } from '../lib/serverPrintArtifact';
 import { deleteServerTerminalTestOrder } from '../lib/terminalTestOrder';
+import { recordOrderOnWay, recordOrderDelivered } from '../lib/orderTimingStats';
+import { learnedEta, suggestedDeliveryEtaMinutes } from '../lib/learnedEta';
 
 const router = Router();
 router.use(authenticate);
@@ -643,6 +645,16 @@ router.get('/orders', async (req, res) => {
         return showFullPII ? base : maskOrderPII(base);
       }),
       total,
+      // #3 Lärt förval för terminalens tid till kund-knappar. null tills
+      // restaurangen har tillräcklig egen data (läromotorn, 3h-cache).
+      suggestedDeliveryEtaMinutes: (() => {
+        const rid = (where as any).restaurantId;
+        if (typeof rid !== 'string' || !rid) return null;
+        const active = orders.filter((o) =>
+          ['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'DELIVERING'].includes(String(o.status).toUpperCase()),
+        ).length;
+        return suggestedDeliveryEtaMinutes(rid, active);
+      })(),
     });
   } catch (error) {
     res.status(500).json({ error: 'Serverfel' });
@@ -924,13 +936,23 @@ router.patch('/orders/:id/status', async (req, res) => {
     if (existing.status === dbStatus) {
       if (
         normalizedEstimatedTime !== undefined &&
-        normalizedEstimatedTime !== existing.estimatedTime
+        (dbStatus === 'DELIVERING' || normalizedEstimatedTime !== existing.estimatedTime)
       ) {
         let etaOrder = await prisma.order.update({
           where: { id: existing.id },
-          data: { estimatedTime: normalizedEstimatedTime },
+          // Vid PÅ VÄG uppdaterar en retry/omvald tid kund-ETA:n — aldrig
+          // ursprungslöftet i estimatedTime.
+          data: dbStatus === 'DELIVERING'
+            ? {
+                etaCustomerMin: normalizedEstimatedTime,
+                etaCustomerAt: new Date(Date.now() + normalizedEstimatedTime * 60_000),
+                etaReason: 'Restaurangens tid till kund',
+              }
+            : { estimatedTime: normalizedEstimatedTime },
         });
-        const refreshedEta = await refreshOrderEta(etaOrder.id, { sink: 'durable-event' }).catch(() => null);
+        const refreshedEta = dbStatus === 'DELIVERING'
+          ? null
+          : await refreshOrderEta(etaOrder.id, { sink: 'durable-event' }).catch(() => null);
         if (refreshedEta) etaOrder = { ...etaOrder, ...refreshedEta };
         if (dbStatus === 'ACCEPTED' || dbStatus === 'PREPARING') {
           // Warm in the background. The tablet starts fetching the ready
@@ -998,9 +1020,20 @@ router.patch('/orders/:id/status', async (req, res) => {
           where: { id: req.params.id, status: existing.status },
           data: {
             status: dbStatus,
-            estimatedTime: normalizedEstimatedTime,
+            // Vid PÅ VÄG är estimatedTime terminalens valda "tid till kund"
+            // (intervallknapparna). Den lagras som kund-ETA nedan medan
+            // ursprungslöftet i estimatedTime behålls, så tracking kan jämföra
+            // den nya prognosen mot vad kunden fick vid accepten.
+            estimatedTime: isDeliveringTransition ? undefined : normalizedEstimatedTime,
             ...(isPreparingTransition ? { preparingAt: new Date() } : {}),
             ...(isDeliveringTransition ? { deliveringAt: new Date() } : {}),
+            ...(isDeliveringTransition && normalizedEstimatedTime !== undefined
+              ? {
+                  etaCustomerMin: normalizedEstimatedTime,
+                  etaCustomerAt: new Date(Date.now() + normalizedEstimatedTime * 60_000),
+                  etaReason: 'Restaurangens tid till kund',
+                }
+              : {}),
             // When admin explicitly clicks DELIVERED (not the auto DELIVERING→DELIVERED
             // path), clear deliveringAt. Otherwise orders.ts keeps returning
             // status:'DELIVERING' for 15 min, the banner stays visible and the LA
@@ -1029,10 +1062,23 @@ router.patch('/orders/:id/status', async (req, res) => {
       res.status(404).json({ error: 'Order hittades inte efter uppdateringen' });
       return;
     }
-    const refreshedEta = await refreshOrderEta(order.id, { sink: 'durable-event' }).catch((e: any) => {
-      console.warn('[admin] order ETA refresh failed:', e?.message);
-      return null;
-    });
+    // Ordertiming-statistik: servern ser övergången ändå — frys pressen vid
+    // på väg och räkna utfallen vid levererad. Best-effort, blockerar aldrig.
+    if (isDeliveringTransition) {
+      void recordOrderOnWay({ ...(order as any), restaurant: existing.restaurant });
+    } else if (dbStatus === 'DELIVERED') {
+      void recordOrderDelivered({ ...(order as any), restaurant: existing.restaurant });
+    }
+
+    // När restaurangen just satt en explicit tid till kund får auto-motorn inte
+    // skriva över den i samma andetag.
+    const skipEtaRefresh = isDeliveringTransition && normalizedEstimatedTime !== undefined;
+    const refreshedEta = skipEtaRefresh
+      ? null
+      : await refreshOrderEta(order.id, { sink: 'durable-event' }).catch((e: any) => {
+          console.warn('[admin] order ETA refresh failed:', e?.message);
+          return null;
+        });
     if (refreshedEta) order = { ...order, ...refreshedEta };
     // Starta serverrenderingen direkt men blockera inte status-svaret på en
     // svag terminal. För riktiga order hämtar plattan artefakten parallellt;
@@ -6244,6 +6290,124 @@ router.delete('/devices/:id', authenticate, requireSuperAdmin, async (req, res) 
   } catch (error) {
     console.error('[devices delete] error:', error);
     res.status(500).json({ error: 'Kunde inte ta bort enheten' });
+  }
+});
+
+// GET /api/admin/timing-stats/restaurants — översiktens leveranstider-tab:
+// lovat snitt vs faktiskt utfall per restaurang + aktuell belastning. Internt
+// underlag (visas inte för kund) tills datan är stark nog att exponeras.
+router.get('/timing-stats/restaurants', authenticate, requireSuperAdmin, async (_req, res) => {
+  try {
+    const restaurants = await prisma.restaurant.findMany({
+      where: { archivedAt: null, draft: false },
+      select: { id: true, name: true, slug: true, selfDelivery: true },
+      orderBy: { name: 'asc' },
+    });
+    const activeCounts = await prisma.order.groupBy({
+      by: ['restaurantId'],
+      where: { status: { in: ['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'DELIVERING'] } },
+      _count: { _all: true },
+    });
+    const activeById = new Map(activeCounts.map((row) => [row.restaurantId, row._count._all]));
+    const rows = [];
+    for (const restaurant of restaurants) {
+      const learned = await learnedEta(restaurant.id);
+      const activeOrders = activeById.get(restaurant.id) ?? 0;
+      const pressure = activeOrders >= 6 ? 'HIGH' : activeOrders >= 3 ? 'MEDIUM' : 'LOW';
+      rows.push({
+        restaurantId: restaurant.id,
+        name: restaurant.name,
+        slug: restaurant.slug,
+        selfDelivery: restaurant.selfDelivery ?? false,
+        samples: learned?.samples ?? 0,
+        promisedAvgMin: learned?.promisedAvgMin ?? null,
+        actualP50Min: learned?.totalP50Min ?? null,
+        actualP95Min: learned?.totalP95Min ?? null,
+        acceptToOnWayP50Min: learned?.acceptToOnWayP50Min ?? null,
+        onWayToDeliveredP50Min: learned?.onWayToDeliveredP50Min ?? null,
+        activeOrders,
+        pressure,
+        highLoad: pressure === 'HIGH',
+      });
+    }
+    res.json({ restaurants: rows });
+  } catch (error) {
+    console.error('[timing-stats/restaurants] error:', error);
+    res.status(500).json({ error: 'Kunde inte läsa leveranstiderna' });
+  }
+});
+
+// GET /api/admin/timing-stats — lärd leveransdata: faktiska tider per
+// restaurang/veckodag/timme med p50/p95, redo att joina med väder/trafik
+// senare. "95 % av kunderna får maten inom 40 min lördag kväll".
+router.get('/timing-stats', authenticate, requireSuperAdmin, async (req, res) => {
+  try {
+    const model = (prisma as any).orderTimingStat;
+    if (!model?.findMany) {
+      res.status(503).json({ error: 'Timing-statistiken är inte migrerad än' });
+      return;
+    }
+    const { restaurantId, from, to, includeTest, raw } = req.query as Record<string, string | undefined>;
+    const where: Record<string, unknown> = {};
+    if (restaurantId) where.restaurantId = restaurantId;
+    if (includeTest !== 'true') where.isTestOrder = false;
+    if (from || to) {
+      const range: Record<string, Date> = {};
+      if (from) range.gte = new Date(from);
+      if (to) range.lte = new Date(to);
+      where.recordedAt = range;
+    }
+    const rows = await model.findMany({
+      where,
+      orderBy: { recordedAt: 'desc' },
+      take: 20_000,
+    });
+
+    const percentile = (values: number[], p: number): number | null => {
+      if (values.length === 0) return null;
+      const sorted = [...values].sort((a, b) => a - b);
+      const index = Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1);
+      return sorted[Math.max(0, index)];
+    };
+    const summarize = (bucket: any[]) => {
+      const total = bucket.map((r) => r.orderToDeliveredMin).filter((v: unknown): v is number => typeof v === 'number');
+      const toOnWay = bucket.map((r) => r.acceptToOnWayMin).filter((v: unknown): v is number => typeof v === 'number');
+      const transit = bucket.map((r) => r.onWayToDeliveredMin).filter((v: unknown): v is number => typeof v === 'number');
+      const avg = (v: number[]) => (v.length ? Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 10) / 10 : null);
+      return {
+        orders: bucket.length,
+        totalMinP50: percentile(total, 50),
+        totalMinP95: percentile(total, 95),
+        acceptToOnWayMinAvg: avg(toOnWay),
+        onWayToDeliveredMinAvg: avg(transit),
+        avgPressAtOnWay: avg(bucket.map((r) => r.activeOrdersAtOnWay).filter((v: unknown): v is number => typeof v === 'number')),
+      };
+    };
+
+    const byDayHour = new Map<string, any[]>();
+    for (const row of rows) {
+      const key = `${row.dayOfWeek}:${row.hourOfDay}`;
+      const bucket = byDayHour.get(key) ?? [];
+      bucket.push(row);
+      byDayHour.set(key, bucket);
+    }
+    const dayNames = ['söndag', 'måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag'];
+    const buckets = Array.from(byDayHour.entries())
+      .map(([key, bucket]) => {
+        const [day, hour] = key.split(':').map(Number);
+        return { dayOfWeek: day, dayName: dayNames[day] ?? String(day), hourOfDay: hour, ...summarize(bucket) };
+      })
+      .sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.hourOfDay - b.hourOfDay);
+
+    res.json({
+      totalRows: rows.length,
+      overall: summarize(rows),
+      byDayHour: buckets,
+      ...(raw === 'true' ? { rows: rows.slice(0, 1000) } : {}),
+    });
+  } catch (error) {
+    console.error('[timing-stats] read error:', error);
+    res.status(500).json({ error: 'Kunde inte läsa timing-statistiken' });
   }
 });
 

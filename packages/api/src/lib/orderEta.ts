@@ -5,6 +5,7 @@ import { computeDeliveryWindowMs } from './deliveryWindow';
 import type { TravelLookup } from './travelMatrix';
 import { overlayCourierLivePosition } from './courierLivePosition';
 import { setOrderEta } from './liveState';
+import { learnedPromiseMinutes } from './learnedEta';
 
 const ACTIVE_DELIVERY_STATUSES = ['EN_ROUTE_PICKUP', 'PICKED_UP'];
 const TERMINAL_ORDER_STATUSES = ['DELIVERED', 'COMPLETED'];
@@ -62,9 +63,20 @@ export function customerStepEtaEndsAt(
   const selfDelivery = Boolean(order?.selfDelivery ?? order?.restaurant?.selfDelivery);
   const courierEnRoute = ['DELIVERING', 'OUT_FOR_DELIVERY', 'ON_THE_WAY'].includes(status);
 
+  // En kund-ETA satt vid själva PÅ VÄG-övergången (terminalens intervallval)
+  // är restaurangens eget besked och vinner över alla schablonfönster. Äldre
+  // etaCustomerAt från köksfasen (före deliveringAt) får däremot inte följa
+  // med — den bär kök-nedräkningen och skulle visa t.ex. 38 min efter På väg.
+  if (
+    courierEnRoute &&
+    order?.etaCustomerAt &&
+    order?.deliveringAt &&
+    new Date(order.etaCustomerAt).getTime() >= new Date(order.deliveringAt).getTime()
+  ) {
+    return new Date(order.etaCustomerAt);
+  }
   // Self-delivery has a separate 15-minute transit clock which starts at the
-  // actual DELIVERING transition. Reusing etaCustomerAt here can carry the
-  // kitchen countdown forward and show e.g. 38 minutes after "På väg".
+  // actual DELIVERING transition.
   if (courierEnRoute && selfDelivery && order?.deliveringAt) {
     const deliveringAt = new Date(order.deliveringAt);
     return new Date(deliveringAt.getTime() + computeDeliveryWindowMs(deliveringAt, String(order?.id || '')));
@@ -78,12 +90,30 @@ export function customerStepEtaEndsAt(
   }
   if (order?.etaReadyAt) return new Date(order.etaReadyAt);
   if (order?.preparingAt && order?.estimatedTime) {
-    return addMinutes(new Date(order.preparingAt), Number(order.estimatedTime));
+    const start = new Date(order.preparingAt);
+    const promise = learnedPromiseMinutes(String(order?.restaurantId || ''), Number(order.estimatedTime));
+    return addMinutes(start, displayedPromiseMinutes(start, promise));
   }
   if (order?.estimatedTime && ['ACCEPTED', 'PREPARING', 'READY'].includes(status)) {
-    return addMinutes(new Date(), Number(order.estimatedTime));
+    const promise = learnedPromiseMinutes(String(order?.restaurantId || ''), Number(order.estimatedTime));
+    return addMinutes(new Date(), displayedPromiseMinutes(new Date(), promise));
   }
   return null;
+}
+
+/**
+ * Kunddisplay av restaurangens löfte. Långa löften (>60 min, t.ex. 70/80)
+ * visas som 50 min först; hinner ordern inte iväg innan dess trappas
+ * prognosen upp automatiskt med +15 ("hög belastning") och till sist visas
+ * restaurangens fulla tid. Ordern hinner oftast ut långt innan full tid, och
+ * kunden möts då av "kommer tidigare" i stället för en lång skrämmande siffra.
+ */
+export function displayedPromiseMinutes(start: Date, promiseMinutes: number, now = new Date()): number {
+  if (!Number.isFinite(promiseMinutes) || promiseMinutes <= 60) return promiseMinutes;
+  const elapsedMin = (now.getTime() - start.getTime()) / 60_000;
+  if (elapsedMin < 50) return 50;
+  if (elapsedMin < 65) return 65;
+  return promiseMinutes;
 }
 
 function minutesBetween(a: Date, b: Date): number {

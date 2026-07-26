@@ -262,3 +262,24 @@ export const updateRestaurantLiveState = (restaurantId: string, acceptingOrdersM
       ? null
       : "Ändrad från operationsöversikten",
   });
+
+// ── Leveranstider (internt underlag, visas inte för kund) ───────────────────
+export interface DeliveryTimingRestaurantRow {
+  restaurantId: string;
+  name: string;
+  slug: string;
+  selfDelivery: boolean;
+  samples: number;
+  promisedAvgMin: number | null;
+  actualP50Min: number | null;
+  actualP95Min: number | null;
+  acceptToOnWayP50Min: number | null;
+  onWayToDeliveredP50Min: number | null;
+  activeOrders: number;
+  pressure: "LOW" | "MEDIUM" | "HIGH";
+  highLoad: boolean;
+}
+
+export const deliveryTimingQueryKey = ["dashboard", "delivery-timing"] as const;
+export const getDeliveryTiming = () =>
+  apiGet<{ restaurants: DeliveryTimingRestaurantRow[] }>("/admin/timing-stats/restaurants");

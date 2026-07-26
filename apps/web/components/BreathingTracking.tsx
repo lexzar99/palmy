@@ -76,6 +76,30 @@ function clockText(value: unknown): string | null {
   return date.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
 }
 
+/** När ordern fick sitt ursprungslöfte (accepten) beräknas vara framme. */
+function promisedAtMs(order: any): number | null {
+  const start = order?.preparingAt ?? order?.createdAt ?? null;
+  const minutes = Number(order?.estimatedTime);
+  if (!start || !Number.isFinite(minutes) || minutes <= 0) return null;
+  const startMs = new Date(start as string).getTime();
+  return Number.isFinite(startMs) ? startMs + minutes * 60000 : null;
+}
+
+/**
+ * Hög belastning: restaurangen lovade >60 min, ordern är inte på väg och den
+ * först visade 50-minutersprognosen har passerats (backend har då trappat upp
+ * måltiden med +15). Kunden ska få en lugn förklaring — inte ordet försenad.
+ */
+function highLoad(order: any, phase: BreathingPhase): boolean {
+  if (phase !== "preparing" && phase !== "waiting") return false;
+  const minutes = Number(order?.estimatedTime);
+  if (!Number.isFinite(minutes) || minutes <= 60) return false;
+  const start = order?.preparingAt ?? order?.createdAt ?? null;
+  if (!start) return false;
+  const startMs = new Date(start as string).getTime();
+  return Number.isFinite(startMs) && Date.now() - startMs >= 50 * 60000;
+}
+
 /** Uppdaterad prognos vinner när den finns — annars den ursprungliga tiden. */
 function forecast(order: any, phase: BreathingPhase) {
   const revised = order?.etaRevisedAt ?? null;
@@ -85,14 +109,33 @@ function forecast(order: any, phase: BreathingPhase) {
     ? Math.max(0, Math.ceil((new Date(target as string).getTime() - Date.now()) / 60000))
     : null;
 
+  // Jämför på väg-prognosen (avfärd + restaurangens valda tid) mot
+  // ursprungslöftet: tidigare → glädjebesked, senare → "uppdaterad prognos"
+  // med klockslag. Ordet "försenad" används aldrig.
+  const targetMs = target ? new Date(target as string).getTime() : null;
+  const promised = promisedAtMs(order);
+  let earlier = false;
+  let later = false;
+  if (phase === "onTheWay" && targetMs != null && promised != null) {
+    earlier = targetMs <= promised - 3 * 60000;
+    later = targetMs >= promised + 3 * 60000;
+  }
+
   let label: string;
   if (phase === "waiting") label = "Tid kommer när köket svarat";
   else if (phase === "done") label = "Klar";
   else if (phase === "readyForPickup") label = "Redo nu";
-  else if (phase === "onTheWay") label = revised ? "Uppdaterad prognos" : "Beräknad vara här";
-  else label = "Beräknad framme";
+  else if (phase === "onTheWay") {
+    label = earlier ? "Kommer tidigare än beräknat" : later || revised ? "Uppdaterad prognos" : "Beräknad vara här";
+  } else label = "Beräknad framme";
 
-  return { label, clock: phase === "waiting" || phase === "done" ? null : clock, minutesLeft, revised: Boolean(revised) };
+  return {
+    label,
+    clock: phase === "waiting" || phase === "done" ? null : clock,
+    minutesLeft,
+    revised: Boolean(revised) || later,
+    earlier,
+  };
 }
 
 // ── Andningen ───────────────────────────────────────────────────────────────
@@ -317,7 +360,8 @@ export function BreathingTrackingPanel({
   const phase = resolvePhase(order);
   const tint = TINTS[phase];
   const restName = order?.restaurantName || "Restaurangen";
-  const { label, clock, minutesLeft, revised } = forecast(order, phase);
+  const { label, clock, minutesLeft, revised, earlier } = forecast(order, phase);
+  const busyKitchen = highLoad(order, phase);
   const isSelfDelivery = String(order?.orderType || order?.type || "DELIVERY").toUpperCase() === "DELIVERY" && !!order?.selfDelivery;
 
   // Kartan hör bara hemma när vi levererar OCH budet faktiskt har maten.
@@ -396,11 +440,20 @@ export function BreathingTrackingPanel({
           {phaseTitle(phase)}
         </motion.h1>
         <p className="mx-auto mt-1.5 max-w-[300px] text-[14px] font-bold" style={{ color: "var(--text-secondary)" }}>
-          {phaseSubtitle(phase, restName)}
+          {phase === "onTheWay" && earlier
+            ? "Vi beräknar att din mat kommer tidigare än väntat."
+            : phase === "onTheWay" && revised
+              ? "Uppdaterad prognos — maten är utanför restaurangen och på väg till dig. Oroa dig inte."
+              : phaseSubtitle(phase, restName)}
         </p>
+        {busyKitchen ? (
+          <span className="mt-2.5 inline-flex rounded-full px-3 py-1.5 text-[11.5px] font-black" style={{ backgroundColor: "#FFF7DB", color: "#8A5B00" }}>
+            Hög belastning på restaurangen · prognosen är uppdaterad
+          </span>
+        ) : null}
         {phase === "onTheWay" && departed ? (
           <span className="mt-2.5 inline-flex rounded-full px-3 py-1.5 text-[11.5px] font-black" style={{ backgroundColor: `${tint}1f`, color: tint }}>
-            Lämnade kl {departed}
+            Lämnade restaurangen kl {departed}
           </span>
         ) : null}
       </div>

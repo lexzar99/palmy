@@ -1587,3 +1587,38 @@ model EngineEvent {
 
   @@index([engine, createdAt])
 }
+
+// ── Ordertiming-statistik ───────────────────────────────────────────────────
+// En rad per order som når på väg/levererad. Skrivs server-side vid status-
+// övergångarna (ingen klientinsamling, inget extra egress). Grunden för
+// lärda leveranstider: "95 % av kunderna får maten inom 40 min lördag kväll".
+// Väder/trafik kan joinas på senare via recordedAt + restaurantId.
+model OrderTimingStat {
+  id                  String    @id @default(cuid())
+  orderId             String    @unique
+  restaurantId        String
+  orderType           String // DELIVERY | PICKUP
+  selfDelivery        Boolean   @default(false)
+  isTestOrder         Boolean   @default(false)
+  // Tidslinje (UTC)
+  orderedAt           DateTime // Order.createdAt
+  acceptedAt          DateTime? // preparingAt — accepten
+  deliveringAt        DateTime? // på väg
+  deliveredAt         DateTime? // levererad/hämtad
+  // Löften
+  promisedMinutes     Int? // restaurangens löfte vid accept (estimatedTime)
+  courierEtaMinutes   Int? // terminalens valda "tid till kund" vid på väg
+  // Utfall i minuter (flyttal, räknas vid skrivning)
+  acceptToOnWayMin    Float?
+  onWayToDeliveredMin Float?
+  orderToDeliveredMin Float?
+  // Kontext — "pressen" när ordern skickades ut + kalenderläge (Stockholm)
+  activeOrdersAtOnWay Int?
+  dayOfWeek           Int // 0=söndag … 6=lördag
+  hourOfDay           Int // 0–23
+  recordedAt          DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([restaurantId, dayOfWeek, hourOfDay])
+  @@index([restaurantId, recordedAt])
+}

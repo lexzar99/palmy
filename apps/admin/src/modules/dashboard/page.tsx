@@ -22,8 +22,10 @@ import {
   dashboardQueryKey,
   type DashboardPeriodKey,
   customerOverviewQueryKey,
+  deliveryTimingQueryKey,
   getControlCenter,
   getCustomerOverview,
+  getDeliveryTiming,
   getRestaurantRefs,
   getSystemHealth,
   healthQueryKey,
@@ -129,6 +131,13 @@ export function DashboardPage() {
     queryKey: customerOverviewQueryKey,
     queryFn: getCustomerOverview,
     refetchInterval: 60_000,
+  });
+  // Leveranstider: serversidan cachar läromotorn i 3 timmar — 5 min-polling
+  // här kostar nästan inget och håller belastningskolumnen levande.
+  const deliveryTiming = useQuery({
+    queryKey: deliveryTimingQueryKey,
+    queryFn: getDeliveryTiming,
+    refetchInterval: 300_000,
   });
   if (controlCenter.isLoading || health.isLoading) {
     return (
@@ -525,6 +534,80 @@ export function DashboardPage() {
           )}
         </Surface>
       </div>
+
+      {deliveryTiming.data ? (
+        <Surface className="px-5 py-5">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="section-title">Leveranstider</h2>
+              <p className="section-subtitle">
+                Lovat vs faktiskt (mottagen → levererad) per restaurang · internt underlag, visas inte för kund
+              </p>
+            </div>
+            <span className="sidebar-section-count">{deliveryTiming.data.restaurants.length}</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[12.5px]">
+              <thead>
+                <tr className="text-[11px] font-extrabold uppercase tracking-wide text-[var(--text-muted)]">
+                  <th className="py-2 pr-3">Restaurang</th>
+                  <th className="py-2 pr-3">Belastning</th>
+                  <th className="py-2 pr-3">Lovar (snitt)</th>
+                  <th className="py-2 pr-3">Faktiskt p50</th>
+                  <th className="py-2 pr-3">p95</th>
+                  <th className="py-2 pr-3">Accept → På väg</th>
+                  <th className="py-2 pr-3">På väg → Levererad</th>
+                  <th className="py-2">Underlag</th>
+                </tr>
+              </thead>
+              <tbody>
+                {deliveryTiming.data.restaurants.map((row) => {
+                  const pressureColor =
+                    row.pressure === "HIGH" ? "#C0392B" : row.pressure === "MEDIUM" ? "#E1A70D" : "#2E7D4F";
+                  const min = (v: number | null) => (v == null ? "–" : `${Math.round(v)} min`);
+                  const diff =
+                    row.promisedAvgMin != null && row.actualP50Min != null
+                      ? Math.round(row.actualP50Min - row.promisedAvgMin)
+                      : null;
+                  return (
+                    <tr key={row.restaurantId} className="border-t border-[var(--border-soft,rgba(0,0,0,0.06))]">
+                      <td className="py-2.5 pr-3 font-bold text-[var(--text-primary)]">
+                        {row.name}
+                        {row.selfDelivery ? (
+                          <span className="ml-1.5 text-[10.5px] font-extrabold text-[var(--text-muted)]">EGEN LEVERANS</span>
+                        ) : null}
+                      </td>
+                      <td className="py-2.5 pr-3">
+                        <span className="inline-flex items-center gap-1.5 font-bold" style={{ color: pressureColor }}>
+                          <span aria-hidden className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: pressureColor }} />
+                          {row.activeOrders} aktiva
+                          {row.highLoad ? " · HÖG BELASTNING" : ""}
+                        </span>
+                      </td>
+                      <td className="py-2.5 pr-3">{min(row.promisedAvgMin)}</td>
+                      <td className="py-2.5 pr-3 font-bold text-[var(--text-primary)]">
+                        {min(row.actualP50Min)}
+                        {diff != null ? (
+                          <span className="ml-1 text-[11px] font-extrabold" style={{ color: diff <= 0 ? "#2E7D4F" : "#C0392B" }}>
+                            {diff > 0 ? `+${diff}` : diff}
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="py-2.5 pr-3">{min(row.actualP95Min)}</td>
+                      <td className="py-2.5 pr-3">{min(row.acceptToOnWayP50Min)}</td>
+                      <td className="py-2.5 pr-3">{min(row.onWayToDeliveredP50Min)}</td>
+                      <td className="py-2 text-[var(--text-muted)]">
+                        {row.samples} ordrar
+                        {row.samples < 30 ? " · för lite data" : ""}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Surface>
+      ) : null}
 
       {customerOverview.data ? (
         <Surface className="px-5 py-5">
