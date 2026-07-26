@@ -284,20 +284,20 @@
 .swift-promo-card {
   position: relative;
   display: block;
-  width: min(calc(100vw - 24px), 620px);
-  height: clamp(356px, 103vw, 416px);
+  width: min(calc(100vw - 40px), 520px);
+  height: clamp(220px, 61vw, 246px);
   flex-shrink: 0;
   overflow: hidden;
-  border-radius: 24px;
+  border-radius: 22px;
   border: 0;
   background: var(--bg-deep);
-  box-shadow: 0 14px 36px rgba(10, 25, 52, 0.18);
+  box-shadow: 0 12px 28px rgba(10, 25, 52, 0.16);
 }
 
 @media (min-width: 640px) {
   .swift-promo-card {
-    width: min(calc(100vw - 48px), 620px);
-    height: 380px;
+    width: min(calc(100vw - 48px), 520px);
+    height: 292px;
   }
 }
 

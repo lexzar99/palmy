@@ -16,7 +16,6 @@ import {
   Store,
   Truck,
   X,
-  Sparkles,
   Info,
   Phone,
   Gift,
@@ -24,7 +23,6 @@ import {
   Heart,
   ChevronDown,
   Crown,
-  Flame,
   ShoppingBag,
 } from "lucide-react";
 import { type DealCardData } from "@/components/DealFlipCard";
@@ -32,7 +30,6 @@ import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
 import EmptyState from "@/components/EmptyState";
 import type { TrackingAd } from "@/components/OrderTrackingCard";
 import {
-  diversifyHomeCategoryLeaders,
   resolveHomeCategoryRestaurants,
   type HomeCategorySection,
 } from "@/lib/homeCategories";
@@ -193,7 +190,7 @@ const DELIVERED_TRACKING_STATUSES = new Set(["DELIVERED", "COMPLETED"]);
 const PROMO_CARD_WIDTH = 260;
 const PROMO_CARD_GAP = 12;
 const PROMO_SNAP = PROMO_CARD_WIDTH + PROMO_CARD_GAP;
-const HOME_PROMO_IMAGE_SIZES = "(max-width: 640px) calc(100vw - 40px), 620px";
+const HOME_PROMO_IMAGE_SIZES = "(max-width: 640px) calc(100vw - 40px), 520px";
 const RESTAURANT_RAIL_IMAGE_SIZES = "(max-width: 639px) 230px, (max-width: 767px) 260px, (max-width: 1023px) 50vw, (max-width: 1279px) 33vw, 25vw";
 const RESTAURANT_LIST_IMAGE_SIZES = "(max-width: 1023px) calc(100vw - 32px), (max-width: 1535px) 50vw, 33vw";
 const ABOVE_THE_FOLD_RESTAURANT_IMAGE_LIMIT = 0;
@@ -203,7 +200,7 @@ type PromoCardItem =
   | { id: string; kind: "appDeal"; appDeal: HomeAppDeal }
   | { id: string; kind: "pulseChampion"; module: HomePulseModule }
   | { id: string; kind: "pulseHighlight"; module: HomePulseModule; restaurant: PulseRailRestaurant; badge: string }
-  | { id: string; kind: "currentRestaurant"; restaurant: Restaurant; badge: string; theme: string };
+  | { id: string; kind: "currentRestaurant"; restaurant: Restaurant; badge: string };
 
 function getPromoSnap(rail: HTMLDivElement) {
   const first = rail.children[0] as HTMLElement | undefined;
@@ -378,6 +375,15 @@ function absoluteMediaUrl(path?: string | null) {
   return path;
 }
 
+function stableDailyRank(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
 function pulseGradient(theme?: string | null) {
   switch (theme) {
     case "ember":
@@ -528,7 +534,7 @@ function HomeAppDealCard({
   );
 }
 
-function ChampionPromoCard({ module, onOpen, imagePriority = false }: { module: HomePulseModule; onOpen: (slug: string) => void; imagePriority?: boolean }) {
+function ChampionPromoCard({ module, onOpen }: { module: HomePulseModule; onOpen: (slug: string) => void }) {
   const restaurant = module.restaurant;
   if (!restaurant) return null;
   const image = absoluteMediaUrl(module.images?.[0] || restaurant.heroImageUrl || restaurant.imageUrl);
@@ -557,7 +563,7 @@ function ChampionPromoCard({ module, onOpen, imagePriority = false }: { module: 
   );
 }
 
-function HighlightPromoCard({ restaurant, badge, onOpen, imagePriority = false }: { restaurant: PulseRailRestaurant; badge: string; onOpen: (slug: string) => void; imagePriority?: boolean }) {
+function HighlightPromoCard({ restaurant, badge, onOpen }: { restaurant: PulseRailRestaurant; badge: string; onOpen: (slug: string) => void }) {
   const image = absoluteMediaUrl(restaurant.heroImageUrl || restaurant.imageUrl);
   return (
     <button type="button" onClick={() => onOpen(restaurant.slug)} className="swift-promo-card text-left">
@@ -587,144 +593,28 @@ function HighlightPromoCard({ restaurant, badge, onOpen, imagePriority = false }
   );
 }
 
-function currentTheme(theme?: string | null) {
-  switch ((theme || "").toUpperCase()) {
-    case "ORANGE": case "SUNRISE": return "ember";
-    case "GREEN": case "FRESH": return "forest";
-    case "PURPLE": case "BERRY": return "berry";
-    case "NAVY": case "MIDNIGHT": return "midnight";
-    case "GOLD": return "gold";
-    default: return "sky";
-  }
-}
-
-function currentCardSurface(theme: string) {
-  switch (currentTheme(theme)) {
-    case "ember": return "#FFF0E7";
-    case "forest": return "#EAF9EF";
-    case "berry": return "#FBEFFA";
-    case "midnight": return "#EEF1FF";
-    case "gold": return "#FFF7E4";
-    default: return "#EAF7FF";
-  }
-}
-
-// Samma stora bildformat som Swift: matbilden väcker sug, den ljusa
-// informationsytan gör att text och alla badges alltid går att läsa.
-function CurrentRestaurantPromoCard({ restaurant, badge, theme, onOpen, imagePriority = false }: { restaurant: Restaurant; badge: string; theme: string; onOpen: (slug: string) => void; imagePriority?: boolean }) {
+// Aktuellt följer Swift: hela ytan är bild, med en neutral svart
+// läsbarhetsgradient. Ingen färgtoning och ingen vit informationshalva.
+function CurrentRestaurantPromoCard({ restaurant, badge, onOpen }: { restaurant: Restaurant; badge: string; onOpen: (slug: string) => void }) {
   const image = absoluteMediaUrl(restaurant.heroImageUrl || restaurant.imageUrl);
-  const resolvedTheme = currentTheme(theme);
   return (
-    <button type="button" onClick={() => onOpen(restaurant.slug)} className="swift-promo-card overflow-hidden text-left" style={{ background: currentCardSurface(resolvedTheme) }}>
-      <span className="relative block h-[60%] overflow-hidden">
-        {image ? (
-          <span role="img" aria-label={restaurant.name} className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url("${optimizedImageUrl(image, 1800, 90)}")` }} />
-        ) : <span className="absolute inset-0" style={{ background: pulseGradient(resolvedTheme) }} />}
-        <span className="absolute inset-0 opacity-25" style={{ background: pulseGradient(resolvedTheme) }} />
-        <span className="absolute left-3 top-3 inline-flex h-6 items-center rounded-full bg-black/45 px-2.5 text-[10px] font-black uppercase tracking-[0.06em] text-white">{badge}</span>
-      </span>
-      <span className="flex h-[40%] flex-col items-center justify-center px-4 text-center">
-        <span className="block max-w-full break-words text-[22px] font-black leading-tight text-[var(--ink)]">{restaurant.name}</span>
-        <span className="mt-1 block max-w-full truncate text-[12px] font-bold text-[var(--muted)]">{restaurant.cuisine || "Restaurang"}</span>
-        <span className="mt-2 flex max-w-full flex-wrap justify-center gap-1.5">
+    <button type="button" onClick={() => onOpen(restaurant.slug)} className="swift-promo-card overflow-hidden text-left">
+      {image ? (
+        <span role="img" aria-label={restaurant.name} className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url("${optimizedImageUrl(image, 1800, 90)}")` }} />
+      ) : (
+        <span className="absolute inset-0 bg-[#222328]" />
+      )}
+      <span className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/5 to-black/80" />
+      <span className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
+        <span className="mb-2 inline-flex h-6 max-w-full items-center truncate rounded-full bg-white/94 px-2.5 text-[10px] font-black uppercase tracking-[0.04em] text-[var(--ink)]">{badge}</span>
+        <span className="block truncate text-[24px] font-black leading-tight text-white">{restaurant.name}</span>
+        <span className="mt-1 flex min-w-0 items-center gap-2">
+          <span className="min-w-0 truncate text-[12px] font-bold text-white/88">{restaurant.cuisine || "Restaurang"}</span>
           {(restaurant.featuredClass === 1 || restaurant.featuredClass === 2) && <FeaturedBadge featuredClass={restaurant.featuredClass} />}
-          {restaurant.homeDealMaxPercent && restaurant.homeDealMaxPercent > 0 && <span className="rounded-md bg-[var(--gold)] px-2 py-0.5 text-[11px] font-black text-[var(--ink)]">Upp till {restaurant.homeDealMaxPercent}%</span>}
-          {(restaurant.homeFreeDelivery === true || (typeof restaurant.deliveryFee === "number" && restaurant.deliveryFee <= 0)) && <span className="rounded-md bg-[#237A4A] px-2 py-0.5 text-[11px] font-black text-white">Fri leverans</span>}
         </span>
       </span>
     </button>
   );
-}
-
-function PulseMessageCard({ module }: { module: HomePulseModule }) {
-  return (
-    <div className="swift-message-card" style={{ background: pulseGradient(module.theme) }}>
-      <div className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[14px] bg-white/20 text-white">
-        {module.type === "WEATHER" ? <CloudRainIcon /> : <Sparkles size={20} fill="currentColor" />}
-      </div>
-      <div className="min-w-0">
-        <h3 className="truncate text-[16px] font-black leading-tight text-white">{module.title}</h3>
-        {!!module.subtitle && <p className="mt-1 line-clamp-2 text-[12px] font-bold leading-snug text-white/90">{module.subtitle}</p>}
-      </div>
-    </div>
-  );
-}
-
-function CloudRainIcon() {
-  return <span className="text-lg font-black">☔</span>;
-}
-
-function PulseProductRail({ module, onOpen }: { module: HomePulseModule; onOpen: (slug: string) => void }) {
-  const products = module.type === "NEW_MENU_ITEMS" ? module.items : module.products;
-  if (!products?.length) return null;
-  return (
-    <section className="space-y-3">
-      <div className="flex items-baseline gap-2">
-        {module.title === "Hetast just nu" && <Flame size={17} fill="var(--orange)" className="text-[var(--orange)]" />}
-        <SwiftSectionHeader title={module.title} subtitle={module.subtitle || ""} />
-      </div>
-      <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-5 px-5">
-        {products.map((product) => {
-          const image = absoluteMediaUrl(product.imageUrl);
-          return (
-            <button key={product.productId} type="button" onClick={() => onOpen(product.restaurant.slug)} className="swift-product-card">
-              <div className="relative h-[110px] w-full overflow-hidden bg-[var(--bg-deep)]">
-                {image ? <SmartImage src={image} alt={product.name} sizes="168px" className="h-full w-full object-cover" /> : <div className="h-full w-full" style={{ background: pulseGradient(module.theme) }} />}
-                {module.type === "NEW_MENU_ITEMS" && <span className="absolute left-2 top-2 rounded-full bg-[var(--orange)] px-2 py-1 text-[9px] font-black uppercase text-white">Nyhet</span>}
-              </div>
-              <div className="p-2.5 text-left">
-                <p className="truncate text-[13px] font-black text-[var(--ink)]">{product.name}</p>
-                <div className="mt-1 flex items-center gap-2 text-[11px] font-bold text-[var(--muted)]">
-                  <span className="min-w-0 truncate">{product.restaurant.name}</span>
-                  <span className="ml-auto shrink-0 text-[12px] font-black text-[var(--ink)]">{Math.round(product.priceKr)} kr</span>
-                </div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function PulseRestaurantRail({ module, onOpen }: { module: HomePulseModule; onOpen: (slug: string) => void }) {
-  const restaurants = module.restaurants;
-  if (!restaurants?.length) return null;
-  return (
-    <section className="space-y-3">
-      <SwiftSectionHeader title={module.title} subtitle={module.subtitle || ""} />
-      <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-5 px-5">
-        {restaurants.map((restaurant) => (
-          <button key={restaurant.id} type="button" onClick={() => onOpen(restaurant.slug)} className="swift-chip-card">
-            <div className="h-12 w-12 overflow-hidden rounded-2xl bg-[var(--bg-deep)]">
-              {restaurant.imageUrl || restaurant.heroImageUrl ? (
-                <SmartImage src={absoluteMediaUrl(restaurant.imageUrl || restaurant.heroImageUrl)} alt={restaurant.name} sizes="48px" className="h-full w-full object-cover" />
-              ) : null}
-            </div>
-            <div className="min-w-0 flex-1 text-left">
-              <p className="truncate text-[13px] font-black text-[var(--ink)]">{restaurant.name}</p>
-              <p className="truncate text-[11px] font-bold text-[var(--muted)]">
-                {restaurant.growthPct ? `+${restaurant.growthPct}% denna vecka` : restaurant.avgMinutesToday ? `${restaurant.avgMinutesToday} min idag` : restaurant.cuisine || "Restaurang"}
-              </p>
-            </div>
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function PulseModuleSection({ module, onOpenRestaurant }: { module: HomePulseModule; onOpenRestaurant: (slug: string) => void }) {
-  if (["OCCASION", "WEATHER", "STREAK", "POINTS_NUDGE", "FAVORITE"].includes(module.type)) {
-    return <PulseMessageCard module={module} />;
-  }
-  if (["HOT_PRODUCTS", "NEW_MENU_ITEMS"].includes(module.type)) {
-    return <PulseProductRail module={module} onOpen={onOpenRestaurant} />;
-  }
-  if (["FASTEST_TODAY", "TRENDING", "NEW_RESTAURANTS"].includes(module.type)) {
-    return <PulseRestaurantRail module={module} onOpen={onOpenRestaurant} />;
-  }
-  return null;
 }
 
 export interface HomeInitialData {
@@ -752,7 +642,7 @@ const isRetiredFavoriteDeal = (deal: any) => {
  */
 export default function HomeClient({ initialData = null, partnerSlug = null }: { initialData?: HomeInitialData | null; partnerSlug?: string | null }) {
   const router = useRouter();
-  const { t, locale } = useTranslation();
+  const { t } = useTranslation();
   const promoRailRef = useRef<HTMLDivElement | null>(null);
   const promoIndexRef = useRef(0);
   const [activePromo, setActivePromo] = useState(0);
@@ -1486,8 +1376,6 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
     return inZoneSorted;
   }, [restaurants, query, orderType, zoneRestaurantIds, filteredByDeal, matchesCityFamily]);
 
-  const featured = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2).slice(0, 8);
-
   const resolvedHomeCategorySections = useMemo(() => {
     if (homeFeed?.version === 1 && Array.isArray(homeFeed.sections) && homeFeed.sections.length > 0) {
       const restaurantById = new Map(restaurants.map((restaurant) => [restaurant.id, restaurant]));
@@ -1591,77 +1479,6 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
       .filter((section) => section.restaurants.length > 0);
   }, [homeFeed, homeCategorySections, restaurants, deals, deliveryOverrides, orderType, detectedCityName, cityFamilyIds, cityFamilyNames, zoneRestaurantIds, matchesCityFamily]);
 
-  // Första mediumrälsen hämtas i första hand från adminsektionen för
-  // "utvalt/heta". Om den saknas byggs samma räls av serverns live-signaler
-  // (snabbast, trendar, champion) och därefter tier-klassade restauranger.
-  // Alla id:n slås tillbaka mot /api/restaurants — inga påhittade kort.
-  const primarySelectedSection = useMemo(
-    () =>
-      resolvedHomeCategorySections.find((section) => {
-        const key = `${section.slug} ${section.title}`.toLowerCase();
-        return key.includes("utvald") || key.includes("utvalt") || key.includes("heta");
-      }) ?? null,
-    [resolvedHomeCategorySections],
-  );
-
-  const selectedTodayRestaurants = useMemo(() => {
-    const restaurantById = new Map(restaurants.map((restaurant) => [restaurant.id, restaurant]));
-    primarySelectedSection?.restaurants.forEach((restaurant) => {
-      restaurantById.set(restaurant.id, restaurant);
-    });
-    const candidateIds: string[] = [];
-    const push = (id?: string | null) => {
-      if (id && restaurantById.has(id) && !candidateIds.includes(id)) candidateIds.push(id);
-    };
-
-    primarySelectedSection?.restaurants.forEach((restaurant) => push(restaurant.id));
-    pulseModules
-      .filter((module) => ["FASTEST_TODAY", "TRENDING", "CHAMPION"].includes(module.type))
-      .forEach((module) => {
-        push(module.restaurant?.id);
-        module.restaurants?.forEach((restaurant) => push(restaurant.id));
-      });
-    featured.forEach((restaurant) => push(restaurant.id));
-    filtered.forEach((restaurant) => push(restaurant.id));
-
-    const ranked = candidateIds
-      .map((id) => restaurantById.get(id))
-      .filter((restaurant): restaurant is Restaurant => !!restaurant)
-      .filter(matchesCityFamily)
-      .slice(0, 8);
-
-    const sponsoredSlugs = new Set(
-      sponsors
-        .flatMap((sponsor) => [
-          sponsor.restaurantSlug,
-          sponsor.linkType === "RESTAURANT" ? sponsor.linkTarget : null,
-        ])
-        .filter((slug): slug is string => !!slug),
-    );
-    const nonSponsoredLeaderIndex = ranked.findIndex(
-      (restaurant) => !sponsoredSlugs.has(restaurant.slug),
-    );
-    return nonSponsoredLeaderIndex > 0
-      ? [
-          ranked[nonSponsoredLeaderIndex],
-          ...ranked.slice(0, nonSponsoredLeaderIndex),
-          ...ranked.slice(nonSponsoredLeaderIndex + 1),
-        ]
-      : ranked;
-  }, [restaurants, primarySelectedSection, pulseModules, featured, filtered, matchesCityFamily, sponsors]);
-
-  // Adminordningen behålls i varje kategori, men en restaurang som redan leder
-  // "Utvalt idag" eller en tidigare räls flyttas till plats 2/3 när sektionen
-  // har en annan kandidat. På små pooler upprepas förstaplatsen bara när det
-  // saknas ett verkligt alternativ.
-  const diversifiedHomeCategorySections = useMemo(() => {
-    const remainingSections = primarySelectedSection
-      ? resolvedHomeCategorySections.filter((section) => section.id !== primarySelectedSection.id)
-      : resolvedHomeCategorySections;
-    const reserved = selectedTodayRestaurants[0]?.id ? [selectedTodayRestaurants[0].id] : [];
-    return diversifyHomeCategoryLeaders(remainingSections, reserved);
-  }, [resolvedHomeCategorySections, primarySelectedSection, selectedTodayRestaurants]);
-
   const promoCards = useMemo<PromoCardItem[]>(() => {
     // Högst fem stora, olika kort. Manuella sponsor-/showcase-kort har förtur
     // och visar sin egen admin-skrivna badge. Resten fylls med riktiga
@@ -1703,19 +1520,22 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
           : key.includes("betyg") || key.includes("omtyckt") ? "Mest omtyckt"
           : key.includes("snabb") ? "Snabbast idag"
           : section.title;
-        add({ id: `category-${section.id}-${restaurant.id}`, kind: "currentRestaurant", restaurant, badge, theme: section.presentation?.accent || "BLUE" }, restaurant.slug);
+        add({ id: `category-${section.id}-${restaurant.id}`, kind: "currentRestaurant", restaurant, badge }, restaurant.slug);
       });
 
     // En ny stad kan ha få historiska signaler. Visa då ett verkligt alternativ
     // från API-listan, aldrig placeholder-data.
-    filtered.forEach((restaurant) => add({ id: `fallback-${restaurant.id}`, kind: "currentRestaurant", restaurant, badge: "Utvalt idag", theme: "ORANGE" }, restaurant.slug));
+    filtered.forEach((restaurant) => add({ id: `fallback-${restaurant.id}`, kind: "currentRestaurant", restaurant, badge: "Utvalt idag" }, restaurant.slug));
     return result;
   }, [sponsors, pulseModules, resolvedHomeCategorySections, filtered]);
   const renderedPromoCards = showAllPromoCards ? promoCards : promoCards.slice(0, 1);
 
-  const getDealForRestaurant = useCallback((restaurantId: string) => {
-    return allDealCards.find(d => d.relatedRestaurantIds?.includes(restaurantId) || d.isGlobal);
-  }, [allDealCards]);
+  const hasFreeDeliveryDeal = useCallback((restaurantId: string) => (
+    allDealCards.some((deal) => (
+      (deal.relatedRestaurantIds?.includes(restaurantId) || deal.isGlobal) &&
+      (deal.rewardLabel || "").toLowerCase().includes("fri leverans")
+    ))
+  ), [allDealCards]);
 
   // En restaurang kan ha max 2 badges: en BOGO + en regular (högsta procenten).
   const getBadgesForRestaurant = useCallback((restaurantId: string) => {
@@ -1727,6 +1547,119 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
     const regular = regulars[0] || null;
     return { bogo, regular };
   }, [allDealCards]);
+
+  const launchRails = useMemo(() => {
+    const city = detectedCityName || selectedCity?.name || "Lund";
+    const eligible = filtered.filter((restaurant) => (
+      orderType !== "DELIVERY" ||
+      zoneRestaurantIds === null ||
+      zoneRestaurantIds.includes(restaurant.id)
+    ));
+    const byId = new Map(eligible.map((restaurant) => [restaurant.id, restaurant]));
+    const openFirst = (list: Restaurant[]) => list.slice().sort((left, right) => {
+      const openDifference = Number(right.isOpen !== false) - Number(left.isOpen !== false);
+      return openDifference || left.name.localeCompare(right.name, "sv");
+    });
+
+    const trendingIds = pulseModules
+      .filter((module) => module.type === "TRENDING")
+      .flatMap((module) => module.restaurants || [])
+      .map((restaurant) => restaurant.id);
+    const popularFallback = eligible.slice().sort((left, right) => {
+      const openDifference = Number(right.isOpen !== false) - Number(left.isOpen !== false);
+      if (openDifference) return openDifference;
+      const reviewDifference = (right.ratingCount || 0) - (left.ratingCount || 0);
+      if (reviewDifference) return reviewDifference;
+      const ratingDifference = (right.rating || 0) - (left.rating || 0);
+      if (ratingDifference) return ratingDifference;
+      return left.name.localeCompare(right.name, "sv");
+    });
+    const popular = Array.from(new Set(trendingIds))
+      .map((id) => byId.get(id))
+      .filter((restaurant): restaurant is Restaurant => !!restaurant);
+    popularFallback.forEach((restaurant) => {
+      if (!popular.some((candidate) => candidate.id === restaurant.id)) popular.push(restaurant);
+    });
+
+    const hasFreeDelivery = (restaurant: Restaurant) => {
+      const activeDealFreeDelivery =
+        restaurant.homeFreeDeliveryReason === "ACTIVE_DEAL" ||
+        hasFreeDeliveryDeal(restaurant.id);
+      if (activeDealFreeDelivery) return true;
+      const addressFee =
+        zoneDeliveryInfo[restaurant.id]?.deliveryFee ??
+        deliveryOverrides[restaurant.id]?.deliveryFee;
+      if (typeof addressFee === "number") return addressFee <= 0;
+      return restaurant.homeFreeDelivery === true ||
+        (typeof restaurant.deliveryFee === "number" && restaurant.deliveryFee <= 0);
+    };
+    const freeDelivery = orderType === "DELIVERY"
+      ? openFirst(eligible.filter(hasFreeDelivery))
+      : [];
+
+    const fastest = eligible
+      .map((restaurant) => ({
+        restaurant,
+        eta: zoneDeliveryInfo[restaurant.id]?.etaMinutes ?? restaurant.etaMinutes,
+      }))
+      .filter((item): item is { restaurant: Restaurant; eta: number } => (
+        typeof item.eta === "number" && Number.isFinite(item.eta) && item.eta > 0
+      ))
+      .sort((left, right) => (
+        Number(right.restaurant.isOpen !== false) - Number(left.restaurant.isOpen !== false) ||
+        left.eta - right.eta ||
+        left.restaurant.name.localeCompare(right.restaurant.name, "sv")
+      ))
+      .map((item) => item.restaurant);
+
+    const today = new Intl.DateTimeFormat("sv-SE", {
+      timeZone: "Europe/Stockholm",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const discover = eligible.slice().sort((left, right) => (
+      Number(right.isOpen !== false) - Number(left.isOpen !== false) ||
+      stableDailyRank(`${today}:${left.id}`) - stableDailyRank(`${today}:${right.id}`)
+    ));
+
+    return [
+      {
+        id: "popular",
+        title: `Populärt i ${city}`,
+        subtitle: "Det här beställs mest just nu",
+        restaurants: popular.slice(0, 8),
+      },
+      {
+        id: "free-delivery",
+        title: "Fri leverans",
+        subtitle: "0 kr i leveransavgift till din adress",
+        restaurants: freeDelivery.slice(0, 8),
+      },
+      {
+        id: "fastest",
+        title: "Snabbast nära dig",
+        subtitle: "Kortast beräknad leveranstid",
+        restaurants: fastest.slice(0, 8),
+      },
+      {
+        id: "discover",
+        title: "Upptäck något nytt",
+        subtitle: "Ett nytt urval varje dag",
+        restaurants: discover.slice(0, 8),
+      },
+    ].filter((rail) => rail.restaurants.length > 0);
+  }, [
+    deliveryOverrides,
+    detectedCityName,
+    filtered,
+    hasFreeDeliveryDeal,
+    orderType,
+    pulseModules,
+    selectedCity?.name,
+    zoneDeliveryInfo,
+    zoneRestaurantIds,
+  ]);
 
   const handlePromoScroll = useCallback(() => {
     revealPromoCards();
@@ -1861,8 +1794,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
         </div>
         <Link href="/search" className="text-[12px] font-bold text-gold-600 hover:text-gold-500 transition-all shrink-0 ml-3">{t("home.viewAll")}</Link>
       </div>
-      {/* Mobil: horisontell scroll • md+: 2-kolumn grid • lg+: 3-kolumn • xl+: 4-kolumn */}
-      <div className="flex md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 overflow-x-auto md:overflow-visible pb-1 md:pb-0 no-scrollbar -mx-5 px-3 md:mx-0 md:px-0">
+      <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar -mx-5 px-5 md:mx-0 md:px-0 snap-x snap-mandatory">
         {sortedSection.map((r, i) => {
           const inZone = orderType !== "DELIVERY" || zoneRestaurantIds === null || zoneRestaurantIds.includes(r.id);
           const isComingSoon = r.comingSoon === true;
@@ -1882,7 +1814,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
           return (
             <div
               key={`${title}-${r.id}`}
-              className={`transition-all duration-300 shrink-0 md:shrink w-[clamp(252px,73.6vw,292px)] md:w-auto active:opacity-80 ${dimmed ? "grayscale opacity-80" : ""}`}
+              className={`w-[clamp(252px,73.6vw,292px)] shrink-0 snap-start transition-all duration-300 md:w-[300px] lg:w-[320px] active:opacity-80 ${dimmed ? "grayscale opacity-80" : ""}`}
             >
               <Link
                 href={getRestaurantHref(r)}
@@ -1903,23 +1835,32 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                     ? `Upp till ${dealPercent}%`
                     : badges.regular?.rewardLabel || "";
                   const showFeatured = r.featuredClass === 1 || r.featuredClass === 2;
-                  const showFreeDelivery = r.homeFreeDelivery === true || (typeof r.deliveryFee === "number" && r.deliveryFee <= 0);
+                  const addressFee =
+                    zoneDeliveryInfo[r.id]?.deliveryFee ??
+                    deliveryOverrides[r.id]?.deliveryFee;
+                  const showFreeDelivery =
+                    r.homeFreeDeliveryReason === "ACTIVE_DEAL" ||
+                    hasFreeDeliveryDeal(r.id) ||
+                    (typeof addressFee === "number"
+                      ? addressFee <= 0
+                      : r.homeFreeDelivery === true ||
+                        (typeof r.deliveryFee === "number" && r.deliveryFee <= 0));
                   if (!showFeatured && !badges.bogo && !regularLabel && !showFreeDelivery) return null;
                   return (
-                    <div className={`absolute ${railDimReason ? "top-11" : "top-3"} left-3 z-20 flex flex-wrap gap-1.5 max-w-[calc(100%-1.5rem)]`}>
+                    <div className={`absolute ${railDimReason ? "top-11" : "top-3"} left-3 right-3 z-20 flex flex-wrap gap-1.5 overflow-hidden`}>
                       <FeaturedBadge featuredClass={r.featuredClass} />
                       {badges.bogo && (
-                        <span className="bg-gold-500 text-[12px] font-semibold px-2 py-0.5 rounded-md" style={{ color: "#141416" }}>
+                        <span className="max-w-full truncate whitespace-nowrap bg-gold-500 text-[12px] font-semibold px-2 py-0.5 rounded-md" style={{ color: "#141416" }}>
                           {t("home.deal.badge.bogo")}
                         </span>
                       )}
                       {regularLabel && (
-                        <span className="bg-gold-500 text-[12px] font-semibold px-2 py-0.5 rounded-md" style={{ color: "#141416" }}>
+                        <span className="max-w-full truncate whitespace-nowrap bg-gold-500 text-[12px] font-semibold px-2 py-0.5 rounded-md" style={{ color: "#141416" }}>
                           {regularLabel}
                         </span>
                       )}
                       {showFreeDelivery && (
-                        <span className="bg-[#237A4A] text-[12px] font-semibold px-2 py-0.5 rounded-md text-white">
+                        <span className="max-w-full truncate whitespace-nowrap bg-[#237A4A] text-[12px] font-semibold px-2 py-0.5 rounded-md text-white">
                           Fri leverans
                         </span>
                       )}
@@ -1959,10 +1900,9 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                     const eta = zi?.etaMinutes ?? r.etaMinutes;
                     const fee = zi?.deliveryFee ?? r.deliveryFee;
                     const minOrder = zi?.minOrder ?? r.minOrderAmount;
-                    const publicDeal = getDealForRestaurant(r.id);
                     const activeDealFreeDelivery =
                       r.homeFreeDeliveryReason === "ACTIVE_DEAL" ||
-                      (publicDeal?.rewardLabel || "").toLowerCase().includes("fri leverans");
+                      hasFreeDeliveryDeal(r.id);
                     const hasFreeDelivery =
                       activeDealFreeDelivery ||
                       (typeof zi?.deliveryFee === "number"
@@ -2141,21 +2081,8 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
           </section>
         )}
 
-        {/* Design 10-bas: en lättskannad mediumräls först. Urvalet kommer från
-            admin/pulsen/tier-systemet och varierar utan hårdkodade restauranger. */}
-        {query.trim() === "" && selectedTodayRestaurants.length > 0 && (
-          <div className="mb-5">
-            {renderFeaturedRail(
-              locale === "en" ? "Selected today" : "Utvalt idag",
-              "",
-              selectedTodayRestaurants,
-              { priorityImageCount: ABOVE_THE_FOLD_RESTAURANT_IMAGE_LIMIT },
-            )}
-          </div>
-        )}
-
-        {/* WHAT'S ON: stora, bilddrivna sponsor- och livekort direkt efter
-            mediumrälsen. */}
+        {/* Samma hierarki som Swift: Aktuellt ligger först, men hålls kompakt
+            så första restaurangrälsen syns direkt. */}
         {query.trim() === "" && promoCards.length > 0 && (
           <section className="mb-5">
             <div className="mb-3 px-1">
@@ -2166,7 +2093,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
               onPointerDown={revealPromoCards}
               onFocus={revealPromoCards}
               onScroll={handlePromoScroll}
-              className="flex items-start gap-3 overflow-x-auto pb-1 no-scrollbar -mx-5 px-3 sm:mx-0 sm:px-0"
+              className="flex items-start gap-3 overflow-x-auto pb-1 no-scrollbar -mx-5 px-5 sm:mx-0 sm:px-0"
               style={{ scrollSnapType: "x mandatory" }}
             >
               {renderedPromoCards.map((item, i) => {
@@ -2189,11 +2116,11 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                         onAction={handleAppDealAction}
                       />
                     ) : item.kind === "pulseChampion" ? (
-                      <ChampionPromoCard module={item.module} onOpen={openRestaurantSlug} imagePriority={shouldPrioritizeImage} />
+                      <ChampionPromoCard module={item.module} onOpen={openRestaurantSlug} />
                     ) : item.kind === "pulseHighlight" ? (
-                      <HighlightPromoCard restaurant={item.restaurant} badge={item.badge} onOpen={openRestaurantSlug} imagePriority={shouldPrioritizeImage} />
+                      <HighlightPromoCard restaurant={item.restaurant} badge={item.badge} onOpen={openRestaurantSlug} />
                     ) : (
-                      <CurrentRestaurantPromoCard restaurant={item.restaurant} badge={item.badge} theme={item.theme} onOpen={openRestaurantSlug} imagePriority={shouldPrioritizeImage} />
+                      <CurrentRestaurantPromoCard restaurant={item.restaurant} badge={item.badge} onOpen={openRestaurantSlug} />
                     )}
                   </div>
                 );
@@ -2237,35 +2164,14 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
           </section>
         )}
 
-        {query.trim() === "" && pulseModules
-          .filter((module) => ["COMEBACK", "STREAK", "POINTS_NUDGE", "OCCASION", "WEATHER", "FAVORITE"].includes(module.type))
-          .slice(0, 3)
-          .map((module) => (
-            <section key={module.id} className="mb-5">
-              <PulseModuleSection module={module} onOpenRestaurant={openRestaurantSlug} />
-            </section>
-          ))}
-
-        {/* Administratörsstyrda dynamiska kategorier. Cuisine/tag-chips bor på
-            Sök-sidan, så hemmet förblir lugnt och direkt. */}
-        {query.trim() === "" && diversifiedHomeCategorySections.length > 0
-          ? diversifiedHomeCategorySections.map((section, sectionIndex) => {
-              // Locale-aware titel: falla tillbaka på svenska originalet om
-              // admin inte fyllt i engelska översättningen (titleEn null/tom).
-              const localizedTitle = locale === "en" && section.titleEn ? section.titleEn : section.title;
-              const localizedSubtitle = locale === "en" && section.subtitleEn ? section.subtitleEn : section.subtitle;
-              // Sektionen filtreras automatiskt by stad i renderFeaturedRail
-              // (matchesCityFamily). Om tom efter filter returneras null →
-              // sektionen försvinner från sidan utan extra logik här.
-              return (
-                <React.Fragment key={section.id}>
-                  {renderFeaturedRail(localizedTitle, localizedSubtitle, section.restaurants, {
-                    priorityImageCount: sectionIndex === 0 ? ABOVE_THE_FOLD_RESTAURANT_IMAGE_LIMIT : 0,
-                  })}
-                </React.Fragment>
-              );
-            })
-          : null}
+        {/* Launch-rälsar. Kategorier hör hemma på Sök, inte på startsidan. */}
+        {query.trim() === "" && launchRails.map((rail, index) => (
+          <React.Fragment key={rail.id}>
+            {renderFeaturedRail(rail.title, rail.subtitle, rail.restaurants, {
+              priorityImageCount: index === 0 ? ABOVE_THE_FOLD_RESTAURANT_IMAGE_LIMIT : 0,
+            })}
+          </React.Fragment>
+        ))}
 
         {/* GLOBAL TOM-STATE — visas när inga restauranger alls matchar kundens
             stad (varken main-grid, rails, eller HomeCategorySections). Detta är
@@ -2380,8 +2286,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                   const dimmed = isComingSoon || isClosed || isOutOfZone;
                   const shouldPrioritizeListImage = i < ABOVE_THE_FOLD_RESTAURANT_IMAGE_LIMIT
                     && promoCards.length === 0
-                    && resolvedHomeCategorySections.length === 0
-                    && featured.length === 0;
+                    && launchRails.length === 0;
                   const pausedUntilDate = r.pausedUntil ? new Date(r.pausedUntil) : null;
                   const isPaused = pausedUntilDate !== null && pausedUntilDate.getTime() > Date.now();
                   const dimReason = isComingSoon
@@ -2469,23 +2374,32 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                                 ? `Upp till ${dealPercent}%`
                                 : badges.regular?.rewardLabel || "";
                               const showFeatured = r.featuredClass === 1 || r.featuredClass === 2;
-                              const showFreeDelivery = r.homeFreeDelivery === true || (typeof r.deliveryFee === "number" && r.deliveryFee <= 0);
+                              const addressFee =
+                                zoneDeliveryInfo[r.id]?.deliveryFee ??
+                                deliveryOverrides[r.id]?.deliveryFee;
+                              const showFreeDelivery =
+                                r.homeFreeDeliveryReason === "ACTIVE_DEAL" ||
+                                hasFreeDeliveryDeal(r.id) ||
+                                (typeof addressFee === "number"
+                                  ? addressFee <= 0
+                                  : r.homeFreeDelivery === true ||
+                                    (typeof r.deliveryFee === "number" && r.deliveryFee <= 0));
                               if (!showFeatured && !badges.bogo && !regularLabel && !showFreeDelivery) return null;
                               return (
-                                <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-1.5 max-w-[calc(100%-1.5rem)]">
+                                <div className="absolute bottom-3 left-3 right-3 z-10 flex flex-wrap gap-1.5 overflow-hidden">
                                   <FeaturedBadge featuredClass={r.featuredClass} />
                                   {badges.bogo && (
-                                    <span className="bg-gold-500 text-[12px] font-semibold px-2 py-0.5 rounded-md" style={{ color: "#141416" }}>
+                                    <span className="max-w-full truncate whitespace-nowrap bg-gold-500 text-[12px] font-semibold px-2 py-0.5 rounded-md" style={{ color: "#141416" }}>
                                       {t("home.deal.badge.bogo")}
                                     </span>
                                   )}
                                   {regularLabel && (
-                                    <span className="bg-gold-500 text-[12px] font-semibold px-2 py-0.5 rounded-md" style={{ color: "#141416" }}>
+                                    <span className="max-w-full truncate whitespace-nowrap bg-gold-500 text-[12px] font-semibold px-2 py-0.5 rounded-md" style={{ color: "#141416" }}>
                                       {regularLabel}
                                     </span>
                                   )}
                                   {showFreeDelivery && (
-                                    <span className="bg-[#237A4A] text-[12px] font-semibold px-2 py-0.5 rounded-md text-white">
+                                    <span className="max-w-full truncate whitespace-nowrap bg-[#237A4A] text-[12px] font-semibold px-2 py-0.5 rounded-md text-white">
                                       Fri leverans
                                     </span>
                                   )}
@@ -2511,10 +2425,9 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                               const eta = zi?.etaMinutes ?? r.etaMinutes;
                               const fee = zi?.deliveryFee ?? r.deliveryFee;
                               const minOrder = zi?.minOrder ?? r.minOrderAmount;
-                              const publicDeal = getDealForRestaurant(r.id);
                               const activeDealFreeDelivery =
                                 r.homeFreeDeliveryReason === "ACTIVE_DEAL" ||
-                                (publicDeal?.rewardLabel || "").toLowerCase().includes("fri leverans");
+                                hasFreeDeliveryDeal(r.id);
                               const hasFreeDelivery =
                                 activeDealFreeDelivery ||
                                 (typeof zi?.deliveryFee === "number"
