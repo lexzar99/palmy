@@ -556,6 +556,8 @@ router.get('/discounted', async (req, res) => {
           discountScope: displayPromotion.scope,
           discountPercent: displayPromotion.discountPercent,
           discountLabel: displayPromotion.discountLabel,
+          // Deals-tabens kategori-chips (Pizza/Burgare/…) filtrerar på denna.
+          category: p.category?.name ?? null,
           imageUrl: displayPromotion.imageUrl || p.imageUrl,
           restaurant: {
             ...restaurant,
