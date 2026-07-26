@@ -396,18 +396,19 @@ async function previewNewMenuItems() {
   };
 }
 
-// ── Snabbast idag: dagens levererade ordrar + nuvarande kö ──────────────────
+// ── Snabbast idag: senaste 36 timmarnas leveranser + nuvarande kö ───────────
 async function buildFastestToday(params: Record<string, number>) {
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
+  // Rullande fönster, inte kalenderdygn: efter 00:00 behåller vi gårdagens
+  // faktiska leveranstider tills dagens volym hunnit bli representativ.
+  const rollingSince = new Date(Date.now() - 36 * 60 * 60 * 1000);
   const [delivered, live] = await Promise.all([
     prisma.order.findMany({
-      where: { createdAt: { gte: startOfDay }, status: { in: DONE_STATUSES }, restaurantId: { not: null } },
+      where: { createdAt: { gte: rollingSince }, status: { in: DONE_STATUSES }, restaurantId: { not: null } },
       select: { restaurantId: true, createdAt: true, updatedAt: true },
     }),
     prisma.order.groupBy({
       by: ['restaurantId'],
-      where: { createdAt: { gte: startOfDay }, status: { in: LIVE_STATUSES }, restaurantId: { not: null } },
+      where: { createdAt: { gte: rollingSince }, status: { in: LIVE_STATUSES }, restaurantId: { not: null } },
       _count: { _all: true },
     }),
   ]);
@@ -460,7 +461,7 @@ async function buildFastestToday(params: Record<string, number>) {
     id: 'fastest_today',
     theme: themeForKey('module:fastest_today'),
     title: 'Snabbast idag',
-    subtitle: 'Räknat på dagens riktiga leveranser',
+    subtitle: 'Räknat på riktiga leveranser senaste 36 timmarna',
     restaurants: items,
   };
 }
@@ -477,7 +478,7 @@ async function previewFastestToday() {
     id: 'preview:fastest_today',
     theme: themeForKey('preview:fastest_today'),
     title: 'Snabbast idag',
-    subtitle: 'Räknat på dagens riktiga leveranser',
+    subtitle: 'Räknat på riktiga leveranser senaste 36 timmarna',
     restaurants,
   };
 }
