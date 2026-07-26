@@ -27,7 +27,7 @@ async function getJson<T>(path: string): Promise<T | null> {
 }
 
 async function HomeData({ partnerSlug = null }: { partnerSlug?: string | null }) {
-  const [restaurants, cities, deals, sponsors, homeCategories, appDealsResponse, pulseResponse] = await Promise.all([
+  const [restaurants, cities, deals, sponsors, homeCategories, homeFeed, appDealsResponse, pulseResponse] = await Promise.all([
     getJson<HomeInitialData["restaurants"]>("/api/restaurants"),
     getJson<HomeInitialData["cities"]>("/api/cities"),
     // Partner-läge: bara partnerns egna deals — plattformsbreda deals pekar
@@ -35,6 +35,7 @@ async function HomeData({ partnerSlug = null }: { partnerSlug?: string | null })
     getJson<HomeInitialData["deals"]>(partnerSlug ? `/api/deals?slug=${encodeURIComponent(partnerSlug)}` : "/api/deals"),
     getJson<HomeInitialData["sponsors"]>("/api/sponsors"),
     getJson<HomeInitialData["homeCategories"]>("/api/home-categories"),
+    getJson<NonNullable<HomeInitialData["homeFeed"]>>("/api/home-categories/feed"),
     getJson<{ deals?: NonNullable<HomeInitialData["appDeals"]> }>("/api/deals/app?placement=HOME_TOP&limit=8&loggedIn=0"),
     getJson<NonNullable<HomeInitialData["pulse"]>>("/api/home/pulse"),
   ]);
@@ -50,6 +51,10 @@ async function HomeData({ partnerSlug = null }: { partnerSlug?: string | null })
         // partner-läge så hemsidan bara visar partnerns restaurang.
         sponsors: partnerSlug ? [] : Array.isArray(sponsors) ? sponsors : [],
         homeCategories: partnerSlug ? [] : Array.isArray(homeCategories) ? homeCategories : [],
+        homeFeed:
+          partnerSlug || !homeFeed || homeFeed.version !== 1 || !Array.isArray(homeFeed.sections)
+            ? null
+            : homeFeed,
         appDeals: partnerSlug ? [] : Array.isArray(appDealsResponse?.deals) ? appDealsResponse.deals : [],
         pulse: partnerSlug
           ? { greeting: null, modules: [] }

@@ -72,6 +72,8 @@ export function bustCache(name: string, key?: string): void {
 export function bustRestaurantCaches(slug?: string): void {
   bustCache('rest:list');
   bustCache('rest:detail', slug);
+  bustCache('home:feed');
+  bustCache('restaurant-tags');
   bustCache('zone:validate');
   bustCache('cities:list');
 }

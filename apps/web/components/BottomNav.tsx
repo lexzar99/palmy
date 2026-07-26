@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Home, ReceiptText, ShoppingBag, User } from "lucide-react";
+import { BadgePercent, Home, Search, ShoppingBag, User } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import { useEffect, useState } from "react";
 
 /**
  * BottomNav — platt vit bar, kant till kant, med hårfin topplinje.
- * Fyra lika breda segment (ikon + etikett). Aktivt segment markeras med
+ * Fem lika breda segment (ikon + etikett). Aktivt segment markeras med
  * textfärg + ifylld ikon — ingen glidande pill, ingen blur, ingen skugga.
  * På restaurangsidor göms baren med transform + opacity istället för
  * unmount, så den aldrig flimrar vid sidbyten.
@@ -33,9 +33,10 @@ const BottomNav = () => {
 
   const navItems = [
     { href: "/", label: t("nav.home"), icon: Home },
+    { href: "/search", label: t("nav.search"), icon: Search },
+    { href: "/deals", label: t("nav.deals"), icon: BadgePercent },
     { href: "/cart", label: t("nav.cart"), icon: ShoppingBag, count: itemCount },
-    { href: "/orders", label: t("nav.orders"), icon: ReceiptText },
-    { href: "/profile", label: t("nav.profile"), icon: User },
+    { href: "/profile", label: t("nav.account"), icon: User },
   ];
 
   return (
@@ -67,7 +68,9 @@ const BottomNav = () => {
       />
       {navItems.map((item) => {
         const Icon = item.icon;
-        const isActive = pathname === item.href;
+        const isActive =
+          pathname === item.href ||
+          (item.href !== "/" && pathname?.startsWith(`${item.href}/`));
 
         return (
           <Link

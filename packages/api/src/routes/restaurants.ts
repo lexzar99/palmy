@@ -155,7 +155,11 @@ const restaurantSchema = z.object({
   // i minuter (clampas server-side till 25–55).
   etaOverrideMinutes: z.any().optional(),
   tags: z.any().optional(),
+  tagIds: z.array(z.string().min(1)).max(20).optional(),
   featuredClass: z.any().optional(),
+  homeBoost: z.number().int().min(0).max(100).optional(),
+  homeBoostStartsAt: z.string().datetime().nullable().optional(),
+  homeBoostEndsAt: z.string().datetime().nullable().optional(),
   isOpen: z.boolean().optional(),
   acceptingOrdersMode: z.enum(ACCEPTING_ORDERS_MODES).optional(),
   acceptingOrdersOverrideUntil: z.string().datetime().nullable().optional(),
@@ -192,6 +196,33 @@ const restaurantSchema = z.object({
   pausedUntil: z.string().datetime().nullable().optional(),
 });
 
+async function resolveTagSelection(tagIds: string[]) {
+  const uniqueIds = [...new Set(tagIds.filter(Boolean))];
+  if (uniqueIds.length > 20) throw new TypeError('En restaurang kan ha högst 20 taggar');
+  const tags = await prisma.restaurantTag.findMany({
+    where: { id: { in: uniqueIds }, isActive: true },
+    select: { id: true, name: true },
+  });
+  if (tags.length !== uniqueIds.length) {
+    throw new TypeError('En eller flera valda taggar finns inte eller är inaktiva');
+  }
+  const byId = new Map(tags.map((tag) => [tag.id, tag]));
+  return uniqueIds.map((id, position) => ({ ...byId.get(id)!, position }));
+}
+
+function validateHomeBoostWindow(startsAt?: string | null, endsAt?: string | null, boost = 0) {
+  const start = startsAt ? new Date(startsAt) : null;
+  const end = endsAt ? new Date(endsAt) : null;
+  if (boost > 0 && !end) throw new TypeError('En tidsbegränsad boost måste ha ett slutdatum');
+  if (boost > 0 && end && end <= new Date()) throw new TypeError('Boostens slutdatum måste ligga i framtiden');
+  if (start && end && end < start) throw new TypeError('Boostens slut måste vara efter start');
+  const effectiveStart = start || new Date();
+  if (end && end.getTime() - effectiveStart.getTime() > 31 * 24 * 60 * 60 * 1000) {
+    throw new TypeError('En boostperiod får vara högst 31 dagar');
+  }
+  return { start, end };
+}
+
 type DealSummary = { dealMaxPercent: number; dealCoversAll: boolean };
 
 type AvailabilityOverlays = Parameters<typeof resolveRestaurantAvailability>[1];
@@ -211,6 +242,10 @@ const formatRestaurant = (
   // "etaCalculatedMinutes" eller "etaOverrideMinutes" råa — bara summan.
   const dynamicEta = getEffectiveEtaMinutes(restaurant);
   const availability = resolveRestaurantAvailability(restaurant, overlays);
+  const assignedTags = Array.isArray(restaurant.tagAssignments)
+    ? restaurant.tagAssignments.map((assignment: any) => assignment.tag).filter(Boolean)
+    : [];
+  const legacyTags = parseJson<string[]>(restaurant.tags, []);
 
   return {
     id: restaurant.id,
@@ -265,7 +300,16 @@ const formatRestaurant = (
     ? new Date(restaurant.pausedUntil).toISOString()
     : null,
   featuredClass: restaurant.featuredClass ?? 3,
-  tags: parseJson<string[]>(restaurant.tags, []),
+  tags: assignedTags.length ? assignedTags.map((tag: any) => tag.name) : legacyTags,
+  tagIds: assignedTags.map((tag: any) => tag.id),
+  tagDetails: assignedTags.map((tag: any) => ({
+    id: tag.id,
+    name: tag.name,
+    nameEn: tag.nameEn ?? null,
+    slug: tag.slug,
+    color: tag.color,
+    icon: tag.icon ?? null,
+  })),
   openingHours: parseJson<Record<string, any>>(restaurant.openingHours, {}),
   internalInfo: restaurant.internalInfo,
   announcementText: restaurant.announcementText ?? null,
@@ -523,6 +567,11 @@ router.get('/', async (req, res) => {
         ...(includeDrafts ? {} : { draft: false }),
       },
       include: {
+        tagAssignments: {
+          where: { tag: { isActive: true } },
+          orderBy: { position: 'asc' },
+          include: { tag: true },
+        },
         ...(withMenu === '1' ? {
           categories: {
             orderBy: { position: 'asc' },
@@ -588,6 +637,20 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       payload.draft = true;
       payload.adminPassword = undefined;
     }
+    if (isMenuAgent && (
+      payload.homeBoost !== undefined
+      || payload.homeBoostStartsAt !== undefined
+      || payload.homeBoostEndsAt !== undefined
+    )) {
+      res.status(403).json({ error: 'Endast super-admin kan sätta hemskärmsboost' });
+      return;
+    }
+    const selectedTags = payload.tagIds === undefined ? null : await resolveTagSelection(payload.tagIds);
+    const boostWindow = validateHomeBoostWindow(
+      payload.homeBoostStartsAt,
+      payload.homeBoostEndsAt,
+      payload.homeBoost ?? 0,
+    );
     const slug = slugify(payload.slug || payload.name);
     const openingHours = JSON.stringify(payload.openingHours ?? {});
     const acceptingOrdersMode: AcceptingOrdersMode = payload.acceptingOrdersMode ?? 'SCHEDULED';
@@ -605,7 +668,12 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       imageUrl: payload.imageUrl,
       heroImageUrl: payload.heroImageUrl,
       etaMinutes: payload.etaMinutes !== undefined ? Number(payload.etaMinutes) : undefined,
-      featuredClass: payload.featuredClass !== undefined ? Number(payload.featuredClass) : undefined,
+      featuredClass: payload.featuredClass !== undefined
+        ? Math.max(0, Math.min(3, Math.round(Number(payload.featuredClass))))
+        : undefined,
+      homeBoost: payload.homeBoost ?? 0,
+      homeBoostStartsAt: boostWindow.start,
+      homeBoostEndsAt: boostWindow.end,
       // isOpen remains a legacy projection only. New clients use the mode.
       isOpen: acceptingOrdersMode !== 'FORCE_CLOSED',
       scheduledOpenNow: isRestaurantOpen(openingHours),
@@ -629,7 +697,12 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       minOrderAmount: payload.minOrderAmountOre !== undefined
         ? parseOre(payload.minOrderAmountOre, 'minOrderAmountOre')
         : kr(Number(payload.minOrderAmount ?? 0)),
-      tags: JSON.stringify(payload.tags ?? []),
+      tags: JSON.stringify(selectedTags ? selectedTags.map((tag) => tag.name) : payload.tags ?? []),
+      tagAssignments: selectedTags
+        ? {
+            create: selectedTags.map((tag) => ({ tagId: tag.id, position: tag.position })),
+          }
+        : undefined,
       openingHours,
       internalInfo: payload.internalInfo,
       selfDelivery: payload.selfDelivery,
@@ -713,6 +786,11 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
     const restaurant = await prisma.restaurant.findUniqueOrThrow({
       where: { id: createdRaw.id },
       include: {
+        tagAssignments: {
+          where: { tag: { isActive: true } },
+          orderBy: { position: 'asc' },
+          include: { tag: true },
+        },
         orders: {
           where: { status: { in: ['PENDING', 'ACCEPTED', 'COOKING', 'DELIVERING'] } },
           select: { id: true },
@@ -784,6 +862,29 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     }
 
     const payload = restaurantSchema.partial().parse(req.body);
+    const canManageCatalogTags = req.admin?.role === 'SUPER_ADMIN' || req.admin?.role === 'MENU_AGENT';
+    if (payload.tagIds !== undefined && !canManageCatalogTags) {
+      res.status(403).json({ error: 'Endast plattformsadmin kan ändra restaurangtaggar' });
+      return;
+    }
+    const hasBoostChange = payload.homeBoost !== undefined
+      || payload.homeBoostStartsAt !== undefined
+      || payload.homeBoostEndsAt !== undefined;
+    if (hasBoostChange && req.admin?.role !== 'SUPER_ADMIN') {
+      res.status(403).json({ error: 'Endast super-admin kan ändra hemskärmsboost' });
+      return;
+    }
+    const selectedTags = payload.tagIds === undefined ? null : await resolveTagSelection(payload.tagIds);
+    if (hasBoostChange) {
+      const nextBoost = payload.homeBoost ?? existingRestaurant.homeBoost ?? 0;
+      const nextStart = payload.homeBoostStartsAt === undefined
+        ? existingRestaurant.homeBoostStartsAt?.toISOString() ?? null
+        : payload.homeBoostStartsAt;
+      const nextEnd = payload.homeBoostEndsAt === undefined
+        ? existingRestaurant.homeBoostEndsAt?.toISOString() ?? null
+        : payload.homeBoostEndsAt;
+      validateHomeBoostWindow(nextStart, nextEnd, nextBoost);
+    }
     if (req.admin?.role === 'MENU_AGENT') {
       // Agenten kan starta editing, men varken publicera (draft=false) eller skapa login-konton.
       if ((payload as any).editing === true) payload.draft = true;
@@ -836,7 +937,17 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
         data.etaOverrideMinutes = n != null ? Math.max(25, Math.min(60, Math.round(n))) : null;
       }
     }
-    if (payload.featuredClass !== undefined) data.featuredClass = toSafeNum(payload.featuredClass);
+    if (payload.featuredClass !== undefined) {
+      const featuredClass = toSafeNum(payload.featuredClass);
+      data.featuredClass = featuredClass == null ? undefined : Math.max(0, Math.min(3, Math.round(featuredClass)));
+    }
+    if (payload.homeBoost !== undefined) data.homeBoost = Math.max(0, Math.min(100, payload.homeBoost));
+    if (payload.homeBoostStartsAt !== undefined) {
+      data.homeBoostStartsAt = payload.homeBoostStartsAt ? new Date(payload.homeBoostStartsAt) : null;
+    }
+    if (payload.homeBoostEndsAt !== undefined) {
+      data.homeBoostEndsAt = payload.homeBoostEndsAt ? new Date(payload.homeBoostEndsAt) : null;
+    }
 
     // Explicit mode is canonical. Legacy terminal `isOpen=false` means
     // "closed for today", not a permanent manual override. It returns to the
@@ -887,7 +998,17 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     }
     
     // JSON fields - ensure they aren't double-stringified
-    if (payload.tags !== undefined) data.tags = safeStringify(payload.tags);
+    if (selectedTags) {
+      data.tags = JSON.stringify(selectedTags.map((tag) => tag.name));
+      data.tagAssignments = {
+        deleteMany: {},
+        create: selectedTags.map((tag) => ({ tagId: tag.id, position: tag.position })),
+      };
+    } else if (payload.tags !== undefined) {
+      // Legacy-klienter får fortsätta skriva den gamla projektionen. Nya
+      // adminpanelen skickar alltid tagIds och går genom katalogvalideringen.
+      data.tags = safeStringify(payload.tags);
+    }
     if (payload.openingHours !== undefined) data.openingHours = safeStringify(payload.openingHours);
     if (payload.internalInfo !== undefined) data.internalInfo = payload.internalInfo;
     
@@ -1039,6 +1160,11 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     const restaurant = await prisma.restaurant.findUniqueOrThrow({
       where: { id },
       include: {
+        tagAssignments: {
+          where: { tag: { isActive: true } },
+          orderBy: { position: 'asc' },
+          include: { tag: true },
+        },
         orders: {
           where: { status: { in: ['PENDING', 'ACCEPTED', 'COOKING', 'DELIVERING'] } },
           select: { id: true },
@@ -1627,6 +1753,11 @@ router.get('/:slug', async (req, res) => {
           ]
         },
         include: {
+          tagAssignments: {
+            where: { tag: { isActive: true } },
+            orderBy: { position: 'asc' },
+            include: { tag: true },
+          },
           city_relation: {
             select: { ordersPaused: true, ordersPausedUntil: true, ordersPauseReason: true },
           },
@@ -1671,6 +1802,9 @@ router.get('/:slug', async (req, res) => {
         restaurantId: restaurant.id,
         adminEmail: restaurant.adminEmail ?? null,
         logoutCode: restaurant.logoutCode ?? null,
+        homeBoost: restaurant.homeBoost ?? 0,
+        homeBoostStartsAt: restaurant.homeBoostStartsAt?.toISOString() ?? null,
+        homeBoostEndsAt: restaurant.homeBoostEndsAt?.toISOString() ?? null,
       };
     };
 
@@ -1698,7 +1832,14 @@ router.get('/:slug', async (req, res) => {
 
     return res.json(
       canViewSensitiveAdminFields
-        ? { ...data.formatted, adminEmail: data.adminEmail, logoutCode: data.logoutCode }
+        ? {
+            ...data.formatted,
+            adminEmail: data.adminEmail,
+            logoutCode: data.logoutCode,
+            homeBoost: data.homeBoost,
+            homeBoostStartsAt: data.homeBoostStartsAt,
+            homeBoostEndsAt: data.homeBoostEndsAt,
+          }
         : data.formatted
     );
   } catch (error) {

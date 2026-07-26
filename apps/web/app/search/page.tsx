@@ -1,11 +1,23 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import axios from "axios";
-import { API_URL } from "@/lib/api";
-import { Search as SearchIcon, SearchX, Star, Clock, ChevronRight, Utensils } from "lucide-react";
+import {
+  ChevronRight,
+  Clock,
+  Search as SearchIcon,
+  SearchX,
+  Star,
+  Store,
+  Tag,
+  Truck,
+  Utensils,
+  X,
+} from "lucide-react";
 import EmptyState from "@/components/EmptyState";
+import SmartImage from "@/components/SmartImage";
+import { API_URL } from "@/lib/api";
 
 interface Restaurant {
   id: string;
@@ -13,165 +25,470 @@ interface Restaurant {
   slug: string;
   cuisine?: string;
   description?: string;
+  tags?: string[];
+  tagIds?: string[];
+  city?: string;
   imageUrl?: string;
   heroImageUrl?: string;
   rating?: number;
   ratingCount?: number;
   deliveryFee?: number;
-  minOrderAmount?: number;
   etaMinutes?: number;
   isOpen?: boolean;
-  phone?: string;
+  homeDealMaxPercent?: number;
+  homeFreeDelivery?: boolean;
+  homeFreeDeliveryReason?: "BASE_FEE" | "ACTIVE_DEAL" | null;
+}
+
+interface PublicDeal {
+  id: string;
+  isActive?: boolean;
+  showOnSite?: boolean;
+  isGlobal?: boolean;
+  restaurantId?: string | null;
+  applicableRestaurantIds?: string[];
+  discountType?: string | null;
+  discountValue?: number | null;
+  freeDelivery?: boolean;
+  badgeText?: string | null;
+}
+
+type ZoneInfo = Record<string, { deliveryFee?: number; etaMinutes?: number | null }>;
+
+type FeedTag = { id: string; name: string; slug: string };
+type SearchHomeFeed = {
+  version?: number;
+  availableTags?: FeedTag[];
+  sections?: {
+    restaurants?: {
+      id: string;
+      tags?: FeedTag[];
+      tagIds?: string[];
+      metrics?: {
+        actualAverageMinutesToday?: number | null;
+        etaMinutes?: number | null;
+        rating?: number | null;
+        ratingCount?: number;
+        deliveryFeeOre?: number;
+        freeDelivery?: boolean;
+        freeDeliveryReason?: "BASE_FEE" | "ACTIVE_DEAL" | null;
+        dealMaxPercent?: number;
+      };
+    }[];
+  }[];
+};
+
+const CHIP_TONES = [
+  { bg: "#FFF0EA", ink: "#B9350E", ring: "#FFD4C4" },
+  { bg: "#EAF4FF", ink: "#125B9D", ring: "#C9E4FF" },
+  { bg: "#EAF7EF", ink: "#246B43", ring: "#C8EAD5" },
+  { bg: "#F3EEFF", ink: "#6344A4", ring: "#DDD0FA" },
+  { bg: "#FFF7DF", ink: "#805D08", ring: "#F5E3A6" },
+];
+
+function absoluteImage(path?: string) {
+  if (!path) return "";
+  return path.startsWith("/") ? `${API_URL}${path}` : path;
+}
+
+function titleCase(value: string) {
+  return value
+    .trim()
+    .split(/\s+/)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1).toLowerCase()}`)
+    .join(" ");
+}
+
+function restaurantTerms(restaurant: Restaurant) {
+  const cuisineTerms = (restaurant.cuisine || "").split(/[,/&]+/);
+  const city = (restaurant.city || "").trim().toLowerCase();
+  return [...cuisineTerms, ...(restaurant.tags || [])]
+    .map((term) => term.trim())
+    .filter((term) => term.length > 2 && term.toLowerCase() !== city);
+}
+
+function dealForRestaurant(deals: PublicDeal[], restaurantId: string) {
+  const eligible = deals.filter(
+    (deal) =>
+      deal.isActive !== false &&
+      deal.showOnSite !== false &&
+      (deal.isGlobal ||
+        deal.restaurantId === restaurantId ||
+        deal.applicableRestaurantIds?.includes(restaurantId)),
+  );
+  const maxPercent = eligible.reduce(
+    (highest, deal) =>
+      deal.discountType === "PERCENTAGE"
+        ? Math.max(highest, Number(deal.discountValue) || 0)
+        : highest,
+    0,
+  );
+  const freeDelivery = eligible.some(
+    (deal) =>
+      deal.freeDelivery ||
+      deal.discountType === "FREE_DELIVERY" ||
+      (deal.badgeText || "").toLowerCase().includes("fri leverans"),
+  );
+  return { maxPercent, freeDelivery };
 }
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
+  const [selectedTag, setSelectedTag] = useState("");
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [deals, setDeals] = useState<PublicDeal[]>([]);
+  const [feedTags, setFeedTags] = useState<FeedTag[]>([]);
   const [loading, setLoading] = useState(true);
   const [deliverableIds, setDeliverableIds] = useState<Set<string> | null>(null);
+  const [zoneInfo, setZoneInfo] = useState<ZoneInfo>({});
+  const [orderType, setOrderType] = useState<"DELIVERY" | "PICKUP">("DELIVERY");
 
   useEffect(() => {
-    // loading startar som true — ingen synkron setState behövs här.
-    axios.get(`${API_URL}/api/restaurants`)
-      .then(res => setRestaurants(res.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-
-    // Zone awareness
-    try {
-      const coords = localStorage.getItem("platform_coords");
-      const type   = localStorage.getItem("platform_order_type");
-      if (coords && type !== "PICKUP") {
-        const { lat, lng } = JSON.parse(coords);
-        axios.post(`${API_URL}/api/cities/validate-location`, { lat, lng })
-          .then(res => {
-            if (res.data.covered) {
-              const cities = (res.data.cities || []) as { restaurants: { id: string }[] }[];
-              setDeliverableIds(new Set<string>(
-                cities.flatMap((c) => c.restaurants.map((r) => r.id))
-              ));
-            } else {
-              setDeliverableIds(new Set());
-            }
-          })
-          .catch(() => setDeliverableIds(null));
+    let cancelled = false;
+    Promise.allSettled([
+      axios.get("/api/restaurants"),
+      axios.get("/api/deals"),
+      axios.get("/api/home-categories/feed"),
+    ]).then(([restaurantResult, dealResult, feedResult]) => {
+      if (cancelled) return;
+      const baseRestaurants: Restaurant[] =
+        restaurantResult.status === "fulfilled" && Array.isArray(restaurantResult.value.data)
+          ? restaurantResult.value.data
+          : [];
+      const feed: SearchHomeFeed | null =
+        feedResult.status === "fulfilled" && feedResult.value.data?.version === 1
+          ? feedResult.value.data
+          : null;
+      const feedRestaurants = (feed?.sections || []).flatMap((section) => section.restaurants || []);
+      const feedById = new Map(feedRestaurants.map((restaurant) => [restaurant.id, restaurant]));
+      setFeedTags(Array.isArray(feed?.availableTags) ? feed!.availableTags! : []);
+      setRestaurants(
+        baseRestaurants.map((restaurant) => {
+          const feedRestaurant = feedById.get(restaurant.id);
+          const metrics = feedRestaurant?.metrics;
+          const validReviewCount =
+            typeof metrics?.ratingCount === "number" && metrics.ratingCount > 0
+              ? metrics.ratingCount
+              : restaurant.ratingCount;
+          return {
+            ...restaurant,
+            tags:
+              feedRestaurant?.tags?.map((tag) => tag.name) ||
+              restaurant.tags ||
+              [],
+            tagIds: feedRestaurant?.tagIds || restaurant.tagIds,
+            etaMinutes:
+              typeof metrics?.actualAverageMinutesToday === "number" && metrics.actualAverageMinutesToday > 0
+                ? metrics.actualAverageMinutesToday
+                : typeof metrics?.etaMinutes === "number" && metrics.etaMinutes > 0
+                  ? metrics.etaMinutes
+                  : restaurant.etaMinutes,
+            rating:
+              typeof metrics?.rating === "number" && validReviewCount != null && validReviewCount > 0
+                ? metrics.rating
+                : restaurant.rating,
+            ratingCount: validReviewCount,
+            deliveryFee:
+              typeof metrics?.deliveryFeeOre === "number"
+                ? metrics.deliveryFeeOre / 100
+                : restaurant.deliveryFee,
+            homeDealMaxPercent:
+              typeof metrics?.dealMaxPercent === "number" && metrics.dealMaxPercent > 0
+                ? metrics.dealMaxPercent
+                : undefined,
+            homeFreeDelivery: metrics?.freeDelivery === true,
+            homeFreeDeliveryReason: metrics?.freeDeliveryReason ?? null,
+          };
+        }),
+      );
+      if (dealResult.status === "fulfilled") {
+        setDeals(Array.isArray(dealResult.value.data) ? dealResult.value.data : []);
       }
-    } catch (err) {
-      console.warn("Failed to load zone data:", err);
+      setLoading(false);
+    });
+
+    try {
+      const storedType = localStorage.getItem("platform_order_type");
+      const nextOrderType = storedType === "PICKUP" ? "PICKUP" : "DELIVERY";
+      queueMicrotask(() => {
+        if (!cancelled) setOrderType(nextOrderType);
+      });
+      const coords = localStorage.getItem("platform_coords");
+      if (coords && nextOrderType === "DELIVERY") {
+        const { lat, lng } = JSON.parse(coords);
+        axios
+          .post("/api/cities/validate-location", { lat, lng })
+          .then((res) => {
+            if (cancelled) return;
+            if (!res.data.covered) {
+              setDeliverableIds(new Set());
+              setZoneInfo({});
+              return;
+            }
+            const cities = (res.data.cities || []) as {
+              restaurants: {
+                id: string;
+                matchedZone?: {
+                  deliveryFee?: number;
+                  etaMinutes?: number | null;
+                } | null;
+              }[];
+            }[];
+            const rows = cities.flatMap((city) => city.restaurants || []);
+            setDeliverableIds(new Set(rows.map((restaurant) => restaurant.id)));
+            setZoneInfo(
+              Object.fromEntries(
+                rows
+                  .filter((restaurant) => restaurant.matchedZone)
+                  .map((restaurant) => [
+                    restaurant.id,
+                    {
+                      deliveryFee:
+                        typeof restaurant.matchedZone?.deliveryFee === "number"
+                          ? restaurant.matchedZone.deliveryFee / 100
+                          : undefined,
+                      etaMinutes: restaurant.matchedZone?.etaMinutes,
+                    },
+                  ]),
+              ),
+            );
+          })
+          .catch(() => {
+            if (!cancelled) {
+              setDeliverableIds(null);
+              setZoneInfo({});
+            }
+          });
+      }
+    } catch {
+      // Ogiltig lokal adressdata: behåll fail-open-standarderna null/{}.
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const filtered = useMemo(() => {
-    if (!query.trim()) return [];
-    return restaurants.filter(r => 
-      r.name.toLowerCase().includes(query.toLowerCase()) ||
-      (r.cuisine || "").toLowerCase().includes(query.toLowerCase()) ||
-      (r.description || "").toLowerCase().includes(query.toLowerCase())
+  const categoryOptions = useMemo(() => {
+    const counts = new Map<string, { label: string; count: number }>();
+    restaurants.forEach((restaurant) => {
+      const seen = new Set<string>();
+      restaurantTerms(restaurant).forEach((term) => {
+        const key = term.toLocaleLowerCase("sv");
+        if (seen.has(key)) return;
+        seen.add(key);
+        const current = counts.get(key);
+        counts.set(key, {
+          label: current?.label || titleCase(term),
+          count: (current?.count || 0) + 1,
+        });
+      });
+    });
+    const available = new Map(feedTags.map((tag) => [tag.slug.toLocaleLowerCase("sv"), tag]));
+    const options = [...counts.entries()]
+      .map(([key, value]) => ({ key, ...value }))
+      .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, "sv"))
+      .slice(0, 20);
+    if (available.size === 0) return options;
+    return options.filter((option) =>
+      [...available.values()].some(
+        (tag) =>
+          tag.slug.toLocaleLowerCase("sv") === option.key ||
+          tag.name.toLocaleLowerCase("sv") === option.key,
+      ),
     );
-  }, [query, restaurants]);
+  }, [restaurants, feedTags]);
 
-  const getImageSrc = (path?: string) => {
-    if (!path) return "";
-    if (path.startsWith("/")) return `${API_URL}${path}`;
-    return path;
-  };
+  const filtered = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase("sv");
+    return restaurants.filter((restaurant) => {
+      const terms = restaurantTerms(restaurant).map((term) => term.toLocaleLowerCase("sv"));
+      const matchesTag = !selectedTag || terms.some((term) => term === selectedTag || term.includes(selectedTag));
+      const haystack = [
+        restaurant.name,
+        restaurant.cuisine,
+        restaurant.description,
+        ...(restaurant.tags || []),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLocaleLowerCase("sv");
+      return matchesTag && (!normalizedQuery || haystack.includes(normalizedQuery));
+    });
+  }, [query, selectedTag, restaurants]);
 
   return (
-    <div className="min-h-screen md:pt-20" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
-      <div className="mx-auto max-w-2xl md:max-w-5xl lg:max-w-6xl 2xl:max-w-[1400px] px-4 sm:px-6 lg:px-10 pt-8 pb-32">
-        <header className="mb-8 md:mb-10">
-          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-500 mb-2">Sök i plattformen</p>
-          <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tighter mb-6" style={{ color: "var(--text-primary)" }}>Upptäck <span className="text-gold-500">mat</span></h1>
-          
-          <div className="relative group">
-            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none group-focus-within:text-gold-500 transition-colors" style={{ color: "rgba(184,170,149,0.3)" }}>
-              <SearchIcon size={20} />
-            </div>
+    <div className="min-h-screen bg-[var(--bg-primary)] pb-32 text-[var(--ink)] md:pt-20">
+      <div className="mx-auto max-w-6xl px-5 pb-8 pt-8 sm:px-6 lg:px-10">
+        <header>
+          <p className="text-[12px] font-black text-[var(--orange)]">SÖK</p>
+          <h1 className="mt-1 text-[32px] font-black leading-[1.02] tracking-tight sm:text-5xl">
+            Vad är du sugen på?
+          </h1>
+          <p className="mt-2 text-[14px] font-semibold text-[var(--muted)]">
+            Välj en tagg eller sök direkt.
+          </p>
+
+          <label className="mt-5 flex h-[58px] items-center gap-3 rounded-[18px] border border-[var(--line)] bg-white px-4 shadow-[0_8px_22px_rgba(17,17,19,0.06)]">
+            <SearchIcon size={21} strokeWidth={2.4} className="shrink-0 text-[var(--orange)]" />
             <input
-              autoFocus
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Sök restaurang eller matkategori..."
-              className="w-full rounded-2xl py-4 pl-12 pr-4 text-lg font-bold focus:outline-none focus:border-gold-500 transition-all shadow-xl"
-              style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Restaurang, pizza, kebab..."
+              className="h-full min-w-0 flex-1 bg-transparent text-[16px] font-bold outline-none placeholder:text-[var(--muted)]"
             />
-          </div>
+            {query && (
+              <button type="button" onClick={() => setQuery("")} aria-label="Rensa sök" className="grid h-9 w-9 place-items-center rounded-full bg-[var(--bg-deep)] text-[var(--muted)]">
+                <X size={16} />
+              </button>
+            )}
+          </label>
         </header>
 
-        <section>
-          {loading ? (
-            <div className="space-y-4">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="h-28 skeleton rounded-2xl" />
-              ))}
+        {!loading && categoryOptions.length > 0 && (
+          <section className="mt-7" aria-labelledby="food-tags-title">
+            <div className="mb-3 flex items-end justify-between">
+              <h2 id="food-tags-title" className="text-[20px] font-black">Matkategorier</h2>
+              {selectedTag && (
+                <button type="button" onClick={() => setSelectedTag("")} className="text-[13px] font-black text-[var(--orange)]">
+                  Visa alla
+                </button>
+              )}
             </div>
-          ) : query.trim() ? (
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
+              {categoryOptions.map((category, index) => {
+                const active = selectedTag === category.key;
+                const tone = CHIP_TONES[index % CHIP_TONES.length];
+                return (
+                  <button
+                    key={category.key}
+                    type="button"
+                    onClick={() => setSelectedTag(active ? "" : category.key)}
+                    aria-pressed={active}
+                    className="relative flex min-h-[105px] flex-col items-start justify-between overflow-hidden rounded-[20px] p-3.5 text-left transition-transform active:scale-[0.98]"
+                    style={{
+                      backgroundColor: active ? tone.ink : tone.bg,
+                      color: active ? "#fff" : tone.ink,
+                      boxShadow: active ? `inset 0 0 0 3px ${tone.ink}` : `inset 0 0 0 1px ${tone.ring}`,
+                    }}
+                  >
+                    <Tag size={19} strokeWidth={2.5} />
+                    <span className="absolute right-3.5 top-3 text-[11px] font-black opacity-65">{category.count}</span>
+                    <span className="mt-auto max-w-[9ch] text-[17px] font-black leading-[1.03] tracking-[-0.02em]">{category.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        <section className="mt-8">
+          <div className="mb-4 flex items-end justify-between gap-3">
             <div>
-               <p className="text-[10px] font-black uppercase tracking-widest mb-4" style={{ color: "rgba(184,170,149,0.4)" }}>Hittade {filtered.length} resultat</p>
-               <div className={filtered.length > 0 ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" : ""}>
-               {filtered.length > 0 ? (
-                 filtered.map(r => { const inZone = deliverableIds === null || deliverableIds.has(r.id); return (
-                    <Link
-                      key={r.id}
-                      href={`/restaurants/${r.slug}`}
-                      className={`group flex overflow-hidden rounded-2xl transition-all p-3 shadow-xl ${
-                        inZone ? "hover:border-gold-500/20" : "opacity-50"
-                      }`}
-                      style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
-                    >
-                     <div className="w-24 h-24 shrink-0 relative rounded-xl overflow-hidden" style={{ backgroundColor: "rgba(33,28,25,0.5)" }}>
-                       {r.heroImageUrl || r.imageUrl ? (
-                         <img
-                           src={getImageSrc(r.heroImageUrl || r.imageUrl || "")}
-                           alt={r.name}
-                           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
-                         />
-                       ) : <div className="h-full w-full flex items-center justify-center text-3xl opacity-20"><Utensils /></div>}
-                     </div>
-                     <div className="flex-1 px-4 py-1">
-                       <h3 className="font-black uppercase tracking-tighter group-hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
-                       <p className="text-[10px] mb-2 font-bold uppercase" style={{ color: "rgba(184,170,149,0.6)" }}>{r.cuisine}</p>
-                       <div className="flex items-center gap-3 text-[9px] font-black uppercase mt-auto" style={{ color: "rgba(184,170,149,0.4)" }}>
-                         <span className="flex items-center gap-1"><Clock size={10} />{r.etaMinutes || 30} min</span>
-                         <span className="flex items-center gap-1 text-gold-500"><Star size={10} className="fill-gold-500 translate-y-[-0.5px]" />{(r.rating || 4.6).toFixed(1)}</span>
-                       </div>
-                       <div className="flex items-center gap-1.5 mt-3 flex-wrap">
-                         <div className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider flex items-center gap-1 ${
-                           r.isOpen !== false 
-                             ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" 
-                             : "bg-red-500/10 text-red-600 border border-red-500/20"
-                         }`}>
-                           <div className={`w-1 h-1 rounded-full ${r.isOpen !== false ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`} />
-                           {r.isOpen !== false ? "Öppet" : "Stängt"}
-                         </div>
-                         {!inZone && deliverableIds !== null && (
-                           <div className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                             Levererar ej till din adress
-                           </div>
-                         )}
-                       </div>
-                     </div>
-                     <div className="flex items-center pr-2 transition-colors group-hover:text-gold-500" style={{ color: "#D7CBB8" }}>
-                       <ChevronRight size={20} />
-                     </div>
-                    </Link>
-                  ); })
-                ) : (
-                 <EmptyState
-                   icon={SearchX}
-                   title={`Inga matchningar för ”${query}”`}
-                   text="Prova ett annat ord eller en annan rätt."
-                 />
-               )}
-               </div>
+              <h2 className="text-[21px] font-black">
+                {selectedTag
+                  ? categoryOptions.find((category) => category.key === selectedTag)?.label || "Resultat"
+                  : query.trim()
+                    ? `Resultat för ”${query.trim()}”`
+                    : "Alla restauranger"}
+              </h2>
+              {!loading && <p className="mt-0.5 text-[12px] font-bold text-[var(--muted)]">{filtered.length} restauranger</p>}
             </div>
+          </div>
+
+          {loading ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {[1, 2, 3, 4].map((index) => <div key={index} className="skeleton h-[142px] rounded-[20px]" />)}
+            </div>
+          ) : filtered.length === 0 ? (
+            <EmptyState
+              icon={query || selectedTag ? SearchX : Utensils}
+              title="Inga restauranger matchar"
+              text="Prova en annan tagg eller sökning."
+            />
           ) : (
-            <div className="py-12 text-center">
-              <div className="mx-auto mb-4 w-14 h-14 rounded-2xl flex items-center justify-center" style={{ backgroundColor: "var(--bg-deep)" }}>
-                <SearchIcon size={24} className="text-gold-500/70" />
-              </div>
-              <p className="text-base font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>Börja söka efter din nästa måltid</p>
-              <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Kebab, sushi, pasta eller din favoritrestaurang</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {filtered.map((restaurant) => {
+                const inZone = deliverableIds === null || deliverableIds.has(restaurant.id);
+                const zone = zoneInfo[restaurant.id];
+                const eta = zone?.etaMinutes ?? restaurant.etaMinutes;
+                const fee = zone?.deliveryFee ?? restaurant.deliveryFee;
+                const deal = dealForRestaurant(deals, restaurant.id);
+                const maxDiscountPercent = Math.max(deal.maxPercent, restaurant.homeDealMaxPercent || 0);
+                const activeDealFreeDelivery =
+                  deal.freeDelivery || restaurant.homeFreeDeliveryReason === "ACTIVE_DEAL";
+                const hasFreeDelivery =
+                  activeDealFreeDelivery ||
+                  (typeof zone?.deliveryFee === "number"
+                    ? zone.deliveryFee <= 0
+                    : restaurant.homeFreeDelivery === true ||
+                      (typeof restaurant.deliveryFee === "number" && restaurant.deliveryFee <= 0));
+                const hasReviews =
+                  typeof restaurant.rating === "number" &&
+                  Number.isFinite(restaurant.rating) &&
+                  typeof restaurant.ratingCount === "number" &&
+                  restaurant.ratingCount > 0;
+                return (
+                  <Link
+                    key={restaurant.id}
+                    href={`/restaurants/${restaurant.slug}`}
+                    className={`group overflow-hidden rounded-[20px] border border-[var(--line)] bg-white shadow-[0_8px_22px_rgba(17,17,19,0.06)] ${inZone ? "" : "opacity-55 grayscale"}`}
+                  >
+                    <div className="flex min-h-[142px]">
+                      <div className="relative w-[38%] shrink-0 overflow-hidden bg-[var(--bg-deep)]">
+                        {restaurant.heroImageUrl || restaurant.imageUrl ? (
+                          <SmartImage
+                            src={absoluteImage(restaurant.heroImageUrl || restaurant.imageUrl)}
+                            alt={restaurant.name}
+                            sizes="(max-width: 640px) 38vw, 220px"
+                            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className="grid h-full place-items-center text-[var(--muted)]"><Utensils size={28} /></div>
+                        )}
+                        {(maxDiscountPercent > 0 || hasFreeDelivery) && (
+                          <div className="absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] flex-wrap gap-1">
+                            {maxDiscountPercent > 0 && <span className="rounded-md bg-[var(--orange)] px-2 py-1 text-[10px] font-black text-white">Upp till {maxDiscountPercent}%</span>}
+                            {hasFreeDelivery && <span className="rounded-md bg-[#2E7D4F] px-2 py-1 text-[10px] font-black text-white">Fri leverans</span>}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex min-w-0 flex-1 flex-col p-3.5">
+                        <div className="flex items-start gap-2">
+                          <div className="min-w-0 flex-1">
+                            <h3 className="line-clamp-2 text-[17px] font-black leading-tight">{restaurant.name}</h3>
+                            {(restaurant.cuisine || restaurant.city) && (
+                              <p className="mt-1 truncate text-[12px] font-semibold text-[var(--muted)]">{restaurant.cuisine || restaurant.city}</p>
+                            )}
+                          </div>
+                          <ChevronRight size={18} className="mt-0.5 shrink-0 text-[var(--muted)]" />
+                        </div>
+                        <div className="mt-auto flex flex-wrap items-center gap-x-2.5 gap-y-1.5 pt-3 text-[11px] font-bold text-[var(--muted)]">
+                          {hasReviews && (
+                            <span className="flex items-center gap-1 text-[var(--ink)]">
+                              <Star size={11} className="fill-[var(--orange)] text-[var(--orange)]" />
+                              {restaurant.rating!.toFixed(1)} ({restaurant.ratingCount})
+                            </span>
+                          )}
+                          {orderType === "DELIVERY" && inZone && typeof eta === "number" && Number.isFinite(eta) && (
+                            <span className="flex items-center gap-1"><Clock size={11} /> {Math.round(eta)} min</span>
+                          )}
+                          {orderType === "DELIVERY" && inZone && (hasFreeDelivery || (typeof fee === "number" && Number.isFinite(fee))) && (
+                            <span className="flex items-center gap-1"><Truck size={11} /> {hasFreeDelivery || (typeof fee === "number" && fee <= 0) ? "Fri leverans" : `${Math.round(fee as number)} kr`}</span>
+                          )}
+                          {orderType === "PICKUP" && <span className="flex items-center gap-1"><Store size={11} /> Hämta själv</span>}
+                          {!inZone && <span className="text-rose-600">Levererar ej hit</span>}
+                          {typeof restaurant.isOpen === "boolean" && (
+                            <span className={`rounded-full px-2 py-1 text-[9px] font-black ${restaurant.isOpen ? "bg-[#EAF7EF] text-[#246B43]" : "bg-[var(--bg-deep)] text-[var(--muted)]"}`}>
+                              {restaurant.isOpen ? "Öppet" : "Stängt"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           )}
         </section>

@@ -30,7 +30,11 @@ import { type DealCardData } from "@/components/DealFlipCard";
 import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
 import EmptyState from "@/components/EmptyState";
 import type { TrackingAd } from "@/components/OrderTrackingCard";
-import { resolveHomeCategoryRestaurants, type HomeCategorySection } from "@/lib/homeCategories";
+import {
+  diversifyHomeCategoryLeaders,
+  resolveHomeCategoryRestaurants,
+  type HomeCategorySection,
+} from "@/lib/homeCategories";
 import { getPlatformSessionStatus, LAST_CUSTOMER_ID_KEY } from "@/lib/platformSessionClient";
 import { formatQuickAddress, parseStoredAddress, rememberQuickAddress } from "@/lib/quickAddresses";
 import { useCartStore } from "@/store/cartStore";
@@ -71,10 +75,53 @@ interface Restaurant {
   openingHours?: Record<string, { closed?: boolean; shifts?: { open: string; close: string }[] }> | null;
   featuredClass?: number;
   tags?: string[];
+  tagIds?: string[];
+  homeDealMaxPercent?: number;
+  homeFreeDelivery?: boolean;
+  homeFreeDeliveryReason?: "BASE_FEE" | "ACTIVE_DEAL" | null;
   phone?: string;
   address?: string;
   zip?: string;
 }
+
+type HomeFeedTag = {
+  id: string;
+  name: string;
+  nameEn?: string | null;
+  slug: string;
+  color?: string;
+  icon?: string | null;
+};
+
+type HomeFeedRestaurant = {
+  id: string;
+  name: string;
+  slug: string;
+  cuisine?: string | null;
+  city?: string | null;
+  imageUrl?: string | null;
+  heroImageUrl?: string | null;
+  isOpen?: boolean;
+  tags?: HomeFeedTag[];
+  tagIds?: string[];
+  metrics?: {
+    etaMinutes?: number | null;
+    actualAverageMinutesToday?: number | null;
+    rating?: number | null;
+    ratingCount?: number;
+    deliveryFeeOre?: number;
+    freeDelivery?: boolean;
+    freeDeliveryReason?: "BASE_FEE" | "ACTIVE_DEAL" | null;
+    dealMaxPercent?: number;
+    featuredClass?: number;
+  };
+};
+
+type HomeCategoryFeed = {
+  version: 1;
+  availableTags?: HomeFeedTag[];
+  sections: Array<HomeCategorySection & { restaurants: HomeFeedRestaurant[] }>;
+};
 
 const DEV_TRACKING_ADS: TrackingAd[] = [
   {
@@ -124,21 +171,6 @@ interface City {
   deliveryMode: "ALL" | "ONLY_PICKUP" | "ONLY_DELIVERY";
 }
 
-// Match RN-appens cuisine-ordning (HomeScreen.tsx): Alla, Favoriter, Pizza, Sushi, Kebab, Burgare, Pasta, Asiatiskt.
-// "Favoriter" är en pseudo-cuisine som filtrerar via localStorage-backad favorites-store.
-// Rena textchips ("tyst & direkt") — inga emoji/bilder; visning lokaliseras
-// via home.cuisine.{label}-nycklarna, label är intern identifierare.
-const cuisineFilters = [
-  { label: "Alla" },
-  { label: "Favoriter" },
-  { label: "Pizza" },
-  { label: "Sushi" },
-  { label: "Kebab" },
-  { label: "Burgare" },
-  { label: "Pasta" },
-  { label: "Asiatiskt" },
-];
-
 const ORDER_TYPE_KEY = "platform_order_type";
 const ACTIVE_USER_DEAL_ID_KEY = "viaeats.activeUserDealId";
 const ACTIVE_USER_DEAL_SNAPSHOT_KEY = "viaeats.activeUserDealSnapshot";
@@ -160,7 +192,7 @@ const DELIVERED_TRACKING_STATUSES = new Set(["DELIVERED", "COMPLETED"]);
 const PROMO_CARD_WIDTH = 260;
 const PROMO_CARD_GAP = 12;
 const PROMO_SNAP = PROMO_CARD_WIDTH + PROMO_CARD_GAP;
-const HOME_PROMO_IMAGE_SIZES = "(max-width: 640px) 72vw, 460px";
+const HOME_PROMO_IMAGE_SIZES = "(max-width: 640px) calc(100vw - 40px), 620px";
 const RESTAURANT_RAIL_IMAGE_SIZES = "(max-width: 639px) 230px, (max-width: 767px) 260px, (max-width: 1023px) 50vw, (max-width: 1279px) 33vw, 25vw";
 const RESTAURANT_LIST_IMAGE_SIZES = "(max-width: 1023px) calc(100vw - 32px), (max-width: 1535px) 50vw, 33vw";
 const ABOVE_THE_FOLD_RESTAURANT_IMAGE_LIMIT = 0;
@@ -648,6 +680,7 @@ export interface HomeInitialData {
   deals: any[];
   sponsors: SponsorData[];
   homeCategories: HomeCategorySection[];
+  homeFeed?: HomeCategoryFeed | null;
   appDeals?: HomeAppDeal[];
   pulse?: HomePulseResponse;
 }
@@ -677,7 +710,6 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
   const [restaurants, setRestaurants] = useState<Restaurant[]>(initialData?.restaurants ?? []);
   const [address, setAddress] = useState("");
   const [query, setQuery] = useState("");
-  const [activeCuisine, setActiveCuisine] = useState("Alla");
   const [orderType, setOrderType] = useState<"DELIVERY" | "PICKUP">("DELIVERY");
   const [loading, setLoading] = useState(!initialData);
   const [apiError, setApiError] = useState(false);
@@ -690,6 +722,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
   const [personalDeals, setPersonalDeals] = useState<any[]>([]);
   const [sponsors, setSponsors] = useState<SponsorData[]>(initialData?.sponsors ?? []);
   const [homeCategorySections, setHomeCategorySections] = useState<HomeCategorySection[]>(initialData?.homeCategories ?? []);
+  const [homeFeed, setHomeFeed] = useState<HomeCategoryFeed | null>(initialData?.homeFeed ?? null);
   const [filteredByDeal, setFilteredByDeal] = useState<{ ids: string[]; title: string } | null>(null);
   const [showCityDropdown, setShowCityDropdown] = useState(false);
   const [selectedCity, setSelectedCity] = useState<City | null>(null);
@@ -706,15 +739,6 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
   // "visa inget" — annars flashade "inte tillgänglig i din stad än" för en
   // återbesökare innan uppslaget hunnit svara.
   const [cityFamilyResolving, setCityFamilyResolving] = useState(false);
-  // A14 — hero override from admin CMS. null = use translations (default).
-  // Återställ senast valda kategori vid mount (t.ex. när man backar in från en
-  // restaurang) så man inte alltid hamnar på "Alla".
-  useEffect(() => {
-    try {
-      const saved = sessionStorage.getItem("home_cuisine");
-      if (saved) setActiveCuisine(saved);
-    } catch { /* noop */ }
-  }, []);
   // Favoriter (delad localStorage-backad store — paritet med RN)
   const { favorites, toggle: toggleFavorite } = useFavorites();
 
@@ -724,7 +748,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
   const [hasDeliveryCoords, setHasDeliveryCoords] = useState(false);
   // Zone-specific delivery info per restaurant (fee öre, minOrder öre, etaMinutes, zoneName)
   const [zoneDeliveryInfo, setZoneDeliveryInfo] = useState<Record<string, {
-    deliveryFee: number; minOrder: number; etaMinutes?: number | null; zoneName?: string;
+    deliveryFee?: number; minOrder?: number; etaMinutes?: number | null; zoneName?: string;
   }>>({});
   const deliveryOverrides = useCartStore((s) => s.deliveryOverrides);
   const setDeliveryOverrides = useCartStore((s) => s.setDeliveryOverrides);
@@ -985,7 +1009,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
       if (storedCity) {
         setDetectedCityName(storedCity);
         setCityFamilyResolving(true);
-        axios.get(`${API_URL}/api/cities/family-by-name`, { params: { name: storedCity } })
+        axios.get("/api/cities/family-by-name", { params: { name: storedCity } })
           .then((res) => {
             const familyIds: string[] = Array.isArray(res.data?.familyIds) ? res.data.familyIds : [];
             const familyNames: string[] = Array.isArray(res.data?.familyNames) ? res.data.familyNames : [];
@@ -1054,16 +1078,21 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
     // seed eller cache) — annars körs fetchen tyst i bakgrunden.
     if (!ssrSeed && !seededFromCacheRef.current) setLoading(true);
     const refresh = () => {
+      const feedCity =
+        localStorage.getItem("platform_delivery_city") ||
+        localStorage.getItem("platform_city") ||
+        undefined;
       Promise.all([
-        axios.get(`${API_URL}/api/restaurants`),
-        axios.get(`${API_URL}/api/cities`),
-        axios.get(`${API_URL}/api/deals`),
-        axios.get(`${API_URL}/api/sponsors`).catch(() => ({ data: [] })),
-        axios.get(`${API_URL}/api/home-categories`).catch(() => ({ data: [] })),
+        axios.get("/api/restaurants"),
+        axios.get("/api/cities"),
+        axios.get("/api/deals"),
+        axios.get("/api/sponsors").catch(() => ({ data: [] })),
+        axios.get("/api/home-categories").catch(() => ({ data: [] })),
+        axios.get("/api/home-categories/feed", { params: { city: feedCity } }).catch(() => ({ data: initialData?.homeFeed ?? null })),
         isLoggedIn ? axios.get(`/api/platform/profile/deals`).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
-        axios.get(isLoggedIn ? `/api/platform/deals/app` : `${API_URL}/api/deals/app`, { params: { placement: "HOME_TOP", limit: 8, loggedIn: isLoggedIn ? "1" : "0", _t: Date.now() } }).catch(() => ({ data: { deals: initialData?.appDeals ?? [] } })),
-        axios.get(isLoggedIn ? `/api/platform/home/pulse` : `${API_URL}/api/home/pulse`, { params: { _t: Date.now() } }).catch(() => ({ data: initialData?.pulse ?? { modules: [] } })),
-      ]).then(([resRest, resCities, resDeals, resSponsors, resHomeCategories, resPersonal, resAppDeals, resPulse]) => {
+        axios.get(isLoggedIn ? "/api/platform/deals/app" : "/api/deals/app", { params: { placement: "HOME_TOP", limit: 8, loggedIn: isLoggedIn ? "1" : "0", _t: Date.now() } }).catch(() => ({ data: { deals: initialData?.appDeals ?? [] } })),
+        axios.get(isLoggedIn ? "/api/platform/home/pulse" : "/api/home/pulse", { params: { _t: Date.now() } }).catch(() => ({ data: initialData?.pulse ?? { modules: [] } })),
+      ]).then(([resRest, resCities, resDeals, resSponsors, resHomeCategories, resHomeFeed, resPersonal, resAppDeals, resPulse]) => {
         // Partner-läge under prelaunch: bara partnerns restaurang får synas.
         // Sponsorer/kategorier/puls/app-deals lyfter andra restauranger → töms.
         const allRestaurants = Array.isArray(resRest.data) ? resRest.data : [];
@@ -1077,6 +1106,13 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
           : allDeals;
         const sponsorsData = partnerSlug ? [] : Array.isArray(resSponsors.data) ? resSponsors.data : [];
         const homeCategoryData = partnerSlug ? [] : Array.isArray(resHomeCategories.data) ? resHomeCategories.data : [];
+        const homeFeedData =
+          !partnerSlug &&
+          resHomeFeed.data &&
+          resHomeFeed.data.version === 1 &&
+          Array.isArray(resHomeFeed.data.sections)
+            ? resHomeFeed.data as HomeCategoryFeed
+            : null;
         const personalDealsData = Array.isArray(resPersonal.data) ? resPersonal.data.filter((deal: any) => !isRetiredFavoriteDeal(deal)) : [];
         const appDealsData = partnerSlug ? [] : Array.isArray(resAppDeals.data?.deals) ? resAppDeals.data.deals.filter((deal: any) => !isRetiredFavoriteDeal(deal)) : [];
         const pulseData = resPulse.data && typeof resPulse.data === "object" ? resPulse.data as HomePulseResponse : { modules: [] };
@@ -1087,6 +1123,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
         setDeals(dealsData.filter((d: any) => d.isActive && d.showOnSite));
         setSponsors(sponsorsData);
         setHomeCategorySections(homeCategoryData);
+        setHomeFeed(homeFeedData);
         setPersonalDeals(personalDealsData);
         setAppDeals(appDealsData);
         setPulseModules(pulseModulesData);
@@ -1134,7 +1171,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
 
   const validateZone = async (lat: number, lng: number) => {
     try {
-      const res = await axios.post(`${API_URL}/api/cities/validate-location`, { lat, lng });
+      const res = await axios.post("/api/cities/validate-location", { lat, lng });
       if (res.data.covered) {
         const ids: string[] = [];
         const info: typeof zoneDeliveryInfo = {};
@@ -1143,15 +1180,23 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
           c.restaurants.forEach((r: any) => {
             ids.push(r.id);
             if (r.matchedZone) {
-              const fee = (r.matchedZone.deliveryFee ?? 0) / 100;
-              const min = (r.matchedZone.minOrder    ?? 0) / 100;
+              const fee =
+                typeof r.matchedZone.deliveryFee === "number"
+                  ? r.matchedZone.deliveryFee / 100
+                  : undefined;
+              const min =
+                typeof r.matchedZone.minOrder === "number"
+                  ? r.matchedZone.minOrder / 100
+                  : undefined;
               info[r.id] = {
                 deliveryFee: fee,
                 minOrder:    min,
                 etaMinutes:  r.matchedZone.etaMinutes  ?? null,
                 zoneName:    r.matchedZone.name,
               };
-              overrides[r.id] = { deliveryFee: fee, minOrderAmount: min };
+              if (fee != null && min != null) {
+                overrides[r.id] = { deliveryFee: fee, minOrderAmount: min };
+              }
             }
           });
         });
@@ -1182,7 +1227,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
   const resolveCityFamily = async (cityName: string) => {
     setCityFamilyResolving(true);
     try {
-      const res = await axios.get(`${API_URL}/api/cities/family-by-name`, { params: { name: cityName } });
+      const res = await axios.get("/api/cities/family-by-name", { params: { name: cityName } });
       const familyIds: string[] = Array.isArray(res.data?.familyIds) ? res.data.familyIds : [];
       const familyNames: string[] = Array.isArray(res.data?.familyNames) ? res.data.familyNames : [];
       setCityFamilyIds(familyIds.length > 0 ? familyIds : null);
@@ -1193,73 +1238,6 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
       setCityFamilyNames(null);
     } finally {
       setCityFamilyResolving(false);
-    }
-  };
-
-  const toggleOrderType = (type: "DELIVERY" | "PICKUP") => {
-    if (selectedCity) {
-      if (type === "DELIVERY" && selectedCity.deliveryMode === "ONLY_PICKUP") return;
-      if (type === "PICKUP" && selectedCity.deliveryMode === "ONLY_DELIVERY") return;
-    }
-
-    setOrderType(type);
-    if (typeof window !== "undefined") {
-      localStorage.setItem(ORDER_TYPE_KEY, type);
-    }
-
-    if (type === "PICKUP") {
-      setZoneRestaurantIds(null);
-      setHasDeliveryCoords(false);
-      // Pickup-city auto-default: prefer the delivery city the user already
-      // picked. Falls back to the previously-used pickup city, then to the
-      // address modal as a last resort. Old behaviour kept a stale pickup
-      // city (e.g. Malmö) forever — even after the user moved to Lund.
-      const storedDeliveryCity = typeof window !== "undefined" ? localStorage.getItem("platform_city") : null;
-      const storedPickupCity = typeof window !== "undefined" ? localStorage.getItem("platform_pickup_city") : null;
-      const preferredCity = storedDeliveryCity || storedPickupCity;
-      if (preferredCity) {
-        // Sync pickup-city to whichever city we actually want to use so the
-        // next pickup toggle remembers it correctly.
-        if (typeof window !== "undefined") localStorage.setItem("platform_pickup_city", preferredCity);
-        setDetectedCityName(preferredCity);
-        resolveCityFamily(preferredCity);
-      } else {
-        setDetectedCityName(null);
-        setCityFamilyIds(null);
-        setCityFamilyNames(null);
-        setShowAddressModal(true);
-      }
-    } else if (type === "DELIVERY") {
-      // Återställ den RIKTIGA leveransadressen — INTE pickup-stadens namn.
-      const realAddr = typeof window !== "undefined" ? localStorage.getItem("platform_delivery_address") : null;
-      const realCity = typeof window !== "undefined" ? localStorage.getItem("platform_delivery_city") : null;
-      const realCoordsRaw = typeof window !== "undefined" ? localStorage.getItem("platform_delivery_coords") : null;
-
-      if (realAddr) {
-        setAddress(realAddr);
-        localStorage.setItem("platform_address", realAddr);
-        if (realCity) {
-          localStorage.setItem("platform_city", realCity);
-          setDetectedCityName(realCity);
-          resolveCityFamily(realCity);
-        }
-        if (realCoordsRaw) {
-          try {
-            const coords = JSON.parse(realCoordsRaw);
-            localStorage.setItem("platform_coords", realCoordsRaw);
-            setHasDeliveryCoords(true);
-            validateZone(coords.lat, coords.lng);
-          } catch { /* ignore */ }
-        }
-      } else {
-        // Ingen sparad leveransadress → be om att skriva/välja en riktig.
-        setAddress("");
-        setDetectedCityName(null);
-        setCityFamilyIds(null);
-        setCityFamilyNames(null);
-        setHasDeliveryCoords(false);
-        setShowAddressModal(true);
-      }
     }
   };
 
@@ -1414,45 +1392,19 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
     return true;
   }, [cityFamilyIds, cityFamilyNames, detectedCityName, cityFamilyResolving, orderType]);
 
-  // Antal restauranger i kundens stad per cuisine — visas som liten siffra i
-  // chip-raden så man ser hur många som faktiskt finns i staden av varje.
-  // Räknas mot hela stadens pool (ignorerar aktiv cuisine, annars blir alla
-  // utom den valda 0).
-  const cuisineCounts = useMemo(() => {
-    const cityPool = restaurants.filter(matchesCityFamily);
-    const counts: Record<string, number> = {};
-    for (const c of cuisineFilters) {
-      if (c.label === "Alla") counts[c.label] = cityPool.length;
-      else if (c.label === "Favoriter") counts[c.label] = cityPool.filter((r) => favorites.has(r.id)).length;
-      else
-        counts[c.label] = cityPool.filter(
-          (r) =>
-            (r.cuisine || "").toLowerCase().includes(c.label.toLowerCase()) ||
-            (r.tags || []).some((tag) => tag.toLowerCase().includes(c.label.toLowerCase())),
-        ).length;
-    }
-    return { counts, total: cityPool.length };
-  }, [restaurants, matchesCityFamily, favorites]);
-
   const filtered = useMemo(() => {
     const list = restaurants.filter((r) => {
-      // "Favoriter" är en pseudo-cuisine: filtrerar mot localStorage-store i stället för cuisine-fält
-      const matchCuisine =
-        activeCuisine === "Alla"
-          ? true
-          : activeCuisine === "Favoriter"
-            ? favorites.has(r.id)
-            : (r.cuisine || "").toLowerCase().includes(activeCuisine.toLowerCase()) ||
-              (r.tags || []).some((t) => t.toLowerCase().includes(activeCuisine.toLowerCase()));
       const matchQuery =
         query.trim().length === 0 ||
         r.name.toLowerCase().includes(query.toLowerCase()) ||
-        (r.description || "").toLowerCase().includes(query.toLowerCase());
+        (r.cuisine || "").toLowerCase().includes(query.toLowerCase()) ||
+        (r.description || "").toLowerCase().includes(query.toLowerCase()) ||
+        (r.tags || []).some((tag) => tag.toLowerCase().includes(query.toLowerCase()));
       const matchDeal = !filteredByDeal || filteredByDeal.ids.includes(r.id);
       // City-filter via delad helper — samma logik kör för main-grid OCH
       // alla rails (Heta listan, PIZZA FREDAG, SNABB LUNCH).
       const matchCity = matchesCityFamily(r);
-      return matchCuisine && matchQuery && matchCity && matchDeal;
+      return matchQuery && matchCity && matchDeal;
     });
 
     const sorted = list.sort((a, b) => {
@@ -1479,11 +1431,95 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
     });
 
     return inZoneSorted;
-  }, [restaurants, activeCuisine, query, orderType, zoneRestaurantIds, filteredByDeal, favorites, matchesCityFamily]);
+  }, [restaurants, query, orderType, zoneRestaurantIds, filteredByDeal, matchesCityFamily]);
 
   const featured = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2).slice(0, 8);
 
   const resolvedHomeCategorySections = useMemo(() => {
+    if (homeFeed?.version === 1 && Array.isArray(homeFeed.sections) && homeFeed.sections.length > 0) {
+      const restaurantById = new Map(restaurants.map((restaurant) => [restaurant.id, restaurant]));
+      return homeFeed.sections
+        .map((section) => {
+          const filters = section.filters || {};
+          const mappedRestaurants = (section.restaurants || [])
+            .map((feedRestaurant) => {
+              const base = restaurantById.get(feedRestaurant.id);
+              const metrics = feedRestaurant.metrics || {};
+              const ratingCount =
+                typeof metrics.ratingCount === "number" && metrics.ratingCount > 0
+                  ? metrics.ratingCount
+                  : undefined;
+              const rating =
+                ratingCount &&
+                typeof metrics.rating === "number" &&
+                Number.isFinite(metrics.rating)
+                  ? metrics.rating
+                  : undefined;
+              const measuredEta =
+                typeof metrics.actualAverageMinutesToday === "number" &&
+                metrics.actualAverageMinutesToday > 0
+                  ? metrics.actualAverageMinutesToday
+                  : typeof metrics.etaMinutes === "number" && metrics.etaMinutes > 0
+                    ? metrics.etaMinutes
+                    : undefined;
+              return {
+                ...(base || {
+                  id: feedRestaurant.id,
+                  name: feedRestaurant.name,
+                  slug: feedRestaurant.slug,
+                }),
+                cuisine: feedRestaurant.cuisine ?? base?.cuisine,
+                city: feedRestaurant.city ?? base?.city,
+                imageUrl: feedRestaurant.imageUrl ?? base?.imageUrl,
+                heroImageUrl: feedRestaurant.heroImageUrl ?? base?.heroImageUrl,
+                isOpen: feedRestaurant.isOpen ?? base?.isOpen,
+                tags: (feedRestaurant.tags || []).map((tag) => tag.name),
+                tagIds: feedRestaurant.tagIds || (feedRestaurant.tags || []).map((tag) => tag.id),
+                rating,
+                ratingCount,
+                etaMinutes: measuredEta ?? base?.etaMinutes,
+                deliveryFee:
+                  typeof metrics.deliveryFeeOre === "number"
+                    ? metrics.deliveryFeeOre / 100
+                    : base?.deliveryFee,
+                featuredClass: metrics.featuredClass ?? base?.featuredClass,
+                homeDealMaxPercent:
+                  typeof metrics.dealMaxPercent === "number" && metrics.dealMaxPercent > 0
+                    ? metrics.dealMaxPercent
+                    : undefined,
+                homeFreeDelivery: metrics.freeDelivery === true,
+                homeFreeDeliveryReason: metrics.freeDeliveryReason ?? null,
+              } satisfies Restaurant;
+            })
+            .filter(matchesCityFamily)
+            .filter((restaurant) => {
+              if (orderType !== "DELIVERY") return true;
+              const addressFee = deliveryOverrides[restaurant.id]?.deliveryFee;
+              const activeDealFree = restaurant.homeFreeDeliveryReason === "ACTIVE_DEAL";
+              const hasFeeRule = filters.maxDeliveryFee != null || filters.freeDeliveryOnly;
+              if (
+                hasFeeRule &&
+                zoneRestaurantIds !== null &&
+                (!zoneRestaurantIds.includes(restaurant.id) || (addressFee == null && !activeDealFree))
+              ) {
+                return false;
+              }
+              const effectiveFee = activeDealFree
+                ? 0
+                : addressFee ?? restaurant.deliveryFee;
+              if (filters.maxDeliveryFee != null && (effectiveFee == null || effectiveFee > filters.maxDeliveryFee)) {
+                return false;
+              }
+              if (filters.freeDeliveryOnly && effectiveFee !== 0) {
+                return false;
+              }
+              return true;
+            });
+          return { ...section, restaurants: mappedRestaurants };
+        })
+        .filter((section) => section.restaurants.length > 0);
+    }
+
     return homeCategorySections
       .map((section) => ({
         ...section,
@@ -1500,7 +1536,78 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
         }),
       }))
       .filter((section) => section.restaurants.length > 0);
-  }, [homeCategorySections, restaurants, deals, deliveryOverrides, orderType, detectedCityName, cityFamilyIds, cityFamilyNames, zoneRestaurantIds]);
+  }, [homeFeed, homeCategorySections, restaurants, deals, deliveryOverrides, orderType, detectedCityName, cityFamilyIds, cityFamilyNames, zoneRestaurantIds, matchesCityFamily]);
+
+  // Första mediumrälsen hämtas i första hand från adminsektionen för
+  // "utvalt/heta". Om den saknas byggs samma räls av serverns live-signaler
+  // (snabbast, trendar, champion) och därefter tier-klassade restauranger.
+  // Alla id:n slås tillbaka mot /api/restaurants — inga påhittade kort.
+  const primarySelectedSection = useMemo(
+    () =>
+      resolvedHomeCategorySections.find((section) => {
+        const key = `${section.slug} ${section.title}`.toLowerCase();
+        return key.includes("utvald") || key.includes("utvalt") || key.includes("heta");
+      }) ?? null,
+    [resolvedHomeCategorySections],
+  );
+
+  const selectedTodayRestaurants = useMemo(() => {
+    const restaurantById = new Map(restaurants.map((restaurant) => [restaurant.id, restaurant]));
+    primarySelectedSection?.restaurants.forEach((restaurant) => {
+      restaurantById.set(restaurant.id, restaurant);
+    });
+    const candidateIds: string[] = [];
+    const push = (id?: string | null) => {
+      if (id && restaurantById.has(id) && !candidateIds.includes(id)) candidateIds.push(id);
+    };
+
+    primarySelectedSection?.restaurants.forEach((restaurant) => push(restaurant.id));
+    pulseModules
+      .filter((module) => ["FASTEST_TODAY", "TRENDING", "CHAMPION"].includes(module.type))
+      .forEach((module) => {
+        push(module.restaurant?.id);
+        module.restaurants?.forEach((restaurant) => push(restaurant.id));
+      });
+    featured.forEach((restaurant) => push(restaurant.id));
+    filtered.forEach((restaurant) => push(restaurant.id));
+
+    const ranked = candidateIds
+      .map((id) => restaurantById.get(id))
+      .filter((restaurant): restaurant is Restaurant => !!restaurant)
+      .filter(matchesCityFamily)
+      .slice(0, 8);
+
+    const sponsoredSlugs = new Set(
+      sponsors
+        .flatMap((sponsor) => [
+          sponsor.restaurantSlug,
+          sponsor.linkType === "RESTAURANT" ? sponsor.linkTarget : null,
+        ])
+        .filter((slug): slug is string => !!slug),
+    );
+    const nonSponsoredLeaderIndex = ranked.findIndex(
+      (restaurant) => !sponsoredSlugs.has(restaurant.slug),
+    );
+    return nonSponsoredLeaderIndex > 0
+      ? [
+          ranked[nonSponsoredLeaderIndex],
+          ...ranked.slice(0, nonSponsoredLeaderIndex),
+          ...ranked.slice(nonSponsoredLeaderIndex + 1),
+        ]
+      : ranked;
+  }, [restaurants, primarySelectedSection, pulseModules, featured, filtered, matchesCityFamily, sponsors]);
+
+  // Adminordningen behålls i varje kategori, men en restaurang som redan leder
+  // "Utvalt idag" eller en tidigare räls flyttas till plats 2/3 när sektionen
+  // har en annan kandidat. På små pooler upprepas förstaplatsen bara när det
+  // saknas ett verkligt alternativ.
+  const diversifiedHomeCategorySections = useMemo(() => {
+    const remainingSections = primarySelectedSection
+      ? resolvedHomeCategorySections.filter((section) => section.id !== primarySelectedSection.id)
+      : resolvedHomeCategorySections;
+    const reserved = selectedTodayRestaurants[0]?.id ? [selectedTodayRestaurants[0].id] : [];
+    return diversifyHomeCategoryLeaders(remainingSections, reserved);
+  }, [resolvedHomeCategorySections, primarySelectedSection, selectedTodayRestaurants]);
 
   const promoCards = useMemo<PromoCardItem[]>(() => {
     const extras: PromoCardItem[] = [];
@@ -1660,18 +1767,18 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
       return aIn - bIn;
     });
     return (
-    <section className="mb-3">
+    <section className="mb-5">
       <div className="flex items-end justify-between mb-1.5 px-1">
         <div className="min-w-0">
           {/* Lugn rubrik — samma skala som restaurang-/ordersidan. Guld bara
               på "Visa alla"-länken. */}
-          <h2 className="text-lg sm:text-xl font-bold tracking-tight truncate" style={{ color: "var(--text-primary)" }}>{title}</h2>
+          <h2 className="text-[22px] font-black leading-none tracking-[-0.03em] truncate" style={{ color: "var(--text-primary)" }}>{title}</h2>
           {!!subtitle && <p className="text-[12px] font-medium mt-0.5 truncate" style={{ color: "var(--text-secondary)" }}>{subtitle}</p>}
         </div>
         <Link href="/search" className="text-[12px] font-bold text-gold-600 hover:text-gold-500 transition-all shrink-0 ml-3">{t("home.viewAll")}</Link>
       </div>
       {/* Mobil: horisontell scroll • md+: 2-kolumn grid • lg+: 3-kolumn • xl+: 4-kolumn */}
-      <div className="flex md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 overflow-x-auto md:overflow-visible pb-1 md:pb-0 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
+      <div className="flex md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 overflow-x-auto md:overflow-visible pb-1 md:pb-0 no-scrollbar -mx-5 px-3 md:mx-0 md:px-0">
         {sortedSection.map((r, i) => {
           const inZone = orderType !== "DELIVERY" || zoneRestaurantIds === null || zoneRestaurantIds.includes(r.id);
           const isComingSoon = r.comingSoon === true;
@@ -1691,7 +1798,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
           return (
             <div
               key={`${title}-${r.id}`}
-              className={`transition-all duration-300 shrink-0 md:shrink w-[230px] sm:w-[260px] md:w-auto active:opacity-80 ${dimmed ? "grayscale opacity-80" : ""}`}
+              className={`transition-all duration-300 shrink-0 md:shrink w-[clamp(252px,73.6vw,292px)] md:w-auto active:opacity-80 ${dimmed ? "grayscale opacity-80" : ""}`}
             >
               <Link
                 href={getRestaurantHref(r)}
@@ -1704,9 +1811,13 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                   // Utvald-tier + deal-chip uppe till vänster (Swift-paritet).
                   // Flyttas ner under status-pillen om den syns.
                   const badges = getBadgesForRestaurant(r.id);
-                  const regularLabel = badges.regular
-                    ? (badges.regular.discountPercent ? `−${badges.regular.discountPercent} %` : badges.regular.rewardLabel)
-                    : "";
+                  const dealPercent = Math.max(
+                    r.homeDealMaxPercent ?? 0,
+                    badges.regular?.discountPercent ?? 0,
+                  );
+                  const regularLabel = dealPercent > 0
+                    ? `Upp till ${dealPercent}%`
+                    : badges.regular?.rewardLabel || "";
                   const showFeatured = r.featuredClass === 1 || r.featuredClass === 2;
                   if (!showFeatured && !badges.bogo && !regularLabel) return null;
                   return (
@@ -1725,7 +1836,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                     </div>
                   );
                 })()}
-                <div className="h-36 sm:h-44 md:h-48 w-full relative overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
+                <div className="h-[clamp(146px,41.6vw,166px)] md:h-48 w-full relative overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
                   {railDimReason && (
                     <div className="absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm" style={{ backgroundColor: "rgba(17,17,19,0.82)", backdropFilter: "blur(6px)" }}>
                       {isComingSoon ? <Store size={11} className="text-white" /> : !inZone ? <MapPin size={11} className="text-white" /> : <Clock size={11} className="text-white" />}
@@ -1749,23 +1860,55 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                   )}
                 </div>
 
-                <div className="px-3 py-2.5">
-                  <h3 className="text-sm sm:text-base font-bold group-hover:text-gold-500 transition-colors tracking-tight leading-tight mb-1.5 truncate" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
-                  <div className="flex items-center gap-2 text-[10px] font-bold" style={{ color: "var(--text-secondary)" }}>
-                    <span className="flex items-center gap-1">
-                      <Star size={11} className="fill-gold-500 text-gold-500" />
-                      <span className="font-black" style={{ color: "var(--text-primary)" }}>{(r.rating ?? 4.5).toFixed(1)}</span>
-                    </span>
-                    {orderType === "DELIVERY" && (() => {
-                      const zi = zoneDeliveryInfo[r.id];
-                      const outOfZone = zoneRestaurantIds !== null && !zoneRestaurantIds.includes(r.id);
-                      if (outOfZone) {
-                        return (<><span className="opacity-40">·</span><span className="text-rose-500/80 uppercase tracking-wider">{t("home.status.outOfZone") ?? "Levererar ej"}</span></>);
-                      }
-                      const eta = zi?.etaMinutes ?? r.etaMinutes ?? 30;
-                      return (<><span className="opacity-40">·</span><span className="flex items-center gap-1"><Clock size={11} /> {eta} {t("home.minutesShort")}</span></>);
-                    })()}
-                  </div>
+                <div className="px-3 py-3">
+                  <h3 className="line-clamp-2 text-[18px] font-black group-hover:text-gold-500 transition-colors tracking-[-0.025em] leading-[1.05]" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
+                  {!!r.cuisine && <p className="mt-0.5 truncate text-[11px] font-semibold text-[var(--muted)]">{r.cuisine}</p>}
+                  {(() => {
+                    const zi = zoneDeliveryInfo[r.id];
+                    const outOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(r.id);
+                    const eta = zi?.etaMinutes ?? r.etaMinutes;
+                    const fee = zi?.deliveryFee ?? r.deliveryFee;
+                    const publicDeal = getDealForRestaurant(r.id);
+                    const activeDealFreeDelivery =
+                      r.homeFreeDeliveryReason === "ACTIVE_DEAL" ||
+                      (publicDeal?.rewardLabel || "").toLowerCase().includes("fri leverans");
+                    const hasFreeDelivery =
+                      activeDealFreeDelivery ||
+                      (typeof zi?.deliveryFee === "number"
+                        ? zi.deliveryFee <= 0
+                        : r.homeFreeDelivery === true ||
+                          (typeof r.deliveryFee === "number" && r.deliveryFee <= 0));
+                    const hasReviews =
+                      typeof r.rating === "number" &&
+                      Number.isFinite(r.rating) &&
+                      typeof r.ratingCount === "number" &&
+                      r.ratingCount > 0;
+                    return (
+                      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-bold" style={{ color: "var(--text-secondary)" }}>
+                        {hasReviews && (
+                          <span className="flex items-center gap-1 text-[var(--ink)]">
+                            <Star size={11} className="fill-gold-500 text-gold-500" />
+                            {r.rating!.toFixed(1)} ({r.ratingCount})
+                          </span>
+                        )}
+                        {orderType === "DELIVERY" && !outOfZone && typeof eta === "number" && Number.isFinite(eta) && (
+                          <span className="flex items-center gap-1"><Clock size={11} /> {Math.round(eta)} {t("home.minutesShort")}</span>
+                        )}
+                        {orderType === "DELIVERY" && !outOfZone && (hasFreeDelivery || (typeof fee === "number" && Number.isFinite(fee))) && (
+                          <span className="flex items-center gap-1">
+                            <Truck size={11} />
+                            {hasFreeDelivery ? "Fri leverans" : `${Math.round(fee as number)} kr`}
+                          </span>
+                        )}
+                        {orderType === "PICKUP" && (
+                          <span className="flex items-center gap-1"><Store size={11} /> Hämta själv</span>
+                        )}
+                        {outOfZone && (
+                          <span className="text-rose-500/80 uppercase tracking-wider">{t("home.status.outOfZone") ?? "Levererar ej"}</span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </Link>
             </div>
@@ -1799,14 +1942,11 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
   return (
     <div className="viaeats-app-bg min-h-screen pb-36 md:pt-24" style={{ color: "var(--text-primary)" }}>
       <div className="sticky top-0 z-[1400] border-b border-[var(--border-muted)] bg-white/75 backdrop-blur-xl md:static md:border-0 md:bg-transparent md:backdrop-blur-0" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
-        <header className="mx-auto max-w-7xl px-5 py-3.5 md:px-7 md:pb-6 md:pt-0">
+        <header className="mx-auto max-w-7xl px-4 py-3.5 md:px-7 md:pb-6 md:pt-0">
           <div className="flex items-center gap-3">
-            <button type="button" onClick={() => setShowAddressModal(true)} className="min-w-0 flex flex-1 items-center gap-3 text-left">
-              <span className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-[rgba(240,79,26,0.12)] text-[var(--orange)]">
-                <MapPin size={18} fill="currentColor" strokeWidth={2.2} />
-              </span>
+            <button type="button" onClick={() => setShowAddressModal(true)} className="min-w-0 flex flex-1 items-center text-left">
               <span className="min-w-0">
-                <span className="block text-[10px] font-bold uppercase tracking-normal text-[var(--muted)]">
+                <span className="block text-[12px] font-bold tracking-[-0.01em] text-[var(--muted)]">
                   {orderType === "DELIVERY" ? t("home.address.deliverTo") : t("home.address.pickupIn")}
                 </span>
                 <span className="mt-0.5 flex min-w-0 items-center gap-1.5">
@@ -1820,7 +1960,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
 
             <Link
               href="/discover"
-              className="relative flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-white text-[var(--ink)] swift-card-shadow"
+              className="relative flex h-[42px] w-[42px] shrink-0 items-center justify-center text-[var(--ink)]"
               aria-label="Favoriter"
             >
               <Heart size={18} fill={favorites.size > 0 ? "var(--orange)" : "none"} strokeWidth={2.2} className={favorites.size > 0 ? "text-[var(--orange)]" : ""} />
@@ -1832,9 +1972,9 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
             </Link>
           </div>
 
-          <div className="mt-3">
-            <label className="flex h-10 flex-1 items-center gap-2 rounded-[13px] border border-[var(--line)] bg-white px-3">
-              <Search size={15} strokeWidth={2.2} className="shrink-0 text-[var(--muted)]" />
+          <div className="mt-4">
+            <label className="flex h-[55px] flex-1 items-center gap-3 rounded-[17px] border border-[var(--line)] bg-white px-4 shadow-[0_5px_18px_rgba(17,33,56,0.06)]">
+              <Search size={20} strokeWidth={2.2} className="shrink-0 text-[var(--muted)]" />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -1848,12 +1988,13 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
               )}
             </label>
           </div>
+
         </header>
       </div>
 
       <div className="relative mx-auto max-w-7xl 2xl:max-w-[1600px] px-5 sm:px-6 lg:px-10 xl:px-16 pt-5 md:pt-0">
 
-        {activeOrders.length > 0 && activeCuisine === "Alla" && (
+        {activeOrders.length > 0 && (
           <section className="mb-5">
             <div className="space-y-2">
               {activeOrders.map((order, index) => {
@@ -1906,9 +2047,22 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
           </section>
         )}
 
-        {/* ── WHAT'S ON (Aktuellt) — först på sidan: stora banner-kort med
-            manuell horisontell scroll och prick-indikator under. ── */}
-        {promoCards.length > 0 && (
+        {/* Design 10-bas: en lättskannad mediumräls först. Urvalet kommer från
+            admin/pulsen/tier-systemet och varierar utan hårdkodade restauranger. */}
+        {query.trim() === "" && selectedTodayRestaurants.length > 0 && (
+          <div className="mb-5">
+            {renderFeaturedRail(
+              locale === "en" ? "Selected today" : "Utvalt idag",
+              "",
+              selectedTodayRestaurants,
+              { priorityImageCount: ABOVE_THE_FOLD_RESTAURANT_IMAGE_LIMIT },
+            )}
+          </div>
+        )}
+
+        {/* WHAT'S ON: stora, bilddrivna sponsor- och livekort direkt efter
+            mediumrälsen. */}
+        {query.trim() === "" && promoCards.length > 0 && (
           <section className="mb-5">
             <div className="mb-3 px-1">
               <SwiftSectionHeader title={t("home.section.current")} subtitle={t("home.section.currentSub")} />
@@ -1918,7 +2072,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
               onPointerDown={revealPromoCards}
               onFocus={revealPromoCards}
               onScroll={handlePromoScroll}
-              className="flex items-start gap-3 overflow-x-auto pb-1 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0"
+              className="flex items-start gap-3 overflow-x-auto pb-1 no-scrollbar -mx-5 px-3 sm:mx-0 sm:px-0"
               style={{ scrollSnapType: "x mandatory" }}
             >
               {renderedPromoCards.map((item, i) => {
@@ -1971,7 +2125,23 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
           </section>
         )}
 
-        {pulseModules
+        {query.trim() === "" && (
+          <section className="mb-6">
+            <Link
+              href="/deals"
+              className="relative mx-[-8px] flex min-h-[168px] overflow-hidden rounded-[23px] bg-[linear-gradient(135deg,#e9f8ff,#a8dcff)] p-5 text-left shadow-[0_12px_28px_rgba(18,103,165,0.12)] active:scale-[0.99]"
+            >
+              <span className="absolute -right-4 -top-8 h-32 w-32 rounded-full bg-white/75" />
+              <span className="relative flex min-h-full max-w-[13rem] flex-col justify-between">
+                <span className="text-[11px] font-black uppercase tracking-[0.1em] text-[#2D719F]">ViaEats Deals</span>
+                <span className="text-[30px] font-black leading-[0.94] tracking-[-0.04em] text-[#0B3B63]">Mer mat.<br />Bättre pris.</span>
+              </span>
+              <ChevronRight size={34} strokeWidth={2.8} className="relative ml-auto self-end text-[#0B3B63]" aria-hidden />
+            </Link>
+          </section>
+        )}
+
+        {query.trim() === "" && pulseModules
           .filter((module) => ["COMEBACK", "STREAK", "POINTS_NUDGE", "OCCASION", "WEATHER", "FAVORITE"].includes(module.type))
           .slice(0, 3)
           .map((module) => (
@@ -1980,51 +2150,10 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
             </section>
           ))}
 
-        {/* ── KATEGORIER — ramlösa text-tabbar med guld-underline för aktiv
-            (samma språk som menysidans sticky kategori-rad). ── */}
-        <section className="mb-5 sm:mb-6 mt-4">
-          <div className="flex gap-5 sm:gap-6 overflow-x-auto lg:flex-wrap lg:overflow-visible no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 border-b" style={{ borderColor: "var(--border-muted)" }}>
-            {cuisineFilters.map((c) => {
-              const active = activeCuisine === c.label;
-              const count = cuisineCounts.counts[c.label] ?? 0;
-              const isSpecial = c.label === "Alla" || c.label === "Favoriter";
-              // Dölj cuisine-chips som inte finns i staden (när datan laddats).
-              // Alla/Favoriter visas alltid.
-              if (!isSpecial && cuisineCounts.total > 0 && count === 0) return null;
-              // Visa siffran när stadens pool är känd (men inte "Favoriter 0").
-              const showCount = cuisineCounts.total > 0 && !(c.label === "Favoriter" && count === 0);
-              return (
-                <button
-                  key={c.label}
-                  onClick={() => {
-                    setActiveCuisine(c.label);
-                    // Spara vald kategori så att man hamnar tillbaka på samma
-                    // kategori när man backar in från en restaurang (router.back).
-                    try { sessionStorage.setItem("home_cuisine", c.label); } catch { /* noop */ }
-                    setTimeout(() => {
-                      const target = document.getElementById("restaurant-list");
-                      if (target) {
-                        const offset = target.getBoundingClientRect().top + window.scrollY - 80;
-                        window.scrollTo({ top: offset, behavior: "smooth" });
-                      }
-                    }, 80);
-                  }}
-                  className={`quick-filter-chip shrink-0 touch-manipulation ${active ? "active" : ""}`}
-                >
-                  {t(`home.cuisine.${c.label}`)}
-                  {showCount && (
-                    <span className="text-[11px] tabular-nums" style={{ opacity: 0.55 }}>
-                      {count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {resolvedHomeCategorySections.length > 0
-          ? resolvedHomeCategorySections.map((section, sectionIndex) => {
+        {/* Administratörsstyrda dynamiska kategorier. Cuisine/tag-chips bor på
+            Sök-sidan, så hemmet förblir lugnt och direkt. */}
+        {query.trim() === "" && diversifiedHomeCategorySections.length > 0
+          ? diversifiedHomeCategorySections.map((section, sectionIndex) => {
               // Locale-aware titel: falla tillbaka på svenska originalet om
               // admin inte fyllt i engelska översättningen (titleEn null/tom).
               const localizedTitle = locale === "en" && section.titleEn ? section.titleEn : section.title;
@@ -2040,11 +2169,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                 </React.Fragment>
               );
             })
-          : featured.length > 0
-            ? renderFeaturedRail(t("home.section.hot"), t("home.section.hotSub"), featured, {
-                priorityImageCount: ABOVE_THE_FOLD_RESTAURANT_IMAGE_LIMIT,
-              })
-            : null}
+          : null}
 
         {/* GLOBAL TOM-STATE — visas när inga restauranger alls matchar kundens
             stad (varken main-grid, rails, eller HomeCategorySections). Detta är
@@ -2119,7 +2244,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
           <div className="flex items-center justify-between mb-4 px-1">
             <div>
               <h2 className="text-lg sm:text-xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
-                {activeCuisine === "Alla" ? t("home.section.allRestaurants") : t(`home.cuisine.${activeCuisine}`)}
+                {query.trim() ? `Resultat för ”${query.trim()}”` : t("home.section.allRestaurants")}
               </h2>
               <p className="text-[12px] font-medium mt-0.5" style={{ color: "var(--text-secondary)" }}>
                 {filtered.length} {filtered.length === 1 ? t("home.restaurantCount.one") : t("home.restaurantCount.many")}
@@ -2240,9 +2365,13 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                                 färgglada pillerna. */}
                             {(() => {
                               const badges = getBadgesForRestaurant(r.id);
-                              const regularLabel = badges.regular
-                                ? (badges.regular.discountPercent ? `−${badges.regular.discountPercent} %` : badges.regular.rewardLabel)
-                                : "";
+                              const dealPercent = Math.max(
+                                r.homeDealMaxPercent ?? 0,
+                                badges.regular?.discountPercent ?? 0,
+                              );
+                              const regularLabel = dealPercent > 0
+                                ? `Upp till ${dealPercent}%`
+                                : badges.regular?.rewardLabel || "";
                               const showFeatured = r.featuredClass === 1 || r.featuredClass === 2;
                               if (!showFeatured && !badges.bogo && !regularLabel) return null;
                               return (
@@ -2268,28 +2397,47 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                             <div className="mb-2 flex items-start gap-2.5">
                               <div className="min-w-0 flex-1">
                                 <h3 className="truncate text-[17px] font-black leading-tight tracking-normal text-[var(--ink)]">{r.name}</h3>
-                                <p className="mt-0.5 truncate text-[12px] font-semibold text-[var(--muted)]">{r.cuisine?.charAt(0).toUpperCase()}{r.cuisine?.slice(1) || r.description || "Restaurang"}</p>
+                                {(r.cuisine || r.description) && (
+                                  <p className="mt-0.5 truncate text-[12px] font-semibold text-[var(--muted)]">
+                                    {r.cuisine ? `${r.cuisine.charAt(0).toUpperCase()}${r.cuisine.slice(1)}` : r.description}
+                                  </p>
+                                )}
                               </div>
-                              <span className="inline-flex h-[26px] shrink-0 items-center gap-1 rounded-full bg-[var(--ink)] px-2 text-[12px] font-black text-white">
-                                <Star size={11} fill="var(--gold)" className="text-[var(--gold)]" />
-                                {(r.rating ?? 4.7).toFixed(1)}
-                              </span>
+                              {typeof r.rating === "number" && Number.isFinite(r.rating) && typeof r.ratingCount === "number" && r.ratingCount > 0 && (
+                                <span className="inline-flex h-[26px] shrink-0 items-center gap-1 rounded-full bg-[var(--ink)] px-2 text-[12px] font-black text-white">
+                                  <Star size={11} fill="var(--gold)" className="text-[var(--gold)]" />
+                                  {r.rating.toFixed(1)} ({r.ratingCount})
+                                </span>
+                              )}
                             </div>
                             {(() => {
                               const zi = zoneDeliveryInfo[r.id];
-                              const showEta = orderType === "DELIVERY";
-                              const etaDisplay = showEta
-                                ? (zi?.etaMinutes != null ? `${zi.etaMinutes} ${t("home.minutes")}` : (isOutOfZone ? "—" : `${r.etaMinutes ?? 30} ${t("home.minutes")}`))
-                                : null;
+                              const eta = zi?.etaMinutes ?? r.etaMinutes;
+                              const fee = zi?.deliveryFee ?? r.deliveryFee;
+                              const publicDeal = getDealForRestaurant(r.id);
+                              const activeDealFreeDelivery =
+                                r.homeFreeDeliveryReason === "ACTIVE_DEAL" ||
+                                (publicDeal?.rewardLabel || "").toLowerCase().includes("fri leverans");
+                              const hasFreeDelivery =
+                                activeDealFreeDelivery ||
+                                (typeof zi?.deliveryFee === "number"
+                                  ? zi.deliveryFee <= 0
+                                  : r.homeFreeDelivery === true ||
+                                    (typeof r.deliveryFee === "number" && r.deliveryFee <= 0));
                               return (
                                 <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12px] font-bold text-[rgba(15,15,18,0.66)]">
-                                  {etaDisplay && (
-                                    <span className="flex items-center gap-1"><Clock size={12} fill="currentColor" /> {etaDisplay}</span>
+                                  {orderType === "DELIVERY" && !isOutOfZone && typeof eta === "number" && Number.isFinite(eta) && (
+                                    <span className="flex items-center gap-1"><Clock size={12} fill="currentColor" /> {Math.round(eta)} {t("home.minutes")}</span>
                                   )}
-                                  <span className="flex items-center gap-1">
-                                    {orderType === "PICKUP" ? <Store size={12} /> : <Truck size={12} />}
-                                    {orderType === "PICKUP" ? "0 kr" : (zi?.deliveryFee ?? r.deliveryFee ?? 0) <= 0 ? "Gratis" : `${Math.round(zi?.deliveryFee ?? r.deliveryFee ?? 0)} kr`}
-                                  </span>
+                                  {orderType === "DELIVERY" && !isOutOfZone && (hasFreeDelivery || (typeof fee === "number" && Number.isFinite(fee))) && (
+                                    <span className="flex items-center gap-1">
+                                      <Truck size={12} />
+                                      {hasFreeDelivery ? "Fri leverans" : `${Math.round(fee as number)} kr`}
+                                    </span>
+                                  )}
+                                  {orderType === "PICKUP" && (
+                                    <span className="flex items-center gap-1"><Store size={12} /> Hämta själv</span>
+                                  )}
                                   {r.city && (
                                     <span className="flex min-w-0 items-center gap-1"><MapPin size={12} fill="currentColor" /> <span className="truncate">{r.city}</span></span>
                                   )}

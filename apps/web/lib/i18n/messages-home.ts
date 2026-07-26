@@ -29,7 +29,7 @@ export const homePagePending = {
     "home.searchCta": "Sök restaurang eller maträtt",
 
     // ── Address block (header) ───────────────────────────────────────────
-    "home.address.deliverTo": "Levereras till",
+    "home.address.deliverTo": "Leverera till",
     "home.address.pickupIn": "Hämtas i",
     "home.address.choose": "Välj adress",
     "home.address.chooseCity": "Välj stad",

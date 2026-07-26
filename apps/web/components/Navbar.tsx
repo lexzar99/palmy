@@ -96,8 +96,8 @@ const Navbar = () => {
 
   const links = [
     { href: "/", label: t("nav.home") },
-    { href: "/discover", label: t("nav.favorites") },
-    { href: "/orders", label: t("nav.myOrders") },
+    { href: "/search", label: t("nav.search") },
+    { href: "/deals", label: t("nav.deals") },
   ];
 
   return (

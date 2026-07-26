@@ -12,6 +12,18 @@ import {
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
+  // Partnerembedden har ett avsiktligt litet flöde: meny → varukorg →
+  // den aktuella orderns tracking. Orderhistorik är en ViaEats-sida och ska
+  // aldrig kunna öppnas i en partners iframe, inte ens via en gammal länk.
+  if (pathname === "/orders" && request.nextUrl.searchParams.get("embed") === "1") {
+    const restaurant = request.nextUrl.searchParams.get("restaurant") || "";
+    const safeSlug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(restaurant);
+    const destination = request.nextUrl.clone();
+    destination.pathname = safeSlug ? `/embed/${restaurant}` : "/";
+    destination.search = "";
+    return NextResponse.redirect(destination);
+  }
+
   // PRELAUNCH_MODE=0 makes the complete storefront public. API, Next assets,
   // PWA metadata, order tracking and payment return pages remain reachable
   // while PRELAUNCH_MODE=1 locks discovery/profile pages for smoke testing.

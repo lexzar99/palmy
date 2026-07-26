@@ -1,0 +1,2122 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0867f2">
+  <title>ViaEats · 10 slutmockuper</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --blue: #0867f2;
+      --blue-2: #1a7cff;
+      --sky: #dff1ff;
+      --sky-2: #b9e1ff;
+      --ink: #121722;
+      --muted: #697384;
+      --line: #e6e9ee;
+      --paper: #ffffff;
+      --soft: #f5f6f8;
+      --green: #168a5b;
+      --red: #ae493b;
+      --shadow: 0 10px 28px rgba(16, 30, 52, .10);
+      font-family: "Baloo 2", ui-rounded, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-synthesis: none;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      background: #0c1422;
+    }
+
+    body {
+      min-width: 0;
+      margin: 0;
+      overflow-x: clip;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 50% -20%, #243c61 0, #0c1422 42%, #080d16 100%);
+      font-weight: 600;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button,
+    a {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    button {
+      color: inherit;
+    }
+
+    img {
+      display: block;
+      width: 100%;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    :focus-visible {
+      outline: 3px solid #ffcb3d;
+      outline-offset: 3px;
+    }
+
+    .design-bar {
+      position: sticky;
+      z-index: 50;
+      top: 0;
+      width: 100%;
+      padding-top: max(8px, env(safe-area-inset-top));
+      color: white;
+      background: rgba(7, 13, 23, .94);
+      border-bottom: 1px solid rgba(255,255,255,.1);
+      backdrop-filter: blur(18px);
+    }
+
+    .design-bar__top {
+      width: min(920px, 100%);
+      min-height: 45px;
+      margin-inline: auto;
+      padding: 0 13px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .lab-brand {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -.02em;
+      white-space: nowrap;
+    }
+
+    .lab-mark {
+      width: 29px;
+      height: 29px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      color: white;
+      background: var(--blue);
+      font-size: 16px;
+      font-weight: 800;
+      transform: rotate(-4deg);
+    }
+
+    .api-status {
+      min-height: 29px;
+      padding: 0 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border-radius: 999px;
+      color: #b8c7dc;
+      background: rgba(255,255,255,.08);
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .api-status::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #8a96a8;
+    }
+
+    .api-status.is-live {
+      color: #bff5dd;
+    }
+
+    .api-status.is-live::before {
+      background: #4ed09a;
+      box-shadow: 0 0 0 4px rgba(78,208,154,.12);
+    }
+
+    .tab-scroller {
+      width: min(920px, 100%);
+      margin-inline: auto;
+      padding: 5px 10px 10px;
+      display: flex;
+      gap: 7px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      scroll-snap-type: x proximity;
+    }
+
+    .tab-scroller::-webkit-scrollbar {
+      display: none;
+    }
+
+    .design-tab {
+      min-height: 46px;
+      min-width: max-content;
+      padding: 0 13px;
+      flex: 0 0 auto;
+      border: 0;
+      border-radius: 14px;
+      color: #aeb9ca;
+      background: rgba(255,255,255,.07);
+      cursor: pointer;
+      scroll-snap-align: center;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .design-tab span {
+      margin-right: 5px;
+      color: #6f7c90;
+    }
+
+    .design-tab[aria-selected="true"] {
+      color: #071426;
+      background: white;
+      box-shadow: 0 8px 24px rgba(0,0,0,.18);
+    }
+
+    .design-tab[aria-selected="true"] span {
+      color: var(--blue);
+    }
+
+    .device-stage {
+      width: min(430px, 100%);
+      min-height: calc(100dvh - 108px);
+      margin-inline: auto;
+      background: white;
+      box-shadow: 0 30px 100px rgba(0,0,0,.34);
+    }
+
+    .native-home {
+      --app-bg: #fff;
+      --app-surface: #fff;
+      --app-text: #111722;
+      --app-muted: #6b7482;
+      --app-line: #e7e9ed;
+      position: relative;
+      min-height: calc(100dvh - 108px);
+      padding-bottom: 78px;
+      color: var(--app-text);
+      background: var(--app-bg);
+    }
+
+    .native-home.tone-soft {
+      --app-bg: #f4f6f8;
+      --app-surface: #fff;
+    }
+
+    .native-home.tone-sky {
+      --app-bg: #edf7ff;
+      --app-surface: #fff;
+      --app-line: #d6e7f5;
+    }
+
+    .native-home.tone-warm {
+      --app-bg: #faf4ec;
+      --app-surface: #fffdf9;
+      --app-line: #eadfd3;
+    }
+
+    .native-home.tone-sand {
+      --app-bg: #f8f3ea;
+      --app-surface: #fff;
+      --app-line: #e8dfd2;
+    }
+
+    .app-header {
+      padding: 16px 17px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: var(--app-bg);
+    }
+
+    .app-header.is-sticky {
+      position: sticky;
+      z-index: 20;
+      top: 0;
+      border-bottom: 1px solid color-mix(in srgb, var(--app-line) 72%, transparent);
+      backdrop-filter: blur(15px);
+      background: color-mix(in srgb, var(--app-bg) 90%, transparent);
+    }
+
+    .app-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--app-text);
+      font-size: 20px;
+      line-height: 1;
+      font-weight: 800;
+      letter-spacing: -.035em;
+    }
+
+    .app-logo__mark {
+      width: 35px;
+      height: 35px;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      color: white;
+      background: var(--blue);
+      font-size: 18px;
+      transform: rotate(-4deg);
+      box-shadow: 0 7px 18px rgba(8,103,242,.24);
+    }
+
+    .location-button {
+      min-width: 0;
+      min-height: 44px;
+      padding: 6px 9px;
+      border: 0;
+      border-radius: 12px;
+      color: var(--app-text);
+      background: transparent;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .location-button small {
+      display: block;
+      color: var(--app-muted);
+      font-size: 11px;
+      line-height: 1;
+      font-weight: 700;
+    }
+
+    .location-button strong {
+      display: block;
+      max-width: 180px;
+      margin-top: 3px;
+      overflow: hidden;
+      font-size: 18px;
+      line-height: 1.05;
+      font-weight: 800;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .round-action {
+      width: 44px;
+      height: 44px;
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      border: 0;
+      border-radius: 50%;
+      color: var(--app-text);
+      background: color-mix(in srgb, var(--app-text) 8%, transparent);
+      cursor: pointer;
+    }
+
+    .round-action svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .home-title {
+      padding: 15px 17px 8px;
+    }
+
+    .home-title h1 {
+      margin: 0;
+      font-size: clamp(31px, 9vw, 39px);
+      line-height: .95;
+      letter-spacing: -.045em;
+      font-weight: 800;
+    }
+
+    .home-title p {
+      margin: 5px 0 0;
+      color: var(--app-muted);
+      font-size: 14px;
+      line-height: 1.25;
+      font-weight: 600;
+    }
+
+    .search-wrap {
+      padding: 8px 14px 12px;
+    }
+
+    .search-box {
+      position: relative;
+    }
+
+    .search-box svg {
+      position: absolute;
+      top: 50%;
+      left: 17px;
+      width: 20px;
+      height: 20px;
+      color: var(--app-muted);
+      transform: translateY(-50%);
+      pointer-events: none;
+    }
+
+    .home-search {
+      width: 100%;
+      min-height: 55px;
+      padding: 0 17px 0 47px;
+      border: 1px solid var(--app-line);
+      border-radius: 17px;
+      color: var(--app-text);
+      background: var(--app-surface);
+      box-shadow: 0 5px 18px rgba(17, 33, 56, .06);
+      font-size: 16px;
+      font-weight: 650;
+    }
+
+    .home-search::placeholder {
+      color: var(--app-muted);
+      opacity: 1;
+    }
+
+    .service-toggle {
+      margin: 6px 14px 10px;
+      padding: 4px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      border-radius: 15px;
+      background: color-mix(in srgb, var(--app-text) 8%, transparent);
+    }
+
+    .service-toggle button {
+      min-height: 46px;
+      border: 0;
+      border-radius: 12px;
+      color: var(--app-muted);
+      background: transparent;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    .service-toggle button.is-active {
+      color: #0f1722;
+      background: white;
+      box-shadow: 0 4px 13px rgba(14, 27, 48, .10);
+    }
+
+    .quick-row {
+      padding: 7px 14px 13px;
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .quick-row::-webkit-scrollbar {
+      display: none;
+    }
+
+    .quick-chip {
+      min-height: 46px;
+      min-width: max-content;
+      padding: 0 14px;
+      flex: 0 0 auto;
+      border: 1px solid var(--app-line);
+      border-radius: 999px;
+      color: var(--app-text);
+      background: var(--app-surface);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .quick-chip.is-active {
+      border-color: var(--blue);
+      color: white;
+      background: var(--blue);
+    }
+
+    .section-head {
+      padding: 15px 15px 9px;
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .section-head h2 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1;
+      letter-spacing: -.03em;
+      font-weight: 800;
+    }
+
+    .section-head button {
+      min-height: 44px;
+      padding: 0 5px;
+      border: 0;
+      color: var(--blue);
+      background: transparent;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .stack {
+      padding: 0 12px 18px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .tile-grid {
+      padding: 0 12px 18px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .horizontal-feed {
+      padding: 0 12px 18px;
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      scroll-padding-inline: 12px;
+      scroll-snap-type: x proximity;
+      scrollbar-width: none;
+    }
+
+    .horizontal-feed::-webkit-scrollbar {
+      display: none;
+    }
+
+    .horizontal-feed > * {
+      width: clamp(252px, 73.6vw, 292px);
+      flex: 0 0 auto;
+      scroll-snap-align: start;
+    }
+
+    .restaurant-card {
+      position: relative;
+      min-width: 0;
+      overflow: hidden;
+      color: var(--app-text);
+      background: var(--app-surface);
+      text-decoration: none;
+      box-shadow: var(--shadow);
+      isolation: isolate;
+    }
+
+    .restaurant-card img {
+      height: 100%;
+      object-fit: cover;
+      background: #dbe2ea;
+      transition: transform .24s ease;
+    }
+
+    .restaurant-card:hover img {
+      transform: scale(1.02);
+    }
+
+    .image-box {
+      position: relative;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 74% 20%, rgba(255,255,255,.45), transparent 22%),
+        linear-gradient(135deg, #8ed5ff, #2a77d8);
+    }
+
+    .image-box.is-fallback::after {
+      content: "ViaEats";
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: rgba(255,255,255,.88);
+      font-size: 24px;
+      font-weight: 800;
+    }
+
+    .status-badge {
+      position: absolute;
+      z-index: 2;
+      top: 11px;
+      left: 11px;
+      min-height: 29px;
+      padding: 0 10px;
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      color: white;
+      background: rgba(13,20,31,.72);
+      backdrop-filter: blur(10px);
+      font-size: 11px;
+      font-weight: 750;
+    }
+
+    .status-badge.is-open {
+      background: rgba(22,138,91,.88);
+    }
+
+    .favorite {
+      position: absolute;
+      z-index: 3;
+      top: 10px;
+      right: 10px;
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border: 0;
+      border-radius: 50%;
+      color: #172031;
+      background: rgba(255,255,255,.92);
+      cursor: pointer;
+      box-shadow: 0 5px 13px rgba(0,0,0,.12);
+    }
+
+    .favorite svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .card-copy {
+      min-width: 0;
+      padding: 13px 14px 15px;
+    }
+
+    .card-copy h3 {
+      margin: 0;
+      overflow: hidden;
+      font-size: 19px;
+      line-height: 1.05;
+      letter-spacing: -.025em;
+      font-weight: 800;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .card-copy p {
+      margin: 5px 0 0;
+      overflow: hidden;
+      color: var(--app-muted);
+      font-size: 12px;
+      line-height: 1.25;
+      font-weight: 600;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .meta-line {
+      margin-top: 9px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .meta-line span {
+      min-height: 30px;
+      padding: 0 8px;
+      display: inline-flex;
+      align-items: center;
+      border-radius: 9px;
+      color: #526075;
+      background: #f0f2f5;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .card-wide {
+      border-radius: 20px;
+    }
+
+    .card-wide .image-box {
+      height: 200px;
+    }
+
+    .card-wide .card-copy h3 {
+      font-size: 21px;
+    }
+
+    .card-medium {
+      min-height: clamp(236px, 66vw, 260px);
+      border-radius: 20px;
+      box-shadow: 0 7px 22px rgba(16,30,52,.09);
+    }
+
+    .card-medium .image-box {
+      height: clamp(146px, 41.6vw, 166px);
+    }
+
+    .card-medium .card-copy {
+      padding: 11px 12px 13px;
+    }
+
+    .card-medium .card-copy h3 {
+      font-size: 18px;
+      white-space: normal;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+
+    .card-medium .meta-line {
+      margin-top: 8px;
+    }
+
+    .card-hero {
+      min-height: 370px;
+      border-radius: 24px;
+      color: white;
+      background: #111a27;
+    }
+
+    .card-hero .image-box {
+      position: absolute;
+      inset: 0;
+      height: 100%;
+    }
+
+    .card-hero::after {
+      content: "";
+      position: absolute;
+      z-index: 1;
+      inset: 36% 0 0;
+      background: linear-gradient(transparent, rgba(7,13,22,.95));
+    }
+
+    .card-hero .card-copy {
+      position: absolute;
+      z-index: 2;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      padding: 20px;
+    }
+
+    .card-hero .card-copy h3 {
+      color: white;
+      font-size: 27px;
+    }
+
+    .card-hero .card-copy p {
+      color: #dce5f1;
+    }
+
+    .card-hero .meta-line span {
+      color: white;
+      background: rgba(255,255,255,.15);
+      backdrop-filter: blur(9px);
+    }
+
+    .card-row {
+      min-height: 142px;
+      display: grid;
+      grid-template-columns: 140px minmax(0, 1fr);
+      border-radius: 19px;
+      box-shadow: 0 6px 20px rgba(16,30,52,.08);
+    }
+
+    .card-row .image-box {
+      min-height: 142px;
+    }
+
+    .card-row .card-copy {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .card-row .card-copy h3 {
+      white-space: normal;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+
+    .card-tile {
+      min-height: 235px;
+      border-radius: 18px;
+    }
+
+    .card-tile .image-box {
+      height: 145px;
+    }
+
+    .card-tile .favorite {
+      width: 34px;
+      height: 34px;
+    }
+
+    .card-tile .card-copy {
+      padding: 11px 12px 13px;
+    }
+
+    .card-tile .card-copy h3 {
+      white-space: normal;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      font-size: 17px;
+    }
+
+    .card-strip {
+      min-height: 245px;
+      border-radius: 0;
+      box-shadow: none;
+      color: white;
+    }
+
+    .card-strip .image-box {
+      position: absolute;
+      inset: 0;
+      height: 100%;
+    }
+
+    .card-strip::after {
+      content: "";
+      position: absolute;
+      z-index: 1;
+      inset: 30% 0 0;
+      background: linear-gradient(transparent, rgba(5,11,18,.9));
+    }
+
+    .card-strip .card-copy {
+      position: absolute;
+      z-index: 2;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      padding: 17px;
+    }
+
+    .card-strip .card-copy h3 {
+      color: white;
+      font-size: 23px;
+    }
+
+    .card-strip .card-copy p {
+      color: #e1e7ef;
+    }
+
+    .card-naked {
+      min-height: 136px;
+      padding: 11px 0;
+      display: grid;
+      grid-template-columns: 118px minmax(0, 1fr);
+      border-bottom: 1px solid var(--app-line);
+      border-radius: 0;
+      box-shadow: none;
+      background: transparent;
+    }
+
+    .card-naked .image-box {
+      min-height: 114px;
+      border-radius: 15px;
+    }
+
+    .card-naked .card-copy {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .card-ranked {
+      min-height: 150px;
+      padding-left: 52px;
+      display: grid;
+      grid-template-columns: 124px minmax(0, 1fr);
+      border-radius: 20px;
+    }
+
+    .card-ranked::before {
+      content: attr(data-rank);
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      color: var(--blue);
+      font-size: 28px;
+      font-weight: 800;
+      transform: translateY(-50%);
+    }
+
+    .card-ranked .image-box {
+      min-height: 150px;
+    }
+
+    .card-ranked .card-copy {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .sponsor-card {
+      position: relative;
+      min-height: clamp(356px, 103vw, 416px);
+      margin: 5px 12px 17px;
+      display: block;
+      overflow: hidden;
+      border-radius: 24px;
+      color: white;
+      background: #0b1b34;
+      box-shadow: 0 14px 36px rgba(10,25,52,.18);
+      text-decoration: none;
+    }
+
+    .sponsor-card .image-box {
+      position: absolute;
+      inset: 0;
+      height: 100%;
+    }
+
+    .sponsor-card::after {
+      content: "";
+      position: absolute;
+      z-index: 1;
+      inset: 22% 0 0;
+      background: linear-gradient(transparent, rgba(5,14,28,.96));
+    }
+
+    .sponsor-label {
+      position: absolute;
+      z-index: 3;
+      top: 13px;
+      left: 13px;
+      min-height: 31px;
+      padding: 0 10px;
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid rgba(255,255,255,.42);
+      border-radius: 999px;
+      color: white;
+      background: rgba(6,19,39,.55);
+      backdrop-filter: blur(10px);
+      font-size: 11px;
+      font-weight: 750;
+    }
+
+    .sponsor-copy {
+      position: absolute;
+      z-index: 2;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      padding: 19px;
+    }
+
+    .sponsor-copy h2 {
+      margin: 0;
+      color: white;
+      font-size: 28px;
+      line-height: 1;
+      letter-spacing: -.035em;
+      font-weight: 800;
+    }
+
+    .sponsor-copy p {
+      margin: 5px 0 0;
+      color: #dbe7f6;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .sponsor-card .meta-line span {
+      color: white;
+      background: rgba(255,255,255,.17);
+      backdrop-filter: blur(9px);
+    }
+
+    .sponsor-card.style-sky {
+      min-height: clamp(356px, 103vw, 416px);
+      color: #0c2c4b;
+      background: var(--sky);
+    }
+
+    .sponsor-card.style-sky::after {
+      background: linear-gradient(transparent, rgba(6,50,87,.92));
+    }
+
+    .sponsor-card.style-frame {
+      min-height: clamp(356px, 103vw, 416px);
+      margin-inline: 17px;
+      border: 7px solid #fff;
+      outline: 2px solid #dce2e8;
+      box-shadow: 0 15px 38px rgba(10,25,52,.17);
+    }
+
+    .sponsor-card.style-split {
+      min-height: 285px;
+      display: grid;
+      grid-template-columns: 46% 54%;
+      color: #0f1b2a;
+      background: var(--sky);
+    }
+
+    .sponsor-card.style-split .image-box {
+      position: relative;
+      inset: auto;
+      min-height: 285px;
+      height: 100%;
+    }
+
+    .sponsor-card.style-split .image-box img {
+      min-height: 285px;
+    }
+
+    .sponsor-card.style-split::after {
+      display: none;
+    }
+
+    .sponsor-card.style-split .sponsor-label {
+      left: calc(46% + 13px);
+      color: #17476d;
+      border-color: #8fc5e7;
+      background: #fff;
+    }
+
+    .sponsor-card.style-split .sponsor-copy {
+      position: static;
+      align-self: end;
+      padding: 58px 15px 18px;
+    }
+
+    .sponsor-card.style-split .sponsor-copy h2 {
+      color: #0f1b2a;
+      font-size: 24px;
+    }
+
+    .sponsor-card.style-split .sponsor-copy p {
+      color: #4a657b;
+    }
+
+    .sponsor-card.style-split .meta-line span {
+      color: #3f596f;
+      background: rgba(255,255,255,.72);
+    }
+
+    .deals-banner {
+      position: relative;
+      width: calc(100% - 24px);
+      min-height: clamp(142px, 40vw, 168px);
+      margin: 5px 12px 17px;
+      padding: 19px;
+      overflow: hidden;
+      border: 0;
+      border-radius: 23px;
+      color: #0b3b63;
+      background:
+        radial-gradient(circle at 86% 19%, rgba(255,255,255,.9) 0 34px, transparent 36px),
+        linear-gradient(135deg, #e9f8ff, #a8dcff);
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .deals-banner::after {
+      content: "→";
+      position: absolute;
+      right: 20px;
+      bottom: 17px;
+      font-size: 29px;
+      font-weight: 800;
+    }
+
+    .deals-banner small {
+      display: block;
+      color: #2d719f;
+      font-size: 10px;
+      line-height: 1;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .deals-banner strong {
+      display: block;
+      max-width: 8ch;
+      margin-top: 9px;
+      font-size: 27px;
+      line-height: .95;
+      letter-spacing: -.035em;
+      font-weight: 800;
+    }
+
+    .deals-banner.is-tall {
+      min-height: 245px;
+      padding: 24px;
+    }
+
+    .deals-banner.is-tall strong {
+      margin-top: 23px;
+      font-size: 38px;
+    }
+
+    .category-grid {
+      padding: 4px 12px 15px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .category-button {
+      position: relative;
+      min-height: 105px;
+      padding: 14px;
+      overflow: hidden;
+      border: 0;
+      border-radius: 20px;
+      color: #142033;
+      background: var(--sky);
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .category-button:nth-child(2n) {
+      background: #e9e4ff;
+    }
+
+    .category-button:nth-child(3n) {
+      background: #ffead9;
+    }
+
+    .category-button.is-active {
+      outline: 3px solid var(--blue);
+      outline-offset: -3px;
+    }
+
+    .category-button .emoji {
+      position: absolute;
+      right: 10px;
+      bottom: 4px;
+      font-size: 42px;
+      transform: rotate(-5deg);
+    }
+
+    .category-button strong {
+      position: relative;
+      z-index: 1;
+      display: block;
+      max-width: 10ch;
+      font-size: 16px;
+      line-height: 1.05;
+      font-weight: 800;
+    }
+
+    .choice-panel {
+      padding: 4px 12px 15px;
+      display: grid;
+      gap: 9px;
+    }
+
+    .choice-panel button {
+      min-height: 63px;
+      padding: 0 17px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border: 1px solid var(--app-line);
+      border-radius: 18px;
+      color: var(--app-text);
+      background: var(--app-surface);
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 750;
+      text-align: left;
+    }
+
+    .choice-panel button::after {
+      content: "→";
+      color: var(--blue);
+      font-size: 21px;
+      font-weight: 800;
+    }
+
+    .choice-panel button.is-active {
+      border-color: var(--blue);
+      color: white;
+      background: var(--blue);
+    }
+
+    .choice-panel button.is-active::after {
+      color: white;
+    }
+
+    .blue-intro {
+      margin: 3px 12px 14px;
+      padding: 21px;
+      border-radius: 24px;
+      color: white;
+      background:
+        radial-gradient(circle at 90% 20%, rgba(255,255,255,.16) 0 55px, transparent 57px),
+        linear-gradient(145deg, var(--blue), #0648bb);
+    }
+
+    .blue-intro h1 {
+      max-width: 9ch;
+      margin: 0;
+      font-size: 34px;
+      line-height: .95;
+      letter-spacing: -.04em;
+      font-weight: 800;
+    }
+
+    .blue-intro p {
+      margin: 8px 0 0;
+      color: #d9e9ff;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .empty-state {
+      margin: 20px 14px;
+      padding: 30px 20px;
+      border: 1px dashed var(--app-line);
+      border-radius: 20px;
+      color: var(--app-muted);
+      text-align: center;
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .bottom-nav {
+      position: fixed;
+      z-index: 30;
+      bottom: 0;
+      left: 50%;
+      width: min(430px, 100%);
+      min-height: 70px;
+      padding: 7px 13px max(7px, env(safe-area-inset-bottom));
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      border-top: 1px solid var(--app-line);
+      background: color-mix(in srgb, var(--app-bg) 94%, transparent);
+      backdrop-filter: blur(17px);
+      transform: translateX(-50%);
+    }
+
+    .bottom-nav button {
+      min-height: 54px;
+      display: grid;
+      justify-items: center;
+      align-content: center;
+      gap: 2px;
+      border: 0;
+      border-radius: 14px;
+      color: var(--app-muted);
+      background: transparent;
+      cursor: pointer;
+      font-size: 10px;
+      line-height: 1;
+      font-weight: 700;
+    }
+
+    .bottom-nav button.is-active {
+      color: var(--blue);
+    }
+
+    .bottom-nav svg {
+      width: 21px;
+      height: 21px;
+    }
+
+    .toast {
+      position: fixed;
+      z-index: 100;
+      left: 50%;
+      bottom: 83px;
+      width: min(390px, calc(100% - 28px));
+      padding: 13px 16px;
+      border-radius: 15px;
+      color: white;
+      background: #0b1320;
+      box-shadow: 0 14px 42px rgba(0,0,0,.28);
+      font-size: 12px;
+      line-height: 1.35;
+      font-weight: 650;
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, 14px);
+      transition: opacity .18s ease, transform .18s ease;
+    }
+
+    .toast.is-visible {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    @media (min-width: 560px) {
+      .device-stage {
+        margin-top: 24px;
+        margin-bottom: 40px;
+        overflow: hidden;
+        border: 8px solid #111a28;
+        border-radius: 38px;
+      }
+
+      .native-home {
+        min-height: 820px;
+      }
+
+      .bottom-nav {
+        position: sticky;
+        left: auto;
+        width: 100%;
+        margin-top: -70px;
+        transform: none;
+      }
+    }
+
+    @media (max-width: 350px) {
+      .tab-scroller {
+        padding-inline: 7px;
+      }
+
+      .design-tab {
+        padding-inline: 11px;
+      }
+
+      .app-header {
+        padding-inline: 12px;
+      }
+
+      .home-title,
+      .section-head {
+        padding-inline: 13px;
+      }
+
+      .stack,
+      .tile-grid,
+      .horizontal-feed,
+      .category-grid,
+      .choice-panel {
+        padding-inline: 9px;
+      }
+
+      .tile-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .card-tile {
+        min-height: 300px;
+      }
+
+      .card-tile .image-box {
+        height: 205px;
+      }
+
+      .card-medium .image-box {
+        height: 146px;
+      }
+
+      .card-row {
+        grid-template-columns: 119px minmax(0, 1fr);
+      }
+
+      .card-ranked {
+        padding-left: 43px;
+        grid-template-columns: 103px minmax(0, 1fr);
+      }
+
+      .sponsor-card.style-split {
+        grid-template-columns: 43% 57%;
+      }
+
+      .sponsor-card.style-split .sponsor-label {
+        left: calc(43% + 10px);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        transition-duration: .001ms !important;
+        animation-duration: .001ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="design-bar">
+    <div class="design-bar__top">
+      <div class="lab-brand"><span class="lab-mark">V</span><span id="activeDesignName">Hem 01</span></div>
+      <div class="api-status" id="apiStatus" role="status">Hämtar API…</div>
+    </div>
+    <div class="tab-scroller" id="designTabs" role="tablist" aria-label="Välj hem-design"></div>
+  </header>
+
+  <main class="device-stage" id="appMount"></main>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const API_URL = "https://api.viaeats.se/api/restaurants";
+      const CACHE_KEY = "viaeats-app-home-10-v2";
+      const CACHE_MAX_AGE = 10 * 60 * 1000;
+
+      // En enda tydlig tweakpunkt för ett framtida adminverktyg.
+      // API:t kan även skicka homeBoost (-1 till 1) per restaurang.
+      const HOME_TUNING = Object.freeze({
+        repetitionPenalty: 0.34,
+        selected: { rotation: 0.50, open: 0.20, quality: 0.13, popularity: 0.07, value: 0.10, admin: 0.42 },
+        sponsor: { rotation: 0.45, open: 0.14, quality: 0.10, popularity: 0.05, value: 0.04, admin: 0.55 },
+        fast: { rotation: 0.16, open: 0.20, eta: 0.52, quality: 0.05, admin: 0.38 },
+        value: { rotation: 0.30, open: 0.16, value: 0.42, quality: 0.05, admin: 0.38 },
+        quality: { rotation: 0.26, open: 0.16, quality: 0.40, popularity: 0.10, admin: 0.38 },
+        cuisine: { rotation: 0.46, open: 0.18, quality: 0.10, value: 0.07, admin: 0.38 },
+        local: { rotation: 0.50, open: 0.18, quality: 0.10, value: 0.07, admin: 0.38 }
+      });
+
+      const VERIFIED_SNAPSHOT = [
+        {
+          id: "palmyra-pizzeria",
+          name: "Palmyra Pizzeria",
+          slug: "palmyra-pizzeria-lund",
+          cuisine: "Pizza",
+          city: "Lund",
+          heroImage: "https://images.viaeats.se/lund/palmyra-pizzeria-lund/hero.webp?v=04739b4063",
+          rating: 4.5,
+          ratingCount: 6,
+          deliveryFee: 49,
+          isOpen: false
+        },
+        {
+          id: "palma",
+          name: "Palma",
+          slug: "palma",
+          cuisine: "Kebab · Pizza",
+          city: "Dalby",
+          heroImage: "https://pub-3aa62f4934014835956fe3777d5b3abd.r2.dev/lund/palma/hero.webp",
+          rating: null,
+          ratingCount: 0,
+          deliveryFee: 0,
+          isOpen: false
+        },
+        {
+          id: "burger-king-lund-norra-faladen",
+          name: "Burger King Lund Norra Fäladen",
+          slug: "burger-king-lund-norra-faladen",
+          cuisine: "Burgare",
+          city: "Lund",
+          heroImage: "https://cdn-bk-se-ordering.azureedge.net/media/nopd55je/fo_1100x1024_gourmet_tbc_beef_single.png",
+          rating: 5,
+          ratingCount: 1,
+          deliveryFee: 0,
+          isOpen: false
+        },
+        {
+          id: "pizzeria-kryddan",
+          name: "Pizzeria Kryddan",
+          slug: "pizzeria-kryddan",
+          cuisine: "Pizza",
+          city: "Lund",
+          heroImage: "https://pub-3aa62f4934014835956fe3777d5b3abd.r2.dev/lund/pizzeria-kryddan/hero.webp?v=23d80decce",
+          rating: 4,
+          ratingCount: 10,
+          deliveryFee: 39,
+          isOpen: false
+        }
+      ];
+
+      const DESIGNS = [
+        { name: "Medium först", layout: "medium-first", tone: "soft", header: "location", sponsor: "sky" },
+        { name: "Kök som lever", layout: "cuisine-first", tone: "warm", header: "location", sponsor: "frame" },
+        { name: "Aptit hero", layout: "hero-first", tone: "light", header: "location", sponsor: "sky" },
+        { name: "Snabbt nu", layout: "fast-first", tone: "soft", header: "location", sponsor: "split" },
+        { name: "Pris & kvalitet", layout: "value-first", tone: "sand", header: "location", sponsor: "frame" },
+        { name: "Utvalt idag", layout: "daily-first", tone: "light", header: "location", sponsor: "sky" },
+        { name: "Deals smart", layout: "deals-first", tone: "soft", header: "brand", sponsor: "split" },
+        { name: "Enkel shortlist", layout: "shortlist", tone: "warm", header: "location", sponsor: "frame" },
+        { name: "Lokal mix", layout: "local-mix", tone: "sand", header: "location", sponsor: "sky" },
+        { name: "ViaEats hem", layout: "final-home", tone: "soft", header: "location", sponsor: "sky" }
+      ];
+
+      const state = {
+        restaurants: [],
+        source: "snapshot",
+        activeDesign: 0,
+        sort: "default",
+        cuisine: "",
+        offset: 0
+      };
+
+      const appMount = document.getElementById("appMount");
+      const designTabs = document.getElementById("designTabs");
+      const activeDesignName = document.getElementById("activeDesignName");
+      const apiStatus = document.getElementById("apiStatus");
+      const toast = document.getElementById("toast");
+      let toastTimer = 0;
+
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+
+      function boundedString(value, fallback, max = 100) {
+        const text = typeof value === "string" ? value.trim() : "";
+        return (text || fallback).slice(0, max);
+      }
+
+      function finiteNumber(value, min, max) {
+        const number = Number(value);
+        return Number.isFinite(number) && number >= min && number <= max ? number : null;
+      }
+
+      function etaMinutes(value) {
+        const direct = finiteNumber(value, 1, 240);
+        if (direct !== null) return Math.round(direct);
+        if (typeof value !== "string") return null;
+        const values = [...value.matchAll(/\d+/g)].map((match) => Number(match[0])).filter((number) => number >= 1 && number <= 240);
+        if (!values.length) return null;
+        return Math.round(values.slice(0, 2).reduce((sum, number) => sum + number, 0) / Math.min(values.length, 2));
+      }
+
+      function firstString(...values) {
+        for (const value of values) {
+          if (typeof value === "string" && value.trim()) return value.trim();
+        }
+        return "";
+      }
+
+      function safeImageUrl(value) {
+        try {
+          const url = new URL(String(value));
+          return url.protocol === "https:" || url.protocol === "http:" ? url.href : "";
+        } catch {
+          return "";
+        }
+      }
+
+      function displayLabel(value) {
+        const text = String(value || "").trim();
+        return text ? text.charAt(0).toLocaleUpperCase("sv") + text.slice(1) : "";
+      }
+
+      function normalizeCuisine(raw) {
+        const direct = firstString(raw.cuisine, raw.category, raw.foodType, raw.type);
+        if (direct) return displayLabel(direct.slice(0, 70));
+        const list = [raw.cuisines, raw.categories, raw.tags].find(Array.isArray);
+        if (list) {
+          const names = list.map((item) => typeof item === "string" ? item : firstString(item?.name, item?.title)).filter(Boolean);
+          if (names.length) return displayLabel(names.slice(0, 3).join(" · ").slice(0, 70));
+        }
+        return "Restaurang";
+      }
+
+      function normalizeRestaurant(raw, index) {
+        if (!raw || typeof raw !== "object") return null;
+        const name = boundedString(raw.name, "", 90);
+        if (!name) return null;
+        const ratingCount = finiteNumber(raw.ratingCount ?? raw.reviewCount ?? raw.ratingsCount, 0, 1000000) ?? 0;
+        const rating = ratingCount > 0 ? finiteNumber(raw.rating ?? raw.averageRating, 0, 5) : null;
+        const address = raw.address && typeof raw.address === "object" ? raw.address : {};
+        return {
+          id: boundedString(String(raw.id ?? raw.restaurantId ?? `restaurant-${index}`), `restaurant-${index}`, 100),
+          name,
+          slug: boundedString(raw.slug, "", 100),
+          cuisine: normalizeCuisine(raw),
+          city: boundedString(firstString(raw.city, address.city, raw.location?.city), "Lund", 45),
+          heroImage: safeImageUrl(firstString(raw.heroImage, raw.heroImageUrl, raw.hero, raw.coverImage, raw.image, raw.images?.hero, raw.logo)),
+          rating,
+          ratingCount,
+          deliveryFee: finiteNumber(raw.deliveryFee ?? raw.baseDeliveryFee, 0, 5000),
+          etaMinutes: etaMinutes(raw.etaMinutes ?? raw.estimatedDeliveryTime ?? raw.deliveryTime ?? raw.eta ?? raw.deliveryTimeMinutes),
+          homeBoost: finiteNumber(raw.homeBoost ?? raw.discoveryBoost ?? raw.homePriority, -1, 1) ?? 0,
+          isOpen: typeof raw.isOpen === "boolean" ? raw.isOpen : null
+        };
+      }
+
+      function normalizeList(payload) {
+        const list = Array.isArray(payload) ? payload : Array.isArray(payload?.restaurants) ? payload.restaurants : Array.isArray(payload?.data) ? payload.data : [];
+        const seen = new Set();
+        return list
+          .slice(0, 100)
+          .map(normalizeRestaurant)
+          .filter((restaurant) => {
+            if (!restaurant || seen.has(restaurant.id)) return false;
+            seen.add(restaurant.id);
+            return true;
+          });
+      }
+
+      function icon(name) {
+        const paths = {
+          search: '<circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4 4"></path>',
+          home: '<path d="m3 10 9-7 9 7"></path><path d="M5 9v11h14V9"></path><path d="M9 20v-6h6v6"></path>',
+          orders: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2Z"></path><path d="M9 8h6M9 12h6"></path>',
+          user: '<circle cx="12" cy="8" r="4"></circle><path d="M4.5 21c.8-4.2 3.3-6 7.5-6s6.7 1.8 7.5 6"></path>',
+          pin: '<path d="M12 21s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12Z"></path><circle cx="12" cy="9" r="2.2"></circle>',
+          heart: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z"></path>',
+          deal: '<path d="M20 12 12 20 4 12V4h8Z"></path><circle cx="8.5" cy="8.5" r="1.2"></circle>'
+        };
+        return `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths[name] || paths.home}</svg>`;
+      }
+
+      function showToast(message) {
+        window.clearTimeout(toastTimer);
+        toast.textContent = boundedString(message, "Klart", 220);
+        toast.classList.add("is-visible");
+        toastTimer = window.setTimeout(() => toast.classList.remove("is-visible"), 2400);
+      }
+
+      function imageBox(restaurant) {
+        const url = safeImageUrl(restaurant.heroImage);
+        return `<div class="image-box${url ? "" : " is-fallback"}">${url ? `<img src="${escapeHtml(url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ""}</div>`;
+      }
+
+      function restaurantUrl(restaurant) {
+        return restaurant.slug
+          ? `https://www.viaeats.se/restaurants/${encodeURIComponent(restaurant.slug)}`
+          : "https://www.viaeats.se/restaurants";
+      }
+
+      function statusBadge(restaurant) {
+        if (restaurant.isOpen === true) return '<span class="status-badge is-open">Öppet</span>';
+        if (restaurant.isOpen === false) return '<span class="status-badge">Stängt</span>';
+        return "";
+      }
+
+      function metaLine(restaurant, compact = false, context = "default") {
+        const items = [];
+        if (context === "fast" && restaurant.etaMinutes !== null) {
+          items.push(`<span>Uppsk. ${escapeHtml(restaurant.etaMinutes)} min</span>`);
+        }
+        if (context === "value" && restaurant.deliveryFee === 0) {
+          items.push("<span>0 kr grundavgift</span>");
+        }
+        if (restaurant.rating !== null && restaurant.ratingCount > 0) {
+          items.push(`<span>★ ${escapeHtml(restaurant.rating.toFixed(1).replace(".", ","))}</span>`);
+        }
+        if (restaurant.deliveryFee !== null && !(context === "value" && restaurant.deliveryFee === 0)) {
+          items.push(`<span>Grundavg. ${escapeHtml(restaurant.deliveryFee)} kr</span>`);
+        }
+        if (!compact) items.push(`<span>${escapeHtml(restaurant.city)}</span>`);
+        return items.length ? `<div class="meta-line">${items.slice(0, compact ? 2 : 3).join("")}</div>` : "";
+      }
+
+      function restaurantCard(restaurant, type = "wide", rank = 0, context = "default") {
+        const className = ["wide", "medium", "hero", "row", "tile", "strip", "naked", "ranked"].includes(type) ? type : "wide";
+        const rankAttribute = className === "ranked" ? ` data-rank="${String(rank + 1).padStart(2, "0")}"` : "";
+        const compact = ["medium", "row", "tile", "naked", "ranked"].includes(className);
+        return `
+          <a class="restaurant-card card-${className}" href="${escapeHtml(restaurantUrl(restaurant))}" data-restaurant-id="${escapeHtml(restaurant.id)}" data-search-card="${escapeHtml(`${restaurant.name} ${restaurant.cuisine} ${restaurant.city}`.toLowerCase())}"${rankAttribute}>
+            ${imageBox(restaurant)}
+            ${statusBadge(restaurant)}
+            <div class="card-copy">
+              <h3>${escapeHtml(restaurant.name)}</h3>
+              <p>${escapeHtml(restaurant.cuisine)}</p>
+              ${metaLine(restaurant, compact, context)}
+            </div>
+          </a>
+        `;
+      }
+
+      function sponsorCard(restaurant, style = "sky") {
+        const safeStyle = ["sky", "frame", "split"].includes(style) ? style : "sky";
+        return `
+          <a class="sponsor-card style-${safeStyle}" href="${escapeHtml(restaurantUrl(restaurant))}" data-restaurant-id="${escapeHtml(restaurant.id)}" data-search-card="${escapeHtml(`${restaurant.name} ${restaurant.cuisine}`.toLowerCase())}">
+            ${imageBox(restaurant)}
+            <span class="sponsor-label">Sponsrad yta · prototyp</span>
+            <div class="sponsor-copy">
+              <h2>${escapeHtml(restaurant.name)}</h2>
+              <p>${escapeHtml(restaurant.cuisine)} · ${escapeHtml(restaurant.city)}</p>
+              ${metaLine(restaurant, true)}
+            </div>
+          </a>
+        `;
+      }
+
+      function dealsBanner(tall = false) {
+        return `
+          <button class="deals-banner${tall ? " is-tall" : ""}" type="button" data-deals>
+            <small>ViaEats Deals</small>
+            <strong>Mer mat. Bättre pris.</strong>
+          </button>
+        `;
+      }
+
+      function appHeader(type = "location", sticky = false) {
+        const center = type === "brand"
+          ? '<div class="app-logo"><span class="app-logo__mark">V</span>ViaEats</div>'
+          : `<button class="location-button" type="button" data-action="address"><small>Leverera till</small><strong>Min adress⌄</strong></button>`;
+        return `
+          <header class="app-header${sticky ? " is-sticky" : ""}">
+            ${center}
+            <button class="round-action" type="button" aria-label="Konto" data-action="account">${icon("user")}</button>
+          </header>
+        `;
+      }
+
+      function searchBox() {
+        return `<div class="search-wrap"><div class="search-box">${icon("search")}<input class="home-search" type="search" placeholder="Sök restaurang eller kök" aria-label="Sök restaurang eller kök" data-search-input></div></div>`;
+      }
+
+      function serviceToggle() {
+        return `<div class="service-toggle"><button class="is-active" type="button" data-service="delivery">Leverans</button><button type="button" data-service="pickup">Hämta själv</button></div>`;
+      }
+
+      function quickFilters() {
+        return `
+          <div class="quick-row" aria-label="Snabbsortering">
+            <button class="quick-chip${state.sort === "default" ? " is-active" : ""}" type="button" data-sort="default">Alla</button>
+            <button class="quick-chip${state.sort === "quality" ? " is-active" : ""}" type="button" data-sort="quality">Bra betyg</button>
+            <button class="quick-chip${state.sort === "value" ? " is-active" : ""}" type="button" data-sort="value">Låg grundavgift</button>
+          </div>
+        `;
+      }
+
+      function homeTitle(title, subtitle = "") {
+        return `<div class="home-title"><h1>${escapeHtml(title)}</h1>${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ""}</div>`;
+      }
+
+      function sectionHead(title, action = "Visa alla") {
+        return `<div class="section-head"><h2>${escapeHtml(title)}</h2><button type="button" data-action="all">${escapeHtml(action)}</button></div>`;
+      }
+
+      function bottomNav() {
+        return `
+          <nav class="bottom-nav" aria-label="Huvudnavigation">
+            <button class="is-active" type="button" data-nav="Hem">${icon("home")}<span>Hem</span></button>
+            <button type="button" data-nav="Sök">${icon("search")}<span>Sök</span></button>
+            <button type="button" data-nav="Deals">${icon("deal")}<span>Deals</span></button>
+            <button type="button" data-nav="Beställningar">${icon("orders")}<span>Beställningar</span></button>
+            <button type="button" data-nav="Konto">${icon("user")}<span>Konto</span></button>
+          </nav>
+        `;
+      }
+
+      function sortedRestaurants() {
+        let copy = [...state.restaurants];
+        if (state.cuisine) {
+          copy = copy.filter((restaurant) => restaurant.cuisine.toLocaleLowerCase("sv").includes(state.cuisine));
+        }
+        if (state.sort === "quality") {
+          copy.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || b.ratingCount - a.ratingCount);
+        } else if (state.sort === "value") {
+          copy.sort((a, b) => (a.deliveryFee ?? 9999) - (b.deliveryFee ?? 9999));
+        }
+        if (copy.length) {
+          const offset = state.offset % copy.length;
+          return copy.slice(offset).concat(copy.slice(0, offset));
+        }
+        return copy;
+      }
+
+      const GENERIC_CUISINES = new Set(["restaurang", "mat", "food", "takeaway", "delivery"]);
+
+      function cuisineTokens(restaurant) {
+        return [...new Set(
+          restaurant.cuisine
+            .split(/[·,/|;&]+/)
+            .map((value) => value.trim())
+            .filter(Boolean)
+            .filter((value) => !GENERIC_CUISINES.has(value.toLocaleLowerCase("sv")))
+        )];
+      }
+
+      function uniqueCuisines(restaurants) {
+        const groups = new Map();
+        restaurants.forEach((restaurant) => {
+          cuisineTokens(restaurant).forEach((label) => {
+            const key = label.toLocaleLowerCase("sv");
+            if (!groups.has(key)) groups.set(key, { key, label: displayLabel(label), count: 0 });
+            groups.get(key).count += 1;
+          });
+        });
+        const cuisines = [...groups.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "sv")).slice(0, 6);
+        const sushi = groups.get("sushi");
+        if (sushi && !cuisines.some((item) => item.key === "sushi")) cuisines.splice(Math.min(cuisines.length, 5), 0, sushi);
+        return cuisines.slice(0, 6);
+      }
+
+      function cuisineEmoji(cuisine) {
+        const value = cuisine.toLocaleLowerCase("sv");
+        if (value.includes("sushi")) return "🍣";
+        if (value.includes("pizza")) return "🍕";
+        if (value.includes("burg")) return "🍔";
+        if (value.includes("kebab")) return "🥙";
+        if (value.includes("thai")) return "🍜";
+        if (value.includes("ind")) return "🍛";
+        if (value.includes("sallad")) return "🥗";
+        return "🍽️";
+      }
+
+      function categoryGrid(restaurants) {
+        const cuisines = uniqueCuisines(restaurants);
+        if (!cuisines.length) return "";
+        return `<div class="category-grid">${cuisines.map((cuisine) => `<button class="category-button${state.cuisine === cuisine.key ? " is-active" : ""}" type="button" data-cuisine="${escapeHtml(cuisine.key)}"><strong>${escapeHtml(cuisine.label)}</strong><span class="emoji" aria-hidden="true">${cuisineEmoji(cuisine.label)}</span></button>`).join("")}</div>`;
+      }
+
+      function stableHash(value) {
+        let hash = 2166136261;
+        for (let index = 0; index < value.length; index += 1) {
+          hash ^= value.charCodeAt(index);
+          hash = Math.imul(hash, 16777619);
+        }
+        return (hash >>> 0) / 4294967295;
+      }
+
+      function rankPool(pool, lane, count, used, sectionKey = lane) {
+        const tuning = HOME_TUNING[lane] || HOME_TUNING.selected;
+        const dayKey = new Date().toISOString().slice(0, 10);
+        const score = (restaurant) => {
+          const quality = restaurant.rating === null ? 0 : (restaurant.rating / 5) * Math.min(1, Math.log1p(restaurant.ratingCount) / Math.log(21));
+          const popularity = Math.min(1, Math.log1p(restaurant.ratingCount) / Math.log(101));
+          const value = restaurant.deliveryFee === null ? 0.15 : 1 - Math.min(100, restaurant.deliveryFee) / 100;
+          const eta = restaurant.etaMinutes === null ? 0 : 1 - Math.min(90, restaurant.etaMinutes) / 90;
+          const open = restaurant.isOpen === true ? 1 : restaurant.isOpen === null ? 0.35 : 0.08;
+          return (
+            stableHash(`${dayKey}:${sectionKey}:${restaurant.id}`) * (tuning.rotation || 0) +
+            open * (tuning.open || 0) +
+            quality * (tuning.quality || 0) +
+            popularity * (tuning.popularity || 0) +
+            value * (tuning.value || 0) +
+            eta * (tuning.eta || 0) +
+            restaurant.homeBoost * (tuning.admin || 0) -
+            (used.get(restaurant.id) || 0) * HOME_TUNING.repetitionPenalty
+          );
+        };
+        const ranked = [...pool]
+          .sort((a, b) => lane === "fast"
+            ? a.etaMinutes - b.etaMinutes || score(b) - score(a) || a.name.localeCompare(b.name, "sv")
+            : score(b) - score(a) || a.name.localeCompare(b.name, "sv"));
+        let picked = ranked.slice(0, Math.min(count, pool.length));
+        if (lane === "selected" && pool.length > count && count > 0) {
+          // En skyddad plats roterar genom hela utbudet och kan inte köpas bort via adminboost.
+          const fairOrder = [...pool].sort((a, b) => a.id.localeCompare(b.id));
+          const fairPick = fairOrder[Math.floor(Date.now() / 86400000) % fairOrder.length];
+          picked = [...ranked.filter((restaurant) => restaurant.id !== fairPick.id).slice(0, count - 1), fairPick];
+        }
+        picked.forEach((restaurant) => used.set(restaurant.id, (used.get(restaurant.id) || 0) + 1));
+        return picked;
+      }
+
+      function buildDynamicModules(restaurants) {
+        const used = new Map();
+        const module = (title, lane, pool, count = 3, context = "default", key = lane) => ({
+          title,
+          context,
+          items: rankPool(pool, lane, count, used, key)
+        });
+        const selected = module("Utvalt idag", "selected", restaurants, 3);
+        const sponsorPool = restaurants.filter((restaurant) => restaurant.heroImage);
+        const imagePool = sponsorPool.length ? sponsorPool : restaurants;
+        const unusedSponsorPool = imagePool.filter((restaurant) => !used.has(restaurant.id));
+        const sponsor = rankPool(unusedSponsorPool.length ? unusedSponsorPool : imagePool, "sponsor", 1, used, "sponsor")[0] || restaurants[0];
+        const fastest = module("Snabbast just nu", "fast", restaurants.filter((restaurant) => restaurant.etaMinutes !== null), 3, "fast");
+        const zeroFee = module("0 kr grundavgift", "value", restaurants.filter((restaurant) => restaurant.deliveryFee === 0), 3, "value");
+        const quality = module("Bra betyg", "quality", restaurants.filter((restaurant) => restaurant.rating !== null && restaurant.ratingCount > 0), 3);
+
+        const cuisineModules = uniqueCuisines(restaurants).map((cuisine) => module(
+          cuisine.label,
+          "cuisine",
+          restaurants.filter((restaurant) => cuisineTokens(restaurant).some((label) => label.toLocaleLowerCase("sv") === cuisine.key)),
+          3,
+          "default",
+          `cuisine:${cuisine.key}`
+        )).filter((item) => item.items.length);
+
+        const cityGroups = new Map();
+        restaurants.forEach((restaurant) => {
+          const key = restaurant.city.toLocaleLowerCase("sv");
+          if (!cityGroups.has(key)) cityGroups.set(key, { city: restaurant.city, items: [] });
+          cityGroups.get(key).items.push(restaurant);
+        });
+        const cities = [...cityGroups.values()].sort((a, b) => b.items.length - a.items.length || a.city.localeCompare(b.city, "sv"));
+        const city = cities[0] ? module(`I ${cities[0].city}`, "local", cities[0].items, 3, "default", `city:${cities[0].city}`) : null;
+
+        return { selected, sponsor, fastest, zeroFee, quality, cuisines: cuisineModules, city };
+      }
+
+      function firstAvailable(...modules) {
+        return modules.find((module) => module?.items?.length) || null;
+      }
+
+      function cuisineAt(modules, index = 0) {
+        return modules.cuisines.length ? modules.cuisines[index % modules.cuisines.length] : null;
+      }
+
+      function stackCards(restaurants, type, context = "default") {
+        return `<div class="stack">${restaurants.map((restaurant, index) => restaurantCard(restaurant, type, index, context)).join("")}<div class="empty-state" data-search-empty hidden>Inga restauranger matchar sökningen.</div></div>`;
+      }
+
+      function gridCards(restaurants, context = "default") {
+        return `<div class="tile-grid">${restaurants.map((restaurant, index) => restaurantCard(restaurant, "tile", index, context)).join("")}<div class="empty-state" data-search-empty hidden>Inga restauranger matchar sökningen.</div></div>`;
+      }
+
+      function mediumRail(module) {
+        if (!module?.items?.length) return "";
+        return `${sectionHead(module.title)}<div class="horizontal-feed">${module.items.map((restaurant, index) => restaurantCard(restaurant, "medium", index, module.context)).join("")}</div>`;
+      }
+
+      function moduleGrid(module, limit = 4) {
+        if (!module?.items?.length) return "";
+        return `${sectionHead(module.title)}${gridCards(module.items.slice(0, limit), module.context)}`;
+      }
+
+      function renderBody(design, restaurants) {
+        if (!restaurants.length) return '<div class="empty-state">Inga restauranger matchar filtret.</div>';
+        if (state.cuisine) {
+          return `${searchBox()}${categoryGrid(state.restaurants)}${sectionHead(displayLabel(state.cuisine))}${stackCards(restaurants, "row")}${dealsBanner(false)}`;
+        }
+        const modules = buildDynamicModules(restaurants);
+        const cuisineOne = cuisineAt(modules, state.activeDesign);
+        const cuisineTwo = cuisineAt(modules, state.activeDesign + 1);
+        const fast = firstAvailable(modules.fastest, modules.selected);
+        const value = firstAvailable(modules.zeroFee, modules.quality, modules.selected);
+        const quality = firstAvailable(modules.quality, cuisineTwo, modules.selected);
+        const local = firstAvailable(modules.city, modules.selected);
+
+        switch (design.layout) {
+          case "medium-first":
+            return `${serviceToggle()}${searchBox()}${mediumRail(modules.selected)}${sponsorCard(modules.sponsor, design.sponsor)}${moduleGrid(firstAvailable(cuisineOne, quality), 2)}${dealsBanner(false)}`;
+          case "cuisine-first":
+            return `${searchBox()}${categoryGrid(state.restaurants)}${mediumRail(firstAvailable(cuisineOne, modules.selected))}${sponsorCard(modules.sponsor, design.sponsor)}${moduleGrid(quality, 2)}${dealsBanner(false)}`;
+          case "hero-first":
+            return `${sponsorCard(modules.sponsor, design.sponsor)}${searchBox()}${serviceToggle()}${mediumRail(modules.selected)}${dealsBanner(false)}${moduleGrid(quality, 2)}`;
+          case "fast-first":
+            return `${serviceToggle()}${searchBox()}${mediumRail(fast)}${sponsorCard(modules.sponsor, design.sponsor)}${moduleGrid(firstAvailable(cuisineOne, modules.selected), 2)}${dealsBanner(false)}`;
+          case "value-first":
+            return `${searchBox()}${quickFilters()}${moduleGrid(value, 2)}${dealsBanner(false)}${sponsorCard(modules.sponsor, design.sponsor)}${mediumRail(quality)}`;
+          case "daily-first":
+            return `${homeTitle("Utvalt idag")}${mediumRail(modules.selected)}${sponsorCard(modules.sponsor, design.sponsor)}${categoryGrid(state.restaurants)}${mediumRail(firstAvailable(cuisineOne, quality))}${dealsBanner(false)}`;
+          case "deals-first":
+            return `${dealsBanner(true)}${searchBox()}${serviceToggle()}${mediumRail(value)}${sponsorCard(modules.sponsor, design.sponsor)}${moduleGrid(firstAvailable(cuisineOne, modules.selected), 2)}`;
+          case "shortlist":
+            return `${serviceToggle()}${searchBox()}${moduleGrid({ ...modules.selected, title: "Börja här", items: modules.selected.items.slice(0, 2) }, 2)}${sponsorCard(modules.sponsor, design.sponsor)}${mediumRail(quality)}${dealsBanner(false)}`;
+          case "local-mix":
+            return `${searchBox()}${categoryGrid(state.restaurants)}${mediumRail(local)}${sponsorCard(modules.sponsor, design.sponsor)}${dealsBanner(false)}${moduleGrid(firstAvailable(cuisineOne, quality), 2)}`;
+          case "final-home":
+          default:
+            return `${searchBox()}${serviceToggle()}${mediumRail(modules.selected)}${sponsorCard(modules.sponsor, design.sponsor)}${moduleGrid(firstAvailable(cuisineOne, quality), 2)}${dealsBanner(false)}`;
+        }
+      }
+
+      function renderCurrent() {
+        const design = DESIGNS[state.activeDesign];
+        const restaurants = sortedRestaurants();
+        appMount.innerHTML = `
+          <section class="native-home tone-${escapeHtml(design.tone)}" id="design-panel-${state.activeDesign + 1}" role="tabpanel">
+            ${appHeader(design.header, ["medium-first", "cuisine-first", "fast-first", "final-home"].includes(design.layout))}
+            ${renderBody(design, restaurants)}
+            ${bottomNav()}
+          </section>
+        `;
+        activeDesignName.textContent = `${String(state.activeDesign + 1).padStart(2, "0")} · ${design.name}`;
+        designTabs.querySelectorAll("[role='tab']").forEach((tab, index) => tab.setAttribute("aria-selected", String(index === state.activeDesign)));
+        const activeTab = designTabs.querySelector(`[data-design="${state.activeDesign}"]`);
+        activeTab?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+      }
+
+      function renderTabs() {
+        designTabs.innerHTML = DESIGNS.map((design, index) => `
+          <button class="design-tab" type="button" role="tab" aria-selected="${index === state.activeDesign}" data-design="${index}">
+            <span>${String(index + 1).padStart(2, "0")}</span>${escapeHtml(design.name)}
+          </button>
+        `).join("");
+      }
+
+      function setDesign(index) {
+        if (!Number.isInteger(index) || index < 0 || index >= DESIGNS.length) return;
+        state.activeDesign = index;
+        state.sort = "default";
+        state.cuisine = "";
+        state.offset = 0;
+        history.pushState(null, "", `#design-${String(index + 1).padStart(2, "0")}`);
+        renderCurrent();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
+      function syncDesignFromLocation() {
+        const match = window.location.hash.match(/^#design-(\d{1,2})$/);
+        if (!match) return;
+        const index = Math.min(DESIGNS.length - 1, Math.max(0, Number(match[1]) - 1));
+        if (index === state.activeDesign) return;
+        state.activeDesign = index;
+        state.sort = "default";
+        state.cuisine = "";
+        state.offset = 0;
+        renderCurrent();
+        window.scrollTo({ top: 0 });
+      }
+
+      function filterVisibleCards(query) {
+        const normalized = query.trim().toLowerCase();
+        const cards = [...appMount.querySelectorAll("[data-search-card]")];
+        let visible = 0;
+        cards.forEach((card) => {
+          const show = !normalized || card.dataset.searchCard.includes(normalized);
+          card.hidden = !show;
+          if (show) visible += 1;
+        });
+        const empty = appMount.querySelector("[data-search-empty]");
+        if (empty) empty.hidden = visible !== 0;
+      }
+
+      function readCache() {
+        try {
+          const parsed = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+          if (!parsed || !Number.isFinite(parsed.savedAt) || !Array.isArray(parsed.items)) return [];
+          if (Date.now() - parsed.savedAt > CACHE_MAX_AGE) return [];
+          return normalizeList(parsed.items);
+        } catch {
+          return [];
+        }
+      }
+
+      function writeCache(restaurants) {
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify({ savedAt: Date.now(), items: restaurants }));
+        } catch {
+          // Apphemmet fungerar utan localStorage.
+        }
+      }
+
+      function setApiStatus(source, count) {
+        apiStatus.classList.toggle("is-live", source === "live");
+        apiStatus.textContent = source === "live" ? `Live API · ${count}` : source === "cache" ? `Senaste API · ${count}` : `Verifierad reserv · ${count}`;
+      }
+
+      async function loadRestaurants() {
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 12000);
+        try {
+          const response = await fetch(API_URL, {
+            method: "GET",
+            mode: "cors",
+            credentials: "omit",
+            headers: { Accept: "application/json" },
+            signal: controller.signal
+          });
+          if (!response.ok) throw new Error(`API ${response.status}`);
+          const payload = await response.json();
+          const restaurants = normalizeList(payload);
+          if (!restaurants.length) throw new Error("Tom restauranglista");
+          state.restaurants = restaurants;
+          state.source = "live";
+          writeCache(restaurants);
+          renderCurrent();
+          setApiStatus("live", restaurants.length);
+        } catch (error) {
+          const cached = readCache();
+          if (cached.length) {
+            state.restaurants = cached;
+            state.source = "cache";
+            renderCurrent();
+            setApiStatus("cache", cached.length);
+          } else {
+            state.restaurants = normalizeList(VERIFIED_SNAPSHOT);
+            state.source = "snapshot";
+            renderCurrent();
+            setApiStatus("snapshot", state.restaurants.length);
+          }
+          console.info("ViaEats API kunde inte nås; senast verifierade restauranger visas.", error);
+        } finally {
+          window.clearTimeout(timeout);
+        }
+      }
+
+      designTabs.addEventListener("click", (event) => {
+        const tab = event.target.closest("[data-design]");
+        if (!tab) return;
+        setDesign(Number(tab.dataset.design));
+      });
+
+      appMount.addEventListener("input", (event) => {
+        if (!event.target.matches("[data-search-input]")) return;
+        filterVisibleCards(event.target.value);
+      });
+
+      appMount.addEventListener("click", (event) => {
+        const sort = event.target.closest("[data-sort]");
+        if (sort) {
+          state.sort = sort.dataset.sort;
+          renderCurrent();
+          return;
+        }
+
+        const cuisine = event.target.closest("[data-cuisine]");
+        if (cuisine) {
+          state.cuisine = state.cuisine === cuisine.dataset.cuisine ? "" : cuisine.dataset.cuisine;
+          renderCurrent();
+          return;
+        }
+
+        const service = event.target.closest("[data-service]");
+        if (service) {
+          appMount.querySelectorAll("[data-service]").forEach((button) => button.classList.toggle("is-active", button === service));
+          showToast(service.dataset.service === "pickup" ? "Hämta själv valt i prototypen." : "Leverans valt.");
+          return;
+        }
+
+        if (event.target.closest("[data-deals]")) {
+          showToast("Här öppnas den nya Deals-sidan i appen.");
+          return;
+        }
+
+        if (event.target.closest("[data-rotate]")) {
+          state.offset += 2;
+          renderCurrent();
+          return;
+        }
+
+        const nav = event.target.closest("[data-nav]");
+        if (nav) {
+          showToast(`${nav.dataset.nav} öppnas här i appen.`);
+          return;
+        }
+
+        const action = event.target.closest("[data-action]");
+        if (action) {
+          if (action.dataset.action === "all" && state.cuisine) {
+            state.cuisine = "";
+            renderCurrent();
+            return;
+          }
+          showToast(action.dataset.action === "address" ? "Välj leveransadress." : "Öppnas i den riktiga appen.");
+        }
+      });
+
+      document.addEventListener("error", (event) => {
+        if (!(event.target instanceof HTMLImageElement)) return;
+        event.target.hidden = true;
+        event.target.parentElement?.classList.add("is-fallback");
+      }, true);
+
+      window.addEventListener("hashchange", syncDesignFromLocation);
+      window.addEventListener("popstate", syncDesignFromLocation);
+
+      const hashMatch = window.location.hash.match(/^#design-(\d{1,2})$/);
+      if (hashMatch) state.activeDesign = Math.min(DESIGNS.length - 1, Math.max(0, Number(hashMatch[1]) - 1));
+      if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+      window.scrollTo(0, 0);
+
+      const cached = readCache();
+      state.restaurants = cached.length ? cached : normalizeList(VERIFIED_SNAPSHOT);
+      state.source = cached.length ? "cache" : "snapshot";
+      renderTabs();
+      renderCurrent();
+      setApiStatus(state.source, state.restaurants.length);
+      loadRestaurants();
+    })();
+  </script>
+</body>
+</html>

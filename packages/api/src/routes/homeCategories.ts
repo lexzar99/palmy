@@ -7,14 +7,29 @@ import {
   ensureDefaultHomeCategorySections,
   isHomeCategoryVisibleNow,
   normalizeHomeCategoryFilters,
+  normalizeHomeCategoryPresentation,
+  normalizeHomeCategoryRanking,
   normalizeHomeCategorySchedule,
   serializeHomeCategorySection,
+  toPublicHomeCategorySection,
 } from '../lib/homeCategorySections';
-import { cached } from '../lib/ttlCache';
+import { bustCache, cached } from '../lib/ttlCache';
+import { loadHomeCategoryFeed } from '../lib/homeCategoryFeed';
 
 const router = Router();
 // Defaults are idempotent and only need creating once per process.
 let homeDefaultsEnsured = false;
+
+async function assertActiveTagIds(tagIds: string[] | undefined) {
+  if (!tagIds?.length) return;
+  const uniqueIds = [...new Set(tagIds)];
+  const count = await prisma.restaurantTag.count({
+    where: { id: { in: uniqueIds }, isActive: true },
+  });
+  if (count !== uniqueIds.length) {
+    throw new TypeError('En eller flera valda taggar finns inte eller är inaktiva');
+  }
+}
 
 const homeCategorySchema = z.object({
   title: z.string().min(2),
@@ -34,6 +49,7 @@ const homeCategorySchema = z.object({
     .object({
       searchTerm: z.string().nullable().optional(),
       cuisines: z.array(z.string()).optional(),
+      tagIds: z.array(z.string()).optional(),
       tags: z.array(z.string()).optional(),
       featuredClasses: z.array(z.number()).optional(),
       minRating: z.number().nullable().optional(),
@@ -42,7 +58,17 @@ const homeCategorySchema = z.object({
       freeDeliveryOnly: z.boolean().optional(),
       dealsOnly: z.boolean().optional(),
       openNowOnly: z.boolean().optional(),
-      sortBy: z.enum(['FEATURED', 'RATING', 'ETA', 'NAME']).optional(),
+      sortBy: z.enum([
+        'SMART',
+        'FEATURED',
+        'ORDERS_TODAY',
+        'ORDERS_7D',
+        'RATING',
+        'ETA',
+        'DELIVERY_FEE',
+        'DISCOUNT',
+        'NAME',
+      ]).optional(),
       sortDirection: z.enum(['ASC', 'DESC']).optional(),
     })
     .optional(),
@@ -54,6 +80,57 @@ const homeCategorySchema = z.object({
       endTime: z.string().nullable().optional(),
     })
     .optional(),
+  presentation: z
+    .object({
+      layout: z.enum(['MEDIUM_RAIL', 'LARGE_RAIL', 'GRID']).optional(),
+      accent: z.enum(['ORANGE', 'BLUE', 'GREEN', 'PURPLE', 'NAVY']).optional(),
+      accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
+      backgroundColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
+      icon: z.string().max(40).nullable().optional(),
+    })
+    .optional(),
+  ranking: z
+    .object({
+      strategy: z.enum(['WEIGHTED', 'BALANCED']).optional(),
+      weights: z
+        .object({
+          ordersToday: z.number().min(0).max(100).optional(),
+          orders7d: z.number().min(0).max(100).optional(),
+          eta: z.number().min(0).max(100).optional(),
+          ratingConfidence: z.number().min(0).max(100).optional(),
+          deliveryFee: z.number().min(0).max(100).optional(),
+          freeDelivery: z.number().min(0).max(100).optional(),
+          discount: z.number().min(0).max(100).optional(),
+          tier: z.number().min(0).max(25).optional(),
+          dailyRotation: z.number().min(0).max(10).optional(),
+        })
+        .optional(),
+      avoidDuplicateFirst: z.boolean().optional(),
+      appearancePenalty: z.number().min(0).max(30).optional(),
+      maxAdminBoostPoints: z.number().min(0).max(15).optional(),
+    })
+    .optional(),
+});
+
+router.get('/feed', async (req, res) => {
+  try {
+    if (!homeDefaultsEnsured) {
+      await ensureDefaultHomeCategorySections();
+      homeDefaultsEnsured = true;
+    }
+    const city = typeof req.query.city === 'string' ? req.query.city.trim().slice(0, 80) : '';
+    // Zone är en opak, grov leveranskontext (t.ex. postnummer/zonslug), aldrig
+    // en full adress. Den används bara för deterministisk dagsrotation.
+    const zone = typeof req.query.zone === 'string' ? req.query.zone.trim().slice(0, 40) : '';
+    const cacheKey = `${city.toLocaleLowerCase('sv')}|${zone.toLocaleLowerCase('sv')}`;
+    const payload = await cached('home:feed', cacheKey, 20_000, () =>
+      loadHomeCategoryFeed({ city: city || null, zone: zone || null }),
+    );
+    res.json(payload);
+  } catch (error) {
+    console.error('home categories feed error', error);
+    res.status(500).json({ error: 'Kunde inte hämta hemskärmsflödet' });
+  }
 });
 
 router.get('/', async (_req, res) => {
@@ -73,7 +150,9 @@ router.get('/', async (_req, res) => {
       return rows.map(serializeHomeCategorySection);
     });
 
-    const payload = sections.filter((section) => isHomeCategoryVisibleNow(section.schedule));
+    const payload = sections
+      .filter((section) => isHomeCategoryVisibleNow(section.schedule))
+      .map(toPublicHomeCategorySection);
 
     res.json(payload);
   } catch (error) {
@@ -98,6 +177,7 @@ router.get('/all', authenticate, requireSuperAdmin, async (_req, res) => {
 router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
   try {
     const body = homeCategorySchema.parse(req.body);
+    await assertActiveTagIds(body.filters?.tagIds);
     const row = await prisma.homeCategorySection.create({
       data: {
         title: body.title.trim(),
@@ -114,8 +194,12 @@ router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
         manualRestaurantIds: JSON.stringify(body.manualRestaurantIds || []),
         filters: JSON.stringify(normalizeHomeCategoryFilters(body.filters)),
         schedule: JSON.stringify(normalizeHomeCategorySchedule(body.schedule)),
+        presentation: JSON.stringify(normalizeHomeCategoryPresentation(body.presentation)),
+        ranking: JSON.stringify(normalizeHomeCategoryRanking(body.ranking)),
       },
     });
+    bustCache('home:categories');
+    bustCache('home:feed');
     res.json(serializeHomeCategorySection(row));
   } catch (error: any) {
     console.error('home categories create error', error);
@@ -132,6 +216,7 @@ router.patch('/:id', authenticate, requireSuperAdmin, async (req, res) => {
     }
 
     const body = homeCategorySchema.partial().parse(req.body);
+    await assertActiveTagIds(body.filters?.tagIds);
 
     const row = await prisma.homeCategorySection.update({
       where: { id: req.params.id },
@@ -150,9 +235,17 @@ router.patch('/:id', authenticate, requireSuperAdmin, async (req, res) => {
         manualRestaurantIds: body.manualRestaurantIds ? JSON.stringify(body.manualRestaurantIds) : existing.manualRestaurantIds,
         filters: body.filters ? JSON.stringify(normalizeHomeCategoryFilters(body.filters)) : existing.filters,
         schedule: body.schedule ? JSON.stringify(normalizeHomeCategorySchedule(body.schedule)) : existing.schedule,
+        presentation: body.presentation
+          ? JSON.stringify(normalizeHomeCategoryPresentation(body.presentation))
+          : existing.presentation,
+        ranking: body.ranking
+          ? JSON.stringify(normalizeHomeCategoryRanking(body.ranking))
+          : existing.ranking,
       },
     });
 
+    bustCache('home:categories');
+    bustCache('home:feed');
     res.json(serializeHomeCategorySection(row));
   } catch (error: any) {
     console.error('home categories update error', error);
@@ -163,6 +256,8 @@ router.patch('/:id', authenticate, requireSuperAdmin, async (req, res) => {
 router.delete('/:id', authenticate, requireSuperAdmin, async (req, res) => {
   try {
     await prisma.homeCategorySection.delete({ where: { id: req.params.id } });
+    bustCache('home:categories');
+    bustCache('home:feed');
     res.json({ ok: true });
   } catch (error) {
     console.error('home categories delete error', error);

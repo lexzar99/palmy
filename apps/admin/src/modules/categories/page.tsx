@@ -6,15 +6,22 @@ import { ChevronDown, ChevronRight, ChevronUp, Eye, EyeOff, Filter, GripVertical
 import { getPlatformSettings, platformSettingsQueryKey, updatePlatformSettings } from "@/modules/platform-settings/api";
 import {
   categoriesQueryKey,
+  createRestaurantTag,
   createCategory,
   deleteCategory,
   getCategories,
+  getRestaurantTags,
+  restaurantTagsQueryKey,
+  updateRestaurantTag,
   updateCategory,
   type HomeCategoryFilterMode,
   type HomeCategoryPayload,
   type HomeCategorySection,
   type HomeCategorySortBy,
   type HomeCategorySortDirection,
+  type HomeCategoryAccent,
+  type HomeCategoryLayout,
+  type HomeCategoryRankingStrategy,
 } from "@/modules/categories/api";
 import { getRestaurantOverview } from "@/modules/restaurants/api";
 import {
@@ -61,7 +68,8 @@ type FormState = {
   manualRestaurantIds: string[];
   searchTerm: string;
   cuisines: string;
-  tags: string;
+  tagIds: string[];
+  legacyTags: string[];
   featuredClasses: number[];
   minRating: string;
   maxEtaMinutes: string;
@@ -71,6 +79,23 @@ type FormState = {
   openNowOnly: boolean;
   sortBy: HomeCategorySortBy;
   sortDirection: HomeCategorySortDirection;
+  layout: HomeCategoryLayout;
+  accent: HomeCategoryAccent;
+  accentColor: string;
+  backgroundColor: string;
+  rankingStrategy: HomeCategoryRankingStrategy;
+  ordersTodayWeight: number;
+  orders7dWeight: number;
+  etaWeight: number;
+  ratingWeight: number;
+  deliveryFeeWeight: number;
+  freeDeliveryWeight: number;
+  discountWeight: number;
+  tierWeight: number;
+  dailyRotationWeight: number;
+  avoidDuplicateFirst: boolean;
+  appearancePenalty: number;
+  maxAdminBoostPoints: number;
   scheduleEnabled: boolean;
   daysOfWeek: number[];
   startTime: string;
@@ -92,7 +117,8 @@ const emptyForm = (): FormState => ({
   manualRestaurantIds: [],
   searchTerm: "",
   cuisines: "",
-  tags: "",
+  tagIds: [],
+  legacyTags: [],
   featuredClasses: [],
   minRating: "",
   maxEtaMinutes: "",
@@ -102,6 +128,23 @@ const emptyForm = (): FormState => ({
   openNowOnly: false,
   sortBy: "FEATURED",
   sortDirection: "DESC",
+  layout: "MEDIUM_RAIL",
+  accent: "ORANGE",
+  accentColor: "",
+  backgroundColor: "",
+  rankingStrategy: "WEIGHTED",
+  ordersTodayWeight: 28,
+  orders7dWeight: 12,
+  etaWeight: 16,
+  ratingWeight: 16,
+  deliveryFeeWeight: 7,
+  freeDeliveryWeight: 5,
+  discountWeight: 8,
+  tierWeight: 5,
+  dailyRotationWeight: 3,
+  avoidDuplicateFirst: true,
+  appearancePenalty: 6,
+  maxAdminBoostPoints: 8,
   scheduleEnabled: false,
   daysOfWeek: [],
   startTime: "",
@@ -129,7 +172,8 @@ const sectionToForm = (section: HomeCategorySection): FormState => ({
   manualRestaurantIds: section.manualRestaurantIds || [],
   searchTerm: section.filters.searchTerm || "",
   cuisines: (section.filters.cuisines || []).join(", "),
-  tags: (section.filters.tags || []).join(", "),
+  tagIds: section.filters.tagIds || [],
+  legacyTags: section.filters.tags || [],
   featuredClasses: section.filters.featuredClasses || [],
   minRating: section.filters.minRating != null ? String(section.filters.minRating) : "",
   maxEtaMinutes: section.filters.maxEtaMinutes != null ? String(section.filters.maxEtaMinutes) : "",
@@ -139,6 +183,23 @@ const sectionToForm = (section: HomeCategorySection): FormState => ({
   openNowOnly: Boolean(section.filters.openNowOnly),
   sortBy: section.filters.sortBy || "FEATURED",
   sortDirection: section.filters.sortDirection || "DESC",
+  layout: section.presentation?.layout || "MEDIUM_RAIL",
+  accent: section.presentation?.accent || "ORANGE",
+  accentColor: section.presentation?.accentColor || "",
+  backgroundColor: section.presentation?.backgroundColor || "",
+  rankingStrategy: section.ranking?.strategy || "WEIGHTED",
+  ordersTodayWeight: section.ranking?.weights?.ordersToday ?? 28,
+  orders7dWeight: section.ranking?.weights?.orders7d ?? 12,
+  etaWeight: section.ranking?.weights?.eta ?? 16,
+  ratingWeight: section.ranking?.weights?.ratingConfidence ?? 16,
+  deliveryFeeWeight: section.ranking?.weights?.deliveryFee ?? 7,
+  freeDeliveryWeight: section.ranking?.weights?.freeDelivery ?? 5,
+  discountWeight: section.ranking?.weights?.discount ?? 8,
+  tierWeight: section.ranking?.weights?.tier ?? 5,
+  dailyRotationWeight: section.ranking?.weights?.dailyRotation ?? 3,
+  avoidDuplicateFirst: section.ranking?.avoidDuplicateFirst !== false,
+  appearancePenalty: section.ranking?.appearancePenalty ?? 6,
+  maxAdminBoostPoints: section.ranking?.maxAdminBoostPoints ?? 8,
   scheduleEnabled: Boolean(section.schedule.enabled),
   daysOfWeek: section.schedule.daysOfWeek || [],
   startTime: section.schedule.startTime || "",
@@ -161,7 +222,8 @@ const formToPayload = (form: FormState): HomeCategoryPayload => ({
   filters: {
     searchTerm: form.searchTerm.trim() || null,
     cuisines: splitCsv(form.cuisines),
-    tags: splitCsv(form.tags),
+    tagIds: form.tagIds,
+    tags: form.tagIds.length ? [] : form.legacyTags,
     featuredClasses: form.featuredClasses,
     minRating: form.minRating.trim() === "" ? null : Number(form.minRating),
     maxEtaMinutes: form.maxEtaMinutes.trim() === "" ? null : Number(form.maxEtaMinutes),
@@ -177,6 +239,29 @@ const formToPayload = (form: FormState): HomeCategoryPayload => ({
     daysOfWeek: form.daysOfWeek,
     startTime: form.startTime || null,
     endTime: form.endTime || null,
+  },
+  presentation: {
+    layout: form.layout,
+    accent: form.accent,
+    accentColor: form.accentColor || null,
+    backgroundColor: form.backgroundColor || null,
+  },
+  ranking: {
+    strategy: form.rankingStrategy,
+    weights: {
+      ordersToday: form.ordersTodayWeight,
+      orders7d: form.orders7dWeight,
+      eta: form.etaWeight,
+      ratingConfidence: form.ratingWeight,
+      deliveryFee: form.deliveryFeeWeight,
+      freeDelivery: form.freeDeliveryWeight,
+      discount: form.discountWeight,
+      tier: form.tierWeight,
+      dailyRotation: form.dailyRotationWeight,
+    },
+    avoidDuplicateFirst: form.avoidDuplicateFirst,
+    appearancePenalty: form.appearancePenalty,
+    maxAdminBoostPoints: form.maxAdminBoostPoints,
   },
 });
 
@@ -197,6 +282,11 @@ function CategoryEditorModal({
   const restaurantsQuery = useQuery({
     queryKey: ["categories", "restaurants"],
     queryFn: getRestaurantOverview,
+    enabled: open,
+  });
+  const tagsQuery = useQuery({
+    queryKey: restaurantTagsQueryKey,
+    queryFn: getRestaurantTags,
     enabled: open,
   });
 
@@ -255,6 +345,15 @@ function CategoryEditorModal({
       manualRestaurantIds: current.manualRestaurantIds.includes(restaurantId)
         ? current.manualRestaurantIds.filter((entry) => entry !== restaurantId)
         : [...current.manualRestaurantIds, restaurantId],
+    }));
+
+  const toggleTag = (tagId: string) =>
+    setForm((current) => ({
+      ...current,
+      tagIds: current.tagIds.includes(tagId)
+        ? current.tagIds.filter((id) => id !== tagId)
+        : [...current.tagIds, tagId],
+      legacyTags: [],
     }));
 
   const filteredRestaurants = useMemo(() => {
@@ -393,6 +492,135 @@ function CategoryEditorModal({
         </div>
 
         <div className="surface-muted px-5 py-5">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">
+            Utseende
+          </p>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <Field label="Kortlayout">
+              <Select
+                value={form.layout}
+                onChange={(event) => setForm((current) => ({ ...current, layout: event.target.value as HomeCategoryLayout }))}
+              >
+                <option value="MEDIUM_RAIL">Medium rail</option>
+                <option value="LARGE_RAIL">Stor rail</option>
+                <option value="GRID">Grid</option>
+              </Select>
+            </Field>
+            <Field label="Accent">
+              <Select
+                value={form.accent}
+                onChange={(event) => setForm((current) => ({ ...current, accent: event.target.value as HomeCategoryAccent }))}
+              >
+                <option value="ORANGE">Orange (primär)</option>
+                <option value="BLUE">Blå</option>
+                <option value="GREEN">Grön</option>
+                <option value="PURPLE">Lila</option>
+                <option value="NAVY">Navy</option>
+              </Select>
+            </Field>
+            <Field label="Egen accentfärg" hint="Valfri hex, t.ex. #FF6B00">
+              <Input
+                type="color"
+                value={form.accentColor || "#FF6B00"}
+                onChange={(event) => setForm((current) => ({ ...current, accentColor: event.target.value }))}
+              />
+            </Field>
+            <Field label="Bakgrundsfärg" hint="Valfri hex">
+              <Input
+                type="color"
+                value={form.backgroundColor || "#FFF7F0"}
+                onChange={(event) => setForm((current) => ({ ...current, backgroundColor: event.target.value }))}
+              />
+            </Field>
+          </div>
+        </div>
+
+        <div className="surface-muted px-5 py-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                Rankingmotor
+              </p>
+              <p className="mt-2 max-w-2xl text-xs text-[var(--text-secondary)]">
+                Vikterna påverkar ordningen, aldrig vilka restauranger som klarar filterreglerna.
+                Adminboost är tidsbegränsad och kan bidra med högst angivet antal poäng.
+              </p>
+            </div>
+            <Button
+              variant={form.avoidDuplicateFirst ? "primary" : "secondary"}
+              onClick={() => setForm((current) => ({ ...current, avoidDuplicateFirst: !current.avoidDuplicateFirst }))}
+            >
+              {form.avoidDuplicateFirst ? "Unik etta på" : "Unik etta av"}
+            </Button>
+          </div>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
+            <Field label="Strategi">
+              <Select
+                value={form.rankingStrategy}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    rankingStrategy: event.target.value as HomeCategoryRankingStrategy,
+                  }))
+                }
+              >
+                <option value="WEIGHTED">Viktad poäng</option>
+                <option value="BALANCED">Balanserad: populär + snabb + kvalitet</option>
+              </Select>
+            </Field>
+            <Field label="Repetitionsavdrag">
+              <Input
+                type="number"
+                min={0}
+                max={30}
+                value={form.appearancePenalty}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, appearancePenalty: Number(event.target.value || 0) }))
+                }
+              />
+            </Field>
+            <Field label="Max adminboost-poäng">
+              <Input
+                type="number"
+                min={0}
+                max={15}
+                value={form.maxAdminBoostPoints}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, maxAdminBoostPoints: Number(event.target.value || 0) }))
+                }
+              />
+            </Field>
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {([
+              ["ordersTodayWeight", "Ordrar idag", 100],
+              ["orders7dWeight", "Ordrar 7 dagar", 100],
+              ["etaWeight", "Snabbhet", 100],
+              ["ratingWeight", "Betyg + antal omdömen", 100],
+              ["deliveryFeeWeight", "Låg grundavgift", 100],
+              ["freeDeliveryWeight", "Fri leverans", 100],
+              ["discountWeight", "Aktiv rabatt", 100],
+              ["tierWeight", "Tier", 25],
+              ["dailyRotationWeight", "Daglig rotation", 10],
+            ] as const).map(([key, label, max]) => (
+              <Field key={key} label={label}>
+                <Input
+                  type="number"
+                  min={0}
+                  max={max}
+                  value={form[key]}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, [key]: Number(event.target.value || 0) }))
+                  }
+                />
+              </Field>
+            ))}
+          </div>
+        </div>
+
+        <div className="surface-muted px-5 py-5">
           <div className="flex items-center justify-between gap-3">
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Filterregler</p>
             <Filter size={16} className="text-[var(--accent-strong)]" />
@@ -413,13 +641,45 @@ function CategoryEditorModal({
                 placeholder="Pizza, Sushi"
               />
             </Field>
-            <Field label="Tags (kommaseparerat)">
-              <Input
-                value={form.tags}
-                onChange={(event) => setForm((current) => ({ ...current, tags: event.target.value }))}
-                placeholder="Halal, Burgare"
-              />
-            </Field>
+            <div className="md:col-span-2">
+              <p className="field-label mb-2">Restaurangtaggar</p>
+              <p className="mb-3 text-xs text-[var(--text-muted)]">
+                Val från den centrala katalogen. En restaurang behöver minst en av de valda taggarna.
+              </p>
+              {tagsQuery.isLoading ? (
+                <p className="text-sm text-[var(--text-secondary)]">Hämtar taggar...</p>
+              ) : tagsQuery.data?.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {tagsQuery.data.filter((tag) => tag.isActive).map((tag) => {
+                    const active = form.tagIds.includes(tag.id);
+                    return (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={() => toggleTag(tag.id)}
+                        className={`min-h-10 rounded-full border px-4 text-sm font-extrabold transition-colors ${
+                          active
+                            ? "border-transparent text-white"
+                            : "border-[var(--border-subtle)] bg-[var(--surface)] text-[var(--text-secondary)]"
+                        }`}
+                        style={active ? { backgroundColor: tag.color } : undefined}
+                      >
+                        {tag.name} <span className="opacity-70">({tag.restaurantCount})</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Skapa taggar i Taggkatalogen på kategorisidan först.
+                </p>
+              )}
+              {form.legacyTags.length && !form.tagIds.length ? (
+                <p className="mt-3 text-xs font-bold text-[var(--warning-text)]">
+                  Legacy-filter bevaras tills du väljer en katalogtagg: {form.legacyTags.join(", ")}
+                </p>
+              ) : null}
+            </div>
             <Field label="Sortera efter">
               <div className="flex gap-2">
                 <Select
@@ -428,9 +688,14 @@ function CategoryEditorModal({
                     setForm((current) => ({ ...current, sortBy: event.target.value as HomeCategorySortBy }))
                   }
                 >
-                  <option value="FEATURED">Featured</option>
+                  <option value="SMART">Smart mix</option>
+                  <option value="FEATURED">Tier</option>
+                  <option value="ORDERS_TODAY">Ordrar idag</option>
+                  <option value="ORDERS_7D">Ordrar 7 dagar</option>
                   <option value="RATING">Betyg</option>
                   <option value="ETA">ETA</option>
+                  <option value="DELIVERY_FEE">Leveransavgift</option>
+                  <option value="DISCOUNT">Rabatt</option>
                   <option value="NAME">Namn</option>
                 </Select>
                 <Select
@@ -718,6 +983,7 @@ export function CategoriesPage({ embedded = false }: { embedded?: boolean }) {
       )}
 
       <DiscountedRailToggle />
+      <TagCatalogPanel />
 
       <div className="grid gap-4 lg:grid-cols-[1.55fr_1fr]">
         <Surface className="overflow-hidden">
@@ -856,6 +1122,100 @@ function filterModeLabel(mode: HomeCategoryFilterMode): string {
   if (mode === "MANUAL") return "Manuellt val";
   if (mode === "HYBRID") return "Hybrid";
   return "Auto-rail";
+}
+
+function TagCatalogPanel() {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState("");
+  const [color, setColor] = useState("#FF6B00");
+  const tags = useQuery({ queryKey: restaurantTagsQueryKey, queryFn: getRestaurantTags });
+
+  const createMutation = useMutation({
+    mutationFn: () => createRestaurantTag({ name: name.trim(), color }),
+    onSuccess: async () => {
+      setName("");
+      await queryClient.invalidateQueries({ queryKey: restaurantTagsQueryKey });
+    },
+  });
+  const updateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: { color?: string; isActive?: boolean } }) =>
+      updateRestaurantTag(id, payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: restaurantTagsQueryKey });
+      void queryClient.invalidateQueries({ queryKey: categoriesQueryKey });
+    },
+  });
+
+  return (
+    <Surface className="px-6 py-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h2 className="text-[15px] font-extrabold tracking-[-0.3px]">Taggkatalog</h2>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">
+            Dessa val används som chips på restauranger, i sök och i dynamiska hemskärmsrails.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <Field label="Ny tagg">
+            <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="t.ex. Asiatiskt" />
+          </Field>
+          <Input
+            aria-label="Taggfärg"
+            type="color"
+            className="!h-11 !w-14 !px-1"
+            value={color}
+            onChange={(event) => setColor(event.target.value)}
+          />
+          <Button
+            variant="primary"
+            disabled={name.trim().length < 2 || createMutation.isPending}
+            onClick={() => createMutation.mutate()}
+          >
+            {createMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+            Lägg till
+          </Button>
+        </div>
+      </div>
+
+      {tags.isLoading ? (
+        <p className="mt-4 text-sm text-[var(--text-secondary)]">Hämtar taggar...</p>
+      ) : tags.data?.length ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {tags.data.map((tag) => (
+            <div
+              key={tag.id}
+              className={`flex min-h-11 items-center gap-2 rounded-full border px-2 pl-4 ${
+                tag.isActive ? "border-[var(--border-subtle)]" : "border-dashed opacity-55"
+              }`}
+            >
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: tag.color }} />
+              <span className="text-sm font-extrabold">{tag.name}</span>
+              <span className="text-xs text-[var(--text-muted)]">{tag.restaurantCount}</span>
+              <input
+                aria-label={`Färg för ${tag.name}`}
+                type="color"
+                className="h-7 w-7 cursor-pointer rounded-full border-0 bg-transparent p-0"
+                value={tag.color}
+                onChange={(event) => updateMutation.mutate({ id: tag.id, payload: { color: event.target.value } })}
+              />
+              <button
+                type="button"
+                className="min-h-8 rounded-full px-3 text-xs font-black"
+                onClick={() => updateMutation.mutate({ id: tag.id, payload: { isActive: !tag.isActive } })}
+              >
+                {tag.isActive ? "Aktiv" : "Inaktiv"}
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-4 text-sm text-[var(--text-secondary)]">Inga taggar ännu.</p>
+      )}
+      {createMutation.isError || updateMutation.isError ? (
+        <p className="mt-3 text-sm font-bold text-[var(--danger-text)]">Taggen kunde inte sparas.</p>
+      ) : null}
+    </Surface>
+  );
 }
 
 // Toggle för "Rea & Rabatter"-sektionen på hem-sidan i web.

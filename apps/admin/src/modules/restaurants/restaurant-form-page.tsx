@@ -69,6 +69,7 @@ import { NotesPanel } from "@/shared/components/notes-panel";
 import { CompanyLookup } from "@/modules/restaurants/company-lookup";
 import type { CompanyLookupResult } from "@/modules/restaurants/api";
 import { getRestaurantDevices } from "@/modules/restaurant-devices/api";
+import { getPublicRestaurantTags, restaurantTagsQueryKey } from "@/modules/categories/api";
 import GooglePlacesInput from "@/shared/components/google-places-input";
 import { AcceptingOrdersModeToggle, RestaurantAvailabilitySummary } from "@/shared/components/restaurant-availability";
 import { useToast } from "@/shared/components/toast";
@@ -149,6 +150,8 @@ type FormState = {
   openingHours: HoursForm; logoutCode: string;
   announcementText: string; vatPercent: string;
   selfDelivery: boolean; commissionPctOverride: string;
+  tagIds: string[];
+  homeBoost: string; homeBoostStartsAt: string; homeBoostEndsAt: string;
 };
 
 const emptyForm: FormState = {
@@ -164,6 +167,8 @@ const emptyForm: FormState = {
   openingHours: buildDefaultHours(), logoutCode: "",
   announcementText: "", vatPercent: "6",
   selfDelivery: false, commissionPctOverride: "",
+  tagIds: [],
+  homeBoost: "0", homeBoostStartsAt: "", homeBoostEndsAt: "",
 };
 
 const mapDetailToForm = (d: RestaurantDetail): FormState => ({
@@ -193,6 +198,10 @@ const mapDetailToForm = (d: RestaurantDetail): FormState => ({
   vatPercent: (d as any).vatPercent != null ? String((d as any).vatPercent) : "6",
   selfDelivery: (d as any).selfDelivery ?? false,
   commissionPctOverride: (d as any).commissionPctOverride != null ? String((d as any).commissionPctOverride) : "",
+  tagIds: d.tagIds || [],
+  homeBoost: String(d.homeBoost ?? 0),
+  homeBoostStartsAt: toLocalDateTimeValue(d.homeBoostStartsAt),
+  homeBoostEndsAt: toLocalDateTimeValue(d.homeBoostEndsAt),
 });
 
 const mapFormToPayload = (f: FormState): RestaurantFormPayload => ({
@@ -229,6 +238,7 @@ const mapFormToPayload = (f: FormState): RestaurantFormPayload => ({
   vatPercent: f.vatPercent ? Number(f.vatPercent) : null,
   selfDelivery: f.selfDelivery,
   commissionPctOverride: f.commissionPctOverride.trim() === "" ? null : Number(f.commissionPctOverride),
+  tagIds: f.tagIds,
 });
 
 const detailQueryKey = (id: string | null) => ["restaurants", "detail", id] as const;
@@ -240,6 +250,46 @@ function SectionIcon({ children }: { children: React.ReactNode }) {
     <span className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[10px] bg-[var(--brand-navy-soft)] text-[var(--brand-navy-ink)]">
       {children}
     </span>
+  );
+}
+
+function RestaurantTagPicker({
+  tags,
+  selected,
+  loading,
+  onToggle,
+}: {
+  tags: Array<{ id: string; name: string; color: string; isActive: boolean; restaurantCount: number }>;
+  selected: string[];
+  loading: boolean;
+  onToggle: (tagId: string) => void;
+}) {
+  if (loading) return <p className="text-sm text-[var(--text-muted)]">Hämtar taggar...</p>;
+  const activeTags = tags.filter((tag) => tag.isActive);
+  if (!activeTags.length) {
+    return <p className="text-sm text-[var(--text-muted)]">Skapa taggar på Kategorier-sidan först.</p>;
+  }
+  return (
+    <div className="flex flex-wrap gap-2">
+      {activeTags.map((tag) => {
+        const active = selected.includes(tag.id);
+        return (
+          <button
+            key={tag.id}
+            type="button"
+            onClick={() => onToggle(tag.id)}
+            className={`min-h-10 rounded-full border px-4 text-sm font-extrabold transition-colors ${
+              active
+                ? "border-transparent text-white shadow-sm"
+                : "border-[var(--border-subtle)] bg-[var(--surface)] text-[var(--text-secondary)]"
+            }`}
+            style={active ? { backgroundColor: tag.color } : undefined}
+          >
+            {tag.name}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -383,6 +433,10 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
     queryFn: () => getRestaurantDetail(restaurantId!),
     enabled: Boolean(restaurantId),
   });
+  const restaurantTags = useQuery({
+    queryKey: [...restaurantTagsQueryKey, "public"],
+    queryFn: getPublicRestaurantTags,
+  });
 
   const recentOrders = useQuery({
     queryKey: ordersQueryKey(restaurantId || null),
@@ -412,6 +466,13 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
 
   const set = <K extends keyof FormState>(key: K, val: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: val }));
+  const toggleTag = (tagId: string) =>
+    setForm((current) => ({
+      ...current,
+      tagIds: current.tagIds.includes(tagId)
+        ? current.tagIds.filter((id) => id !== tagId)
+        : [...current.tagIds, tagId],
+    }));
 
   // Bolagsuppslaget fyller juridik + adress. Restaurangens visningsnamn och
   // redan ifyllda fält lämnas orörda — det legala namnet är sällan det namn
@@ -441,6 +502,19 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
         throw new Error("Sluttiden för det manuella läget måste ligga i framtiden.");
       }
       const payload = mapFormToPayload(form);
+      if (
+        form.homeBoost !== savedForm.homeBoost
+        || form.homeBoostStartsAt !== savedForm.homeBoostStartsAt
+        || form.homeBoostEndsAt !== savedForm.homeBoostEndsAt
+      ) {
+        payload.homeBoost = Math.max(0, Math.min(100, Number(form.homeBoost || 0)));
+        payload.homeBoostStartsAt = form.homeBoostStartsAt
+          ? new Date(form.homeBoostStartsAt).toISOString()
+          : null;
+        payload.homeBoostEndsAt = form.homeBoostEndsAt
+          ? new Date(form.homeBoostEndsAt).toISOString()
+          : null;
+      }
       if (restaurantId) return patchRestaurant(restaurantId, payload);
       // Nya restauranger föds som utkast — de publiceras medvetet från
       // detaljsidan när checklistan är grön.
@@ -641,6 +715,14 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
               </Field>
               <Field label="Mattyp" hint="Visas som etikett i appen.">
                 <Input value={form.cuisine} onChange={(e) => set("cuisine", e.target.value)} placeholder="Pizza, Sushi, Libanesiskt…" />
+              </Field>
+              <Field label="Sök- och kategoritaggar" hint="Välj alla som stämmer. Taggarna driver kundens chips och dynamiska rails.">
+                <RestaurantTagPicker
+                  tags={restaurantTags.data || []}
+                  selected={form.tagIds}
+                  loading={restaurantTags.isLoading}
+                  onToggle={toggleTag}
+                />
               </Field>
               <Field label="Beskrivning" optional>
                 <Textarea value={form.description} onChange={(e) => set("description", e.target.value)} rows={3} placeholder="Kort och gott — visas i appen." />
@@ -1068,6 +1150,17 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
               <Field label="Postnummer"><Input inputMode="numeric" autoComplete="postal-code" value={form.zip} onChange={(e) => set("zip", e.target.value)} /></Field>
               <Field label="Telefon"><Input type="tel" inputMode="tel" autoComplete="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} /></Field>
             </div>
+            <Field
+              label="Sök- och kategoritaggar"
+              hint="Välj från katalogen; fri text används inte för kundfilter."
+            >
+              <RestaurantTagPicker
+                tags={restaurantTags.data || []}
+                selected={form.tagIds}
+                loading={restaurantTags.isLoading}
+                onToggle={toggleTag}
+              />
+            </Field>
             <Field label="Beskrivning">
               <Textarea value={form.description} onChange={(e) => set("description", e.target.value)} rows={3} />
             </Field>
@@ -1288,6 +1381,41 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 <option value="0">Dold</option>
               </Select>
             </Field>
+            <div className="grid gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-page)] p-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                  Tidsbegränsad hemskärmsboost
+                </p>
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                  0–100, bidraget cappas av varje kategoris rankingregel. Max 31 dagar och kan aldrig kringgå filter.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Field label="Boost">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={form.homeBoost}
+                    onChange={(event) => set("homeBoost", event.target.value)}
+                  />
+                </Field>
+                <Field label="Start" optional>
+                  <Input
+                    type="datetime-local"
+                    value={form.homeBoostStartsAt}
+                    onChange={(event) => set("homeBoostStartsAt", event.target.value)}
+                  />
+                </Field>
+                <Field label="Slut" hint="Krävs om boost > 0">
+                  <Input
+                    type="datetime-local"
+                    value={form.homeBoostEndsAt}
+                    onChange={(event) => set("homeBoostEndsAt", event.target.value)}
+                  />
+                </Field>
+              </div>
+            </div>
             <div className="grid gap-3.5 border-t border-[var(--row-divider)] pt-4">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">Leveransmodell</p>

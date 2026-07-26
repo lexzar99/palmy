@@ -272,9 +272,6 @@ const OrderStatusPage = () => {
     }
   }, [orderId]);
   const embedMenuHref = embedRestaurant ? `/embed/${encodeURIComponent(embedRestaurant)}` : "/";
-  const embedOrdersHref = embedRestaurant
-    ? `/orders?embed=1&restaurant=${encodeURIComponent(embedRestaurant)}`
-    : "/orders";
   const [accessBootstrapReady, setAccessBootstrapReady] = useState(false);
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -652,11 +649,11 @@ const OrderStatusPage = () => {
             {t("order.error.retry")}
           </button>
           <Link
-            href={embedMode ? embedOrdersHref : "/orders"}
+            href={embedMode ? embedMenuHref : "/orders"}
             className="px-8 py-4 border rounded-full font-bold text-sm text-center"
             style={{ borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}
           >
-            {t("order.error.myOrders")}
+            {embedMode ? t("order.error.menuCta") : t("order.error.myOrders")}
           </Link>
         </div>
       </div>

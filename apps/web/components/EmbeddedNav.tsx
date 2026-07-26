@@ -14,16 +14,18 @@ import { useEffect, useState } from "react";
 export default function EmbeddedNav() {
   const pathname = usePathname() || "";
   const [embedRestaurant, setEmbedRestaurant] = useState("");
+  const [embedSearch, setEmbedSearch] = useState("");
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setEmbedRestaurant(params.get("embed") === "1" ? params.get("restaurant") || "" : "");
+    setEmbedSearch(window.location.search);
   }, [pathname]);
   const embedQuery = Boolean(embedRestaurant);
   const menuSlug = pathname.startsWith("/embed/")
     ? decodeURIComponent(pathname.split("/")[2] || "")
     : "";
   const embedPage = menuSlug
-    || ((pathname === "/cart" || pathname === "/orders" || pathname.startsWith("/order/")) && embedQuery
+    || ((pathname === "/cart" || pathname.startsWith("/order/")) && embedQuery
       ? embedRestaurant
       : "");
   const itemCount = useCartStore((state) => state.items.reduce((sum, item) => sum + item.quantity, 0));
@@ -33,11 +35,14 @@ export default function EmbeddedNav() {
   const slugQuery = `?embed=1&restaurant=${encodeURIComponent(embedPage)}`;
   const menuHref = `/embed/${encodeURIComponent(embedPage)}`;
   const cartHref = `/cart${slugQuery}`;
-  const ordersHref = `/orders${slugQuery}`;
+  const trackingMatch = pathname.match(/^\/order\/([^/?#]+)$/);
+  const trackingHref = trackingMatch ? `${pathname}${embedSearch}` : null;
   const items = [
     { href: menuHref, label: "Meny", icon: Menu, active: pathname.startsWith("/embed/") },
     { href: cartHref, label: "Kundvagn", icon: ShoppingBag, active: pathname === "/cart" },
-    { href: ordersHref, label: "Mina order", icon: ReceiptText, active: pathname === "/orders" || pathname.startsWith("/order/") },
+    // En embed har aldrig orderhistorik. Tracking visas endast för den order
+    // kunden redan följer, så partnerflödet består av meny, varukorg och order.
+    ...(trackingHref ? [{ href: trackingHref, label: "Order", icon: ReceiptText, active: true }] : []),
   ];
 
   return (

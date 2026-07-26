@@ -9,6 +9,8 @@ const orders = fs.readFileSync(new URL("../../../packages/api/src/routes/orders.
 const profileApi = fs.readFileSync(new URL("../../../packages/api/src/routes/profile.ts", import.meta.url), "utf8");
 const deferredGlobalClients = fs.readFileSync(new URL("../components/DeferredGlobalClients.tsx", import.meta.url), "utf8");
 const activeOrder = fs.readFileSync(new URL("../lib/activeOrder.ts", import.meta.url), "utf8");
+const embeddedNav = fs.readFileSync(new URL("../components/EmbeddedNav.tsx", import.meta.url), "utf8");
+const middleware = fs.readFileSync(new URL("../middleware.ts", import.meta.url), "utf8");
 
 test("personal deals remain selectable with catalog-discounted items", () => {
   assert.doesNotMatch(cart, /const disabled = hasCatalogDiscountedItems/);
@@ -33,4 +35,12 @@ test("cart returns to active tracking and the global tracking banner is gone", (
   assert.match(cart, /const trackingUrl = trackingEmbedded[\s\S]*router\.replace\(trackingUrl\)/);
   assert.doesNotMatch(deferredGlobalClients, /LiveOrderBanner/);
   assert.match(activeOrder, /viaeats_active_orders/);
+});
+
+test("partner embed exposes only menu, cart and current-order tracking", () => {
+  assert.doesNotMatch(embeddedNav, /const ordersHref/);
+  assert.doesNotMatch(embeddedNav, /label: "Mina order"/);
+  assert.match(embeddedNav, /trackingHref \? \[\{ href: trackingHref, label: "Order"/);
+  assert.match(middleware, /pathname === "\/orders"[\s\S]*searchParams\.get\("embed"\) === "1"/);
+  assert.match(middleware, /destination\.pathname = safeSlug \? `\/embed\/\$\{restaurant\}` : "\/"/);
 });

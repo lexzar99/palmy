@@ -24,7 +24,7 @@ const optimizedImageHosts = Array.from(new Set([
 ].filter((host): host is string => Boolean(host))));
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ['192.168.0.3'],
+  allowedDevOrigins: ["127.0.0.1", "localhost", "192.168.0.3"],
   // Strip console.* in production builds. console.error stays so real
   // problems still surface. Lots of OAuth-debug / image-error logs were
   // leaking into prod and bloating the bundle.

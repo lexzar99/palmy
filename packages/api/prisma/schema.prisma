@@ -586,8 +586,44 @@ model HomeCategorySection {
   manualRestaurantIds String   @default("[]")
   filters             String   @default("{}")
   schedule            String   @default("{}")
+  // Additiva JSON-kontrakt. Äldre klienter ignorerar dem och fortsätter läsa
+  // filters/schedule. Nya klienter får layout/accent samt viktad ranking.
+  presentation        String   @default("{}")
+  ranking             String   @default("{}")
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+}
+
+// Central, adminstyrd katalog. Restauranger kopplas via ID i stället för att
+// administratören skriver fria strängar. Restaurant.tags behålls som legacy-
+// projektion tills samtliga äldre klienter är migrerade.
+model RestaurantTag {
+  id          String                    @id @default(cuid())
+  name        String
+  nameEn      String?
+  slug        String                    @unique
+  description String?
+  color       String                    @default("#FF6B00")
+  icon        String?
+  isActive    Boolean                   @default(true)
+  sortOrder   Int                       @default(0)
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+  restaurants RestaurantTagAssignment[]
+
+  @@index([isActive, sortOrder])
+}
+
+model RestaurantTagAssignment {
+  restaurantId String
+  tagId        String
+  position     Int           @default(0)
+  createdAt    DateTime      @default(now())
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tag          RestaurantTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([restaurantId, tagId])
+  @@index([tagId, position])
 }
 
 model AdminUser {
@@ -912,10 +948,16 @@ model Restaurant {
   // ekonomihistorik behåller då alltid sin tenant-koppling.
   archivedAt                    DateTime?
   tags                          String                        @default("[]")
+  tagAssignments                RestaurantTagAssignment[]
   openingHours                  String                        @default("{}")
   createdAt                     DateTime                      @default(now())
   updatedAt                     DateTime                      @updatedAt
   featuredClass                 Int                           @default(3)
+  // Begränsad, tidsstyrd admin-boost för hemskärmsranking. API:t cappar
+  // värdet 0–100 och giltighet till högst 31 dagar.
+  homeBoost                     Int                           @default(0)
+  homeBoostStartsAt             DateTime?
+  homeBoostEndsAt               DateTime?
   internalInfo                  String?
   adminEmail                    String?
   logoutCode                    String?

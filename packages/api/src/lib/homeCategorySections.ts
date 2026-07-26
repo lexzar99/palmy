@@ -1,12 +1,26 @@
 import prisma from './prisma';
 
 export type HomeCategoryFilterMode = 'FILTER' | 'MANUAL' | 'HYBRID';
-export type HomeCategorySortBy = 'FEATURED' | 'RATING' | 'ETA' | 'NAME';
+export type HomeCategorySortBy =
+  | 'SMART'
+  | 'FEATURED'
+  | 'ORDERS_TODAY'
+  | 'ORDERS_7D'
+  | 'RATING'
+  | 'ETA'
+  | 'DELIVERY_FEE'
+  | 'DISCOUNT'
+  | 'NAME';
 export type HomeCategorySortDirection = 'ASC' | 'DESC';
+export type HomeCategoryRankingStrategy = 'WEIGHTED' | 'BALANCED';
+export type HomeCategoryLayout = 'MEDIUM_RAIL' | 'LARGE_RAIL' | 'GRID';
+export type HomeCategoryAccent = 'ORANGE' | 'BLUE' | 'GREEN' | 'PURPLE' | 'NAVY';
 
 export interface HomeCategoryFilters {
   searchTerm?: string | null;
   cuisines?: string[];
+  tagIds?: string[];
+  // Legacy namnfilter. Nya adminflödet skriver tagIds men fältet läses kvar.
   tags?: string[];
   featuredClasses?: number[];
   minRating?: number | null;
@@ -17,6 +31,34 @@ export interface HomeCategoryFilters {
   openNowOnly?: boolean;
   sortBy?: HomeCategorySortBy;
   sortDirection?: HomeCategorySortDirection;
+}
+
+export interface HomeCategoryPresentation {
+  layout?: HomeCategoryLayout;
+  accent?: HomeCategoryAccent;
+  accentColor?: string | null;
+  backgroundColor?: string | null;
+  icon?: string | null;
+}
+
+export interface HomeCategoryRankingWeights {
+  ordersToday?: number;
+  orders7d?: number;
+  eta?: number;
+  ratingConfidence?: number;
+  deliveryFee?: number;
+  freeDelivery?: number;
+  discount?: number;
+  tier?: number;
+  dailyRotation?: number;
+}
+
+export interface HomeCategoryRanking {
+  strategy?: HomeCategoryRankingStrategy;
+  weights?: HomeCategoryRankingWeights;
+  avoidDuplicateFirst?: boolean;
+  appearancePenalty?: number;
+  maxAdminBoostPoints?: number;
 }
 
 export interface HomeCategorySchedule {
@@ -42,8 +84,19 @@ export interface HomeCategorySectionPayload {
   manualRestaurantIds: string[];
   filters: HomeCategoryFilters;
   schedule: HomeCategorySchedule;
+  presentation: HomeCategoryPresentation;
+  ranking: HomeCategoryRanking;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export type PublicHomeCategorySectionPayload = Omit<HomeCategorySectionPayload, 'ranking'>;
+
+export function toPublicHomeCategorySection(
+  section: HomeCategorySectionPayload,
+): PublicHomeCategorySectionPayload {
+  const { ranking: _ranking, ...publicSection } = section;
+  return publicSection;
 }
 
 const dayMap: Record<string, number> = {
@@ -78,10 +131,16 @@ function normalizeNumberArray(values: unknown): number[] {
     .filter((value) => Number.isFinite(value));
 }
 
+const clamp = (value: unknown, min: number, max: number, fallback: number) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.max(min, Math.min(max, numeric)) : fallback;
+};
+
 export function normalizeHomeCategoryFilters(input: Partial<HomeCategoryFilters> | null | undefined): HomeCategoryFilters {
   return {
     searchTerm: input?.searchTerm ? String(input.searchTerm).trim() : null,
     cuisines: normalizeStringArray(input?.cuisines),
+    tagIds: normalizeStringArray(input?.tagIds),
     tags: normalizeStringArray(input?.tags),
     featuredClasses: normalizeNumberArray(input?.featuredClasses),
     minRating: input?.minRating == null ? null : Number(input.minRating),
@@ -90,8 +149,56 @@ export function normalizeHomeCategoryFilters(input: Partial<HomeCategoryFilters>
     freeDeliveryOnly: Boolean(input?.freeDeliveryOnly),
     dealsOnly: Boolean(input?.dealsOnly),
     openNowOnly: Boolean(input?.openNowOnly),
-    sortBy: (input?.sortBy as HomeCategorySortBy) || 'FEATURED',
+    sortBy: (input?.sortBy as HomeCategorySortBy) || 'SMART',
     sortDirection: (input?.sortDirection as HomeCategorySortDirection) || 'DESC',
+  };
+}
+
+export function normalizeHomeCategoryPresentation(
+  input: Partial<HomeCategoryPresentation> | null | undefined,
+): HomeCategoryPresentation {
+  return {
+    layout: (input?.layout as HomeCategoryLayout) || 'MEDIUM_RAIL',
+    accent: (input?.accent as HomeCategoryAccent) || 'ORANGE',
+    accentColor: input?.accentColor ? String(input.accentColor) : null,
+    backgroundColor: input?.backgroundColor ? String(input.backgroundColor) : null,
+    icon: input?.icon ? String(input.icon).trim() : null,
+  };
+}
+
+export const DEFAULT_HOME_RANKING_WEIGHTS: Required<HomeCategoryRankingWeights> = {
+  ordersToday: 28,
+  orders7d: 12,
+  eta: 16,
+  ratingConfidence: 16,
+  deliveryFee: 7,
+  freeDelivery: 5,
+  discount: 8,
+  tier: 5,
+  dailyRotation: 3,
+};
+
+export function normalizeHomeCategoryRanking(
+  input: Partial<HomeCategoryRanking> | null | undefined,
+): HomeCategoryRanking {
+  const weights = input?.weights || {};
+  return {
+    strategy: (input?.strategy as HomeCategoryRankingStrategy) || 'WEIGHTED',
+    weights: {
+      ordersToday: clamp(weights.ordersToday, 0, 100, DEFAULT_HOME_RANKING_WEIGHTS.ordersToday),
+      orders7d: clamp(weights.orders7d, 0, 100, DEFAULT_HOME_RANKING_WEIGHTS.orders7d),
+      eta: clamp(weights.eta, 0, 100, DEFAULT_HOME_RANKING_WEIGHTS.eta),
+      ratingConfidence: clamp(weights.ratingConfidence, 0, 100, DEFAULT_HOME_RANKING_WEIGHTS.ratingConfidence),
+      deliveryFee: clamp(weights.deliveryFee, 0, 100, DEFAULT_HOME_RANKING_WEIGHTS.deliveryFee),
+      freeDelivery: clamp(weights.freeDelivery, 0, 100, DEFAULT_HOME_RANKING_WEIGHTS.freeDelivery),
+      discount: clamp(weights.discount, 0, 100, DEFAULT_HOME_RANKING_WEIGHTS.discount),
+      tier: clamp(weights.tier, 0, 25, DEFAULT_HOME_RANKING_WEIGHTS.tier),
+      dailyRotation: clamp(weights.dailyRotation, 0, 10, DEFAULT_HOME_RANKING_WEIGHTS.dailyRotation),
+    },
+    avoidDuplicateFirst: input?.avoidDuplicateFirst !== false,
+    appearancePenalty: clamp(input?.appearancePenalty, 0, 30, 6),
+    // En manuell boost får aldrig ensam dominera organiska signaler.
+    maxAdminBoostPoints: clamp(input?.maxAdminBoostPoints, 0, 15, 8),
   };
 }
 
@@ -121,6 +228,10 @@ export function serializeHomeCategorySection(section: any): HomeCategorySectionP
     manualRestaurantIds: normalizeStringArray(parseJson(section.manualRestaurantIds, [] as string[])),
     filters: normalizeHomeCategoryFilters(parseJson(section.filters, {} as HomeCategoryFilters)),
     schedule: normalizeHomeCategorySchedule(parseJson(section.schedule, {} as HomeCategorySchedule)),
+    presentation: normalizeHomeCategoryPresentation(
+      parseJson(section.presentation, {} as HomeCategoryPresentation),
+    ),
+    ranking: normalizeHomeCategoryRanking(parseJson(section.ranking, {} as HomeCategoryRanking)),
     createdAt: section.createdAt,
     updatedAt: section.updatedAt,
   };
@@ -187,7 +298,27 @@ const defaultCategories: Array<{
   maxRestaurants: number;
   filters: HomeCategoryFilters;
   schedule: HomeCategorySchedule;
+  presentation?: HomeCategoryPresentation;
+  ranking?: HomeCategoryRanking;
 }> = [
+  {
+    title: 'Utvalt idag',
+    titleEn: 'Picked today',
+    slug: 'utvalt-idag',
+    subtitle: 'Populärt, snabbt och väl omtyckt just nu',
+    subtitleEn: 'Popular, fast and well liked right now',
+    sortOrder: 5,
+    filterMode: 'FILTER',
+    maxRestaurants: 8,
+    filters: {
+      openNowOnly: true,
+      sortBy: 'SMART',
+      sortDirection: 'DESC',
+    },
+    schedule: { enabled: false },
+    presentation: { layout: 'MEDIUM_RAIL', accent: 'ORANGE' },
+    ranking: { strategy: 'BALANCED', avoidDuplicateFirst: true },
+  },
   {
     title: 'Heta listan',
     titleEn: 'Trending now',
@@ -199,10 +330,12 @@ const defaultCategories: Array<{
     maxRestaurants: 8,
     filters: {
       featuredClasses: [1, 2],
-      sortBy: 'FEATURED',
+      sortBy: 'SMART',
       sortDirection: 'DESC',
     },
     schedule: { enabled: false },
+    presentation: { layout: 'MEDIUM_RAIL', accent: 'ORANGE' },
+    ranking: { strategy: 'WEIGHTED', avoidDuplicateFirst: true },
   },
   {
     title: 'Pizza fredag',
@@ -226,6 +359,8 @@ const defaultCategories: Array<{
       startTime: '15:00',
       endTime: '23:59',
     },
+    presentation: { layout: 'MEDIUM_RAIL', accent: 'ORANGE' },
+    ranking: { strategy: 'WEIGHTED', avoidDuplicateFirst: true },
   },
   {
     title: 'Snabb lunch',
@@ -248,6 +383,12 @@ const defaultCategories: Array<{
       startTime: '11:00',
       endTime: '14:00',
     },
+    presentation: { layout: 'MEDIUM_RAIL', accent: 'GREEN' },
+    ranking: {
+      strategy: 'WEIGHTED',
+      avoidDuplicateFirst: true,
+      weights: { eta: 40, ordersToday: 20, ratingConfidence: 15 },
+    },
   },
   {
     title: 'Sushi suget',
@@ -266,11 +407,13 @@ const defaultCategories: Array<{
       sortDirection: 'DESC',
     },
     schedule: { enabled: false },
+    presentation: { layout: 'MEDIUM_RAIL', accent: 'BLUE' },
+    ranking: { strategy: 'WEIGHTED', avoidDuplicateFirst: true },
   },
   {
-    // Fri leverans: standard FILTER-mode med freeDeliveryOnly = true plockar
-    // automatiskt upp restauranger som har deliveryFee=0 eller har en
-    // matchande zon med fri leverans. Admin kan när som helst byta till
+    // Fri leverans: serverfeeden plockar upp ovillkorlig grundavgift 0 kr eller
+    // en aktiv fri-leverans-deal. Adressens zonpris avgörs först i den separata
+    // leveransofferten och påstås aldrig här. Admin kan när som helst byta till
     // MANUAL/HYBRID och välja restauranger för hand precis som med de
     // övriga rails (Pizza fredag, Snabb lunch, Heta listan).
     title: 'Fri leverans',
@@ -288,6 +431,35 @@ const defaultCategories: Array<{
       sortDirection: 'DESC',
     },
     schedule: { enabled: false },
+    presentation: { layout: 'MEDIUM_RAIL', accent: 'GREEN' },
+    ranking: {
+      strategy: 'WEIGHTED',
+      avoidDuplicateFirst: true,
+      weights: { freeDelivery: 40, deliveryFee: 20, ratingConfidence: 15 },
+    },
+  },
+  {
+    title: 'Bra betyg',
+    titleEn: 'Top rated',
+    slug: 'bra-betyg',
+    subtitle: 'Omtyckta val med många riktiga omdömen',
+    subtitleEn: 'Well liked picks with real reviews',
+    sortOrder: 60,
+    filterMode: 'FILTER',
+    maxRestaurants: 8,
+    filters: {
+      minRating: 4,
+      openNowOnly: true,
+      sortBy: 'RATING',
+      sortDirection: 'DESC',
+    },
+    schedule: { enabled: false },
+    presentation: { layout: 'MEDIUM_RAIL', accent: 'PURPLE' },
+    ranking: {
+      strategy: 'WEIGHTED',
+      avoidDuplicateFirst: true,
+      weights: { ratingConfidence: 45, ordersToday: 15, orders7d: 15 },
+    },
   },
 ];
 
@@ -312,6 +484,8 @@ export async function ensureDefaultHomeCategorySections() {
         manualRestaurantIds: JSON.stringify([]),
         filters: JSON.stringify(normalizeHomeCategoryFilters(category.filters)),
         schedule: JSON.stringify(normalizeHomeCategorySchedule(category.schedule)),
+        presentation: JSON.stringify(normalizeHomeCategoryPresentation(category.presentation)),
+        ranking: JSON.stringify(normalizeHomeCategoryRanking(category.ranking)),
       },
     });
   }

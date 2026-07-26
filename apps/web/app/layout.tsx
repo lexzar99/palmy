@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Baloo_2 } from "next/font/google";
 import "./globals.css";
 import BottomNav from "@/components/BottomNav";
 import Navbar from "@/components/Navbar";
@@ -13,8 +13,12 @@ import OfflineBanner from "@/components/OfflineBanner";
 import DeferredGlobalClients from "@/components/DeferredGlobalClients";
 import MetaPixel from "@/components/MetaPixel";
 
-// Inter — lugnare och mer neutral än Outfit; bär "tyst & direkt"-designen.
-const inter = Inter({ subsets: ["latin"] });
+// ViaEats-typografin: mjuk men stadig, med höga vikter för ett appnära uttryck.
+const baloo = Baloo_2({
+  subsets: ["latin"],
+  weight: ["500", "600", "700", "800"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   // Basurl för OG-bilder + canonical URLs. Krävs i prod annars fallar
@@ -72,12 +76,12 @@ export default function RootLayout({
   const imageBaseUrl = process.env.NEXT_PUBLIC_R2_PUBLIC_BASE_URL
     || "https://pub-3aa62f4934014835956fe3777d5b3abd.r2.dev";
   return (
-    <html lang="sv">
+    <html lang="sv" data-scroll-behavior="smooth">
       <head>
         <link rel="preconnect" href="https://api.viaeats.se" crossOrigin="anonymous" />
         <link rel="preconnect" href={imageBaseUrl} crossOrigin="anonymous" />
       </head>
-      <body className={`${inter.className} min-h-screen antialiased`}>
+      <body className={`${baloo.className} min-h-screen antialiased`}>
         <Providers>
           {/* iOS PWA (standalone): toppen (status bar/notch-ytan) visade svart.
               Denna vita, klick-genomsläppliga remsa täcker safe-area-top på

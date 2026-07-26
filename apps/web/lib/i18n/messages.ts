@@ -45,7 +45,10 @@ export const messages: Record<Locale, Messages> = {
     "nav.orders": "Beställningar",
     "nav.login": "Profil",
     "nav.profile": "Profil",
-    "nav.cart": "Kundvagn",
+    "nav.search": "Sök",
+    "nav.deals": "Deals",
+    "nav.account": "Konto",
+    "nav.cart": "Varukorg",
     "nav.theme.toLight": "Byt till ljust läge",
     "nav.theme.toDark": "Byt till mörkt läge",
     "nav.locale.label": "Språk",
@@ -213,6 +216,7 @@ export const messages: Record<Locale, Messages> = {
     "order.error.networkSub": "Servern är upptagen eller din anslutning är instabil. Din order är troligen registrerad, försök igen om en stund. Din betalning är säker.",
     "order.error.retry": "Försök igen",
     "order.error.myOrders": "Mina ordrar",
+    "order.error.menuCta": "Till menyn",
 
     // ── Auth (login/register) ─────────────────────────────────────────────
     "auth.register.subtitle": "Verifiera säkert med SMS.",
@@ -264,6 +268,9 @@ export const messages: Record<Locale, Messages> = {
     "nav.orders": "Orders",
     "nav.login": "Profile",
     "nav.profile": "Profile",
+    "nav.search": "Search",
+    "nav.deals": "Deals",
+    "nav.account": "Account",
     "nav.cart": "Cart",
     "nav.theme.toLight": "Switch to light mode",
     "nav.theme.toDark": "Switch to dark mode",
@@ -431,6 +438,7 @@ export const messages: Record<Locale, Messages> = {
     "order.error.networkSub": "Server is busy or your connection is unstable. Your order is likely registered, try again in a moment. Your payment is safe.",
     "order.error.retry": "Try again",
     "order.error.myOrders": "My orders",
+    "order.error.menuCta": "Back to menu",
 
     // ── Auth ──────────────────────────────────────────────────────────────
     "auth.register.subtitle": "Verify securely by SMS.",

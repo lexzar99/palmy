@@ -2,6 +2,7 @@ export interface HomeCategoryFilters {
   searchTerm?: string | null;
   cuisines?: string[];
   tags?: string[];
+  tagIds?: string[];
   featuredClasses?: number[];
   minRating?: number | null;
   maxEtaMinutes?: number | null;
@@ -37,7 +38,9 @@ interface RestaurantLike {
   cuisine?: string;
   description?: string;
   tags?: string[];
+  tagIds?: string[];
   rating?: number;
+  ratingCount?: number;
   etaMinutes?: number;
   deliveryFee?: number;
   // Zon-avgifter lagras i ÖRE i payloaden (restaurant.deliveryFee är i kr).
@@ -51,6 +54,7 @@ interface RestaurantLike {
 interface DealLike {
   restaurantId?: string | null;
   applicableRestaurantIds?: string[];
+  isGlobal?: boolean;
 }
 
 type DeliveryOverrideMap = Record<string, { deliveryFee: number; minOrderAmount: number }>;
@@ -61,7 +65,7 @@ function includesAny(source: string[], needle: string[]) {
   return needle.some((value) => normalized.some((entry) => entry.includes(value.toLowerCase())));
 }
 
-function uniqueRestaurants<T extends RestaurantLike>(restaurants: T[]) {
+function uniqueRestaurants<T extends { id: string }>(restaurants: T[]) {
   const seen = new Set<string>();
   return restaurants.filter((restaurant) => {
     if (seen.has(restaurant.id)) return false;
@@ -87,8 +91,7 @@ function getEffectiveDeliveryFee(restaurant: RestaurantLike, deliveryOverrides: 
   return (
     deliveryOverrides[restaurant.id]?.deliveryFee ??
     minActiveZoneFeeKr(restaurant) ??
-    restaurant.deliveryFee ??
-    0
+    restaurant.deliveryFee
   );
 }
 
@@ -122,12 +125,14 @@ function compareRestaurants<T extends RestaurantLike>(
   }
 
   if (sortBy === "FEATURED") {
-    const diff = rightFeatured - leftFeatured;
+    const diff = leftFeatured - rightFeatured;
     if (diff !== 0) return diff * multiplier;
   }
 
   if (sortBy === "RATING" || sortBy === "FEATURED") {
-    const diff = (right.rating ?? 0) - (left.rating ?? 0);
+    const leftRating = left.ratingCount != null && left.ratingCount <= 0 ? 0 : (left.rating ?? 0);
+    const rightRating = right.ratingCount != null && right.ratingCount <= 0 ? 0 : (right.rating ?? 0);
+    const diff = leftRating - rightRating;
     if (diff !== 0) return diff * multiplier;
   }
 
@@ -137,6 +142,42 @@ function compareRestaurants<T extends RestaurantLike>(
   }
 
   return 0;
+}
+
+/**
+ * Ger varje hemsektion en egen förstaplats när det finns ett alternativ.
+ *
+ * Restauranger tas aldrig bort ur en relevant sektion. Om en restaurang redan
+ * leder en tidigare räls flyttas nästa ännu oanvända kandidat fram och den
+ * tidigare ledaren ligger kvar på plats 2/3. När alla kandidater redan har
+ * varit ledare behålls backendens ordning; det gör små restaurangpooler
+ * förutsägbara utan att hitta på innehåll.
+ */
+export function diversifyHomeCategoryLeaders<
+  T extends { id: string },
+  S extends { restaurants: T[] },
+>(sections: S[], reservedLeaderIds: Iterable<string> = []): S[] {
+  const usedLeaders = new Set(reservedLeaderIds);
+
+  return sections.map((section) => {
+    const restaurants = uniqueRestaurants(section.restaurants);
+    if (restaurants.length === 0) return { ...section, restaurants };
+
+    const freshLeaderIndex = restaurants.findIndex(
+      (restaurant) => !usedLeaders.has(restaurant.id),
+    );
+    const nextRestaurants =
+      freshLeaderIndex > 0
+        ? [
+            restaurants[freshLeaderIndex],
+            ...restaurants.slice(0, freshLeaderIndex),
+            ...restaurants.slice(freshLeaderIndex + 1),
+          ]
+        : restaurants;
+
+    usedLeaders.add(nextRestaurants[0].id);
+    return { ...section, restaurants: nextRestaurants };
+  });
 }
 
 export function resolveHomeCategoryRestaurants<T extends RestaurantLike>({
@@ -167,6 +208,7 @@ export function resolveHomeCategoryRestaurants<T extends RestaurantLike>({
   const dealRestaurantIds = new Set(
     deals.flatMap((deal) => [deal.restaurantId, ...(deal.applicableRestaurantIds || [])].filter(Boolean) as string[]),
   );
+  const hasGlobalDeal = deals.some((deal) => deal.isGlobal);
 
   const contextRestaurants = restaurants.filter((restaurant) => {
     // PICKUP: matcha mot HELA stad-familjen (parent + sammanslagna barn),
@@ -188,12 +230,7 @@ export function resolveHomeCategoryRestaurants<T extends RestaurantLike>({
     return true;
   });
 
-  const manualRestaurants = section.manualRestaurantIds
-    .map((restaurantId) => restaurantById.get(restaurantId))
-    .filter((restaurant): restaurant is T => !!restaurant)
-    .filter((restaurant) => contextRestaurants.some((entry) => entry.id === restaurant.id));
-
-  const filteredRestaurants = contextRestaurants.filter((restaurant) => {
+  const matchesSectionFilters = (restaurant: T) => {
     if (filters.searchTerm) {
       const haystack = `${restaurant.name} ${restaurant.cuisine || ""} ${restaurant.description || ""} ${(restaurant.tags || []).join(" ")}`.toLowerCase();
       if (!haystack.includes(filters.searchTerm.toLowerCase())) return false;
@@ -204,7 +241,11 @@ export function resolveHomeCategoryRestaurants<T extends RestaurantLike>({
       if (!matchesCuisine) return false;
     }
 
-    if (filters.tags?.length && !includesAny(restaurant.tags || [], filters.tags)) {
+    if (filters.tagIds?.length && !filters.tagIds.some((tagId) => (restaurant.tagIds || []).includes(tagId))) {
+      return false;
+    }
+
+    if (!filters.tagIds?.length && filters.tags?.length && !includesAny(restaurant.tags || [], filters.tags)) {
       return false;
     }
 
@@ -212,7 +253,14 @@ export function resolveHomeCategoryRestaurants<T extends RestaurantLike>({
       return false;
     }
 
-    if (filters.minRating != null && (restaurant.rating ?? 0) < filters.minRating) {
+    if (
+      filters.minRating != null &&
+      (
+        restaurant.rating == null ||
+        (restaurant.ratingCount != null && restaurant.ratingCount <= 0) ||
+        restaurant.rating < filters.minRating
+      )
+    ) {
       return false;
     }
 
@@ -220,24 +268,37 @@ export function resolveHomeCategoryRestaurants<T extends RestaurantLike>({
       return false;
     }
 
-    if (filters.maxDeliveryFee != null && getEffectiveDeliveryFee(restaurant, deliveryOverrides) > filters.maxDeliveryFee) {
+    if (filters.maxDeliveryFee != null) {
+      const fee = getEffectiveDeliveryFee(restaurant, deliveryOverrides);
+      if (fee == null || fee > filters.maxDeliveryFee) return false;
+    }
+
+    if (filters.freeDeliveryOnly) {
+      const fee = getEffectiveDeliveryFee(restaurant, deliveryOverrides);
+      if (fee !== 0) return false;
+    }
+
+    if (filters.dealsOnly && !hasGlobalDeal && !dealRestaurantIds.has(restaurant.id)) {
       return false;
     }
 
-    if (filters.freeDeliveryOnly && getEffectiveDeliveryFee(restaurant, deliveryOverrides) > 0) {
-      return false;
-    }
-
-    if (filters.dealsOnly && !dealRestaurantIds.has(restaurant.id)) {
-      return false;
-    }
-
-    if (filters.openNowOnly && restaurant.isOpen === false) {
+    if (filters.openNowOnly && restaurant.isOpen !== true) {
       return false;
     }
 
     return true;
-  });
+  };
+
+  // MANUAL styr urvalets kandidatlista, inte behörigheten. Samma tagg-, öppen-
+  // och avgiftsregler gäller även manuellt valda restauranger så admin aldrig
+  // kan råka visa t.ex. en betalzon under "Fri leverans".
+  const manualRestaurants = section.manualRestaurantIds
+    .map((restaurantId) => restaurantById.get(restaurantId))
+    .filter((restaurant): restaurant is T => !!restaurant)
+    .filter((restaurant) => contextRestaurants.some((entry) => entry.id === restaurant.id))
+    .filter(matchesSectionFilters);
+
+  const filteredRestaurants = contextRestaurants.filter(matchesSectionFilters);
 
   const sortBy = filters.sortBy || "FEATURED";
   const sortDirection = filters.sortDirection || "DESC";

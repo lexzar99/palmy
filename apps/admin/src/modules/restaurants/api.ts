@@ -78,6 +78,18 @@ export interface RestaurantDetail {
   tierSilverFeeOverride?: number | null;
   tierStandardFeeOverride?: number | null;
   tags: string[];
+  tagIds: string[];
+  tagDetails?: Array<{
+    id: string;
+    name: string;
+    nameEn: string | null;
+    slug: string;
+    color: string;
+    icon: string | null;
+  }>;
+  homeBoost?: number;
+  homeBoostStartsAt?: string | null;
+  homeBoostEndsAt?: string | null;
   openingHours: Record<string, unknown>;
   internalInfo?: string | null;
   adminEmail?: string | null;
@@ -139,6 +151,10 @@ export interface RestaurantFormPayload {
   adminPassword?: string;
   internalInfo?: string | null;
   tags?: string[];
+  tagIds?: string[];
+  homeBoost?: number;
+  homeBoostStartsAt?: string | null;
+  homeBoostEndsAt?: string | null;
   latitude?: number | null;
   longitude?: number | null;
   placeId?: string | null;

@@ -559,8 +559,39 @@ model HomeCategorySection {
   manualRestaurantIds String   @default("[]")
   filters             String   @default("{}")
   schedule            String   @default("{}")
+  presentation        String   @default("{}")
+  ranking             String   @default("{}")
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+}
+
+model RestaurantTag {
+  id          String                    @id @default(cuid())
+  name        String
+  nameEn      String?
+  slug        String                    @unique
+  description String?
+  color       String                    @default("#FF6B00")
+  icon        String?
+  isActive    Boolean                   @default(true)
+  sortOrder   Int                       @default(0)
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+  restaurants RestaurantTagAssignment[]
+
+  @@index([isActive, sortOrder])
+}
+
+model RestaurantTagAssignment {
+  restaurantId String
+  tagId        String
+  position     Int           @default(0)
+  createdAt    DateTime      @default(now())
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tag          RestaurantTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([restaurantId, tagId])
+  @@index([tagId, position])
 }
 
 model AdminUser {
@@ -881,10 +912,14 @@ model Restaurant {
   // ekonomihistorik behåller då alltid sin tenant-koppling.
   archivedAt                    DateTime?
   tags                          String                        @default("[]")
+  tagAssignments                RestaurantTagAssignment[]
   openingHours                  String                        @default("{}")
   createdAt                     DateTime                      @default(now())
   updatedAt                     DateTime                      @updatedAt
   featuredClass                 Int                           @default(3)
+  homeBoost                     Int                           @default(0)
+  homeBoostStartsAt             DateTime?
+  homeBoostEndsAt               DateTime?
   internalInfo                  String?
   adminEmail                    String?
   logoutCode                    String?
