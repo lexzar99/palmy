@@ -25,6 +25,7 @@ import {
   ChevronDown,
   Crown,
   Flame,
+  ShoppingBag,
 } from "lucide-react";
 import { type DealCardData } from "@/components/DealFlipCard";
 import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
@@ -623,7 +624,7 @@ function CurrentRestaurantPromoCard({ restaurant, badge, theme, onOpen, imagePri
         <span className="absolute left-3 top-3 inline-flex h-6 items-center rounded-full bg-black/45 px-2.5 text-[10px] font-black uppercase tracking-[0.06em] text-white">{badge}</span>
       </span>
       <span className="flex h-[40%] flex-col items-center justify-center px-4 text-center">
-        <span className="block max-w-full truncate text-[22px] font-black leading-tight text-[var(--ink)]">{restaurant.name}</span>
+        <span className="block max-w-full break-words text-[22px] font-black leading-tight text-[var(--ink)]">{restaurant.name}</span>
         <span className="mt-1 block max-w-full truncate text-[12px] font-bold text-[var(--muted)]">{restaurant.cuisine || "Restaurang"}</span>
         <span className="mt-2 flex max-w-full flex-wrap justify-center gap-1.5">
           {(restaurant.featuredClass === 1 || restaurant.featuredClass === 2) && <FeaturedBadge featuredClass={restaurant.featuredClass} />}
@@ -1950,13 +1951,14 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                 </div>
 
                 <div className="px-3 py-3">
-                  <h3 className="line-clamp-2 text-[18px] font-black group-hover:text-gold-500 transition-colors tracking-[-0.025em] leading-[1.05]" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
+                  <h3 className="break-words text-[18px] font-black group-hover:text-gold-500 transition-colors tracking-[-0.025em] leading-[1.05]" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
                   {!!r.cuisine && <p className="mt-0.5 truncate text-[11px] font-semibold text-[var(--muted)]">{r.cuisine}</p>}
                   {(() => {
                     const zi = zoneDeliveryInfo[r.id];
                     const outOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(r.id);
                     const eta = zi?.etaMinutes ?? r.etaMinutes;
                     const fee = zi?.deliveryFee ?? r.deliveryFee;
+                    const minOrder = zi?.minOrder ?? r.minOrderAmount;
                     const publicDeal = getDealForRestaurant(r.id);
                     const activeDealFreeDelivery =
                       r.homeFreeDeliveryReason === "ACTIVE_DEAL" ||
@@ -1988,6 +1990,9 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                             <Truck size={11} />
                             {hasFreeDelivery ? "Fri leverans" : `${Math.round(fee as number)} kr`}
                           </span>
+                        )}
+                        {orderType === "DELIVERY" && !outOfZone && typeof minOrder === "number" && Number.isFinite(minOrder) && minOrder > 0 && (
+                          <span className="flex items-center gap-1"><ShoppingBag size={11} /> Min {Math.round(minOrder)} kr</span>
                         )}
                         {orderType === "PICKUP" && (
                           <span className="flex items-center gap-1"><Store size={11} /> Hämta själv</span>
@@ -2491,26 +2496,21 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
 
                           {/* ── CARD FOOTER (minimal: namn + rating + leveranstid) ── */}
                           <div className="px-3.5 py-3.5">
-                            <div className="mb-2 flex items-start gap-2.5">
-                              <div className="min-w-0 flex-1">
-                                <h3 className="truncate text-[17px] font-black leading-tight tracking-normal text-[var(--ink)]">{r.name}</h3>
+                            <div className="mb-2">
+                              <div>
+                                <h3 className="break-words text-[17px] font-black leading-tight tracking-normal text-[var(--ink)]">{r.name}</h3>
                                 {(r.cuisine || r.description) && (
                                   <p className="mt-0.5 truncate text-[12px] font-semibold text-[var(--muted)]">
                                     {r.cuisine ? `${r.cuisine.charAt(0).toUpperCase()}${r.cuisine.slice(1)}` : r.description}
                                   </p>
                                 )}
                               </div>
-                              {typeof r.rating === "number" && Number.isFinite(r.rating) && typeof r.ratingCount === "number" && r.ratingCount > 0 && (
-                                <span className="inline-flex h-[26px] shrink-0 items-center gap-1 rounded-full bg-[var(--ink)] px-2 text-[12px] font-black text-white">
-                                  <Star size={11} fill="var(--gold)" className="text-[var(--gold)]" />
-                                  {r.rating.toFixed(1)} ({r.ratingCount})
-                                </span>
-                              )}
                             </div>
                             {(() => {
                               const zi = zoneDeliveryInfo[r.id];
                               const eta = zi?.etaMinutes ?? r.etaMinutes;
                               const fee = zi?.deliveryFee ?? r.deliveryFee;
+                              const minOrder = zi?.minOrder ?? r.minOrderAmount;
                               const publicDeal = getDealForRestaurant(r.id);
                               const activeDealFreeDelivery =
                                 r.homeFreeDeliveryReason === "ACTIVE_DEAL" ||
@@ -2531,6 +2531,12 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                                       <Truck size={12} />
                                       {hasFreeDelivery ? "Fri leverans" : `${Math.round(fee as number)} kr`}
                                     </span>
+                                  )}
+                                  {orderType === "DELIVERY" && !isOutOfZone && typeof minOrder === "number" && Number.isFinite(minOrder) && minOrder > 0 && (
+                                    <span className="flex items-center gap-1"><ShoppingBag size={12} /> Min {Math.round(minOrder)} kr</span>
+                                  )}
+                                  {typeof r.rating === "number" && Number.isFinite(r.rating) && typeof r.ratingCount === "number" && r.ratingCount > 0 && (
+                                    <span className="flex items-center gap-1"><Star size={12} fill="var(--gold)" className="text-[var(--gold)]" /> {r.rating.toFixed(1)} ({r.ratingCount})</span>
                                   )}
                                   {orderType === "PICKUP" && (
                                     <span className="flex items-center gap-1"><Store size={12} /> Hämta själv</span>
