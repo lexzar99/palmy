@@ -283,3 +283,19 @@ export interface DeliveryTimingRestaurantRow {
 export const deliveryTimingQueryKey = ["dashboard", "delivery-timing"] as const;
 export const getDeliveryTiming = () =>
   apiGet<{ restaurants: DeliveryTimingRestaurantRow[] }>("/admin/timing-stats/restaurants");
+
+export interface TimingOverviewBucket {
+  dayOfWeek: number;
+  dayName: string;
+  hourOfDay: number;
+  orders: number;
+  totalMinP50: number | null;
+  totalMinP95: number | null;
+  acceptToOnWayMinAvg: number | null;
+  onWayToDeliveredMinAvg: number | null;
+  avgPressAtOnWay: number | null;
+}
+
+export const timingOverviewQueryKey = ["dashboard", "timing-overview"] as const;
+export const getTimingOverview = () =>
+  apiGet<{ totalRows: number; byDayHour: TimingOverviewBucket[] }>("/admin/timing-stats");
