@@ -5,6 +5,31 @@ import Link from "next/link";
 import axios from "axios";
 import { ArrowRight, BadgePercent, Gift, Truck } from "lucide-react";
 
+// Deals = rabatterade rätter från restaurangernas menyer (/api/menu/discounted).
+// Sidan hämtade tidigare bara kampanj-endpointsen, som normalt är tomma — därför
+// såg sidan tom ut trots att det fanns riktiga fynd. Rätterna grupperas per
+// restaurang i varsin räls, med dyrast först eftersom det är där kunden sparar
+// mest kronor.
+type DiscountedProduct = {
+  id: string;
+  name: string;
+  description?: string | null;
+  originalPrice: number;
+  discountPrice: number;
+  discountPercent?: number | null;
+  discountLabel?: string | null;
+  imageUrl?: string | null;
+  category?: string | null;
+  restaurant: {
+    id: string;
+    slug: string;
+    name: string;
+    imageUrl?: string | null;
+    city?: string | null;
+    cuisine?: string | null;
+  };
+};
+
 type PublicDeal = {
   id: string;
   title: string;
@@ -19,30 +44,24 @@ type PublicDeal = {
   restaurant?: { name: string; slug: string } | null;
 };
 
-type AppDeal = {
-  id: string;
-  title: string;
-  subtitle?: string | null;
-  badge?: string | null;
-  discountPercent?: number | null;
-  amountKr?: number | null;
-  freeDelivery?: boolean;
-  minOrderKr?: number | null;
-  restaurant?: { name: string; slug: string } | null;
+type RestaurantRail = {
+  slug: string;
+  name: string;
+  cuisine: string | null;
+  products: DiscountedProduct[];
+  topPrice: number;
+  totalSaved: number;
 };
 
-type DealCard = {
-  id: string;
-  href: string | null;
-  title: string;
-  subtitle: string | null;
-  badge: string | null;
-  reward: string | null;
-  freeDelivery: boolean;
-  minOrder: number | null;
-  restaurantName: string | null;
-  tone: "orange" | "blue";
-};
+const kr = (value: number) => `${Math.round(value)} kr`;
+
+function percentOff(product: DiscountedProduct) {
+  if (typeof product.discountPercent === "number" && product.discountPercent > 0) {
+    return Math.round(product.discountPercent);
+  }
+  if (!product.originalPrice) return 0;
+  return Math.max(0, Math.round(((product.originalPrice - product.discountPrice) / product.originalPrice) * 100));
+}
 
 function publicReward(deal: PublicDeal) {
   if (deal.discountType === "PERCENTAGE" && Number(deal.discountValue) > 0) {
@@ -55,22 +74,22 @@ function publicReward(deal: PublicDeal) {
 }
 
 export default function DealsPage() {
+  const [products, setProducts] = useState<DiscountedProduct[]>([]);
   const [publicDeals, setPublicDeals] = useState<PublicDeal[]>([]);
-  const [appDeals, setAppDeals] = useState<AppDeal[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     Promise.allSettled([
+      axios.get("/api/menu/discounted", { params: { _t: Date.now() } }),
       axios.get("/api/deals"),
-      axios.get("/api/deals/app?placement=DEALS&limit=24&loggedIn=0"),
-    ]).then(([publicResult, appResult]) => {
+    ]).then(([discountedResult, publicResult]) => {
       if (cancelled) return;
+      if (discountedResult.status === "fulfilled") {
+        setProducts(Array.isArray(discountedResult.value.data) ? discountedResult.value.data : []);
+      }
       if (publicResult.status === "fulfilled") {
         setPublicDeals(Array.isArray(publicResult.value.data) ? publicResult.value.data : []);
-      }
-      if (appResult.status === "fulfilled") {
-        setAppDeals(Array.isArray(appResult.value.data?.deals) ? appResult.value.data.deals : []);
       }
       setLoading(false);
     });
@@ -79,40 +98,41 @@ export default function DealsPage() {
     };
   }, []);
 
-  const cards = useMemo<DealCard[]>(() => {
-    const publicCards = publicDeals
-      .filter((deal) => deal.isActive !== false && deal.showOnSite !== false)
-      .map((deal): DealCard => ({
-        id: `public-${deal.id}`,
-        href: `/deals/${deal.id}`,
-        title: deal.title,
-        subtitle: deal.description || null,
-        badge: deal.badgeText || null,
-        reward: publicReward(deal),
-        freeDelivery: Boolean(deal.freeDelivery || deal.discountType === "FREE_DELIVERY"),
-        minOrder: typeof deal.minOrder === "number" ? deal.minOrder : null,
-        restaurantName: deal.restaurant?.name || null,
-        tone: "orange",
-      }));
-    const appCards = appDeals.map((deal, index): DealCard => ({
-      id: `app-${deal.id}`,
-      href: deal.restaurant?.slug ? `/restaurants/${deal.restaurant.slug}` : null,
-      title: deal.title,
-      subtitle: deal.subtitle || null,
-      badge: deal.badge || null,
-      reward:
-        typeof deal.discountPercent === "number" && deal.discountPercent > 0
-          ? `${deal.discountPercent}% rabatt`
-          : typeof deal.amountKr === "number" && deal.amountKr > 0
-            ? `${deal.amountKr} kr rabatt`
-            : null,
-      freeDelivery: Boolean(deal.freeDelivery),
-      minOrder: typeof deal.minOrderKr === "number" ? deal.minOrderKr : null,
-      restaurantName: deal.restaurant?.name || null,
-      tone: index % 2 === 0 ? "blue" : "orange",
-    }));
-    return [...publicCards, ...appCards];
-  }, [publicDeals, appDeals]);
+  const rails = useMemo<RestaurantRail[]>(() => {
+    const byRestaurant = new Map<string, RestaurantRail>();
+    for (const product of products) {
+      if (!product?.restaurant?.slug) continue;
+      const existing = byRestaurant.get(product.restaurant.slug) || {
+        slug: product.restaurant.slug,
+        name: product.restaurant.name,
+        cuisine: product.restaurant.cuisine || null,
+        products: [],
+        topPrice: 0,
+        totalSaved: 0,
+      };
+      existing.products.push(product);
+      byRestaurant.set(product.restaurant.slug, existing);
+    }
+    return [...byRestaurant.values()]
+      .map((rail) => {
+        // Dyrast först: den rätten är det mest attraktiva fyndet i rälsen.
+        rail.products.sort((a, b) => b.discountPrice - a.discountPrice || percentOff(b) - percentOff(a));
+        rail.topPrice = rail.products[0]?.discountPrice ?? 0;
+        rail.totalSaved = rail.products.reduce((sum, p) => sum + Math.max(0, p.originalPrice - p.discountPrice), 0);
+        return rail;
+      })
+      .sort((a, b) => b.topPrice - a.topPrice || a.name.localeCompare(b.name, "sv"));
+  }, [products]);
+
+  const campaignCards = useMemo(
+    () => publicDeals.filter((deal) => deal.isActive !== false && deal.showOnSite !== false),
+    [publicDeals],
+  );
+
+  const totalSaved = useMemo(
+    () => rails.reduce((sum, rail) => sum + rail.totalSaved, 0),
+    [rails],
+  );
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] pb-32 text-[var(--ink)] md:pt-20">
@@ -121,15 +141,20 @@ export default function DealsPage() {
           <p className="text-[12px] font-black text-[var(--orange)]">VIAEATS DEALS</p>
           <h1 className="mt-1 text-[34px] font-black leading-none tracking-tight sm:text-5xl">Mer mat. Bättre pris.</h1>
           <p className="mt-3 max-w-xl text-[14px] font-semibold text-[var(--muted)]">
-            Aktiva erbjudanden från ViaEats och restaurangerna.
+            Rabatterade rätter från lokala restauranger — just nu.
           </p>
+          {!loading && totalSaved > 0 && (
+            <span className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#12855A] px-3.5 py-2 text-[12px] font-black text-white">
+              <BadgePercent size={14} /> Spara upp till {kr(totalSaved)}
+            </span>
+          )}
         </header>
 
         {loading ? (
-          <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {[1, 2, 3, 4].map((index) => <div key={index} className="skeleton h-56 rounded-[24px]" />)}
+          <div className="mt-8 flex gap-4 overflow-hidden">
+            {[1, 2, 3, 4].map((index) => <div key={index} className="skeleton h-64 w-[240px] shrink-0 rounded-[24px]" />)}
           </div>
-        ) : cards.length === 0 ? (
+        ) : rails.length === 0 && campaignCards.length === 0 ? (
           <section className="relative mt-8 overflow-hidden rounded-[28px] bg-[#EAF4FF] px-6 py-12 sm:px-10">
             <div className="absolute -right-10 -top-14 h-36 w-36 rounded-full bg-white/55" />
             <div className="relative max-w-md">
@@ -144,46 +169,100 @@ export default function DealsPage() {
             </div>
           </section>
         ) : (
-          <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {cards.map((card) => {
-              const blue = card.tone === "blue";
-              const content = (
-                <article
-                  className="relative flex min-h-[230px] flex-col overflow-hidden rounded-[24px] p-5 text-white shadow-[0_12px_28px_rgba(17,17,19,0.1)]"
-                  style={{
-                    background: blue
-                      ? "linear-gradient(145deg,#1678D4 0%,#0D54A4 100%)"
-                      : "linear-gradient(145deg,#F36A2E 0%,#C83F12 100%)",
-                  }}
-                >
-                  <div className="absolute -right-9 -top-10 h-28 w-28 rounded-full bg-white/15" />
-                  <div className="relative flex items-start justify-between gap-3">
-                    <span className="inline-flex min-h-7 items-center rounded-full bg-white/92 px-3 text-[10px] font-black uppercase text-[var(--ink)]">
-                      {card.badge || "Deal"}
-                    </span>
-                    {card.reward && <span className="rounded-full bg-white px-3 py-1.5 text-[12px] font-black text-[var(--ink)]">{card.reward}</span>}
+          <div className="mt-8 space-y-9">
+            {campaignCards.length > 0 && (
+              <section>
+                <h2 className="text-[20px] font-black">Kampanjer</h2>
+                <div className="mt-3 flex gap-4 overflow-x-auto pb-2 no-scrollbar">
+                  {campaignCards.map((deal) => (
+                    <Link
+                      key={deal.id}
+                      href={`/deals/${deal.id}`}
+                      className="relative flex min-h-[190px] w-[280px] shrink-0 flex-col overflow-hidden rounded-[24px] p-5 text-white"
+                      style={{ background: "linear-gradient(145deg,#F36A2E 0%,#C83F12 100%)" }}
+                    >
+                      <span className="inline-flex min-h-7 w-fit items-center rounded-full bg-white/92 px-3 text-[10px] font-black uppercase text-[var(--ink)]">
+                        {deal.badgeText || "Deal"}
+                      </span>
+                      <div className="mt-auto pt-6">
+                        <h3 className="text-[20px] font-black leading-tight">{deal.title}</h3>
+                        <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-black">
+                          {publicReward(deal) && <span className="rounded-full bg-white/16 px-2.5 py-1.5">{publicReward(deal)}</span>}
+                          {deal.freeDelivery && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-white/16 px-2.5 py-1.5">
+                              <Truck size={12} /> Fri leverans
+                            </span>
+                          )}
+                          {deal.restaurant?.name && <span className="rounded-full bg-white/16 px-2.5 py-1.5">{deal.restaurant.name}</span>}
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {rails.map((rail) => (
+              <section key={rail.slug}>
+                <div className="flex items-end justify-between gap-4">
+                  <div>
+                    <h2 className="text-[20px] font-black leading-tight">{rail.name}</h2>
+                    <p className="text-[13px] font-semibold text-[var(--muted)]">
+                      {rail.products.length} {rail.products.length === 1 ? "rätt" : "rätter"} till rabatterat pris
+                      {rail.cuisine ? ` · ${rail.cuisine}` : ""}
+                    </p>
                   </div>
-                  <div className="relative mt-auto pt-8">
-                    <h2 className="text-[22px] font-black leading-[1.05]">{card.title}</h2>
-                    {card.subtitle && <p className="mt-2 line-clamp-2 text-[13px] font-semibold text-white/85">{card.subtitle}</p>}
-                    <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px] font-black">
-                      {card.freeDelivery && <span className="inline-flex items-center gap-1 rounded-full bg-white/16 px-2.5 py-1.5"><Truck size={12} /> Fri leverans</span>}
-                      {card.restaurantName && <span className="rounded-full bg-white/16 px-2.5 py-1.5">{card.restaurantName}</span>}
-                      {typeof card.minOrder === "number" && card.minOrder > 0 && <span className="rounded-full bg-white/16 px-2.5 py-1.5">Min. {card.minOrder} kr</span>}
-                      <ArrowRight size={19} className="ml-auto shrink-0 text-white" strokeWidth={2.7} />
-                    </div>
-                  </div>
-                </article>
-              );
-              return card.href ? <Link key={card.id} href={card.href}>{content}</Link> : <div key={card.id}>{content}</div>;
-            })}
+                  <Link
+                    href={`/restaurants/${rail.slug}`}
+                    className="inline-flex shrink-0 items-center gap-1 text-[13px] font-black text-[var(--orange)]"
+                  >
+                    Se menyn <ArrowRight size={15} />
+                  </Link>
+                </div>
+
+                <div className="mt-3 flex gap-4 overflow-x-auto pb-2 no-scrollbar">
+                  {rail.products.map((product) => {
+                    const off = percentOff(product);
+                    return (
+                      <Link
+                        key={product.id}
+                        href={`/restaurants/${rail.slug}?product=${product.id}`}
+                        className="w-[240px] shrink-0 overflow-hidden rounded-[24px] bg-white shadow-[0_12px_28px_rgba(17,17,19,0.08)]"
+                      >
+                        <div className="relative h-[150px] bg-[var(--cream,#FEF7F0)]">
+                          {product.imageUrl ? (
+                            // Rätterna ligger på R2 i olika format; vanlig img undviker
+                            // loader-konfiguration för varje ny bucket-domän.
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" loading="lazy" />
+                          ) : null}
+                          {off > 0 && (
+                            <span className="absolute left-3 top-3 rounded-full bg-[var(--orange)] px-2.5 py-1 text-[12px] font-black text-white">
+                              −{off}%
+                            </span>
+                          )}
+                        </div>
+                        <div className="p-3.5">
+                          <h3 className="line-clamp-2 min-h-[38px] text-[14px] font-black leading-tight">{product.name}</h3>
+                          <p className="mt-1 truncate text-[11.5px] font-bold text-[var(--muted)]">{rail.name}</p>
+                          <div className="mt-2 flex items-baseline gap-2">
+                            <span className="text-[16px] font-black text-[var(--orange)]">{kr(product.discountPrice)}</span>
+                            <span className="text-[12px] font-bold text-[var(--muted)] line-through">{kr(product.originalPrice)}</span>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
           </div>
         )}
 
-        {!loading && cards.length > 0 && (
-          <div className="mt-6 flex items-center gap-2 rounded-[16px] bg-white px-4 py-3 text-[12px] font-bold text-[var(--muted)]">
+        {!loading && (rails.length > 0 || campaignCards.length > 0) && (
+          <div className="mt-8 flex items-center gap-2 rounded-[16px] bg-white px-4 py-3 text-[12px] font-bold text-[var(--muted)]">
             <BadgePercent size={16} className="text-[var(--orange)]" />
-            Villkor och giltighet visas när du öppnar erbjudandet.
+            Priser gäller så länge restaurangen har erbjudandet aktivt.
           </div>
         )}
       </div>

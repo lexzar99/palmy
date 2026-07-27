@@ -287,6 +287,82 @@ export function isHomeCategoryVisibleNow(schedule: HomeCategorySchedule | null |
   return minutes >= startMinutes || minutes <= endMinutes;
 }
 
+// ── Tillfällen ────────────────────────────────────────────────────────────────
+// "Pizza fredag" på en måndag bränner mer förtroende än en tom räls gör. Admin
+// kan alltid sätta ett eget schema (schedule.enabled) och då gäller bara det.
+// Saknas schema läser vi tillfället ur namnet, så att egenskapade kategorier
+// blir sanna direkt utan att någon måste efterredigera dem i admin.
+interface OccasionRule {
+  pattern: RegExp;
+  daysOfWeek?: number[];
+  startTime?: string;
+  endTime?: string;
+}
+
+const DAY_OCCASIONS: OccasionRule[] = [
+  { pattern: /fredag|friday/, daysOfWeek: [5], startTime: '14:00', endTime: '23:59' },
+  { pattern: /l[öo]rdag|saturday/, daysOfWeek: [6] },
+  { pattern: /s[öo]ndag|sunday/, daysOfWeek: [0] },
+  // Helgen börjar på fredagen i kundens huvud, så helgkategorier får tre dagar.
+  { pattern: /helg|weekend/, daysOfWeek: [5, 6, 0] },
+  { pattern: /m[åa]ndag|monday/, daysOfWeek: [1] },
+  { pattern: /tisdag|tuesday/, daysOfWeek: [2] },
+  { pattern: /onsdag|wednesday/, daysOfWeek: [3] },
+  { pattern: /torsdag|thursday/, daysOfWeek: [4] },
+];
+
+const TIME_OCCASIONS: OccasionRule[] = [
+  { pattern: /brunch/, daysOfWeek: [6, 0], startTime: '09:00', endTime: '14:00' },
+  { pattern: /frukost|breakfast|morgon/, startTime: '06:00', endTime: '10:30' },
+  { pattern: /natt|late.?night/, startTime: '21:00', endTime: '03:59' },
+  { pattern: /lunch/, startTime: '10:30', endTime: '14:30' },
+  { pattern: /kv[äa]ll|evening|middag|dinner/, startTime: '16:00', endTime: '23:59' },
+];
+
+export function inferHomeCategorySchedule(section: {
+  slug?: string | null;
+  title?: string | null;
+  titleEn?: string | null;
+}): HomeCategorySchedule | null {
+  const haystack = `${section.slug || ''} ${section.title || ''} ${section.titleEn || ''}`
+    .toLocaleLowerCase('sv');
+  const day = DAY_OCCASIONS.find((rule) => rule.pattern.test(haystack));
+  const time = TIME_OCCASIONS.find((rule) => rule.pattern.test(haystack));
+  if (!day && !time) return null;
+
+  // Dagen kommer från dagsregeln, klockslaget från tidsregeln när båda matchar
+  // ("Fredagskväll" = fredag 16:00–23:59, inte fredag från 14:00).
+  const window = time || day;
+  return {
+    enabled: true,
+    daysOfWeek: day?.daysOfWeek ?? time?.daysOfWeek ?? [],
+    startTime: window?.startTime ?? null,
+    endTime: window?.endTime ?? null,
+  };
+}
+
+export function effectiveHomeCategorySchedule(section: {
+  slug?: string | null;
+  title?: string | null;
+  titleEn?: string | null;
+  schedule?: HomeCategorySchedule | null;
+}): HomeCategorySchedule {
+  if (section.schedule?.enabled) return section.schedule;
+  return inferHomeCategorySchedule(section) || normalizeHomeCategorySchedule(section.schedule);
+}
+
+export function isHomeCategorySectionVisibleNow(
+  section: {
+    slug?: string | null;
+    title?: string | null;
+    titleEn?: string | null;
+    schedule?: HomeCategorySchedule | null;
+  },
+  now = new Date(),
+) {
+  return isHomeCategoryVisibleNow(effectiveHomeCategorySchedule(section), now);
+}
+
 const defaultCategories: Array<{
   title: string;
   titleEn: string;
@@ -361,6 +437,87 @@ const defaultCategories: Array<{
     },
     presentation: { layout: 'MEDIUM_RAIL', accent: 'ORANGE' },
     ranking: { strategy: 'WEIGHTED', avoidDuplicateFirst: true },
+  },
+  {
+    // Sushi på fredag lever bara om staden faktiskt har sushi som är öppet —
+    // annars filtreras rälsen bort som tom och Pizza fredag tar platsen.
+    title: 'Sushi fredag',
+    titleEn: 'Sushi Friday',
+    slug: 'sushi-fredag',
+    subtitle: 'Fredagsrullar när du vill ha något fräscht',
+    subtitleEn: 'Friday rolls when you want something fresh',
+    sortOrder: 22,
+    filterMode: 'FILTER',
+    maxRestaurants: 8,
+    filters: {
+      cuisines: ['Sushi'],
+      openNowOnly: true,
+      sortBy: 'RATING',
+      sortDirection: 'DESC',
+    },
+    schedule: {
+      enabled: true,
+      daysOfWeek: [5],
+      startTime: '14:00',
+      endTime: '23:59',
+    },
+    presentation: { layout: 'MEDIUM_RAIL', accent: 'BLUE' },
+    ranking: { strategy: 'WEIGHTED', avoidDuplicateFirst: true },
+  },
+  {
+    title: 'Helgens snabbaste',
+    titleEn: 'Fastest this weekend',
+    slug: 'helgens-snabbaste',
+    subtitle: 'Kortast väntan i helgen just nu',
+    subtitleEn: 'Shortest wait right now this weekend',
+    sortOrder: 24,
+    filterMode: 'FILTER',
+    maxRestaurants: 8,
+    filters: {
+      maxEtaMinutes: 40,
+      openNowOnly: true,
+      sortBy: 'ETA',
+      sortDirection: 'ASC',
+    },
+    schedule: {
+      enabled: true,
+      daysOfWeek: [5, 6, 0],
+      startTime: null,
+      endTime: null,
+    },
+    presentation: { layout: 'MEDIUM_RAIL', accent: 'GREEN' },
+    ranking: {
+      strategy: 'WEIGHTED',
+      avoidDuplicateFirst: true,
+      weights: { eta: 45, ordersToday: 18, ratingConfidence: 12 },
+    },
+  },
+  {
+    title: 'Helgens populäraste',
+    titleEn: 'Most popular this weekend',
+    slug: 'helgens-popularaste',
+    subtitle: 'Mest beställt av andra i helgen',
+    subtitleEn: 'Most ordered by others this weekend',
+    sortOrder: 26,
+    filterMode: 'FILTER',
+    maxRestaurants: 8,
+    filters: {
+      openNowOnly: true,
+      sortBy: 'ORDERS_7D',
+      sortDirection: 'DESC',
+    },
+    schedule: {
+      enabled: true,
+      daysOfWeek: [5, 6, 0],
+      startTime: null,
+      endTime: null,
+    },
+    presentation: { layout: 'MEDIUM_RAIL', accent: 'ORANGE' },
+    ranking: {
+      strategy: 'WEIGHTED',
+      avoidDuplicateFirst: true,
+      weights: { orders7d: 40, ordersToday: 22, ratingConfidence: 12 },
+    },
   },
   {
     title: 'Snabb lunch',

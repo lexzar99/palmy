@@ -108,4 +108,81 @@ for (const privateField of ['ordersToday', 'orders7d', 'actualAverageMinutesToda
 }
 assert.equal((publicRestaurant.reasons as string[]).includes('ACTIVE_ADMIN_BOOST'), false);
 
+// ── Tillfällen: en kategori får aldrig ljuga om vilken dag det är ───────────
+const occasionSection = (title: string, slug: string): HomeCategorySectionPayload => ({
+  ...section(slug, 1),
+  title,
+  slug,
+  filters: { openNowOnly: true, sortBy: 'RATING', sortDirection: 'DESC' },
+  // Admin skapade kategorin utan schema — tillfället måste läsas ur namnet.
+  schedule: { enabled: false },
+});
+
+const monday = new Date('2026-07-27T12:00:00.000Z');
+const fridayEvening = new Date('2026-07-31T18:00:00.000Z');
+const saturday = new Date('2026-08-01T12:00:00.000Z');
+const occasionCandidates = [candidate('a', 42, 10), candidate('b', 20, 2), candidate('c', 31, 1)];
+
+const composeOccasions = (at: Date) => composeHomeCategoryFeed({
+  sections: [
+    occasionSection('Pizza fredag', 'pizza-fredag'),
+    occasionSection('Helgens populäraste', 'helgens-popularaste'),
+    section('bra-betyg', 9),
+  ],
+  candidates: occasionCandidates,
+  availableTags: [pizzaTag],
+  city: 'Lund',
+  now: at,
+});
+
+const slugsOn = (at: Date) => composeOccasions(at).sections.map((entry) => entry.slug);
+
+assert.equal(slugsOn(monday).includes('pizza-fredag'), false, 'Pizza fredag får inte visas på en måndag');
+assert.equal(slugsOn(monday).includes('helgens-popularaste'), false, 'helgkategori får inte visas mitt i veckan');
+assert.equal(slugsOn(fridayEvening).includes('pizza-fredag'), true, 'Pizza fredag ska visas fredag kväll');
+assert.equal(slugsOn(saturday).includes('helgens-popularaste'), true, 'helgkategori ska visas på lördagen');
+assert.equal(slugsOn(saturday).includes('pizza-fredag'), false, 'fredagskategori ska vara borta på lördagen');
+assert.equal(slugsOn(monday).includes('bra-betyg'), true, 'evergreen-kategorier påverkas inte av tillfällen');
+
+// Klienten ska se samma tillfälle som filtret använde.
+const fridayPizza = composeOccasions(fridayEvening).sections.find((entry) => entry.slug === 'pizza-fredag');
+assert.deepEqual(fridayPizza?.schedule.daysOfWeek, [5], 'härlett schema ska följa med i publika payloaden');
+
+// ── Aktuellt ska aldrig vara tom ────────────────────────────────────────────
+const emptyFeed = composeHomeCategoryFeed({
+  sections: [occasionSection('Pizza fredag', 'pizza-fredag')],
+  candidates: occasionCandidates,
+  availableTags: [pizzaTag],
+  city: 'Lund',
+  now: monday,
+});
+assert.equal(emptyFeed.sections.length, 1, 'utan giltiga tillfällen ska en evergreen räls fylla platsen');
+assert.ok(emptyFeed.sections[0].restaurants.length > 0, 'fallback-rälsen måste innehålla restauranger');
+
+// ── Rotation: samma räls ska inte ledas av samma restaurang varje dag ───────
+const tiedCandidates = [candidate('a', 20, 4), candidate('b', 21, 4), candidate('c', 22, 4)];
+const leadsOverAWeek = new Set(
+  Array.from({ length: 7 }, (_, offset) => {
+    const day = new Date(Date.UTC(2026, 6, 27 + offset, 12));
+    return composeHomeCategoryFeed({
+      sections: [section('snabbast', 1)],
+      candidates: tiedCandidates,
+      availableTags: [pizzaTag],
+      city: 'Lund',
+      now: day,
+    }).sections[0].restaurants[0].id;
+  }),
+);
+assert.ok(leadsOverAWeek.size > 1, 'likvärdiga kandidater ska byta förstaplats över tid');
+
+// ...men rotationen får inte lyfta någon som faktiskt är långsammare.
+const honestLead = composeHomeCategoryFeed({
+  sections: [section('snabbast', 1)],
+  candidates: [candidate('a', 20, 4), candidate('b', 55, 4)],
+  availableTags: [pizzaTag],
+  city: 'Lund',
+  now: monday,
+}).sections[0].restaurants[0].id;
+assert.equal(honestLead, 'a', 'rotation får aldrig sätta en långsammare restaurang som "snabbast"');
+
 console.log('home category feed contracts: ok');

@@ -5,7 +5,8 @@ import { slugify } from '../lib/slug';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import {
   ensureDefaultHomeCategorySections,
-  isHomeCategoryVisibleNow,
+  effectiveHomeCategorySchedule,
+  isHomeCategorySectionVisibleNow,
   normalizeHomeCategoryFilters,
   normalizeHomeCategoryPresentation,
   normalizeHomeCategoryRanking,
@@ -151,8 +152,10 @@ router.get('/', async (_req, res) => {
     });
 
     const payload = sections
-      .filter((section) => isHomeCategoryVisibleNow(section.schedule))
-      .map(toPublicHomeCategorySection);
+      .filter((section) => isHomeCategorySectionVisibleNow(section))
+      .map(toPublicHomeCategorySection)
+      // Samma sanning som /feed: klienten ser tillfället som filtret använde.
+      .map((section) => ({ ...section, schedule: effectiveHomeCategorySchedule(section) }));
 
     res.json(payload);
   } catch (error) {

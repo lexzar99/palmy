@@ -161,6 +161,28 @@ function nextOpenLabel(oh: Restaurant["openingHours"]): string | null {
   return null;
 }
 
+// Stängt tills nästa öppning och en kort paus är två olika saker för kunden.
+// En "paus" som tar slut exakt när restaurangen öppnar igen är i själva verket
+// en stängning — den ska läsas som "Stängt · öppnar 11:00", inte "Pausad".
+function pauseEndsAtOpening(pausedUntil: Date, oh: Restaurant["openingHours"]): boolean {
+  const day = oh?.[WEEKDAY_KEYS[pausedUntil.getDay()]];
+  if (!day || day.closed || !Array.isArray(day.shifts)) return false;
+  const endMin = pausedUntil.getHours() * 60 + pausedUntil.getMinutes();
+  return day.shifts.some((shift: { open?: string }) => {
+    const [h, m] = (shift.open || "").split(":").map(Number);
+    return !Number.isNaN(h) && h * 60 + (m || 0) === endMin;
+  });
+}
+
+function closedStatusLabel(restaurant: Restaurant, pausedUntil: Date | null): string {
+  if (pausedUntil && !pauseEndsAtOpening(pausedUntil, restaurant.openingHours)) {
+    const time = `${pausedUntil.getHours().toString().padStart(2, "0")}:${pausedUntil.getMinutes().toString().padStart(2, "0")}`;
+    return `Pausad · ${time}`;
+  }
+  const next = nextOpenLabel(restaurant.openingHours);
+  return next ? `Stängt · ${next.replace("Öppnar", "öppnar")}` : "Stängt";
+}
+
 interface City {
   id: string;
   name: string;
@@ -538,6 +560,10 @@ function ChampionPromoCard({ module, onOpen }: { module: HomePulseModule; onOpen
   const restaurant = module.restaurant;
   if (!restaurant) return null;
   const image = absoluteMediaUrl(module.images?.[0] || restaurant.heroImageUrl || restaurant.imageUrl);
+  // Samma modul-typ bär både veckans globala favorit och kundens egen. Kronan
+  // hör till den globala; den personliga favoriten är ett hjärta.
+  const isPersonal = module.id.startsWith("personal-favorite:");
+  const BadgeIcon = isPersonal ? Heart : Crown;
   return (
     <button type="button" onClick={() => onOpen(restaurant.slug)} className="swift-promo-card group text-left">
       {image ? (
@@ -551,7 +577,7 @@ function ChampionPromoCard({ module, onOpen }: { module: HomePulseModule; onOpen
       <span className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/10 to-black/75" />
       <span className="absolute inset-x-0 bottom-0 p-4">
         <span className="mb-1.5 inline-flex h-6 items-center gap-1.5 rounded-full bg-[var(--gold)] px-2.5 text-[10px] font-black uppercase text-[#784D08]">
-          <Crown size={11} fill="currentColor" /> {module.title}
+          <BadgeIcon size={11} fill="currentColor" /> {module.title}
         </span>
         <span className="block truncate text-[24px] font-black leading-tight text-white">{restaurant.name}</span>
         <span className="mt-1 flex items-center gap-2 text-[12px] font-bold text-white/90">
@@ -1807,9 +1833,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
             : !inZone
             ? "Utanför zon"
             : r.isOpen === false
-              ? (railIsPaused
-                  ? `Öppnar ${railPaused!.getHours().toString().padStart(2, "0")}:${railPaused!.getMinutes().toString().padStart(2, "0")}`
-                  : (nextOpenLabel(r.openingHours) || "Stängd"))
+              ? closedStatusLabel(r, railIsPaused ? railPaused : null)
               : null;
           return (
             <div
@@ -2294,9 +2318,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                     : isOutOfZone
                     ? "Utanför zon"
                     : isClosed
-                      ? (isPaused
-                          ? `Öppnar ${pausedUntilDate!.getHours().toString().padStart(2, "0")}:${pausedUntilDate!.getMinutes().toString().padStart(2, "0")}`
-                          : (nextOpenLabel(r.openingHours) || "Stängd"))
+                      ? closedStatusLabel(r, isPaused ? pausedUntilDate : null)
                       : null;
                   const isFav = favorites.has(r.id);
 

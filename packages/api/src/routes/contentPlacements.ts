@@ -2,7 +2,7 @@ import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { getShowcaseAdmin } from '../lib/showcase';
-import { isHomeCategoryVisibleNow, serializeHomeCategorySection } from '../lib/homeCategorySections';
+import { isHomeCategorySectionVisibleNow, serializeHomeCategorySection } from '../lib/homeCategorySections';
 import { readAllSponsors } from './sponsors';
 import { readAllAds } from './ads';
 import {
@@ -39,7 +39,7 @@ router.get('/', authenticate, requireSuperAdmin, async (_req, res) => {
       },
       ...categoryRows.map((row) => {
         const section = serializeHomeCategorySection(row);
-        const visibleNow = row.isActive && isHomeCategoryVisibleNow(section.schedule);
+        const visibleNow = row.isActive && isHomeCategorySectionVisibleNow(section);
         return {
           id: `rail:${row.id}`,
           sourceId: row.id,

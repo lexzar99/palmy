@@ -14,6 +14,7 @@ const EXCLUDED_STATUSES = ['CANCELLED', 'REJECTED'];
 export type EngineKey =
   | 'theme_rotation'
   | 'champion'
+  | 'personal_favorite'
   | 'hot_products'
   | 'favorite_product'
   | 'fastest_today'
@@ -46,6 +47,13 @@ export const ENGINE_DEFS: EngineDef[] = [
     description: 'Restaurangen med flest ordrar senaste 7 dagarna får ett herokort. Topp 3 roterar dag för dag.',
     defaultParams: { minOrders7d: 5 },
     paramLabels: { minOrders7d: 'Min ordrar/7 dagar' },
+  },
+  {
+    key: 'personal_favorite',
+    title: 'Din favoritrestaurang',
+    description: 'Kundens egen mest beställda restaurang tar Aktuellt-platsen istället för veckans globala favorit. Gäster och nya kunder ser den globala som vanligt.',
+    defaultParams: { minOrders: 3, windowDays: 180 },
+    paramLabels: { minOrders: 'Min antal ordrar', windowDays: 'Fönster (dagar)' },
   },
   {
     key: 'hot_products',
@@ -259,6 +267,60 @@ async function previewChampion() {
     title: 'Veckans favorit',
     subtitle: 'Populär nära dig',
     restaurant,
+    images,
+  };
+}
+
+// ── Din favorit: kundens egen mest beställda restaurang ────────────────────
+// Tar champion-platsen i Aktuellt när kunden har ett tydligt eget mönster.
+// Klienterna renderar första CHAMPION-modulen, därför delar de två motorerna
+// samma typ — det får bara finnas en åt gången.
+async function buildPersonalFavorite(userId: string, params: Record<string, number>) {
+  const minOrders = Math.max(2, Math.round(params.minOrders || 3));
+  const windowDays = Math.max(30, Math.round(params.windowDays || 180));
+  const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { phone: true } });
+
+  // Ordrar lagda som gäst på samma telefonnummer räknas också — annars tappar
+  // kunden sin historik i samma sekund som hen skapar konto.
+  const identityFilter: any[] = [{ userId }];
+  if (user?.phone) identityFilter.push({ customerPhone: user.phone });
+
+  const grouped = await (prisma.order.groupBy as any)({
+    by: ['restaurantId'],
+    where: {
+      createdAt: { gte: since },
+      status: { notIn: EXCLUDED_STATUSES },
+      restaurantId: { not: null },
+      OR: identityFilter,
+    },
+    _count: { restaurantId: true },
+    orderBy: { _count: { restaurantId: 'desc' } },
+    take: 3,
+  });
+
+  const [top, runnerUp] = grouped as any[];
+  const orders = Number(top?._count?.restaurantId || 0);
+  if (!top?.restaurantId || orders < minOrders) return null;
+
+  const restaurant = await prisma.restaurant.findFirst({
+    where: { id: top.restaurantId, archivedAt: null },
+    select: { id: true, name: true, slug: true, cuisine: true, imageUrl: true, heroImageUrl: true, rating: true, featuredClass: true, comingSoon: true, draft: true },
+  });
+  if (!restaurant || restaurant.comingSoon || restaurant.draft) return null;
+
+  // "Du beställer alltid här" är bara sant när favoriten faktiskt dominerar.
+  const runnerUpOrders = Number(runnerUp?._count?.restaurantId || 0);
+  const dominant = orders >= Math.max(minOrders + 1, runnerUpOrders * 2);
+  const images = [restaurant.heroImageUrl || restaurant.imageUrl].filter((url): url is string => Boolean(url));
+
+  return {
+    type: 'CHAMPION',
+    id: `personal-favorite:${restaurant.id}`,
+    theme: themeForKey(`personal-favorite:${restaurant.id}`),
+    title: 'Din favorit',
+    subtitle: dominant ? 'Du beställer alltid här' : 'Du beställde här mest',
+    restaurant: restaurantDto(restaurant),
     images,
   };
 }
@@ -846,7 +908,17 @@ export async function buildHomePulse(userId: string | null): Promise<{ greeting:
   };
   const engineOn = (key: EngineKey) => previewAll || settings[key].enabled;
   const jobs: Promise<any>[] = [
-    engineOn('champion') ? buildForPreview(buildChampion(settings.champion.params), previewChampion) : Promise.resolve(null),
+    // Kundens egen favorit äger Aktuellt-platsen när den finns, annars veckans
+    // globala favorit. Aldrig båda: klienterna visar första CHAMPION-modulen.
+    (async () => {
+      const personal = engineOn('personal_favorite') && userId
+        ? await buildPersonalFavorite(userId, settings.personal_favorite.params).catch(() => null)
+        : null;
+      if (personal) return personal;
+      return engineOn('champion')
+        ? buildForPreview(buildChampion(settings.champion.params), previewChampion)
+        : null;
+    })(),
     engineOn('hot_products') ? buildForPreview(buildHotProducts(settings.hot_products.params), previewHotProducts) : Promise.resolve(null),
     Promise.resolve(null),
     engineOn('fastest_today') ? buildForPreview(buildFastestToday(settings.fastest_today.params), previewFastestToday) : Promise.resolve(null),

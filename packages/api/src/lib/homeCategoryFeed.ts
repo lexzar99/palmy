@@ -5,7 +5,8 @@ import {
   type HomeCategorySectionPayload,
   type PublicHomeCategorySectionPayload,
   DEFAULT_HOME_RANKING_WEIGHTS,
-  isHomeCategoryVisibleNow,
+  effectiveHomeCategorySchedule,
+  isHomeCategorySectionVisibleNow,
   serializeHomeCategorySection,
 } from './homeCategorySections';
 import { getEffectiveEtaMinutes } from './restaurantEta';
@@ -132,6 +133,75 @@ function stableUnitHash(value: string): number {
     hash = Math.imul(hash, 16777619);
   }
   return (hash >>> 0) / 4_294_967_295;
+}
+
+// Hur ofta hemskärmen ska kännas ny. 24h som standard, 48h går att sätta i
+// drift utan release. Bucketen räknas på Stockholm-datum så bytet sker vid
+// midnatt hemma, inte vid UTC-midnatt.
+const ROTATION_HOURS = (() => {
+  const raw = Number(process.env.HOME_ROTATION_HOURS);
+  return Number.isFinite(raw) && raw >= 24 && raw <= 168 ? raw : 24;
+})();
+
+function rotationBucket(dayKey: string): number {
+  const dayIndex = Math.floor(Date.parse(`${dayKey}T00:00:00Z`) / DAY_MS);
+  if (!Number.isFinite(dayIndex)) return 0;
+  const span = Math.max(1, Math.round(ROTATION_HOURS / 24));
+  return Math.floor(dayIndex / span);
+}
+
+// Rotationen får aldrig ljuga. Vi byter bara förstaplats mellan kandidater som
+// i praktiken är likvärdiga på rälsens egen mätsticka — "Snabb lunch" leds
+// fortfarande av någon som faktiskt är snabb, men inte av samma varje dag.
+function leadBand(items: ScoredCandidate[], sortBy: string): ScoredCandidate[] {
+  if (items.length < 2) return items.slice(0, 1);
+  const leader = items[0];
+  const withinBand = (candidate: ScoredCandidate) => {
+    switch (sortBy) {
+      case 'ETA': {
+        const lead = leader.actualAverageMinutesToday ?? leader.etaMinutes;
+        const value = candidate.actualAverageMinutesToday ?? candidate.etaMinutes;
+        return value - lead <= 3;
+      }
+      case 'RATING':
+        return leader.ratingConfidence - candidate.ratingConfidence <= 0.03;
+      case 'DELIVERY_FEE':
+        return candidate.deliveryFeeOre - leader.deliveryFeeOre <= 500;
+      case 'ORDERS_TODAY':
+        return leader.ordersToday - candidate.ordersToday <= 1;
+      case 'ORDERS_7D':
+        return leader.orders7d - candidate.orders7d <= 2;
+      case 'DISCOUNT':
+        return leader.dealMaxPercent - candidate.dealMaxPercent <= 2;
+      case 'NAME':
+        return false;
+      default:
+        return leader.score > 0 && candidate.score >= leader.score * 0.94;
+    }
+  };
+  const band = [leader];
+  for (const candidate of items.slice(1, 4)) {
+    if (!withinBand(candidate)) break;
+    band.push(candidate);
+  }
+  return band;
+}
+
+function rotateLead(
+  items: ScoredCandidate[],
+  section: HomeCategorySectionPayload,
+  rotationSeed: string,
+): ScoredCandidate[] {
+  const band = leadBand(items, section.filters.sortBy || 'SMART');
+  if (band.length < 2) return items;
+  const pick = band[Math.floor(stableUnitHash(`${rotationSeed}|${section.slug}`) * band.length) % band.length];
+  if (pick.id === items[0].id) return items;
+  const index = items.findIndex((candidate) => candidate.id === pick.id);
+  if (index <= 0) return items;
+  const next = [...items];
+  const [moved] = next.splice(index, 1);
+  next.unshift(moved);
+  return next;
 }
 
 function ratingConfidence(rating: number | null, ratingCount: number): number {
@@ -341,6 +411,50 @@ function toRestaurantDto(candidate: ScoredCandidate): HomeFeedRestaurant {
   };
 }
 
+const FALLBACK_SECTION: HomeCategorySectionPayload = {
+  id: 'fallback-utvalt-idag',
+  title: 'Utvalt idag',
+  titleEn: 'Picked today',
+  slug: 'utvalt-idag-fallback',
+  subtitle: 'Öppet nu och populärt just nu',
+  subtitleEn: 'Open now and popular right now',
+  description: null,
+  descriptionEn: null,
+  isActive: true,
+  sortOrder: 0,
+  filterMode: 'FILTER',
+  maxRestaurants: 8,
+  manualRestaurantIds: [],
+  filters: { openNowOnly: true, sortBy: 'SMART', sortDirection: 'DESC' },
+  schedule: { enabled: false, daysOfWeek: [], startTime: null, endTime: null },
+  presentation: { layout: 'MEDIUM_RAIL', accent: 'ORANGE' },
+  ranking: { strategy: 'BALANCED', avoidDuplicateFirst: true, appearancePenalty: 6, maxAdminBoostPoints: 8 },
+  createdAt: new Date(0),
+  updatedAt: new Date(0),
+};
+
+function fallbackSections(
+  candidates: HomeFeedCandidate[],
+  maxima: { today: number; week: number },
+  contextSeed: string,
+  now: Date,
+) {
+  const section = { ...FALLBACK_SECTION, createdAt: now, updatedAt: now };
+  // Öppet nu först; är allt stängt visar vi ändå staden hellre än ingenting.
+  const openNow = candidates.filter((candidate) => isEligibleForHomeSection(candidate, section.filters));
+  const pool = openNow.length > 0
+    ? openNow
+    : candidates.filter((candidate) => isEligibleForHomeSection(candidate, { ...section.filters, openNowOnly: false }));
+  if (pool.length === 0) return [];
+
+  const scored = balancedOrder(
+    pool.map((candidate) => scoreCandidate(candidate, section, maxima, 0, contextSeed, now)),
+  ).slice(0, section.maxRestaurants);
+
+  const { ranking: _privateRanking, ...publicSection } = section;
+  return [{ ...publicSection, restaurants: scored.map(toRestaurantDto) }];
+}
+
 export function composeHomeCategoryFeed(input: {
   sections: HomeCategorySectionPayload[];
   candidates: HomeFeedCandidate[];
@@ -356,7 +470,8 @@ export function composeHomeCategoryFeed(input: {
     month: '2-digit',
     day: '2-digit',
   }).format(now);
-  const contextSeed = `${dayKey}|${input.city || 'ALL'}|${input.zone || 'ALL'}`;
+  const rotationSeed = `${rotationBucket(dayKey)}|${input.city || 'ALL'}|${input.zone || 'ALL'}`;
+  const contextSeed = `${rotationSeed}|${dayKey}`;
   const appearances = new Map<string, number>();
   const usedFirst = new Set<string>();
   const maxima = {
@@ -364,8 +479,8 @@ export function composeHomeCategoryFeed(input: {
     week: Math.max(0, ...input.candidates.map((candidate) => candidate.orders7d)),
   };
 
-  const sections = input.sections
-    .filter((section) => section.isActive && isHomeCategoryVisibleNow(section.schedule, now))
+  const composedSections = input.sections
+    .filter((section) => section.isActive && isHomeCategorySectionVisibleNow(section, now))
     .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, 'sv'))
     .map((section) => {
       const manualOrder = new Map(section.manualRestaurantIds.map((id, index) => [id, index]));
@@ -394,6 +509,11 @@ export function composeHomeCategoryFeed(input: {
         });
       }
 
+      // MANUAL är ett redaktionellt beslut och roteras aldrig.
+      if (section.filterMode !== 'MANUAL' && scored.length > 1) {
+        scored = rotateLead(scored, section, rotationSeed);
+      }
+
       if (section.ranking.avoidDuplicateFirst !== false && scored.length > 1 && usedFirst.has(scored[0].id)) {
         const unusedIndex = scored.findIndex((candidate) => !usedFirst.has(candidate.id));
         if (unusedIndex > 0) {
@@ -409,11 +529,24 @@ export function composeHomeCategoryFeed(input: {
       }
 
       const { ranking: _privateRanking, ...publicSection } = section;
-      return { ...publicSection, restaurants: scored.map(toRestaurantDto) };
+      return {
+        ...publicSection,
+        // Klienten ska se samma tillfälle som filtret faktiskt använde, inte det
+        // tomma schemat som råkade ligga i databasen.
+        schedule: effectiveHomeCategorySchedule(section),
+        restaurants: scored.map(toRestaurantDto),
+      };
     })
     // Tomma rails förvirrar kunden och visas därför inte publikt. De ligger
     // fortfarande kvar i /all och kan tweakas i admin.
     .filter((section) => section.restaurants.length > 0);
+
+  // Aktuellt bygger på den här feeden. Att den är tom är aldrig ett godtagbart
+  // svar: har alla tillfällen stängt sina fönster (eller admin råkat avaktivera
+  // allt) faller vi tillbaka på en evergreen räls av öppna restauranger.
+  const sections = composedSections.length > 0
+    ? composedSections
+    : fallbackSections(input.candidates, maxima, contextSeed, now);
 
   const visibleTagCounts = new Map<string, number>();
   for (const candidate of input.candidates) {

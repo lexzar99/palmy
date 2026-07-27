@@ -956,15 +956,23 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       data.acceptingOrdersMode = payload.acceptingOrdersMode;
       data.isOpen = payload.acceptingOrdersMode !== 'FORCE_CLOSED';
     } else if (payload.isOpen !== undefined) {
-      data.acceptingOrdersMode = 'SCHEDULED';
-      data.acceptingOrdersOverrideUntil = null;
-      data.acceptingOrdersOverrideReason = null;
-      data.isOpen = true;
       if (payload.isOpen === false) {
-        data.pausedUntil = nextOpeningAfterToday(
+        // "Stäng för idag" är en stängning, inte en paus. Den skrivs därför som
+        // ett tidsbegränsat FORCE_CLOSED som löper ut vid nästa öppning — då
+        // öppnar restaurangen av sig själv igen. `pausedUntil` är reserverat för
+        // korta avbrott mitt i öppettiden, som kunden ser som "Pausad".
+        data.acceptingOrdersMode = 'FORCE_CLOSED';
+        data.acceptingOrdersOverrideUntil = nextOpeningAfterToday(
           payload.openingHours !== undefined ? safeStringify(payload.openingHours) : existingRestaurant.openingHours,
         );
+        data.acceptingOrdersOverrideReason = 'CLOSED_UNTIL_NEXT_OPENING';
+        data.isOpen = false;
+        data.pausedUntil = null;
       } else {
+        data.acceptingOrdersMode = 'SCHEDULED';
+        data.acceptingOrdersOverrideUntil = null;
+        data.acceptingOrdersOverrideReason = null;
+        data.isOpen = true;
         data.pausedUntil = null;
       }
     }
