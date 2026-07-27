@@ -134,9 +134,9 @@ export default function DealsPage() {
             <div className="absolute -right-10 -top-14 h-36 w-36 rounded-full bg-white/55" />
             <div className="relative max-w-md">
               <Gift size={28} strokeWidth={2.25} className="text-[#125B9D]" />
-              <h2 className="mt-4 text-[25px] font-black leading-tight text-[#113A5C]">Deals dyker upp här</h2>
+              <h2 className="mt-4 text-[25px] font-black leading-tight text-[#113A5C]">Inga deals just nu</h2>
               <p className="mt-2 text-[14px] font-semibold leading-relaxed text-[#41647E]">
-                Just nu finns inga publicerade erbjudanden i API:t. Sidan uppdateras automatiskt när en deal aktiveras.
+                Nya erbjudanden landar här — titta in snart igen.
               </p>
               <Link href="/" className="mt-6 inline-flex h-11 items-center gap-2 rounded-full bg-[var(--orange)] px-5 text-[14px] font-black text-white">
                 Hitta mat <ArrowRight size={16} />
