@@ -70,6 +70,38 @@ async function enqueueUsers(
   };
 }
 
+export async function sendToInstallations(
+  installationIds: string[],
+  title: string,
+  body: string,
+  data?: Record<string, unknown>,
+  options?: QueueOptions,
+): Promise<SendResult> {
+  const uniqueIds = [...new Set(installationIds.map((id) => id.trim()).filter(Boolean))];
+  if (uniqueIds.length === 0) {
+    return { success: true, count: 0, errors: 0, queued: true };
+  }
+  const dedupePrefix = prefix(options);
+  let count = 0;
+  let errors = 0;
+  for (let offset = 0; offset < uniqueIds.length; offset += 25) {
+    const chunk = uniqueIds.slice(offset, offset + 25);
+    const results = await Promise.allSettled(chunk.map((installationId) =>
+      enqueueCustomerNotification({
+        dedupeKey: `${dedupePrefix}:installation:${installationId}`,
+        kind: 'ADMIN_INSTALLATION',
+        title,
+        body,
+        data: { ...(data || {}), __targetInstallationId: installationId },
+        maxAttempts: 3,
+      }),
+    ));
+    count += results.filter((result) => result.status === 'fulfilled').length;
+    errors += results.filter((result) => result.status === 'rejected').length;
+  }
+  return { success: errors === 0, count, errors, queued: true };
+}
+
 export async function sendToUser(
   identifier: string,
   title: string,

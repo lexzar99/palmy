@@ -107,7 +107,8 @@ for (const routePath of ['/register-fcm', '/register-device']) {
   const nextRoute = notificationRoutesSource.indexOf("router.post('", start + 20);
   const routeSource = notificationRoutesSource.slice(start, nextRoute === -1 ? undefined : nextRoute);
   assert.match(routeSource, /resolveCustomerNotificationTarget\(\{ authenticatedUserId, order, accessToken \}\)/);
-  assert.match(routeSource, /userId: target\.userId/);
+  assert.match(routeSource, /scope: 'installation', userId: null/);
+  assert.match(routeSource, /userId: null/);
   assert.match(routeSource, /registerOrderDeviceInstallation\(\{ \.\.\.registration, orderId \}\)/);
 }
 const deviceInstallationSource = readFileSync(path.resolve(__dirname, '../lib/deviceInstallations.ts'), 'utf8');

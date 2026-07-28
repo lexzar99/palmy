@@ -19,6 +19,7 @@ import {
 } from '../lib/deviceInstallations';
 import {
   activeOrderSubscribedDeviceWhere,
+  adminInstallationTargetId,
   notificationOutboxBackoffMs,
   ORDER_STATUS_NOTIFICATION_MAX_ATTEMPTS,
   orderStatusNotificationMatchesCurrent,
@@ -64,6 +65,12 @@ assert.equal(orderStatusNotificationMatchesCurrent('ORDER_STATUS', { status: 'RE
 assert.equal(orderStatusNotificationMatchesCurrent('ORDER_STATUS', { status: 'PREPARING' }, 'READY'), false);
 assert.equal(orderStatusNotificationMatchesCurrent('ORDER_STATUS', null, 'READY'), false);
 assert.equal(orderStatusNotificationMatchesCurrent('ADMIN', null, 'READY'), true);
+assert.equal(
+  adminInstallationTargetId('ADMIN_INSTALLATION', { __targetInstallationId: 'device-1' }),
+  'device-1',
+);
+assert.equal(adminInstallationTargetId('ADMIN_PUSH', { __targetInstallationId: 'device-1' }), null);
+assert.equal(adminInstallationTargetId('ADMIN_INSTALLATION', null), null);
 assert.equal(ORDER_DEVICE_SUBSCRIPTION_TTL_MS, 7 * 24 * 60 * 60_000);
 assert.equal(MAX_ACTIVE_WEB_PUSH_DEVICES_PER_ORDER, 6);
 assert.equal(MAX_ACTIVE_WEB_PUSH_DEVICES_PER_USER, 20);
@@ -130,6 +137,8 @@ assert.match(deviceInstallationSource, /await lockDeviceRegistration\(tx, 'WEB_P
 assert.match(deviceInstallationSource, /registerOrderDeviceInstallation/);
 const notificationRoutesSource = readFileSync(path.resolve(__dirname, '../routes/notifications.ts'), 'utf8');
 assert.match(notificationRoutesSource, /registerOrderDeviceInstallation/);
+assert.match(notificationRoutesSource, /scope: 'installation'/);
+assert.match(notificationRoutesSource, /router\.post\('\/admin\/send-installations'/);
 assert.doesNotMatch(notificationRoutesSource, /await upsertOrderDeviceSubscription/);
 const apiIndexSource = readFileSync(path.resolve(__dirname, '../index.ts'), 'utf8');
 const criticalWorkerStart = apiIndexSource.indexOf('startCustomerNotificationWorkers();');

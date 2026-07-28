@@ -2,7 +2,7 @@ import { Router } from 'express';
 import crypto from 'node:crypto';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
-import { sendToAllUsers, sendToUser, sendToCity } from '../lib/notifications';
+import { sendToAllUsers, sendToUser, sendToCity, sendToInstallations } from '../lib/notifications';
 import { authenticate, isSuperAdmin } from '../middleware/auth';
 import { authenticateUser, authenticateUserOptional } from './auth';
 import { resolveCustomerNotificationTarget } from '../lib/customerNotificationAccess';
@@ -83,7 +83,8 @@ router.post('/register-fcm', authenticateUserOptional, async (req: any, res) => 
     const providerToken = installationId || legacyToken!;
 
     const authenticatedUserId = req.user?.id ? String(req.user.id) : null;
-    let target = resolveCustomerNotificationTarget({ authenticatedUserId });
+    let target: { scope: 'account' | 'order' | 'installation'; userId: string | null } | null =
+      resolveCustomerNotificationTarget({ authenticatedUserId });
     if (orderId) {
       const order = await prisma.order.findUnique({
         where: { id: orderId },
@@ -101,7 +102,7 @@ router.post('/register-fcm', authenticateUserOptional, async (req: any, res) => 
       if (!target) return res.status(404).json({ error: 'Ordern hittades inte' });
     }
 
-    if (!target) return res.status(401).json({ error: 'Logga in eller ange ett giltigt orderbevis' });
+    if (!target) target = { scope: 'installation', userId: null };
 
     if (target.userId) {
       const activeTarget = await prisma.user.count({
@@ -110,7 +111,9 @@ router.post('/register-fcm', authenticateUserOptional, async (req: any, res) => 
       if (activeTarget !== 1) throw new Error('target_user_unavailable');
     }
     const registration = {
-      userId: target.userId,
+      // Kundappen äger installationen. Konto/telefon används aldrig som
+      // mottagare; orderbehörighet läggs separat i DeviceOrderSubscription.
+      userId: null,
       provider: 'FCM_FID' as const,
       rawToken: providerToken,
       installationId: deviceId || opaqueInstallationId('FCM_FID', providerToken),
@@ -152,7 +155,8 @@ router.post('/register-device', authenticateUserOptional, async (req: any, res) 
     const normalized = token.toLowerCase();
 
     const authenticatedUserId = req.user?.id ? String(req.user.id) : null;
-    let target = resolveCustomerNotificationTarget({ authenticatedUserId });
+    let target: { scope: 'account' | 'order' | 'installation'; userId: string | null } | null =
+      resolveCustomerNotificationTarget({ authenticatedUserId });
     if (orderId) {
       const order = await prisma.order.findUnique({
         where: { id: orderId },
@@ -169,7 +173,7 @@ router.post('/register-device', authenticateUserOptional, async (req: any, res) 
       }
       if (!target) return res.status(404).json({ error: 'Ordern hittades inte' });
     }
-    if (!target) return res.status(401).json({ error: 'Logga in eller ange ett giltigt orderbevis' });
+    if (!target) target = { scope: 'installation', userId: null };
 
     if (target.userId) {
       const activeTarget = await prisma.user.count({
@@ -178,7 +182,8 @@ router.post('/register-device', authenticateUserOptional, async (req: any, res) 
       if (activeTarget !== 1) return res.status(404).json({ error: 'Kundkontot är inte tillgängligt' });
     }
     const registration = {
-      userId: target.userId,
+      // APNs-tokenen tillhör appinstallationen, inte ett kundkonto.
+      userId: null,
       provider: 'APNS' as const,
       rawToken: normalized,
       installationId: installationId || opaqueInstallationId('APNS', normalized),
@@ -193,6 +198,135 @@ router.post('/register-device', authenticateUserOptional, async (req: any, res) 
       return res.status(400).json({ error: 'Ogiltig APNs-token eller orderdata' });
     }
     res.status(400).json({ error: 'Kunde inte registrera APNs-token' });
+  }
+});
+
+type InstallationAudienceFilter = {
+  ordered: 'all' | 'yes' | 'no';
+  minOrders?: number;
+  maxOrders?: number;
+};
+
+async function resolveInstallationAudience(filter: InstallationAudienceFilter) {
+  const installations = await prisma.deviceInstallation.findMany({
+    where: {
+      active: true,
+      tokenCiphertext: { not: null },
+      provider: { in: ['APNS', 'FCM_FID', 'EXPO'] },
+    },
+    select: {
+      id: true,
+      userId: true,
+      provider: true,
+      platform: true,
+      lastSeenAt: true,
+    },
+  });
+  if (installations.length === 0) return [];
+
+  const installationIds = installations.map((row) => row.id);
+  const userIds = [...new Set(installations.map((row) => row.userId).filter((id): id is string => Boolean(id)))];
+  const [subscriptionCounts, userOrderCounts] = await Promise.all([
+    prisma.deviceOrderSubscription.groupBy({
+      by: ['deviceInstallationId'],
+      where: { deviceInstallationId: { in: installationIds } },
+      _count: { _all: true },
+    }),
+    userIds.length
+      ? prisma.order.groupBy({
+          by: ['userId'],
+          where: { userId: { in: userIds } },
+          _count: { _all: true },
+        })
+      : Promise.resolve([]),
+  ]);
+  const byInstallation = new Map(subscriptionCounts.map((row) => [row.deviceInstallationId, row._count._all]));
+  const byUser = new Map(userOrderCounts.map((row) => [row.userId, row._count._all]));
+
+  return installations
+    .map((row) => ({
+      ...row,
+      orderCount: Math.max(
+        byInstallation.get(row.id) || 0,
+        row.userId ? byUser.get(row.userId) || 0 : 0,
+      ),
+    }))
+    .filter((row) => {
+      if (filter.ordered === 'yes' && row.orderCount === 0) return false;
+      if (filter.ordered === 'no' && row.orderCount > 0) return false;
+      if (filter.minOrders != null && row.orderCount < filter.minOrders) return false;
+      if (filter.maxOrders != null && row.orderCount > filter.maxOrders) return false;
+      return true;
+    });
+}
+
+const installationAudienceSchema = z.object({
+  ordered: z.enum(['all', 'yes', 'no']).default('all'),
+  minOrders: z.coerce.number().int().min(0).max(100_000).optional(),
+  maxOrders: z.coerce.number().int().min(0).max(100_000).optional(),
+});
+
+router.get('/admin/installations', authenticate, isSuperAdmin, async (req, res) => {
+  try {
+    const filter = installationAudienceSchema.parse(req.query);
+    const [all, selected] = await Promise.all([
+      resolveInstallationAudience({ ordered: 'all' }),
+      resolveInstallationAudience({ ...filter, ordered: filter.ordered ?? 'all' }),
+    ]);
+    res.json({
+      totals: {
+        installed: all.length,
+        ordered: all.filter((row) => row.orderCount > 0).length,
+        neverOrdered: all.filter((row) => row.orderCount === 0).length,
+        ios: all.filter((row) => row.provider === 'APNS' || row.platform === 'ios').length,
+        android: all.filter((row) => row.provider === 'FCM_FID' || row.platform === 'android').length,
+      },
+      selected: selected.length,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Ogiltigt filter' });
+    console.error('Installation audience error:', error);
+    res.status(500).json({ error: 'Kunde inte läsa appinstallationer' });
+  }
+});
+
+router.post('/admin/send-installations', authenticate, isSuperAdmin, async (req: any, res) => {
+  try {
+    const input = installationAudienceSchema.extend({
+      title: z.string().trim().min(1).max(120),
+      body: z.string().trim().min(1).max(500),
+      data: z.record(z.any()).optional(),
+    }).parse(req.body);
+    if (input.minOrders != null && input.maxOrders != null && input.minOrders > input.maxOrders) {
+      return res.status(400).json({ error: 'Minsta antal ordrar kan inte vara större än högsta' });
+    }
+    const normalizedFilter = { ...input, ordered: input.ordered ?? 'all' };
+    const audience = await resolveInstallationAudience(normalizedFilter);
+    const result = await sendToInstallations(
+      audience.map((row) => row.id),
+      input.title,
+      input.body,
+      input.data,
+      adminPushQueueOptions(req, `installations:${normalizedFilter.ordered}:${input.minOrders ?? ''}:${input.maxOrders ?? ''}`),
+    );
+    await prisma.pushLog.create({
+      data: {
+        target: 'installation',
+        cohort: `ordered=${normalizedFilter.ordered};min=${input.minOrders ?? ''};max=${input.maxOrders ?? ''}`,
+        title: input.title,
+        body: input.body,
+        deeplink: input.data?.deeplink as string | undefined ?? null,
+        count: result.count,
+        success: result.success,
+        error: result.errors > 0 ? `${result.errors} köfel` : null,
+        sentBy: req.user?.id ?? null,
+      },
+    });
+    res.json({ ...result, selected: audience.length });
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: 'Felaktig input', details: error.errors });
+    console.error('Admin installation push error:', error);
+    res.status(500).json({ error: 'Kunde inte skicka till appinstallationer' });
   }
 });
 

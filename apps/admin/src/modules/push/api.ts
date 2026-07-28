@@ -29,10 +29,35 @@ export interface PushResult {
   error?: string;
 }
 
+export type InstallationOrderFilter = "all" | "yes" | "no";
+
+export interface InstallationAudienceFilter {
+  ordered: InstallationOrderFilter;
+  minOrders?: number;
+  maxOrders?: number;
+}
+
+export interface InstallationAudienceResponse {
+  totals: {
+    installed: number;
+    ordered: number;
+    neverOrdered: number;
+    ios: number;
+    android: number;
+  };
+  selected: number;
+}
+
+export interface InstallationPushPayload extends InstallationAudienceFilter {
+  title: string;
+  body: string;
+  data?: Record<string, unknown>;
+}
+
 export interface PushLogRecord {
   id: string;
   createdAt: string;
-  target: "all" | "user" | "city" | "cohort";
+  target: "all" | "user" | "city" | "cohort" | "installation";
   identifier?: string | null;
   city?: string | null;
   cohort?: string | null;
@@ -124,6 +149,7 @@ export interface ScheduledPushRecord {
 }
 
 export const pushHistoryQueryKey = ["push", "history"] as const;
+export const pushInstallationsQueryKey = ["push", "installations"] as const;
 export const scheduledPushesQueryKey = ["push", "scheduled"] as const;
 
 const pushIdempotencyConfig = () => ({
@@ -142,6 +168,22 @@ export const sendPushToCity = (payload: PushCityPayload) =>
 export const sendPushToCohort = (payload: SendCohortPayload) =>
   apiPost<{ cohort: CohortKey; recipients: number; count: number; errors: number }>(
     "/notifications/admin/send-cohort",
+    payload,
+    pushIdempotencyConfig(),
+  );
+
+export const getPushInstallations = (filter: InstallationAudienceFilter) =>
+  apiGet<InstallationAudienceResponse>("/notifications/admin/installations", {
+    params: {
+      ordered: filter.ordered,
+      ...(filter.minOrders != null ? { minOrders: filter.minOrders } : {}),
+      ...(filter.maxOrders != null ? { maxOrders: filter.maxOrders } : {}),
+    },
+  });
+
+export const sendPushToInstallations = (payload: InstallationPushPayload) =>
+  apiPost<PushResult & { selected: number }>(
+    "/notifications/admin/send-installations",
     payload,
     pushIdempotencyConfig(),
   );

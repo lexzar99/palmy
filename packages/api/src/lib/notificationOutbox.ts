@@ -82,6 +82,16 @@ export function orderStatusNotificationMatchesCurrent(
     String(currentStatus || '').toUpperCase();
 }
 
+const ADMIN_INSTALLATION_TARGET_KEY = '__targetInstallationId';
+
+export function adminInstallationTargetId(kind: string, data: unknown): string | null {
+  if (kind !== 'ADMIN_INSTALLATION' || !data || typeof data !== 'object' || Array.isArray(data)) {
+    return null;
+  }
+  const value = String((data as Record<string, unknown>)[ADMIN_INSTALLATION_TARGET_KEY] || '').trim();
+  return value || null;
+}
+
 /**
  * Nullable-user devices are deliberately exact-order guest capabilities. A
  * non-null device may only join the account owner carried by the outbox after
@@ -120,7 +130,8 @@ export async function enqueueCustomerNotification(
 ): Promise<EnqueueCustomerNotificationResult> {
   const dedupeKey = String(input.dedupeKey || '').trim();
   if (!dedupeKey || dedupeKey.length > 300) throw new Error('Ogiltig notification dedupeKey');
-  if (!input.userId && (!input.orderId || input.kind !== 'ORDER_STATUS')) {
+  const installationTargetId = adminInstallationTargetId(input.kind, input.data);
+  if (!input.userId && (!input.orderId || input.kind !== 'ORDER_STATUS') && !installationTargetId) {
     throw new Error('Gästnotiser måste vara orderspecifika ORDER_STATUS-jobb');
   }
   try {
@@ -345,10 +356,16 @@ async function processClaimedOutboxWithClient(
   }
 
   const now = new Date();
+  const installationTargetId = adminInstallationTargetId(outbox.kind, outbox.data);
   const deviceWhere: Prisma.DeviceInstallationWhereInput = {
     active: true,
     tokenCiphertext: { not: null },
-    ...(outbox.orderId
+    ...(installationTargetId
+      ? {
+          id: installationTargetId,
+          provider: { in: ['APNS', 'FCM_FID', 'EXPO'] },
+        }
+      : outbox.orderId
       ? {
           OR: [
             ...(outbox.userId
@@ -447,14 +464,16 @@ async function processClaimedOutboxWithClient(
     let rawToken: string | undefined;
     try {
       rawToken = decryptCustomerPushToken(device.tokenCiphertext!);
+      const payloadData = (outbox.data && typeof outbox.data === 'object' && !Array.isArray(outbox.data))
+        ? { ...(outbox.data as Record<string, unknown>) }
+        : undefined;
+      if (payloadData) delete payloadData[ADMIN_INSTALLATION_TARGET_KEY];
       result = await sendCustomerPushTransport({
         provider: device.provider as CustomerPushProvider,
         rawToken,
         title: outbox.title,
         body: outbox.body,
-        data: (outbox.data && typeof outbox.data === 'object' && !Array.isArray(outbox.data))
-          ? outbox.data as Record<string, unknown>
-          : undefined,
+        data: payloadData,
       });
     } catch (error) {
       // Fel krypteringsnyckel är ett serverfel, inte en ogiltig enhet. Tokenen
