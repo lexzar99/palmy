@@ -1336,6 +1336,10 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
   // rå admin-data (section.restaurants) gick aldrig igenom → restauranger
   // från andra städer visades i Heta listan oavsett kundens adress.
   const matchesCityFamily = useCallback((r: Restaurant): boolean => {
+    // Zonen går före staden. En restaurang i grannkommunen som ritat en
+    // leveranszon över kundens adress kan faktiskt leverera hit — då ska den
+    // synas, även om dess registrerade stad är en annan.
+    if (orderType === "DELIVERY" && zoneRestaurantIds?.includes(r.id)) return true;
     if (cityFamilyIds && cityFamilyIds.length > 0) {
       const rCityId = (r as any).cityId as string | null | undefined;
       if (rCityId) return cityFamilyIds.includes(rCityId);
@@ -1359,7 +1363,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
     if (detectedCityName) return false;
     if (orderType === "PICKUP") return false;
     return true;
-  }, [cityFamilyIds, cityFamilyNames, detectedCityName, cityFamilyResolving, orderType]);
+  }, [cityFamilyIds, cityFamilyNames, detectedCityName, cityFamilyResolving, orderType, zoneRestaurantIds]);
 
   const filtered = useMemo(() => {
     const list = restaurants.filter((r) => {
