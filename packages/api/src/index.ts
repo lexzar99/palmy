@@ -695,8 +695,9 @@ const PORT = Number(process.env.PORT || 4000);
     void dispatchScheduledPushes();
     setInterval(() => { void dispatchScheduledPushes(); }, 60 * 1000);
 
-    // Stäm av äldre AWAITING_PAYMENT var 5:e minut. Jobbet raderar aldrig en
-    // order med möjlig pågående PSP-betalning; det frågar PSP:n först.
+    // Efter 15 min: stäm av AWAITING_PAYMENT mot PSP:n, avbryt en fortfarande
+    // öppen Mollie-betalning och flytta den ur aktiva orderflöden. Kör var 5:e
+    // minut, så faktisk städning sker efter cirka 15–20 minuter.
     const expireAbandoned = async () => {
       try {
         const { expireAbandonedAwaitingPayment } = await import('./lib/cleanup');

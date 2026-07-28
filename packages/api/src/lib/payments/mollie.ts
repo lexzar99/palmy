@@ -224,6 +224,20 @@ export const mollieProvider: PaymentProvider = {
     };
   },
 
+  async cancelPayment(paymentRef: string): Promise<RemotePaymentStatus> {
+    // Mollie tillåter cancellation medan betalningen fortfarande är open.
+    // Ett deterministiskt idempotency key gör timeout-jobbets retries säkra.
+    const payment = await mollie().payments.cancel(paymentRef, {
+      idempotencyKey: `viaeats-expire-${paymentRef}`,
+    });
+    return {
+      state: mapStatus(payment.status),
+      amountReceivedOre:
+        mapStatus(payment.status) === 'paid' ? toOre((payment as any).amount) : undefined,
+      method: typeof (payment as any).method === 'string' ? (payment as any).method : null,
+    };
+  },
+
   async refund(paymentRef: string, amountOre?: number, idempotencyKey?: string) {
     const payment = await mollie().payments.get(paymentRef);
     const amount = amountOre != null ? money(amountOre) : (payment as any).amount;

@@ -114,6 +114,21 @@ export const parseApplicableRestaurantIds = (raw: string | null | undefined) => 
   }
 };
 
+/**
+ * A deal may only enter pricing for restaurants explicitly covered by its
+ * scope. `isGlobal` is an explicit all-restaurants scope; otherwise either the
+ * primary restaurant or one of applicableRestaurantIds must match.
+ */
+export const dealMatchesRestaurant = (
+  deal: Pick<DealLike, 'restaurantId' | 'isGlobal' | 'applicableRestaurantIds'>,
+  restaurantId: string | null | undefined,
+) => {
+  if (!restaurantId) return false;
+  if (deal.isGlobal === true) return true;
+  if (deal.restaurantId === restaurantId) return true;
+  return parseApplicableRestaurantIds(deal.applicableRestaurantIds).includes(restaurantId);
+};
+
 // Restaurang-scope för en UserDeal, härlett från mall-dealen.
 // null = gäller överallt, annars lista av tillåtna restaurang-id:n.
 export const userDealRestaurantScope = (deal: any): string[] | null => {
@@ -136,6 +151,15 @@ export const isBasketDeal = (deal: Pick<DealLike, 'triggerType'>) => {
   const scope = getDealScopeType(deal);
   return scope === 'RESTAURANT' || scope === 'COMBO' || scope === 'MIN_ORDER';
 };
+
+/**
+ * PRODUCT and CATEGORY deals are applied authoritatively per item by
+ * resolveDisplayPromotionForProduct. Running them through the basket evaluator
+ * as well would turn a targeted offer into a discount on the whole order.
+ * BOGO_CATEGORY is the only category-shaped deal evaluated at basket level.
+ */
+export const isAutomaticBasketDeal = (deal: Pick<DealLike, 'triggerType'>) =>
+  deal.triggerType === 'BOGO_CATEGORY' || isBasketDeal(deal);
 
 export const getDealKind = (deal: Pick<DealLike, 'triggerType' | 'discountType'>) => {
   if (deal.triggerType === 'PRODUCT') return 'PRODUCT';

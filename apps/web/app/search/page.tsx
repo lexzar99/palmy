@@ -271,7 +271,11 @@ export default function SearchPage() {
 
   const categoryOptions = useMemo(() => {
     const counts = new Map<string, { label: string; count: number }>();
-    restaurants.forEach((restaurant) => {
+    const categoryRestaurants =
+      orderType === "DELIVERY" && deliverableIds !== null
+        ? restaurants.filter((restaurant) => deliverableIds.has(restaurant.id))
+        : restaurants;
+    categoryRestaurants.forEach((restaurant) => {
       const seen = new Set<string>();
       restaurantTerms(restaurant).forEach((term) => {
         const key = term.toLocaleLowerCase("sv");
@@ -297,11 +301,22 @@ export default function SearchPage() {
           tag.name.toLocaleLowerCase("sv") === option.key,
       ),
     );
-  }, [restaurants, feedTags]);
+  }, [restaurants, feedTags, orderType, deliverableIds]);
 
   const filtered = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("sv");
     return restaurants.filter((restaurant) => {
+      // Vald matkategori är ett leveransurval och får därför inte innehålla
+      // restauranger utanför adressens zon. "Alla restauranger" behåller dem
+      // synliga men dimmade längre ned.
+      if (
+        selectedTag &&
+        orderType === "DELIVERY" &&
+        deliverableIds !== null &&
+        !deliverableIds.has(restaurant.id)
+      ) {
+        return false;
+      }
       const terms = restaurantTerms(restaurant).map((term) => term.toLocaleLowerCase("sv"));
       const matchesTag = !selectedTag || terms.some((term) => term === selectedTag || term.includes(selectedTag));
       const haystack = [
@@ -315,7 +330,7 @@ export default function SearchPage() {
         .toLocaleLowerCase("sv");
       return matchesTag && (!normalizedQuery || haystack.includes(normalizedQuery));
     });
-  }, [query, selectedTag, restaurants]);
+  }, [query, selectedTag, restaurants, orderType, deliverableIds]);
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] pb-32 text-[var(--ink)] md:pt-20">
@@ -418,11 +433,13 @@ export default function SearchPage() {
                 const activeDealFreeDelivery =
                   deal.freeDelivery || restaurant.homeFreeDeliveryReason === "ACTIVE_DEAL";
                 const hasFreeDelivery =
-                  activeDealFreeDelivery ||
-                  (typeof zone?.deliveryFee === "number"
-                    ? zone.deliveryFee <= 0
-                    : restaurant.homeFreeDelivery === true ||
-                      (typeof restaurant.deliveryFee === "number" && restaurant.deliveryFee <= 0));
+                  inZone && (
+                    activeDealFreeDelivery ||
+                    (typeof zone?.deliveryFee === "number"
+                      ? zone.deliveryFee <= 0
+                      : restaurant.homeFreeDelivery === true ||
+                        (typeof restaurant.deliveryFee === "number" && restaurant.deliveryFee <= 0))
+                  );
                 const hasReviews =
                   typeof restaurant.rating === "number" &&
                   Number.isFinite(restaurant.rating) &&
@@ -477,7 +494,7 @@ export default function SearchPage() {
                             <span className="flex items-center gap-1"><Truck size={11} /> {hasFreeDelivery || (typeof fee === "number" && fee <= 0) ? "Fri leverans" : `${Math.round(fee as number)} kr`}</span>
                           )}
                           {orderType === "PICKUP" && <span className="flex items-center gap-1"><Store size={11} /> Hämta själv</span>}
-                          {!inZone && <span className="text-rose-600">Levererar ej hit</span>}
+                          {!inZone && <span className="text-rose-600">Levererar inte till din adress</span>}
                           {typeof restaurant.isOpen === "boolean" && (
                             <span className={`rounded-full px-2 py-1 text-[9px] font-black ${restaurant.isOpen ? "bg-[#EAF7EF] text-[#246B43]" : "bg-[var(--bg-deep)] text-[var(--muted)]"}`}>
                               {restaurant.isOpen ? "Öppet" : "Stängt"}

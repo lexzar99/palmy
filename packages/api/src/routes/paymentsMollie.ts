@@ -40,6 +40,7 @@ import {
   verifyOrderNativeSession,
 } from '../lib/orderAccess';
 import { KIOSK_ACCESS_HEADER, validKioskAccessProof } from '../lib/kioskAccess';
+import { validateFrozenOrderPricing } from '../lib/checkoutIntegrity';
 
 const router = Router();
 
@@ -267,6 +268,21 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
     }
     if (!Number.isFinite(order.total) || order.total < 1) {
       res.status(400).json({ error: 'Ogiltigt belopp på ordern' });
+      return;
+    }
+    const pricingIntegrity = validateFrozenOrderPricing(order);
+    if (!pricingIntegrity.valid) {
+      console.error('[payments/create] frozen order pricing mismatch; PSP call blocked', {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        storedTotalOre: order.total,
+        expectedTotalOre: pricingIntegrity.expectedTotalOre,
+        reason: pricingIntegrity.reason,
+      });
+      res.status(409).json({
+        error: 'Orderbeloppet kunde inte verifieras. Gå tillbaka till kassan och försök igen.',
+        code: 'ORDER_TOTAL_INTEGRITY_FAILED',
+      });
       return;
     }
 

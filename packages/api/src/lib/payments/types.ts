@@ -106,6 +106,12 @@ export interface PaymentProvider {
   createPayment(args: CreatePaymentArgs): Promise<CreatePaymentResult>;
   /** Hämta auktoritativ status från PSP:n (för webhook-finalisering + reconcile). */
   getRemoteStatus(paymentRef: string): Promise<RemotePaymentStatus>;
+  /**
+   * Avbryt en fortfarande öppen betalning. Providers som inte kan garantera
+   * cancellation lämnar metoden oimplementerad; då får timeout-jobbet bevara
+   * ordern tills PSP:n själv rapporterar ett terminalt tillstånd.
+   */
+  cancelPayment?(paymentRef: string): Promise<RemotePaymentStatus>;
   /** Refundera (hel eller delvis). amountOre utelämnat = hela betalningen. */
   refund(
     paymentRef: string,

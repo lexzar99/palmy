@@ -1868,6 +1868,9 @@ export default function CartPage() {
       lat: (() => { try { return JSON.parse(localStorage.getItem("platform_coords") || "null")?.lat; } catch { return undefined; } })(),
       lng: (() => { try { return JSON.parse(localStorage.getItem("platform_coords") || "null")?.lng; } catch { return undefined; } })(),
       tip: effectiveTip > 0 ? effectiveTip : undefined,
+      // Defense-in-depth: backend räknar alltid priserna på nytt men stoppar
+      // checkout om serverbeloppet avviker mer än 1 kr från det kunden såg.
+      expectedTotalKr: total,
       items: items.map((i) => ({
         productId: i.productId,
         quantity: i.quantity,

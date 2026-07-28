@@ -11,7 +11,16 @@ import {
   DEFAULT_ESTIMATED_PICKUP_TIME,
   DEFAULT_MIN_ORDER_AMOUNT,
 } from '../lib/restaurantSettings';
-import { evaluateDeal, isDealAvailableNow, parseApplicableRestaurantIds, resolveDisplayPromotionForProduct, userDealRestaurantScope, type CartItemForBogo } from '../lib/deals';
+import {
+  dealMatchesRestaurant,
+  evaluateDeal,
+  isAutomaticBasketDeal,
+  isDealAvailableNow,
+  parseApplicableRestaurantIds,
+  resolveDisplayPromotionForProduct,
+  userDealRestaurantScope,
+  type CartItemForBogo,
+} from '../lib/deals';
 import { getWelcomeOffer, isWelcomeEligible, welcomeOfferDiscountOre } from './referrals';
 import { ALLOW_TEST_ORDERS } from '../lib/config';
 import { bustCache } from '../lib/ttlCache';
@@ -58,6 +67,11 @@ import {
   resolveAuthoritativeExtraSelection,
 } from '../lib/orderExtraPricing';
 import { KIOSK_ACCESS_HEADER, validKioskAccessProof } from '../lib/kioskAccess';
+import {
+  CHECKOUT_TOTAL_TOLERANCE_ORE,
+  checkoutTotalDifferenceOre,
+  checkoutTotalMatches,
+} from '../lib/checkoutIntegrity';
 
 const router = Router();
 
@@ -147,17 +161,6 @@ const getStockholmCalendarDay = (date: Date) => stockholmDayFormatter.format(dat
 // söker både med och utan plustecken så äldre checkout-data inte skapar flera
 // gästprofiler för samma nummer.
 const guestPhoneVariants = (phone: string) => referralPhoneVariants(phone);
-
-const dealMatchesRestaurant = (deal: {
-  restaurantId?: string | null;
-  isGlobal?: boolean | null;
-  applicableRestaurantIds?: string | null;
-}, restaurantId: string | null) => {
-  if (!restaurantId) return false;
-  if (deal.isGlobal) return true;
-  if (deal.restaurantId === restaurantId) return true;
-  return parseApplicableRestaurantIds(deal.applicableRestaurantIds).includes(restaurantId);
-};
 
 class OrderValidationError extends Error {
   constructor(message: string) {
@@ -280,6 +283,9 @@ const CreateOrderSchema = z.object({
   // Dricks i kr som kund valt i kassan (delivery only). Adderas till
   // order.total + Stripe-belopp.
   tip: z.number().nonnegative().optional(),
+  // Kassans egen visade slutsumma i kr. Servern är fortsatt prissanning, men
+  // avvikelser större än 1 kr stoppas innan en Mollie-order kan skapas.
+  expectedTotalKr: z.number().nonnegative().optional(),
 }).refine((val) => Boolean(val.restaurantId || val.restaurantSlug), {
   message: 'restaurantId eller restaurantSlug krävs',
   path: ['restaurantId'],
@@ -697,14 +703,20 @@ router.post('/', async (req: Request, res: Response) => {
       : null;
 
     // Hämta produkter och beräkna priser
-    const activeDeals = await prisma.deal.findMany({
+    const allActiveDeals = await prisma.deal.findMany({
       // Personliga mallar (welcome/referral) får ALDRIG appliceras som
       // publika auto-deals — de delas bara ut som UserDeals till registrerade
       // kunder. Annars läckte t.ex. "25% första beställning"-välkomstmallen in
       // som automatisk rabatt för ALLA gäst-ordrar.
-      where: { isActive: true, isPersonalTemplate: false },
+      where: { isActive: true, isPersonalTemplate: false, isTemplate: false },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
     });
+    // Fail closed at the entrance to pricing. Every downstream catalog- and
+    // basket-deal calculation sees only deals explicitly scoped to this
+    // restaurant (or an intentionally global deal).
+    const activeDeals = allActiveDeals.filter((deal) =>
+      dealMatchesRestaurant(deal, restaurant.id),
+    );
     const productIds = [...new Set(data.items.map((i) => i.productId))];
     const requireActiveCatalog = !confirmedPayment || isPendingPayment;
     const products = await prisma.product.findMany({
@@ -827,7 +839,7 @@ router.post('/', async (req: Request, res: Response) => {
         product,
         categoryId: (product as any).categoryId,
         restaurantId: restaurant.id,
-        deals: activeDeals.filter((deal) => dealMatchesRestaurant(deal, restaurant.id) && isDealAvailableNow(deal, now)),
+        deals: activeDeals.filter((deal) => isDealAvailableNow(deal, now)),
       });
       const catalogBaseOre = !item.bogoFreeFromDealId && displayPromotion?.salePriceOre && displayPromotion.salePriceOre < product.price
         ? displayPromotion.salePriceOre
@@ -1023,6 +1035,9 @@ router.post('/', async (req: Request, res: Response) => {
 
     for (const deal of activeDeals) {
       if (!isDealAvailableNow(deal, now)) continue;
+      // PRODUCT/CATEGORY prices are already applied per matching item above.
+      // Never evaluate them as whole-basket discounts.
+      if (!isAutomaticBasketDeal(deal)) continue;
 
       if (
         deal.maxUsesPerCustomer !== null &&
@@ -1391,6 +1406,23 @@ router.post('/', async (req: Request, res: Response) => {
     }
     const rawTotal = subtotal - foodDiscountAmount + deliveryFee - deliveryDiscountAmount + smallOrderFee + tipOre;
     const total = Math.max(0, rawTotal);
+
+    // Defense in depth between the cart and hosted payment. The server remains
+    // authoritative, but a stale/mis-scoped deal or fee must never silently
+    // change what the customer saw by more than one krona.
+    if (!checkoutTotalMatches(data.expectedTotalKr, total)) {
+      const differenceOre = checkoutTotalDifferenceOre(data.expectedTotalKr, total);
+      console.warn('[orders] checkout total mismatch; payment creation blocked', {
+        restaurantId: restaurant.id,
+        clientTotalOre: data.expectedTotalKr == null ? null : Math.round(data.expectedTotalKr * 100),
+        serverTotalOre: total,
+        differenceOre,
+        toleranceOre: CHECKOUT_TOTAL_TOLERANCE_ORE,
+      });
+      throw new OrderValidationError(
+        'Beloppet har ändrats sedan kassan laddades. Uppdatera kassan och försök igen.',
+      );
+    }
 
     // Verifiera Stripe-beloppet matchar det vi räknat fram. Tidigare auto-justerade
     // koden order-total NEDÅT om Stripe visade lägre belopp — det betydde att en

@@ -19,6 +19,7 @@
     "test:notification-access": "ts-node --transpile-only src/contracts/customerNotificationAccess.test.ts",
     "test:order-access": "ts-node --transpile-only src/contracts/orderAccess.test.ts",
     "test:order-extra-pricing": "ts-node --transpile-only src/contracts/orderExtraPricing.test.ts",
+    "test:checkout-integrity": "ts-node --transpile-only src/contracts/checkoutPricingIntegrity.test.ts",
     "test:mollie-lines": "ts-node --transpile-only src/contracts/mollieLines.test.ts",
     "test:readiness": "ts-node --transpile-only src/contracts/launchReadiness.test.ts",
     "test:admin-auth-p0": "ts-node --transpile-only src/contracts/adminAuthP0.test.ts",

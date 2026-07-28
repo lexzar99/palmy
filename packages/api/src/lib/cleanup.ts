@@ -81,14 +81,37 @@ export async function runDailyCleanup(): Promise<void> {
   }
 }
 
+export const AWAITING_PAYMENT_TIMEOUT_MINUTES = 15;
+
+async function markAwaitingPaymentExpired(
+  orderId: string,
+  provider: PaymentProviderName,
+  ref: string | undefined,
+  reason: string,
+) {
+  await finalizePaymentFailed(orderId, { provider, ref, reason });
+  // Försvinner från alla aktiva orderflöden, men själva revisionsraden behålls.
+  // Hard-delete vore osäkert om en sen PSP-webhook behöver utredas.
+  await prisma.order.updateMany({
+    where: {
+      id: orderId,
+      status: 'AWAITING_PAYMENT',
+      paymentStatus: 'FAILED',
+    },
+    data: { status: 'CANCELLED' },
+  });
+}
+
 /**
- * Stäm av gamla AWAITING_PAYMENT-ordrar utan att radera betalningsunderlaget.
- * En hard-delete var farlig för Swish/Klarna/3DS: PSP:n kan hinna debitera
- * efter att vår order försvunnit. Bara PSP-verifierad success/failure ändrar
- * nu tillstånd; en öppen eller otillgänglig betalning bevaras till nästa körning.
+ * Stäm av AWAITING_PAYMENT efter 15 minuter. Betald vinner alltid. En öppen
+ * Mollie-betalning avbryts först hos Mollie och flyttas därefter atomiskt bort
+ * från aktiva ordrar. Underlaget hard-delete:as aldrig, så en PSP-avvikelse kan
+ * spåras och en betald order kan aldrig råka raderas.
  */
 export async function expireAbandonedAwaitingPayment(): Promise<void> {
-  const cutoff = new Date(Date.now() - 30 * 60 * 1000);
+  const cutoff = new Date(
+    Date.now() - AWAITING_PAYMENT_TIMEOUT_MINUTES * 60 * 1000,
+  );
   try {
     const abandoned = await prisma.order.findMany({
       where: {
@@ -111,7 +134,12 @@ export async function expireAbandonedAwaitingPayment(): Promise<void> {
 
     for (const order of abandoned) {
       if (!['mollie', 'stripe', 'adyen'].includes(order.paymentProvider)) {
-        await finalizePaymentFailed(order.id, { provider: 'stripe', reason: 'unknown-provider' });
+        await markAwaitingPaymentExpired(
+          order.id,
+          'stripe',
+          undefined,
+          'unknown-provider-timeout',
+        );
         continue;
       }
       const provider = getPaymentProviderByName(order.paymentProvider as PaymentProviderName);
@@ -122,26 +150,46 @@ export async function expireAbandonedAwaitingPayment(): Promise<void> {
             ? order.stripePaymentIntentId
             : order.adyenSessionId;
       if (!ref) {
-        await finalizePaymentFailed(order.id, {
-          provider: provider.name,
-          reason: 'no-payment-reference-timeout',
-        });
+        await markAwaitingPaymentExpired(
+          order.id,
+          provider.name,
+          undefined,
+          'no-payment-reference-timeout',
+        );
         continue;
       }
       try {
-        const remote = await provider.getRemoteStatus(ref);
+        let remote = await provider.getRemoteStatus(ref);
         if (remote.state === 'paid') {
           await finalizePaymentSuccess(order.id, {
             provider: provider.name,
             ref: remote.paymentIntentId || ref,
             amountReceivedOre: remote.amountReceivedOre ?? 0,
           });
-        } else if (['failed', 'canceled', 'expired'].includes(remote.state)) {
-          await finalizePaymentFailed(order.id, {
-            provider: provider.name,
+          continue;
+        }
+        if (
+          (remote.state === 'open' || remote.state === 'pending') &&
+          provider.cancelPayment
+        ) {
+          remote = await provider.cancelPayment(ref);
+          if (remote.state === 'paid') {
+            await finalizePaymentSuccess(order.id, {
+              provider: provider.name,
+              ref: remote.paymentIntentId || ref,
+              amountReceivedOre: remote.amountReceivedOre ?? 0,
+              method: remote.method,
+            });
+            continue;
+          }
+        }
+        if (['failed', 'canceled', 'expired'].includes(remote.state)) {
+          await markAwaitingPaymentExpired(
+            order.id,
+            provider.name,
             ref,
-            reason: remote.state,
-          });
+            `awaiting-payment-timeout:${remote.state}`,
+          );
         }
       } catch (error) {
         console.error(

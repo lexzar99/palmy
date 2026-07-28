@@ -137,9 +137,8 @@ const DEV_TRACKING_ADS: TrackingAd[] = [
   },
 ];
 
-// Nästa öppettid → "Öppnar 10:00" / "Öppnar imorgon 11:00" / "Öppnar tis 11:00".
+// Restaurangkorten använder alltid den korta formen "Öppnar 11:00".
 const WEEKDAY_KEYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-const WEEKDAY_SHORT = ["sön", "mån", "tis", "ons", "tor", "fre", "lör"];
 function nextOpenLabel(oh: Restaurant["openingHours"]): string | null {
   if (!oh) return null;
   const now = new Date();
@@ -154,9 +153,7 @@ function nextOpenLabel(oh: Restaurant["openingHours"]): string | null {
       if (Number.isNaN(h)) continue;
       const openMin = h * 60 + (m || 0);
       if (offset === 0 && openMin <= nowMin) continue;
-      if (offset === 0) return `Öppnar ${sh.open}`;
-      if (offset === 1) return `Öppnar imorgon ${sh.open}`;
-      return `Öppnar ${WEEKDAY_SHORT[dayIdx]} ${sh.open}`;
+      return `Öppnar ${sh.open}`;
     }
   }
   return null;
@@ -178,13 +175,9 @@ function pauseEndsAtOpening(pausedUntil: Date, oh: Restaurant["openingHours"]): 
 const HHMM = (date: Date) =>
   `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
 
-/** "öppnar 11:00" / "öppnar imorgon 11:00" / "öppnar tis 11:00". */
-function opensAtLabel(opensAt: Date, now = new Date()): string {
-  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const days = Math.round((startOfDay(opensAt) - startOfDay(now)) / 86_400_000);
-  if (days <= 0) return `öppnar ${HHMM(opensAt)}`;
-  if (days === 1) return `öppnar imorgon ${HHMM(opensAt)}`;
-  return `öppnar ${WEEKDAY_SHORT[opensAt.getDay()]} ${HHMM(opensAt)}`;
+/** Kort status som får plats på kortet även när öppningen är nästa dag. */
+function opensAtLabel(opensAt: Date): string {
+  return `öppnar ${HHMM(opensAt)}`;
 }
 
 function closedStatusLabel(restaurant: Restaurant, pausedUntil: Date | null): string {
@@ -1818,20 +1811,21 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
     // LUNCH och alla framtida HomeCategorySections som admin skapar) utan
     // att admin behöver tänka på det.
     const cityFiltered = sectionRestaurants.filter((r) => matchesCityFamily(r));
+    // En räls/kategori är ett relevant leveransurval. Restauranger utanför
+    // adressens zon hör bara hemma i "Alla restauranger" längre ned.
+    const deliverableRestaurants = cityFiltered.filter((restaurant) => (
+      orderType !== "DELIVERY" ||
+      zoneRestaurantIds === null ||
+      zoneRestaurantIds.includes(restaurant.id)
+    ));
 
-    // Om sektionen blir tom efter city-filter: dölj hela sektionen — så
-    // användaren inte ser tomma rails av rubriker. Heta listan kan undantas
-    // via alwaysShow=true (den är "premium-listan" som ska synas oavsett).
-    if (cityFiltered.length === 0 && !options.alwaysShow) return null;
+    // En räls utan restauranger som kan leverera till adressen ska aldrig
+    // renderas, inte ens för en manuellt prioriterad premiumsektion.
+    if (deliverableRestaurants.length === 0) return null;
 
     // Sortera så in-zone-restauranger kommer FÖRST. Out-of-zone hamnar
     // längst ner dimmade.
-    const sortedSection = cityFiltered.slice().sort((a, b) => {
-      if (zoneRestaurantIds === null) return 0;
-      const aIn = zoneRestaurantIds.includes(a.id) ? 0 : 1;
-      const bIn = zoneRestaurantIds.includes(b.id) ? 0 : 1;
-      return aIn - bIn;
-    });
+    const sortedSection = deliverableRestaurants;
     return (
     <section className="mb-5">
       <div className="flex items-end justify-between mb-1.5 px-1">
@@ -1886,12 +1880,14 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                     zoneDeliveryInfo[r.id]?.deliveryFee ??
                     deliveryOverrides[r.id]?.deliveryFee;
                   const showFreeDelivery =
-                    r.homeFreeDeliveryReason === "ACTIVE_DEAL" ||
-                    hasFreeDeliveryDeal(r.id) ||
-                    (typeof addressFee === "number"
-                      ? addressFee <= 0
-                      : r.homeFreeDelivery === true ||
-                        (typeof r.deliveryFee === "number" && r.deliveryFee <= 0));
+                    inZone && (
+                      r.homeFreeDeliveryReason === "ACTIVE_DEAL" ||
+                      hasFreeDeliveryDeal(r.id) ||
+                      (typeof addressFee === "number"
+                        ? addressFee <= 0
+                        : r.homeFreeDelivery === true ||
+                          (typeof r.deliveryFee === "number" && r.deliveryFee <= 0))
+                    );
                   if (!showFeatured && !badges.bogo && !regularLabel && !showFreeDelivery) return null;
                   return (
                     <div className={`absolute ${railDimReason ? "top-11" : "top-3"} left-3 right-3 z-20 flex flex-wrap gap-1.5 overflow-hidden`}>
@@ -2339,7 +2335,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                   const dimReason = isComingSoon
                     ? "Kommer snart"
                     : isOutOfZone
-                    ? "Utanför zon"
+                    ? "Levererar inte till din adress"
                     : isClosed
                       ? closedStatusLabel(r, isPaused ? pausedUntilDate : null)
                       : null;
@@ -2423,12 +2419,14 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                                 zoneDeliveryInfo[r.id]?.deliveryFee ??
                                 deliveryOverrides[r.id]?.deliveryFee;
                               const showFreeDelivery =
-                                r.homeFreeDeliveryReason === "ACTIVE_DEAL" ||
-                                hasFreeDeliveryDeal(r.id) ||
-                                (typeof addressFee === "number"
-                                  ? addressFee <= 0
-                                  : r.homeFreeDelivery === true ||
-                                    (typeof r.deliveryFee === "number" && r.deliveryFee <= 0));
+                                !isOutOfZone && (
+                                  r.homeFreeDeliveryReason === "ACTIVE_DEAL" ||
+                                  hasFreeDeliveryDeal(r.id) ||
+                                  (typeof addressFee === "number"
+                                    ? addressFee <= 0
+                                    : r.homeFreeDelivery === true ||
+                                      (typeof r.deliveryFee === "number" && r.deliveryFee <= 0))
+                                );
                               if (!showFeatured && !badges.bogo && !regularLabel && !showFreeDelivery) return null;
                               return (
                                 <div className="absolute bottom-3 left-3 right-3 z-10 flex flex-wrap gap-1.5 overflow-hidden">
@@ -2505,7 +2503,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                                   {isOutOfZone && (
                                     <>
                                       <span className="opacity-40">·</span>
-                                      <span className="text-rose-500/80 uppercase tracking-wider">{t("home.status.outOfZone") ?? "Levererar ej"}</span>
+                                      <span className="text-rose-500/80">Levererar inte till din adress</span>
                                     </>
                                   )}
                                 </div>
