@@ -172,8 +172,8 @@ assert.equal(adminTokenVersionMatches(1, 1), true);
 assert.equal(adminTokenVersionMatches(0, 1), false);
 
 assert.equal(customerAuthMethod({ app_metadata: { provider: 'email' } }), null);
-assert.equal(customerAuthMethod({ app_metadata: { provider: 'google' } }), 'google');
-assert.equal(customerAuthMethod({ app_metadata: { provider: 'apple' } }), 'apple');
+assert.equal(customerAuthMethod({ app_metadata: { provider: 'google' } }), null);
+assert.equal(customerAuthMethod({ app_metadata: { provider: 'apple' } }), null);
 assert.equal(customerAuthMethod({ phone: '+46700000000', app_metadata: { provider: 'phone' } }), null);
 assert.equal(customerAuthMethod({
   phone: '+46700000000',
@@ -204,15 +204,12 @@ assert.match(authRouteSource, /CUSTOMER_PASSWORD_AUTH_RETIRED/);
 assert.doesNotMatch(authRouteSource, /router\.post\('\/(?:register-user|login-user|send-verification-email|verify-email|check-email-verified|forgot-password|reset-password)'/);
 assert.match(authRouteSource, /router\.post\('\/login', authLimiter/);
 assert.doesNotMatch(authRouteSource, /verified\.email \|\| email/);
-assert.match(authRouteSource, /where: \{ oauthProvider: provider, oauthId: String\(providerId\) \}/);
-assert.match(authRouteSource, /if \(!user && email && emailVerified\)/);
-assert.match(authRouteSource, /Verifierad e-post krävs när ett nytt OAuth-konto skapas/);
+assert.match(authRouteSource, /CUSTOMER_OAUTH_RETIRED/);
+assert.doesNotMatch(authRouteSource, /verifyGoogleIdToken|verifyAppleIdToken|verifySupabaseOAuthToken/);
 assert.match(authRouteSource, /VERIFIED_PHONE_SESSION_REQUIRED/);
 assert.match(authRouteSource, /select: \{ deletedAt: true, isActive: true \}/);
-assert.match(authRouteSource, /user\.email && user\.email_confirmed_at/);
-assert.match(authRouteSource, /name: \(name \|\| ''\)\.trim\(\),/);
-assert.match(authRouteSource, /matchedByVerifiedEmail/);
-assert.match(authRouteSource, /provider === 'apple' \|\| user\.oauthProvider !== 'apple'/);
+assert.doesNotMatch(authRouteSource, /email_confirmed_at|matchedByVerifiedEmail/);
+assert.match(authRouteSource, /oauthProvider: 'phone'/);
 
 const profileRouteSource = fs.readFileSync(path.join(__dirname, '../routes/profile.ts'), 'utf8');
 assert.match(profileRouteSource, /token: phoneVerificationToken/);

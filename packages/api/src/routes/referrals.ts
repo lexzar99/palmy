@@ -17,9 +17,6 @@
 //   - Maybe-funktionen kollar att det är invitee:s första betalda order.
 //   - Om referral.status === REGISTERED → skapa UserDeals för båda + flip till ORDERED.
 //
-// Welcome-deal-trigger:
-//   - Anropas FRÅN auth.ts när nytt kundkonto skapas (phone-token + oauth-token).
-
 import { Router } from 'express';
 import { z } from 'zod';
 import crypto from 'crypto';
@@ -1547,7 +1544,7 @@ export async function maybeTriggerReferralReward(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Welcome-deal-trigger (anropas från auth.ts vid ny user-creation)
+// Welcome-deal-helper
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**

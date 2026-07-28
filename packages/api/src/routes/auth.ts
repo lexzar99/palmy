@@ -26,8 +26,6 @@ import {
 } from '../lib/recoveryCodes';
 import { generateSecret, generateURI, verifySync } from 'otplib';
 import QRCode from 'qrcode';
-import { OAuth2Client } from 'google-auth-library';
-import jwksClient from 'jwks-rsa';
 import {
   adminSessionTokenFromRequest,
   verifyAdminSessionToken,
@@ -44,7 +42,7 @@ import {
 
 const router = Router();
 
-// Kundkonton använder endast verifierad telefon-OTP eller Google/Apple OAuth.
+// Kundkonton använder endast verifierad telefon-OTP.
 // Adminens separata lösenord + 2FA-flöde (/login) påverkas inte. Guard-en ligger
 // före alla handlers så gamla webb-/appversioner aldrig kan återaktivera de
 // avvecklade lösenords- eller mejllänksflödena via /api/auth eller /api/account.
@@ -62,7 +60,7 @@ router.use((req, res, next) => {
   if (!RETIRED_CUSTOMER_AUTH_PATHS.has(req.path)) return next();
   res.set('Cache-Control', 'no-store');
   return res.status(410).json({
-    error: 'Detta kundflöde är avvecklat. Logga in med telefon, Google eller Apple.',
+    error: 'Detta kundflöde är avvecklat. Fortsätt med telefonnummer.',
     code: 'CUSTOMER_PASSWORD_AUTH_RETIRED',
   });
 });
@@ -109,153 +107,6 @@ function normalizePhone(phone: string): string {
 function phoneVariants(phone: string): string[] {
   const n = normalizePhone(phone);
   return [n, n.slice(1)]; // e.g. ["+46701234567", "46701234567"]
-}
-
-// ── OAuth id_token-verifiering ──────────────────────────────────────────────
-// Google: stödjer en eller flera client-id:n (web/ios/android) — comma-sep i
-// GOOGLE_OAUTH_CLIENT_ID. verifyIdToken accepterar antingen string eller
-// array som audience.
-const GOOGLE_OAUTH_CLIENT_IDS = (process.env.GOOGLE_OAUTH_CLIENT_ID || '')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
-const APPLE_OAUTH_CLIENT_IDS = [
-  process.env.APPLE_OAUTH_CLIENT_ID,
-  process.env.APPLE_IOS_BUNDLE_ID,
-  process.env.APPLE_OAUTH_CLIENT_IDS,
-  'se.viaeats.swift',
-]
-  .flatMap((value) => (value || '').split(','))
-  .map((s) => s.trim())
-  .filter(Boolean);
-
-const googleAuthClient = GOOGLE_OAUTH_CLIENT_IDS.length
-  ? new OAuth2Client(GOOGLE_OAUTH_CLIENT_IDS[0])
-  : null;
-
-// JWKS-klient för Apple — caching aktiv så vi inte hämtar nycklarna per
-// request. rateLimit/cacheMaxAge är defaults rekommenderade av jwks-rsa.
-const appleJwksClient = jwksClient({
-  jwksUri: 'https://appleid.apple.com/auth/keys',
-  cache: true,
-  cacheMaxEntries: 5,
-  cacheMaxAge: 10 * 60 * 60 * 1000, // 10h
-  rateLimit: true,
-});
-
-type VerifiedOAuthPayload = {
-  email: string | null;
-  providerId: string; // sub
-  name: string | null;
-  picture: string | null;
-  emailVerified: boolean;
-};
-
-async function verifyGoogleIdToken(
-  idToken: string,
-): Promise<VerifiedOAuthPayload> {
-  if (!googleAuthClient || GOOGLE_OAUTH_CLIENT_IDS.length === 0) {
-    throw new Error('GOOGLE_OAUTH_CLIENT_ID är inte konfigurerad');
-  }
-  const ticket = await googleAuthClient.verifyIdToken({
-    idToken,
-    audience: GOOGLE_OAUTH_CLIENT_IDS,
-  });
-  const payload = ticket.getPayload();
-  if (!payload || !payload.sub) {
-    throw new Error('Google id_token saknar payload/sub');
-  }
-  return {
-    email: payload.email || null,
-    providerId: payload.sub,
-    name: payload.name || null,
-    picture: payload.picture || null,
-    emailVerified: Boolean(payload.email_verified),
-  };
-}
-
-function appleGetKey(header: any, callback: any) {
-  appleJwksClient.getSigningKey(header.kid, (err, key) => {
-    if (err) return callback(err);
-    const signingKey = key?.getPublicKey();
-    callback(null, signingKey);
-  });
-}
-
-async function verifyAppleIdToken(
-  idToken: string,
-): Promise<VerifiedOAuthPayload> {
-  if (!APPLE_OAUTH_CLIENT_IDS.length) {
-    throw new Error('Apple OAuth audience är inte konfigurerad');
-  }
-  const appleAudiences = APPLE_OAUTH_CLIENT_IDS as [string, ...string[]];
-  const decoded: any = await new Promise((resolve, reject) => {
-    jwt.verify(
-      idToken,
-      appleGetKey,
-      {
-        algorithms: ['RS256'],
-        audience: appleAudiences,
-        issuer: 'https://appleid.apple.com',
-      },
-      (err, payload) => {
-        if (err) return reject(err);
-        resolve(payload);
-      },
-    );
-  });
-  if (!decoded || !decoded.sub) {
-    throw new Error('Apple id_token saknar payload/sub');
-  }
-  return {
-    email: decoded.email || null,
-    providerId: decoded.sub,
-    name: decoded.name || null,
-    picture: null,
-    emailVerified:
-      decoded.email_verified === true || decoded.email_verified === 'true',
-  };
-}
-
-type VerifiedSupabaseOAuthPayload = VerifiedOAuthPayload & {
-  provider: 'google' | 'apple';
-};
-
-/**
- * Verifiera Supabase OAuth-sessionen server-side. Webben och native Google
- * använder Supabase hosted OAuth och får därför en access token, inte alltid
- * leverantörens råa id_token. E-post/provider-id från request-body är aldrig
- * en identitetskälla.
- */
-async function verifySupabaseOAuthToken(
-  accessToken: string,
-): Promise<VerifiedSupabaseOAuthPayload> {
-  if (!supabaseAdmin) {
-    throw new Error('Supabase admin auth är inte konfigurerad');
-  }
-  const { data: { user }, error } = await supabaseAdmin.auth.getUser(accessToken);
-  if (error || !user) {
-    throw new Error('Ogiltig Supabase-session');
-  }
-
-  const provider = String(user.app_metadata?.provider || '').toLowerCase();
-  if (provider !== 'google' && provider !== 'apple') {
-    throw new Error('Sessionen kommer inte från en tillåten OAuth-provider');
-  }
-
-  const meta = user.user_metadata || {};
-  const first = String(meta.first_name || meta.given_name || '').trim();
-  const last = String(meta.last_name || meta.family_name || '').trim();
-  const name = String(meta.full_name || meta.name || [first, last].filter(Boolean).join(' ')).trim();
-
-  return {
-    provider,
-    email: user.email || null,
-    providerId: user.id,
-    name: name || null,
-    picture: String(meta.avatar_url || meta.picture || '').trim() || null,
-    emailVerified: Boolean(user.email_confirmed_at),
-  };
 }
 
 async function resolveAdminByIdentifier(loginId: string) {
@@ -339,8 +190,8 @@ async function resolveAdminByIdentifier(loginId: string) {
  * Unified auth middleware — verifies Supabase JWTs (primary) with a
  * fallback to the legacy custom JWT for a smooth transition period.
  */
-// Routes som en OAuth-only user (Google/Apple men ingen telefon) får träffa
-// innan den godkända SMS-OTP-verifieringen är klar.
+// Telefonverifieringen använder dessa publika/egna steg innan den färdiga
+// plattformssessionen har skapats.
 const PHONE_LINKING_ALLOWED_PATHS = new Set<string>([
   '/api/profile',
   '/api/auth/me',
@@ -360,6 +211,12 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
   // cache alone could otherwise authorize a deleted account for its full TTL.
   const cachedIdentity = getCachedCustomerIdentity(token);
   if (cachedIdentity) {
+    if (!cachedIdentity.phone) {
+      return res.status(401).json({
+        error: 'Verifiera ditt telefonnummer med SMS-koden',
+        code: 'VERIFIED_PHONE_SESSION_REQUIRED',
+      });
+    }
     const accountState = await (prisma as any).user.findUnique({
       where: { id: cachedIdentity.id },
       select: { deletedAt: true, isActive: true },
@@ -386,7 +243,7 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
         const authMethod = customerAuthMethod(user);
         if (!authMethod) {
           return res.status(401).json({
-            error: 'Logga in med telefon, Google eller Apple',
+            error: 'Verifiera ditt telefonnummer med SMS-koden',
             code: 'CUSTOMER_AUTH_METHOD_NOT_ALLOWED',
           });
         }
@@ -399,42 +256,6 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
           select: { deletedAt: true, isActive: true, firstName: true, lastName: true },
         }).catch(() => null);
 
-        // ID-mismatch-fix för importerade/äldre User-rader med cuid() medan
-        // Supabase auth.users har UUID. Om id inte matchar någon User i vår
-        // DB, men email matchar → samma person, bara olika historiska id:n.
-        // Då länkar vi till den befintliga raden och använder Supabase-status.
-        // Annars skulle vi skapa en SEKUNDÄR User-row och användaren skulle
-        // ha två konton i parallell — buggen som gav "isVerified=false trots
-        // verifierad email".
-        const verifiedSupabaseEmail = user.email && user.email_confirmed_at
-          ? user.email.toLowerCase()
-          : null;
-        let resolvedUserId = user.id;
-        if (!tombstone && verifiedSupabaseEmail) {
-          const existingByEmail = await (prisma as any).user.findFirst({
-            where: { email: verifiedSupabaseEmail, deletedAt: null },
-            select: { id: true, isVerified: true, isActive: true },
-          }).catch(() => null);
-          if (existingByEmail) {
-            if (existingByEmail.isActive === false) {
-              return res.status(401).json({ error: 'Konto avstängt' });
-            }
-            resolvedUserId = existingByEmail.id;
-            // Den här länken görs enbart via en uttryckligen bekräftad e-post.
-            // Ett bekräftat telefonnummer får aldrig attestera en e-postadress.
-            if (!existingByEmail.isVerified) {
-              await (prisma as any).user.update({
-                where: { id: existingByEmail.id },
-                data: { isVerified: true },
-              }).catch(() => null);
-              console.log(`[auth] User ${existingByEmail.id} (email=${verifiedSupabaseEmail}) markerad som verifierad via Supabase`);
-            }
-            req.user = { id: resolvedUserId, email: verifiedSupabaseEmail, phone: null, role: 'USER' };
-            setCachedCustomerIdentity(token, req.user);
-            return next();
-          }
-        }
-
         if (tombstone?.isActive === false) {
           // Permanent block — admin set isActive=false. Reject without revival.
           return res.status(401).json({ error: 'Konto avstängt' });
@@ -442,12 +263,15 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
         if (tombstone?.deletedAt) {
           return res.status(401).json({ error: 'Konto borttaget' });
         }
-        // Track for logging — we explicitly distinguish "found existing"
-        // vs "creating fresh" per the strict Apple Sign-In spec, so it's
-        // observable when name was vs wasn't received from Apple.
         const wasExistingUser = !!tombstone && !tombstone.deletedAt;
         const hadStoredName = !!(tombstone?.firstName || tombstone?.lastName);
         const normalizedPhone = user.phone ? normalizePhone(user.phone) : null;
+        if (!normalizedPhone) {
+          return res.status(401).json({
+            error: 'Verifiera ditt telefonnummer med SMS-koden',
+            code: 'VERIFIED_PHONE_SESSION_REQUIRED',
+          });
+        }
 
         // Check if a local user already exists with this phone under a different ID.
         // This happens when the same person used an older auth path that stored the phone
@@ -466,17 +290,17 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
           if (existingByPhone.isActive === false) {
             return res.status(401).json({ error: 'Konto avstängt' });
           }
-          // Merge: keep the richer existing record, normalise phone and mark verified.
+          // Merge by the verified number and make phone OTP the sole retained
+          // customer authentication provenance.
           await (prisma as any).user.update({
             where: { id: existingByPhone.id },
             data: {
               phone: normalizedPhone,
               isVerified: true,
-              email: verifiedSupabaseEmail || existingByPhone.email || undefined,
               name: user.user_metadata?.name || user.user_metadata?.full_name || existingByPhone.name || undefined,
               image: user.user_metadata?.avatar_url || user.user_metadata?.picture || existingByPhone.image || undefined,
-              oauthProvider: existingByPhone.oauthProvider || authMethod,
-              oauthId: existingByPhone.oauthId || user.id,
+              oauthProvider: 'phone',
+              oauthId: user.id,
             },
           }).catch(() => null);
           req.user = { id: existingByPhone.id, email: existingByPhone.email, phone: normalizedPhone, role: 'USER' };
@@ -484,14 +308,8 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
           return next();
         }
 
-        // STRICT APPLE SIGN-IN PERSISTENCE (per Apple's spec):
-        //   - Apple ships fullName only on the FIRST authorization.
-        //   - The DB is the single source of truth. Once first/last are
-        //     stored, NEVER overwrite from a later auth response — even if
-        //     by some path Supabase metadata changes, we ignore it.
-        //   - On the create path (genuinely new user), we accept whatever
-        //     Apple sent. If empty, columns stay null and the client gates
-        //     into the "Complete Profile" screen exactly once.
+        // Supabase phone identities may include name metadata, but the local
+        // profile remains authoritative once the customer has filled it in.
         const meta = user.user_metadata || {};
         let sbFirst =
           ((meta.first_name as string | undefined) ||
@@ -507,19 +325,14 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
             [sbFirst, sbLast].filter(Boolean).join(' ').trim() ||
             '').trim() || null;
 
-        // Fallback: om Supabase saknar split first/last men har ett komplett
-        // name (vanligt med Google — vissa returnerar bara "name", inte
-        // given_name/family_name), splittar vi på space. Annars hamnar
-        // användare i PhoneGateScreen "vad heter du" trots att Google
-        // delade ett namn.
+        // Om Supabase bara har ett komplett namn splittar vi det för profilen.
         if (!sbFirst && !sbLast && sbName) {
           const parts = sbName.split(/\s+/).filter(Boolean);
           if (parts.length >= 2) {
             sbFirst = parts[0];
             sbLast = parts.slice(1).join(' ');
           } else if (parts.length === 1) {
-            // Google har bara ett namn (sällsynt men möjligt) — använd
-            // som firstName så profileComplete-check accepterar single-name.
+            // Ett enda namn används som förnamn så profilflödet kan fortsätta.
             sbFirst = parts[0];
           }
         }
@@ -527,48 +340,40 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
 
         if (wasExistingUser) {
           if (hadStoredName) {
-            console.log(`[apple-auth] existing user ${user.id} signed in — name already on file, ignoring any Apple metadata`);
+            console.log(`[phone-auth] existing user ${user.id} signed in — keeping stored name`);
           } else if (sbFirst || sbLast) {
-            console.log(`[apple-auth] existing user ${user.id} signed in — DB had no name, accepting first-login name from Apple metadata`);
+            console.log(`[phone-auth] existing user ${user.id} signed in — filling missing name`);
           } else {
-            console.log(`[apple-auth] existing user ${user.id} signed in — no name on file, none in Apple response (client will prompt)`);
+            console.log(`[phone-auth] existing user ${user.id} signed in — name missing (client will prompt)`);
           }
         } else {
           if (sbFirst || sbLast) {
-            console.log(`[apple-auth] NEW user ${user.id} created — name received from Apple (${sbFirst ? 'first' : '-'}/${sbLast ? 'last' : '-'})`);
+            console.log(`[phone-auth] NEW user ${user.id} created with name metadata`);
           } else {
-            console.log(`[apple-auth] NEW user ${user.id} created — Apple did not ship a name (client will prompt)`);
+            console.log(`[phone-auth] NEW user ${user.id} created — name missing (client will prompt)`);
           }
         }
 
         const upsertedUser = await (prisma as any).user.upsert({
           where: { id: user.id },
           update: {
-            email: verifiedSupabaseEmail || undefined,
             image: sbImage || undefined,
             phone: normalizedPhone || undefined,
-            isVerified: !!user.phone_confirmed_at || !!user.email_confirmed_at || undefined,
-            oauthProvider: authMethod,
-            // Names: ONLY fill in if the DB row currently has nothing. This
-            // satisfies "never overwrite stored name from Apple". Prisma
-            // doesn't have a native conditional-update so we backfill via a
-            // separate updateMany below — the upsert leaves them untouched.
+            isVerified: !!user.phone_confirmed_at || undefined,
+            oauthProvider: 'phone',
           },
           create: {
             id: user.id,
-            email: verifiedSupabaseEmail,
-            // Empty string when nothing came from the OAuth provider — the
-            // client detects `needsName: true` from GET /api/profile and
-            // prompts the user. NEVER use "Användare" or any other
-            // placeholder; the user explicitly does not want a fallback name.
+            email: null,
+            // Empty string means the phone-first client asks for a real name.
             name: sbName ?? '',
             firstName: sbFirst,
             lastName: sbLast,
             image: sbImage,
             phone: normalizedPhone ?? null,
-            oauthProvider: authMethod,
+            oauthProvider: 'phone',
             oauthId: user.id,
-            isVerified: !!user.phone_confirmed_at || !!user.email_confirmed_at,
+            isVerified: !!user.phone_confirmed_at,
           },
         }).catch(() => null);
         if (!wasExistingUser && upsertedUser) {
@@ -585,9 +390,7 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
           });
         }
 
-        // Backfill names for an EXISTING user only when:
-        //   (a) Apple just shipped a name on this auth, AND
-        //   (b) the DB row currently has no firstName AND no lastName.
+        // Backfill an absent name only; never overwrite a customer edit.
         // updateMany with a conditional WHERE makes this race-safe and
         // leaves the row alone if the user has already typed a name in the
         // Complete Profile screen between auth events.
@@ -635,7 +438,7 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
     }
     if (!localCustomerAuthMethod(account)) {
       return res.status(401).json({
-        error: 'Logga in med telefon, Google eller Apple',
+        error: 'Verifiera ditt telefonnummer med SMS-koden',
         code: 'CUSTOMER_AUTH_METHOD_NOT_ALLOWED',
       });
     }
@@ -654,11 +457,8 @@ export const authenticateUserOptional = async (req: any, res: any, next: any) =>
 };
 
 /**
- * Hard gate: OAuth users (Google/Apple) MUST have a verified phone before
- * they can access protected endpoints. Without this, anyone could create an
- * unlimited number of accounts via Google/Apple and abuse the system.
- *
- * Allowed-listed paths let the user still hit the phone-linking flow itself.
+ * Extra försvar för äldre routes: en privat kundroute kräver alltid ett
+ * verifierat telefonkonto. Allow-listan innehåller bara själva OTP-flödet.
  */
 export const requireVerifiedPhone = async (req: any, res: any, next: any) => {
   if (!req.user?.id) return next();
@@ -671,7 +471,7 @@ export const requireVerifiedPhone = async (req: any, res: any, next: any) => {
       where: { id: req.user.id },
       select: { phone: true, oauthProvider: true, isVerified: true },
     });
-    const needsPhone = !!user?.oauthProvider && (!user?.phone || !user.isVerified);
+    const needsPhone = user?.oauthProvider !== 'phone' || !user?.phone || !user.isVerified;
     if (needsPhone) {
       return res.status(403).json({
         error: 'Telefonverifiering krävs',
@@ -685,7 +485,7 @@ export const requireVerifiedPhone = async (req: any, res: any, next: any) => {
 };
 
 // Kundinloggning är lösenordsfri: telefon-OTP sker i Supabase och byts mot
-// plattformstoken via /phone-token. Google/Apple använder /oauth-token.
+// plattformstoken via /phone-token.
 
 // POST /api/auth/lookup-phone
 router.post('/lookup-phone', authLimiter, async (req, res) => {
@@ -1210,198 +1010,21 @@ router.post('/verify', async (req, res) => {
   res.status(result.status).json(result.body);
 });
 
-// POST /api/auth/oauth-token
-// SÄKERHET: Klienten skickar id_token (Google/Apple) som verifieras server-
-// side mot respektive identitetsprovider. Tidigare litade endpoint:en på
-// email+providerId rakt från req.body, vilket lät vem som helst forge:a en
-// session för en godtycklig användare.
-//
-// Antingen krävs ett provider-verifierat id_token eller en verifierad
-// Supabase OAuth-session. Request-body-identitet accepteras aldrig.
-router.post('/oauth-token', authLimiter, async (req, res) => {
-  try {
-    const { idToken } = req.body as { idToken?: string };
-    let { name, provider, providerId, image } = req.body as {
-      name?: string;
-      provider?: string;
-      providerId?: string;
-      image?: string | null;
-    };
-    let email: string | undefined;
-    let emailVerified = false;
-
-    const authHeader = req.headers.authorization;
-    const supabaseAccessToken = authHeader?.startsWith('Bearer ')
-      ? authHeader.slice('Bearer '.length).trim()
-      : '';
-
-    if (supabaseAccessToken) {
-      try {
-        const verified = await verifySupabaseOAuthToken(supabaseAccessToken);
-        if (provider && provider !== 'supabase' && provider !== verified.provider) {
-          return res.status(401).json({ error: 'OAuth-provider matchar inte sessionen' });
-        }
-        provider = verified.provider;
-        email = verified.email || undefined;
-        emailVerified = verified.emailVerified;
-        providerId = verified.providerId;
-        name = verified.name || name;
-        image = verified.picture || image || null;
-      } catch (verifyErr: any) {
-        console.error(
-          '[oauth-token] Supabase-session kunde inte verifieras:',
-          verifyErr?.message || verifyErr,
-        );
-        return res.status(401).json({ error: 'Ogiltig OAuth-session' });
-      }
-    } else if (idToken && provider) {
-      // Server-side verifiering — single source of truth.
-      try {
-        let verified: VerifiedOAuthPayload;
-        if (provider === 'google') {
-          verified = await verifyGoogleIdToken(idToken);
-        } else if (provider === 'apple') {
-          verified = await verifyAppleIdToken(idToken);
-        } else {
-          return res
-            .status(400)
-            .json({ error: 'Okänd OAuth-provider' });
-        }
-        // Request-body email is never an identity source. Apple may omit email
-        // after the first authorization; exact provider+sub lookup below still
-        // lets that returning customer sign in safely.
-        email = verified.email || undefined;
-        emailVerified = verified.emailVerified;
-        providerId = verified.providerId;
-        name = verified.name || name;
-        image = verified.picture || image || null;
-      } catch (verifyErr: any) {
-        console.error(
-          '[oauth-token] id_token-verifiering misslyckades:',
-          verifyErr?.message || verifyErr,
-        );
-        return res
-          .status(401)
-          .json({ error: 'Ogiltig OAuth-token' });
-      }
-    } else {
-      // Body-fälten email/providerId är användardata och bevisar ingen
-      // identitet. Fail closed i alla miljöer så en osäker dev-path aldrig
-      // råkar nå produktion igen.
-      return res.status(401).json({
-        error: 'Verifierad OAuth-token eller Supabase-session krävs',
-      });
-    }
-
-    if (!provider || !providerId) {
-      return res.status(400).json({ error: 'Provider/providerId krävs' });
-    }
-
-    // First resolve the cryptographically verified provider identity. Email is
-    // only allowed as an account-linking key when the provider attested it.
-    let matchedByVerifiedEmail = false;
-    let user = await (prisma as any).user.findFirst({
-      where: { oauthProvider: provider, oauthId: String(providerId) },
-    });
-    if (!user && email && emailVerified) {
-      user = await (prisma as any).user.findFirst({
-        where: { email: email.toLowerCase() },
-      });
-      matchedByVerifiedEmail = Boolean(user);
-    }
-
-    if (!user) {
-      if (!email || !emailVerified) {
-        return res.status(400).json({
-          error: 'Verifierad e-post krävs när ett nytt OAuth-konto skapas',
-        });
-      }
-      user = await (prisma as any).user.create({
-        data: {
-          email: email.toLowerCase(),
-          // Använd ALDRIG email-prefixet som namn. Apple "Dölj min e-post" ger
-          // ett slump-relä (slumphash@privaterelay.appleid.com) → prefixet blev
-          // ett "random namn". Saknas riktigt namn lämnar vi det tomt så profil-
-          // grinden ber användaren fylla i det.
-          name: (name || '').trim(),
-          oauthProvider: provider,
-          oauthId: String(providerId),
-          image: image || null,
-          phone: null,
-        }
-      });
-      void sendHermesAlert({
-        source: 'viaeats-auth',
-        type: 'customer:new',
-        severity: 'info',
-        userId: user.id,
-        customerName: user.name,
-        customerPhone: user.phone,
-        customerEmail: user.email,
-        method: provider,
-        text: `Ny kund registrerad via ${provider}: ${user.name || 'namn saknas'}${user.email ? `, ${user.email}` : ''}.`,
-      });
-      // Welcome-deal för nytt OAuth-konto också (om aktiv)
-      try {
-        const { maybeCreateWelcomeDeal } = await import('./referrals');
-        await maybeCreateWelcomeDeal(user.id);
-      } catch (e: any) {
-        console.error('[oauth-token] welcome-deal-trigger error:', e?.message);
-      }
-    } else {
-      if (user.isActive === false) {
-        return res.status(403).json({ error: 'Konto avstängt' });
-      }
-
-      // User has one legacy provider slot. Prefer Apple's sub after a verified
-      // email match because Apple may omit email on later logins; Google keeps
-      // resolving safely by its provider-verified email. This makes switching
-      // between Google and Apple stable without weakening email linking.
-      const providerIdentityDiffers =
-        user.oauthProvider !== provider || user.oauthId !== String(providerId);
-      const shouldReplaceProviderIdentity =
-        providerIdentityDiffers &&
-        (!user.oauthProvider ||
-          (matchedByVerifiedEmail &&
-            (provider === 'apple' || user.oauthProvider !== 'apple')));
-
-      // A user-initiated soft deletion may register again with the same
-      // verified provider. An admin-deactivated account is never reactivated.
-      const needsUpdate =
-        shouldReplaceProviderIdentity ||
-        user.deletedAt !== null ||
-        Boolean(emailVerified && email && user.email !== email.toLowerCase());
-      if (needsUpdate) {
-        user = await (prisma as any).user.update({
-          where: { id: user.id },
-          data: {
-            ...(shouldReplaceProviderIdentity
-              ? { oauthProvider: provider, oauthId: String(providerId) }
-              : {}),
-            image: image || user.image,
-            email: emailVerified && email ? email.toLowerCase() : user.email,
-            deletedAt: null,
-          },
-        });
-      }
-    }
-
-    const token = jwt.sign({ id: user.id, phone: user.phone, role: 'USER' }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, email: user.email, image: user.image, needsPhone: !user.phone, isVerified: user.isVerified } });
-  } catch (error: any) {
-    console.error('[oauth-token] FAILED:', error?.message || error);
-    res.status(500).json({
-      error: 'Serverfel',
-      ...(process.env.NODE_ENV !== 'production' ? { detail: error?.message } : {}),
-    });
-  }
+// OAuth-kundinloggning är permanent avvecklad. Endpointen ligger kvar som en
+// explicit spärr för gamla appversioner; den kan aldrig skapa en kundsession.
+router.post('/oauth-token', authLimiter, (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  return res.status(410).json({
+    error: 'Fortsätt med telefonnummer',
+    code: 'CUSTOMER_OAUTH_RETIRED',
+  });
 });
 
 // POST /api/auth/phone-token — byt en verifierad Supabase phone-session (SMS-OTP)
 // mot ett långlivat platform-JWT. authenticateUser validerar Supabase-token
 // server-side (getUser) och upsertar User:n via telefon-vägen → säkert: OTP +
 // Supabase-token bevisar nummerägande. Driver lösenordsfri telefon-inloggning
-// (web + RN). Telefon-konton saknar e-post, så oauth-token (email-keyad) duger ej.
+// (web + native).
 router.post('/phone-token', authenticateUser, async (req: any, res) => {
   try {
     if (!supabaseAdmin) {

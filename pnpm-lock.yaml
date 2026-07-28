@@ -254,9 +254,6 @@ importers:
       express-validator:
         specifier: ^7.2.0
         version: 7.3.1
-      google-auth-library:
-        specifier: ^10.6.2
-        version: 10.6.2
       helmet:
         specifier: ^7.1.0
         version: 7.2.0
@@ -266,15 +263,9 @@ importers:
       jsonwebtoken:
         specifier: ^9.0.2
         version: 9.0.3
-      jwks-rsa:
-        specifier: ^4.0.1
-        version: 4.0.1
       multer:
         specifier: ^2.1.1
         version: 2.1.1
-      next-auth:
-        specifier: ^4.24.13
-        version: 4.24.13(next@16.2.1(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(nodemailer@6.10.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       nodemailer:
         specifier: ^6.10.1
         version: 6.10.1

@@ -65,8 +65,8 @@ assert.equal(
 assert.equal(allowLegacyOrderPhoneProof('production'), false);
 assert.equal(allowLegacyOrderPhoneProof('development'), true);
 assert.equal(allowLegacyOrderPhoneProof('test'), true);
-assert.equal(localCustomerAuthMethod({ oauthProvider: 'google' }), 'google');
-assert.equal(localCustomerAuthMethod({ oauthProvider: 'apple' }), 'apple');
+assert.equal(localCustomerAuthMethod({ oauthProvider: 'google' }), null);
+assert.equal(localCustomerAuthMethod({ oauthProvider: 'apple' }), null);
 assert.equal(
   localCustomerAuthMethod({ oauthProvider: 'phone', phone: '+46700000000', isVerified: true }),
   'phone',

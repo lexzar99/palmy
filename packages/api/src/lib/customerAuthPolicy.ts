@@ -4,7 +4,7 @@ export type SupabaseCustomerIdentity = {
   app_metadata?: Record<string, unknown> | null;
 };
 
-export type CustomerAuthMethod = 'phone' | 'google' | 'apple';
+export type CustomerAuthMethod = 'phone';
 
 export type LocalCustomerIdentity = {
   phone?: string | null;
@@ -13,15 +13,13 @@ export type LocalCustomerIdentity = {
 };
 
 /**
- * Only explicitly supported, verified customer sign-in methods may enter the
- * platform. In particular, a Supabase email/password or magic-link session is
- * not a ViaEats customer login even if Supabase considers the JWT valid.
+ * A verified phone OTP is the only customer identity accepted by ViaEats.
+ * Email, password, magic-link and OAuth sessions are never ownership proof.
  */
 export function customerAuthMethod(
   identity: SupabaseCustomerIdentity | null | undefined,
 ): CustomerAuthMethod | null {
   const provider = String(identity?.app_metadata?.provider || '').toLowerCase();
-  if (provider === 'google' || provider === 'apple') return provider;
   if (provider === 'phone' && identity?.phone && identity.phone_confirmed_at) {
     return 'phone';
   }
@@ -39,7 +37,6 @@ export function localCustomerAuthMethod(
   identity: LocalCustomerIdentity | null | undefined,
 ): CustomerAuthMethod | null {
   const provider = String(identity?.oauthProvider || '').toLowerCase();
-  if (provider === 'google' || provider === 'apple') return provider;
   if (provider === 'phone' && identity?.phone && identity.isVerified === true) {
     return 'phone';
   }
