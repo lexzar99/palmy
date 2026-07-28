@@ -73,7 +73,10 @@ const closedForToday = resolveRestaurantAvailability({
   acceptingOrdersMode: 'SCHEDULED',
   pausedUntil: nextOpeningAfterToday(dailyWindow, new Date('2026-07-10T18:30:00.000Z')),
 }, {}, new Date('2026-07-10T18:30:00.000Z'));
-assert.equal(closedForToday.reason, 'RESTAURANT_PAUSED');
+// Terminalen stängde för dagen: pausedUntil pekar på nästa öppning. Det är en
+// stängning, inte en paus — kunden ska aldrig se "Pausad till 11:00" för den.
+assert.equal(closedForToday.reason, 'CLOSED_UNTIL_OPENING');
+assert.equal(closedForToday.restaurantPaused, false);
 assert.equal(closedForToday.configuredMode, 'SCHEDULED');
 assert.equal(closedForToday.legacyManualIsOpen, true);
 const expiredPauseDuringOpenHours = buildRestaurantStatusMaintenance({
@@ -273,5 +276,112 @@ const retiredAdyenVerify = paymentRouteSource.match(
 assert.match(retiredAdyenVerify, /status\(410\)/);
 assert.match(retiredAdyenVerify, /LEGACY_PAYMENT_VERIFICATION_DISABLED/);
 assert.doesNotMatch(retiredAdyenVerify, /finalizePaymentSuccess|getAdyenSessionResult/);
+
+// ── Paus vs stängt ──────────────────────────────────────────────────────────
+// Terminalen skriver nästa öppningstid till `pausedUntil` när den stänger för
+// dagen. Det får aldrig läsas som en paus: kunden ska se "Stängt · öppnar
+// 11:00", inte "Pausad till 11:00".
+const nightClosed = resolveRestaurantAvailability(
+  {
+    openingHours: dailyWindow,
+    acceptingOrdersMode: 'SCHEDULED',
+    pausedUntil: new Date('2026-07-11T09:00:00.000Z'), // lördag 11:00 Stockholm
+  },
+  {},
+  new Date('2026-07-11T04:00:00.000Z'), // lördag 06:00 Stockholm, utanför öppettid
+);
+assert.equal(nightClosed.isOpen, false);
+assert.equal(nightClosed.restaurantPaused, false, 'dagsstängning är inte en paus');
+// Kvarliggande pausedUntil pekar på öppningen → mer precis status än bara
+// "utanför öppettider". Kundtexten blir densamma: Stängt · öppnar 11:00.
+assert.equal(nightClosed.reason, 'CLOSED_UNTIL_OPENING');
+
+// Utan kvarliggande pausedUntil är det helt enkelt utanför öppettiderna.
+const plainNightClosed = resolveRestaurantAvailability(
+  { openingHours: dailyWindow, acceptingOrdersMode: 'SCHEDULED' },
+  {},
+  new Date('2026-07-11T04:00:00.000Z'),
+);
+assert.equal(plainNightClosed.reason, 'OUTSIDE_OPENING_HOURS');
+assert.equal(plainNightClosed.opensAt, new Date('2026-07-11T09:00:00.000Z').toISOString());
+assert.equal(
+  nightClosed.opensAt,
+  new Date('2026-07-11T09:00:00.000Z').toISOString(),
+  'stängd restaurang ska tala om när den öppnar igen',
+);
+
+// Terminalens "stäng restaurang" mitt i öppettiden: pausedUntil pekar på nästa
+// öppning. Det är en stängning med egen status — inte en paus, och inte öppet.
+const closedForTheDay = resolveRestaurantAvailability(
+  {
+    openingHours: dailyWindow,
+    acceptingOrdersMode: 'SCHEDULED',
+    pausedUntil: nextOpeningAfterToday(dailyWindow, new Date('2026-07-11T12:00:00.000Z')),
+  },
+  {},
+  new Date('2026-07-11T12:00:00.000Z'), // lördag 14:00 Stockholm, mitt i öppettiden
+);
+assert.equal(closedForTheDay.isOpen, false, 'stängd för dagen är inte öppen');
+assert.equal(closedForTheDay.restaurantPaused, false, 'stängd för dagen är inte pausad');
+assert.equal(closedForTheDay.closedUntilOpening, true);
+assert.equal(closedForTheDay.reason, 'CLOSED_UNTIL_OPENING');
+assert.equal(
+  closedForTheDay.opensAt,
+  nextOpeningAfterToday(dailyWindow, new Date('2026-07-11T12:00:00.000Z')).toISOString(),
+);
+
+// Skarpt fall: Palmyra har öppet 00:00-21:00 på tisdagar och terminalen satte
+// pausedUntil till 11:00. Sluttiden är varken ett skiftbyte eller en kort paus
+// - sex timmar framåt är en stängning för kunden.
+const longPauseInsideShift = resolveRestaurantAvailability(
+  {
+    openingHours: JSON.stringify({ tuesday: { closed: false, shifts: [{ open: '00:00', close: '21:00' }] } }),
+    acceptingOrdersMode: 'SCHEDULED',
+    pausedUntil: new Date('2026-07-28T09:00:00.000Z'), // tisdag 11:00 Stockholm
+  },
+  {},
+  new Date('2026-07-28T02:48:00.000Z'), // tisdag 04:48 Stockholm
+);
+assert.equal(longPauseInsideShift.restaurantPaused, false, 'sex timmar är ingen paus');
+assert.equal(longPauseInsideShift.reason, 'CLOSED_UNTIL_OPENING');
+assert.equal(
+  longPauseInsideShift.opensAt,
+  new Date('2026-07-28T09:00:00.000Z').toISOString(),
+  'öppnar när pausen släpper, inte vid nästa skiftstart',
+);
+
+// En riktig paus mitt i öppettiden är fortfarande en paus.
+const midServicePause = resolveRestaurantAvailability(
+  {
+    openingHours: dailyWindow,
+    acceptingOrdersMode: 'SCHEDULED',
+    pausedUntil: new Date('2026-07-11T12:30:00.000Z'), // lördag 14:30 Stockholm
+  },
+  {},
+  new Date('2026-07-11T12:00:00.000Z'), // lördag 14:00 Stockholm, mitt i öppettiden
+);
+assert.equal(midServicePause.isOpen, false);
+assert.equal(midServicePause.restaurantPaused, true, 'avbrott mitt i öppettiden är en paus');
+assert.equal(midServicePause.reason, 'RESTAURANT_PAUSED');
+
+// Manuellt tvingad öppen restaurang kan pausa utanför sitt schema.
+const forcedOpenPause = resolveRestaurantAvailability(
+  {
+    openingHours: dailyWindow,
+    acceptingOrdersMode: 'FORCE_OPEN',
+    pausedUntil: new Date('2026-07-11T05:00:00.000Z'),
+  },
+  {},
+  new Date('2026-07-11T04:00:00.000Z'),
+);
+assert.equal(forcedOpenPause.restaurantPaused, true, 'FORCE_OPEN + paus är en paus');
+
+// Arkiverad/utkast öppnar inte 11:00 bara för att kalendern säger så.
+const draftClosed = resolveRestaurantAvailability(
+  { openingHours: dailyWindow, acceptingOrdersMode: 'SCHEDULED', draft: true },
+  {},
+  new Date('2026-07-11T04:00:00.000Z'),
+);
+assert.equal(draftClosed.opensAt, null, 'utkast ska inte utlova en öppningstid');
 
 console.log('backend availability + money + placement contracts: ok');

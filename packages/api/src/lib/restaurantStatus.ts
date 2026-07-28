@@ -65,7 +65,9 @@ export async function checkAllRestaurantsStatus() {
         const nextPausedUntil = maintenance.restaurantForAvailability.pausedUntil
           ? new Date(maintenance.restaurantForAvailability.pausedUntil)
           : null;
-        const activePausedUntil = nextPausedUntil && nextPausedUntil.getTime() > now.getTime()
+        // Samma regel som i DTO:n: tiden skickas bara när det är en riktig
+        // paus mitt i öppettiden. En dagsstängning är stängt, inte pausat.
+        const activePausedUntil = availability.restaurantPaused && nextPausedUntil
           ? nextPausedUntil.toISOString()
           : null;
         const payload = {
@@ -80,7 +82,10 @@ export async function checkAllRestaurantsStatus() {
           acceptingOrdersOverrideActive: availability.manualOverrideActive,
           availabilityReason: availability.reason,
           pausedUntil: activePausedUntil,
+          closedUntil: availability.closedUntilOpening ? availability.opensAt : null,
+          opensAt: availability.opensAt,
           isPaused: availability.restaurantPaused,
+          isClosedUntilOpening: availability.closedUntilOpening,
           selfDelivery: r.selfDelivery ?? false,
         };
 

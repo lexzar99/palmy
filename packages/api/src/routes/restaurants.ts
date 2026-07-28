@@ -291,14 +291,24 @@ const formatRestaurant = (
     platformPaused: availability.platformPaused,
     cityPaused: availability.cityPaused,
     restaurantPaused: availability.restaurantPaused,
+    closedUntilOpening: availability.closedUntilOpening,
   },
   comingSoon: restaurant.comingSoon ?? false,
   draft: restaurant.draft ?? false,
   editing: restaurant.draft ?? false,
   manualIsOpen: availability.legacyManualIsOpen,
-  pausedUntil: restaurant.pausedUntil
+  // `pausedUntil` betyder "pausad mitt i öppettiden" för alla klienter. Ligger
+  // tiden kvar från en dagsstängning är restaurangen inte pausad utan stängd,
+  // och då ska fältet vara tomt — annars renderar redan utrullade appar
+  // "Pausad till 11:00" istället för "Stängt · öppnar 11:00".
+  pausedUntil: availability.restaurantPaused && restaurant.pausedUntil
     ? new Date(restaurant.pausedUntil).toISOString()
     : null,
+  // Terminalens "stäng restaurang" har en egen tid: restaurangen är stängd
+  // tills den öppnar igen. Skilj den från pausen så partner-appen kan visa
+  // STÄNGD · 11:00 utan att kunden får se ordet "pausad".
+  closedUntil: availability.closedUntilOpening ? availability.opensAt : null,
+  opensAt: availability.opensAt,
   featuredClass: restaurant.featuredClass ?? 3,
   tags: assignedTags.length ? assignedTags.map((tag: any) => tag.name) : legacyTags,
   tagIds: assignedTags.map((tag: any) => tag.id),

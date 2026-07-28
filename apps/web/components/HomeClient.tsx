@@ -70,6 +70,7 @@ interface Restaurant {
   isOpen?: boolean;
   comingSoon?: boolean;
   pausedUntil?: string | null;
+  opensAt?: string | null;
   openingHours?: Record<string, { closed?: boolean; shifts?: { open: string; close: string }[] }> | null;
   featuredClass?: number;
   tags?: string[];
@@ -174,10 +175,28 @@ function pauseEndsAtOpening(pausedUntil: Date, oh: Restaurant["openingHours"]): 
   });
 }
 
+const HHMM = (date: Date) =>
+  `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
+
+/** "öppnar 11:00" / "öppnar imorgon 11:00" / "öppnar tis 11:00". */
+function opensAtLabel(opensAt: Date, now = new Date()): string {
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((startOfDay(opensAt) - startOfDay(now)) / 86_400_000);
+  if (days <= 0) return `öppnar ${HHMM(opensAt)}`;
+  if (days === 1) return `öppnar imorgon ${HHMM(opensAt)}`;
+  return `öppnar ${WEEKDAY_SHORT[opensAt.getDay()]} ${HHMM(opensAt)}`;
+}
+
 function closedStatusLabel(restaurant: Restaurant, pausedUntil: Date | null): string {
   if (pausedUntil && !pauseEndsAtOpening(pausedUntil, restaurant.openingHours)) {
-    const time = `${pausedUntil.getHours().toString().padStart(2, "0")}:${pausedUntil.getMinutes().toString().padStart(2, "0")}`;
-    return `Pausad · ${time}`;
+    return `Pausad · ${HHMM(pausedUntil)}`;
+  }
+  // Servern vet när restaurangen faktiskt öppnar igen. Att räkna ut det ur
+  // öppettiderna här ger fel svar för nattskift (ett pass som började 00:00
+  // räknas som passerat, så nästa öppning hamnar på morgondagen).
+  if (restaurant.opensAt) {
+    const opensAt = new Date(restaurant.opensAt);
+    if (!Number.isNaN(opensAt.getTime())) return `Stängt · ${opensAtLabel(opensAt)}`;
   }
   const next = nextOpenLabel(restaurant.openingHours);
   return next ? `Stängt · ${next.replace("Öppnar", "öppnar")}` : "Stängt";

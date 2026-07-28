@@ -1,4 +1,4 @@
-import { isRestaurantOpen } from './openingHours';
+import { isRestaurantOpen, nextOpeningAfterToday } from './openingHours';
 
 export const ACCEPTING_ORDERS_MODES = ['SCHEDULED', 'FORCE_OPEN', 'FORCE_CLOSED'] as const;
 export type AcceptingOrdersMode = (typeof ACCEPTING_ORDERS_MODES)[number];
@@ -7,6 +7,7 @@ export type RestaurantAvailabilityReason =
   | 'PLATFORM_PAUSED'
   | 'CITY_PAUSED'
   | 'RESTAURANT_PAUSED'
+  | 'CLOSED_UNTIL_OPENING'
   | 'ARCHIVED'
   | 'DRAFT'
   | 'COMING_SOON'
@@ -42,6 +43,12 @@ export interface AvailabilityPlatformOverlay {
 export interface RestaurantAvailability {
   isOpen: boolean;
   scheduledOpenNow: boolean;
+  /**
+   * När restaurangen öppnar igen (ISO). Satt så fort den är stängd av schema.
+   * Kunden ska se "Stängt · öppnar 11:00" — inte gissa sig till tiden ur
+   * `pausedUntil`, som betyder något helt annat.
+   */
+  opensAt: string | null;
   configuredMode: AcceptingOrdersMode;
   effectiveMode: AcceptingOrdersMode;
   manualOverrideActive: boolean;
@@ -51,6 +58,8 @@ export interface RestaurantAvailability {
   platformPaused: boolean;
   cityPaused: boolean;
   restaurantPaused: boolean;
+  /** Terminalens "stäng restaurang": stängd tills nästa öppning, inte pausad. */
+  closedUntilOpening: boolean;
   /** Old clients model this as a boolean toggle: false means forced closed. */
   legacyManualIsOpen: boolean;
 }
@@ -65,6 +74,9 @@ const activeUntil = (value: Date | string | null | undefined, now: Date): boolea
   const until = validDate(value);
   return until !== null && until.getTime() > now.getTime();
 };
+
+/** Längre "paus" än så här är i praktiken en stängning för kunden. */
+const MAX_PAUSE_MINUTES = 120;
 
 export const normalizeAcceptingOrdersMode = (value: unknown): AcceptingOrdersMode =>
   ACCEPTING_ORDERS_MODES.includes(value as AcceptingOrdersMode)
@@ -99,7 +111,38 @@ export function resolveRestaurantAvailability(
   const cityPaused =
     overlays.city?.ordersPaused === true ||
     activeUntil(overlays.city?.ordersPausedUntil, now);
-  const restaurantPaused = activeUntil(restaurant.pausedUntil, now);
+  // Paus och stängning delar samma kolumn i databasen (`pausedUntil`) men är
+  // två olika saker för kunden. En paus är ett kort avbrott mitt i öppettiden
+  // ("vi hinner inte just nu") och har en nedräkning. Terminalens "stäng
+  // restaurang" skriver istället nästa öppningstid dit — det är en stängning,
+  // och ska heta "Stängt · öppnar 11:00", inte "Pausad till 11:00".
+  //
+  // Skiljelinjen är om tiden landar på nästa schemalagda öppning. Samma
+  // 2-minuterstolerans som terminalen själv använder.
+  const pauseEnd = validDate(restaurant.pausedUntil);
+  const pauseWindowActive = activeUntil(restaurant.pausedUntil, now);
+  const nextOpening = nextOpeningAfterToday(restaurant.openingHours, now);
+  const endsAtNextOpening =
+    pauseEnd !== null && Math.abs(pauseEnd.getTime() - nextOpening.getTime()) <= 2 * 60_000;
+
+  // Terminalen erbjuder +10 till +30 minuter när man förlänger en paus. Sträcker
+  // sig "pausen" timmar framåt är den i praktiken en stängning, oavsett om
+  // sluttiden råkar sammanfalla med ett skiftbyte eller inte.
+  const pauseMinutesLeft = pauseEnd ? (pauseEnd.getTime() - now.getTime()) / 60_000 : 0;
+  const wouldOtherwiseBeOpen = scheduledOpenNow || effectiveMode === 'FORCE_OPEN';
+  const isShortPause =
+    wouldOtherwiseBeOpen && !endsAtNextOpening && pauseMinutesLeft <= MAX_PAUSE_MINUTES;
+
+  const restaurantPaused = pauseWindowActive && isShortPause;
+  const closedUntilOpening = pauseWindowActive && !isShortPause;
+
+  // Restaurangen är tillbaka när pausen tagit slut OCH schemat är öppet. Slutar
+  // stängningen mitt i natten öppnar den inte då, utan vid nästa skiftstart.
+  const reopenAt = pauseEnd
+    ? (isRestaurantOpen(restaurant.openingHours, pauseEnd)
+        ? pauseEnd
+        : nextOpeningAfterToday(restaurant.openingHours, pauseEnd))
+    : null;
 
   let isOpen: boolean;
   let reason: RestaurantAvailabilityReason;
@@ -113,6 +156,10 @@ export function resolveRestaurantAvailability(
   } else if (restaurantPaused) {
     isOpen = false;
     reason = 'RESTAURANT_PAUSED';
+  } else if (closedUntilOpening) {
+    // Stängd tills den öppnar igen. Inte pausad, inte permanent stängd.
+    isOpen = false;
+    reason = 'CLOSED_UNTIL_OPENING';
   } else if (restaurant.archivedAt != null) {
     isOpen = false;
     reason = 'ARCHIVED';
@@ -133,9 +180,19 @@ export function resolveRestaurantAvailability(
     reason = scheduledOpenNow ? 'SCHEDULE_OPEN' : 'OUTSIDE_OPENING_HOURS';
   }
 
+  // Öppningstiden är bara intressant när stängningen faktiskt beror på
+  // schemat. Arkiverad, utkast eller krisstoppad restaurang öppnar inte
+  // 11:00 bara för att kalendern säger så.
+  let opensAt: string | null = null;
+  if (!isOpen) {
+    if (reason === 'CLOSED_UNTIL_OPENING') opensAt = (reopenAt ?? nextOpening).toISOString();
+    else if (reason === 'OUTSIDE_OPENING_HOURS') opensAt = nextOpening.toISOString();
+  }
+
   return {
     isOpen,
     scheduledOpenNow,
+    opensAt,
     configuredMode,
     effectiveMode,
     manualOverrideActive,
@@ -145,6 +202,7 @@ export function resolveRestaurantAvailability(
     platformPaused,
     cityPaused,
     restaurantPaused,
+    closedUntilOpening,
     legacyManualIsOpen: effectiveMode !== 'FORCE_CLOSED',
   };
 }
