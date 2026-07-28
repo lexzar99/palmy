@@ -35,6 +35,8 @@ interface Restaurant {
   deliveryFee?: number;
   etaMinutes?: number;
   isOpen?: boolean;
+  comingSoon?: boolean;
+  pausedUntil?: string | null;
   homeDealMaxPercent?: number;
   homeFreeDelivery?: boolean;
   homeFreeDeliveryReason?: "BASE_FEE" | "ACTIVE_DEAL" | null;
@@ -107,6 +109,13 @@ function restaurantTerms(restaurant: Restaurant) {
     .filter((term) => term.length > 2 && term.toLowerCase() !== city);
 }
 
+function isAvailableNow(restaurant: Restaurant, nowMs: number) {
+  if (restaurant.comingSoon === true || restaurant.isOpen === false) return false;
+  if (!restaurant.pausedUntil) return true;
+  const pausedUntil = new Date(restaurant.pausedUntil).getTime();
+  return !Number.isFinite(pausedUntil) || pausedUntil <= nowMs;
+}
+
 function dealForRestaurant(deals: PublicDeal[], restaurantId: string) {
   const eligible = deals.filter(
     (deal) =>
@@ -142,6 +151,12 @@ export default function SearchPage() {
   const [deliverableIds, setDeliverableIds] = useState<Set<string> | null>(null);
   const [zoneInfo, setZoneInfo] = useState<ZoneInfo>({});
   const [orderType, setOrderType] = useState<"DELIVERY" | "PICKUP">("DELIVERY");
+  const [availabilityNow, setAvailabilityNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setAvailabilityNow(Date.now()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -305,7 +320,7 @@ export default function SearchPage() {
 
   const filtered = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("sv");
-    return restaurants.filter((restaurant) => {
+    const matches = restaurants.filter((restaurant) => {
       // Vald matkategori är ett leveransurval och får därför inte innehålla
       // restauranger utanför adressens zon. "Alla restauranger" behåller dem
       // synliga men dimmade längre ned.
@@ -330,7 +345,14 @@ export default function SearchPage() {
         .toLocaleLowerCase("sv");
       return matchesTag && (!normalizedQuery || haystack.includes(normalizedQuery));
     });
-  }, [query, selectedTag, restaurants, orderType, deliverableIds]);
+    return matches.sort((left, right) => {
+      const leftInZone = orderType !== "DELIVERY" || deliverableIds === null || deliverableIds.has(left.id);
+      const rightInZone = orderType !== "DELIVERY" || deliverableIds === null || deliverableIds.has(right.id);
+      const leftRank = leftInZone && isAvailableNow(left, availabilityNow) ? 0 : leftInZone ? 1 : 2;
+      const rightRank = rightInZone && isAvailableNow(right, availabilityNow) ? 0 : rightInZone ? 1 : 2;
+      return leftRank - rightRank || left.name.localeCompare(right.name, "sv");
+    });
+  }, [query, selectedTag, restaurants, orderType, deliverableIds, availabilityNow]);
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] pb-32 text-[var(--ink)] md:pt-20">
@@ -424,7 +446,8 @@ export default function SearchPage() {
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {filtered.map((restaurant) => {
-                const inZone = deliverableIds === null || deliverableIds.has(restaurant.id);
+                const inZone = orderType !== "DELIVERY" || deliverableIds === null || deliverableIds.has(restaurant.id);
+                const available = inZone && isAvailableNow(restaurant, availabilityNow);
                 const zone = zoneInfo[restaurant.id];
                 const eta = zone?.etaMinutes ?? restaurant.etaMinutes;
                 const fee = zone?.deliveryFee ?? restaurant.deliveryFee;
@@ -449,7 +472,7 @@ export default function SearchPage() {
                   <Link
                     key={restaurant.id}
                     href={`/restaurants/${restaurant.slug}`}
-                    className={`group overflow-hidden rounded-[20px] border border-[var(--line)] bg-white shadow-[0_8px_22px_rgba(17,17,19,0.06)] ${inZone ? "" : "opacity-55 grayscale"}`}
+                    className={`group overflow-hidden rounded-[20px] border border-[var(--line)] bg-white shadow-[0_8px_22px_rgba(17,17,19,0.06)] ${available ? "" : "opacity-55 grayscale"}`}
                   >
                     <div className="flex min-h-[142px]">
                       <div className="relative w-[38%] shrink-0 overflow-hidden bg-[var(--bg-deep)]">
@@ -496,8 +519,8 @@ export default function SearchPage() {
                           {orderType === "PICKUP" && <span className="flex items-center gap-1"><Store size={11} /> Hämta själv</span>}
                           {!inZone && <span className="text-rose-600">Levererar inte till din adress</span>}
                           {typeof restaurant.isOpen === "boolean" && (
-                            <span className={`rounded-full px-2 py-1 text-[9px] font-black ${restaurant.isOpen ? "bg-[#EAF7EF] text-[#246B43]" : "bg-[var(--bg-deep)] text-[var(--muted)]"}`}>
-                              {restaurant.isOpen ? "Öppet" : "Stängt"}
+                            <span className={`rounded-full px-2 py-1 text-[9px] font-black ${available ? "bg-[#EAF7EF] text-[#246B43]" : "bg-[var(--bg-deep)] text-[var(--muted)]"}`}>
+                              {available ? "Öppet" : restaurant.comingSoon ? "Kommer snart" : "Stängt"}
                             </span>
                           )}
                         </div>

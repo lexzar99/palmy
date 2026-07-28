@@ -195,6 +195,13 @@ function closedStatusLabel(restaurant: Restaurant, pausedUntil: Date | null): st
   return next ? `Stängt · ${next.replace("Öppnar", "öppnar")}` : "Stängt";
 }
 
+function restaurantIsAvailableNow(restaurant: Restaurant, nowMs = Date.now()): boolean {
+  if (restaurant.comingSoon === true || restaurant.isOpen === false) return false;
+  if (!restaurant.pausedUntil) return true;
+  const pausedUntil = new Date(restaurant.pausedUntil).getTime();
+  return !Number.isFinite(pausedUntil) || pausedUntil <= nowMs;
+}
+
 interface City {
   id: string;
   name: string;
@@ -689,6 +696,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
   // sitter kvar, och adress + sök som vanligt dokumentflöde nedanför som bara
   // scrollar bort naturligt bakom den sticky baren. Ren CSS position:sticky.
   const [restaurants, setRestaurants] = useState<Restaurant[]>(initialData?.restaurants ?? []);
+  const [availabilityNow, setAvailabilityNow] = useState(() => Date.now());
   const [address, setAddress] = useState("");
   const [query, setQuery] = useState("");
   const [orderType, setOrderType] = useState<"DELIVERY" | "PICKUP">("DELIVERY");
@@ -1150,6 +1158,36 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Öppet-/pausstatus kan ändras medan kunden står kvar på startsidan. Hämta
+  // bara den lätta restauranglistan varje minut så en dold räls återkommer
+  // automatiskt när minst en restaurang blir beställningsbar igen.
+  useEffect(() => {
+    let cancelled = false;
+    const refreshAvailability = async () => {
+      setAvailabilityNow(Date.now());
+      if (document.visibilityState !== "visible") return;
+      try {
+        const response = await axios.get("/api/restaurants", {
+          params: { _availability: Date.now() },
+        });
+        if (cancelled || !Array.isArray(response.data)) return;
+        const nextRestaurants = partnerSlug
+          ? response.data.filter((restaurant: Restaurant) => restaurant.slug === partnerSlug)
+          : response.data;
+        setRestaurants(nextRestaurants);
+      } catch {
+        // Behåll senast verifierade lista; nästa minut/fokus försöker igen.
+      }
+    };
+    const interval = window.setInterval(refreshAvailability, 60_000);
+    window.addEventListener("focus", refreshAvailability);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshAvailability);
+    };
+  }, [partnerSlug]);
+
   const validateZone = async (lat: number, lng: number) => {
     try {
       const res = await axios.post("/api/cities/validate-location", { lat, lng });
@@ -1392,31 +1430,18 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
       return matchQuery && matchCity && matchDeal;
     });
 
-    const sorted = list.sort((a, b) => {
+    return list.sort((a, b) => {
       const aInZone = zoneRestaurantIds === null || !orderType || orderType === "PICKUP" || zoneRestaurantIds.includes(a.id);
       const bInZone = zoneRestaurantIds === null || !orderType || orderType === "PICKUP" || zoneRestaurantIds.includes(b.id);
-      if (aInZone !== bInZone) return aInZone ? -1 : 1;
-      const aOpen = a.isOpen !== false ? 1 : 0;
-      const bOpen = b.isOpen !== false ? 1 : 0;
-      if (aOpen !== bOpen) return bOpen - aOpen;
+      const aRank = aInZone && restaurantIsAvailableNow(a, availabilityNow) ? 0 : aInZone ? 1 : 2;
+      const bRank = bInZone && restaurantIsAvailableNow(b, availabilityNow) ? 0 : bInZone ? 1 : 2;
+      if (aRank !== bRank) return aRank - bRank;
       const aPremium = (a.featuredClass === 1 || a.featuredClass === 2) ? 1 : 0;
       const bPremium = (b.featuredClass === 1 || b.featuredClass === 2) ? 1 : 0;
       if (aPremium !== bPremium) return bPremium - aPremium;
       return a.name.localeCompare(b.name);
     });
-
-    // Sortera så in-zone-restauranger kommer FÖRST. Out-of-zone-restauranger
-    // hamnar längst ner (dimmade och markerade "Utanför zon" i UI). Detta är
-    // viktigt så vi inte rankar restauranger högt som ändå inte kan leverera.
-    const inZoneSorted = sorted.slice().sort((a, b) => {
-      if (zoneRestaurantIds === null) return 0;
-      const aIn = zoneRestaurantIds.includes(a.id) ? 0 : 1;
-      const bIn = zoneRestaurantIds.includes(b.id) ? 0 : 1;
-      return aIn - bIn;
-    });
-
-    return inZoneSorted;
-  }, [restaurants, query, orderType, zoneRestaurantIds, filteredByDeal, matchesCityFamily]);
+  }, [restaurants, query, orderType, zoneRestaurantIds, filteredByDeal, matchesCityFamily, availabilityNow]);
 
   const resolvedHomeCategorySections = useMemo(() => {
     if (homeFeed?.version === 1 && Array.isArray(homeFeed.sections) && homeFeed.sections.length > 0) {
@@ -1599,7 +1624,9 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
     ));
     const byId = new Map(eligible.map((restaurant) => [restaurant.id, restaurant]));
     const openFirst = (list: Restaurant[]) => list.slice().sort((left, right) => {
-      const openDifference = Number(right.isOpen !== false) - Number(left.isOpen !== false);
+      const openDifference =
+        Number(restaurantIsAvailableNow(right, availabilityNow)) -
+        Number(restaurantIsAvailableNow(left, availabilityNow));
       return openDifference || left.name.localeCompare(right.name, "sv");
     });
 
@@ -1608,7 +1635,9 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
       .flatMap((module) => module.restaurants || [])
       .map((restaurant) => restaurant.id);
     const popularFallback = eligible.slice().sort((left, right) => {
-      const openDifference = Number(right.isOpen !== false) - Number(left.isOpen !== false);
+      const openDifference =
+        Number(restaurantIsAvailableNow(right, availabilityNow)) -
+        Number(restaurantIsAvailableNow(left, availabilityNow));
       if (openDifference) return openDifference;
       const reviewDifference = (right.ratingCount || 0) - (left.ratingCount || 0);
       if (reviewDifference) return reviewDifference;
@@ -1648,7 +1677,8 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
         typeof item.eta === "number" && Number.isFinite(item.eta) && item.eta > 0
       ))
       .sort((left, right) => (
-        Number(right.restaurant.isOpen !== false) - Number(left.restaurant.isOpen !== false) ||
+        Number(restaurantIsAvailableNow(right.restaurant, availabilityNow)) -
+          Number(restaurantIsAvailableNow(left.restaurant, availabilityNow)) ||
         left.eta - right.eta ||
         left.restaurant.name.localeCompare(right.restaurant.name, "sv")
       ))
@@ -1661,7 +1691,8 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
       day: "2-digit",
     }).format(new Date());
     const discover = eligible.slice().sort((left, right) => (
-      Number(right.isOpen !== false) - Number(left.isOpen !== false) ||
+      Number(restaurantIsAvailableNow(right, availabilityNow)) -
+        Number(restaurantIsAvailableNow(left, availabilityNow)) ||
       stableDailyRank(`${today}:${left.id}`) - stableDailyRank(`${today}:${right.id}`)
     ));
 
@@ -1670,7 +1701,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
         id: "popular",
         title: `Populärt i ${city}`,
         subtitle: "Det här beställs mest just nu",
-        restaurants: popular.slice(0, 8),
+        restaurants: openFirst(popular).slice(0, 8),
       },
       {
         id: "free-delivery",
@@ -1692,6 +1723,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
       },
     ].filter((rail) => rail.restaurants.length > 0);
   }, [
+    availabilityNow,
     deliveryOverrides,
     detectedCityName,
     filtered,
@@ -1819,13 +1851,20 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
       zoneRestaurantIds.includes(restaurant.id)
     ));
 
-    // En räls utan restauranger som kan leverera till adressen ska aldrig
-    // renderas, inte ens för en manuellt prioriterad premiumsektion.
-    if (deliverableRestaurants.length === 0) return null;
-
-    // Sortera så in-zone-restauranger kommer FÖRST. Out-of-zone hamnar
-    // längst ner dimmade.
-    const sortedSection = deliverableRestaurants;
+    // Minst en restaurang måste gå att beställa från just nu. Finns en eller
+    // två öppna visas de först och de stängda sist; är alla stängda försvinner
+    // rälsen tills minutrefreshen ser att någon är tillgänglig igen.
+    if (!deliverableRestaurants.some((restaurant) =>
+      restaurantIsAvailableNow(restaurant, availabilityNow)
+    )) return null;
+    const sortedSection = deliverableRestaurants
+      .map((restaurant, index) => ({ restaurant, index }))
+      .sort((left, right) => (
+        Number(restaurantIsAvailableNow(right.restaurant, availabilityNow)) -
+          Number(restaurantIsAvailableNow(left.restaurant, availabilityNow)) ||
+        left.index - right.index
+      ))
+      .map(({ restaurant }) => restaurant);
     return (
     <section className="mb-5">
       <div className="flex items-end justify-between mb-1.5 px-1">
@@ -1841,7 +1880,8 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
         {sortedSection.map((r, i) => {
           const inZone = orderType !== "DELIVERY" || zoneRestaurantIds === null || zoneRestaurantIds.includes(r.id);
           const isComingSoon = r.comingSoon === true;
-          const dimmed = isComingSoon || r.isOpen === false || !inZone;
+          const isAvailable = inZone && restaurantIsAvailableNow(r, availabilityNow);
+          const dimmed = !isAvailable;
           const shouldPrioritizeImage = i < (options.priorityImageCount ?? 0);
           const railPaused = r.pausedUntil ? new Date(r.pausedUntil) : null;
           const railIsPaused = railPaused !== null && railPaused.getTime() > Date.now();
@@ -1849,7 +1889,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
             ? "Kommer snart"
             : !inZone
             ? "Utanför zon"
-            : r.isOpen === false
+            : !isAvailable
               ? closedStatusLabel(r, railIsPaused ? railPaused : null)
               : null;
           return (
@@ -2324,9 +2364,9 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
             <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4 sm:gap-5">
                 {filtered.map((r, i) => {
                   const isOutOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(r.id);
-                  const isClosed = r.isOpen === false;
                   const isComingSoon = r.comingSoon === true;
-                  const dimmed = isComingSoon || isClosed || isOutOfZone;
+                  const isAvailable = !isOutOfZone && restaurantIsAvailableNow(r, availabilityNow);
+                  const dimmed = !isAvailable;
                   const shouldPrioritizeListImage = i < ABOVE_THE_FOLD_RESTAURANT_IMAGE_LIMIT
                     && promoCards.length === 0
                     && launchRails.length === 0;
@@ -2336,7 +2376,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                     ? "Kommer snart"
                     : isOutOfZone
                     ? "Levererar inte till din adress"
-                    : isClosed
+                    : !isAvailable
                       ? closedStatusLabel(r, isPaused ? pausedUntilDate : null)
                       : null;
                   const isFav = favorites.has(r.id);
