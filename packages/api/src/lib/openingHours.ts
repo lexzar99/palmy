@@ -114,6 +114,32 @@ function parseTimeMinutes(value: unknown): number | null {
  * still-upcoming shifts count — closing 01:29 during a night shift reopens at
  * today's 10:00 shift, not tomorrow's first opening.
  */
+/**
+ * Sant när tidpunkten sammanfaller med en skiftstart någon dag i veckan
+ * (t.ex. 11:00 för en lunchrestaurang). Används för att känna igen att en
+ * `pausedUntil` egentligen är en stängning fram till öppning: terminalen
+ * skriver en öppningstid dit, aldrig ett godtyckligt klockslag.
+ */
+export function isKnownOpeningTime(
+  openingHours: any | string | null | undefined,
+  date: Date,
+): boolean {
+  const hours = parseHours(openingHours);
+  if (!hours || typeof hours !== 'object') return false;
+
+  const parts = stockholmParts(date);
+  const target = parts.hour * 60 + parts.minute;
+
+  const dayBuckets: any[] = [
+    ...Object.values(hours.regular && typeof hours.regular === 'object' ? hours.regular : {}),
+    ...Object.values(hours).filter((value) => value && typeof value === 'object'),
+  ];
+
+  return dayBuckets.some((day) =>
+    slotsFor(day).some((slot) => parseTimeMinutes(slot?.open) === target),
+  );
+}
+
 export function nextOpeningAfterToday(
   openingHours: any | string | null | undefined,
   now = new Date(),

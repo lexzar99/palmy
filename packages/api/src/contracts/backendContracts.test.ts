@@ -350,6 +350,29 @@ assert.equal(
   'öppnar när pausen släpper, inte vid nästa skiftstart',
 );
 
+// Etiketten får inte byta namn när nedräkningen kryper under tvåtimmarstaket.
+// Slutar tiden på en öppningstid är det en stängning hela vägen fram.
+for (const stockholmHour of [4, 8, 9, 10]) {
+  const at = new Date(Date.UTC(2026, 6, 28, stockholmHour - 2, 30));
+  const state = resolveRestaurantAvailability(
+    {
+      openingHours: JSON.stringify({
+        monday: { closed: false, shifts: [{ open: '11:00', close: '21:00' }] },
+        tuesday: { closed: false, shifts: [{ open: '00:00', close: '21:00' }] },
+      }),
+      acceptingOrdersMode: 'SCHEDULED',
+      pausedUntil: new Date('2026-07-28T09:00:00.000Z'), // tisdag 11:00 Stockholm
+    },
+    {},
+    at,
+  );
+  assert.equal(
+    state.reason,
+    'CLOSED_UNTIL_OPENING',
+    `kl ${stockholmHour}:30 ska fortfarande vara stängt, inte pausat`,
+  );
+}
+
 // En riktig paus mitt i öppettiden är fortfarande en paus.
 const midServicePause = resolveRestaurantAvailability(
   {

@@ -1,4 +1,4 @@
-import { isRestaurantOpen, nextOpeningAfterToday } from './openingHours';
+import { isKnownOpeningTime, isRestaurantOpen, nextOpeningAfterToday } from './openingHours';
 
 export const ACCEPTING_ORDERS_MODES = ['SCHEDULED', 'FORCE_OPEN', 'FORCE_CLOSED'] as const;
 export type AcceptingOrdersMode = (typeof ACCEPTING_ORDERS_MODES)[number];
@@ -130,8 +130,15 @@ export function resolveRestaurantAvailability(
   // sluttiden råkar sammanfalla med ett skiftbyte eller inte.
   const pauseMinutesLeft = pauseEnd ? (pauseEnd.getTime() - now.getTime()) / 60_000 : 0;
   const wouldOtherwiseBeOpen = scheduledOpenNow || effectiveMode === 'FORCE_OPEN';
+
+  // Slutar tiden på en öppningstid är det en stängning, hur nära vi än står
+  // den. Utan det byter etiketten namn när nedräkningen kryper under taket:
+  // "Stängt · öppnar 11:00" kl 08:59 och "Pausad · 11:00" kl 09:01.
+  const endsAtOpeningTime =
+    pauseEnd !== null && (endsAtNextOpening || isKnownOpeningTime(restaurant.openingHours, pauseEnd));
+
   const isShortPause =
-    wouldOtherwiseBeOpen && !endsAtNextOpening && pauseMinutesLeft <= MAX_PAUSE_MINUTES;
+    wouldOtherwiseBeOpen && !endsAtOpeningTime && pauseMinutesLeft <= MAX_PAUSE_MINUTES;
 
   const restaurantPaused = pauseWindowActive && isShortPause;
   const closedUntilOpening = pauseWindowActive && !isShortPause;
