@@ -450,7 +450,7 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
           ) : view === "overview" ? (
             <>
               <div className="grid gap-4 xl:grid-cols-12">
-                <section className="hero-card xl:col-span-8">
+                <section className="hero-card flex flex-col xl:col-span-8">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
                       <p className="hero-stat-label">Nettoförsäljning · {periodLabel}</p>
@@ -461,7 +461,7 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                     </div>
                     <div className="w-full max-w-full sm:w-auto sm:min-w-[280px]">{heroPeriodBar}</div>
                   </div>
-                  <div className="mt-8">
+                  <div className="flex flex-1 flex-col justify-center py-7">
                     <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.09em] text-[var(--text-muted)]">Så fördelas pengarna</p>
                     <FinanceFlowChart
                       payout={totals?.payout}
