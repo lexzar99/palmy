@@ -378,7 +378,17 @@ router.get('/summary', async (req, res) => {
           ? null
           : fromOre(mollieReport.totalBalanceOre),
         nextPayoutDate: mollieReport.nextPayoutDate,
+        nextPayoutDateSource: mollieReport.nextPayoutDateSource,
         transferFrequency: mollieReport.transferFrequency,
+        nextSettlementAmount: mollieReport.nextSettlementAmountOre == null
+          ? null
+          : fromOre(mollieReport.nextSettlementAmountOre),
+        nextSettlementStatus: mollieReport.nextSettlementStatus,
+        latestPayoutAmount: mollieReport.latestPayoutAmountOre == null
+          ? null
+          : fromOre(mollieReport.latestPayoutAmountOre),
+        latestPayoutStatus: mollieReport.latestPayoutStatus,
+        latestPayoutCreatedAt: mollieReport.latestPayoutCreatedAt,
       },
       reconciliation: {
         status: deviations.some((deviation) => deviation.severity === 'critical')

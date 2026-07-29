@@ -82,7 +82,13 @@ export interface FinanceSummary {
     pendingBalance: number | null;
     totalBalance: number | null;
     nextPayoutDate: string | null;
+    nextPayoutDateSource: "settlement" | "schedule" | null;
     transferFrequency: string | null;
+    nextSettlementAmount: number | null;
+    nextSettlementStatus: string | null;
+    latestPayoutAmount: number | null;
+    latestPayoutStatus: string | null;
+    latestPayoutCreatedAt: string | null;
   };
   reconciliation: {
     status: "ok" | "attention" | "critical";

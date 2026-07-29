@@ -35,7 +35,7 @@ export function FinanceSettingsPage({ embedded = false }: { embedded?: boolean }
     mutationFn: () => updateEconomyRates(form),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["finance"] });
-      if (!embedded) router.push("/finance");
+      if (!embedded) router.push("/finance/restauranger");
     },
   });
 
@@ -48,7 +48,7 @@ export function FinanceSettingsPage({ embedded = false }: { embedded?: boolean }
         <PageHeader
           title="Provision, moms & abonnemang"
           actions={
-            <Link href="/finance" className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-subtle)] px-3.5 py-2 text-sm font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+            <Link href="/finance/restauranger" className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-subtle)] px-3.5 py-2 text-sm font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
               <ArrowLeft size={15} /> Tillbaka
             </Link>
           }
@@ -88,7 +88,7 @@ export function FinanceSettingsPage({ embedded = false }: { embedded?: boolean }
           </Surface>
 
           <div className="flex justify-end gap-2">
-            {!embedded && <Link href="/finance" className="inline-flex items-center rounded-xl border border-[var(--border-subtle)] px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Avbryt</Link>}
+            {!embedded && <Link href="/finance/restauranger" className="inline-flex items-center rounded-xl border border-[var(--border-subtle)] px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Avbryt</Link>}
             <Button variant="primary" onClick={() => save.mutate()}>
               {save.isPending ? <Loader2 size={16} className="animate-spin" /> : "Spara satser"}
             </Button>

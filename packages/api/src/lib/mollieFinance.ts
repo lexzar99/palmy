@@ -36,6 +36,20 @@ type MollieBalance = {
   transferFrequency?: unknown;
 };
 
+type MollieSettlement = {
+  id?: unknown;
+  status?: unknown;
+  amount?: MollieAmount;
+  settledAt?: unknown;
+};
+
+type MolliePayout = {
+  id?: unknown;
+  status?: unknown;
+  amount?: MollieAmount;
+  createdAt?: unknown;
+};
+
 export type MollieFeeStatus = 'available' | 'partial' | 'unavailable';
 
 export type MollieFinanceReport = {
@@ -48,7 +62,13 @@ export type MollieFinanceReport = {
   pendingBalanceOre: number | null;
   totalBalanceOre: number | null;
   nextPayoutDate: string | null;
+  nextPayoutDateSource: 'settlement' | 'schedule' | null;
   transferFrequency: string | null;
+  nextSettlementAmountOre: number | null;
+  nextSettlementStatus: string | null;
+  latestPayoutAmountOre: number | null;
+  latestPayoutStatus: string | null;
+  latestPayoutCreatedAt: string | null;
 };
 
 type CachedReport = {
@@ -252,7 +272,13 @@ function unavailableReport(message: string, requestedPaymentCount: number): Moll
     pendingBalanceOre: null,
     totalBalanceOre: null,
     nextPayoutDate: null,
+    nextPayoutDateSource: null,
     transferFrequency: null,
+    nextSettlementAmountOre: null,
+    nextSettlementStatus: null,
+    latestPayoutAmountOre: null,
+    latestPayoutStatus: null,
+    latestPayoutCreatedAt: null,
   };
 }
 
@@ -278,9 +304,17 @@ export async function getMollieFinanceReport(input: {
   try {
     // Card/Klarna movements can become available after the order date.
     const earliest = new Date(input.from.getTime() - 45 * 24 * 60 * 60 * 1000);
-    const [balance, transactions] = await Promise.all([
+    const [balance, transactions, nextSettlementResult, payoutsResult] = await Promise.all([
       mollieGet<MollieBalance>('/balances/primary', token),
       collectBalanceTransactions(token, earliest),
+      mollieGet<MollieSettlement>('/settlements/next', token)
+        .then((value) => ({ value, error: null }))
+        .catch((error: unknown) => ({ value: null, error })),
+      mollieGet<{
+        _embedded?: { payouts?: MolliePayout[] };
+      }>('/payouts?limit=1&sort=desc', token)
+        .then((value) => ({ value, error: null }))
+        .catch((error: unknown) => ({ value: null, error })),
     ]);
     const allFees = molliePaymentFeesFromTransactions(transactions);
     const feeByPaymentId = new Map<string, number>();
@@ -291,6 +325,10 @@ export async function getMollieFinanceReport(input: {
     const available = exactOre(balance.availableAmount);
     const pending = exactOre(balance.pendingAmount);
     const transferFrequency = String(balance.transferFrequency || '').trim() || null;
+    const nextSettlement = nextSettlementResult.value;
+    const latestPayout = payoutsResult.value?._embedded?.payouts?.[0] || null;
+    const settlementDate = String(nextSettlement?.settledAt || '').trim() || null;
+    const scheduledDate = estimateNextMolliePayoutDate(transferFrequency);
     const matchedPaymentCount = feeByPaymentId.size;
     const report: MollieFinanceReport = {
       feeStatus: matchedPaymentCount === paymentIds.length ? 'available' : 'partial',
@@ -303,8 +341,14 @@ export async function getMollieFinanceReport(input: {
       availableBalanceOre: available,
       pendingBalanceOre: pending,
       totalBalanceOre: available == null || pending == null ? null : available + pending,
-      nextPayoutDate: estimateNextMolliePayoutDate(transferFrequency),
+      nextPayoutDate: settlementDate || scheduledDate,
+      nextPayoutDateSource: settlementDate ? 'settlement' : scheduledDate ? 'schedule' : null,
       transferFrequency,
+      nextSettlementAmountOre: exactOre(nextSettlement?.amount),
+      nextSettlementStatus: String(nextSettlement?.status || '').trim() || null,
+      latestPayoutAmountOre: exactOre(latestPayout?.amount),
+      latestPayoutStatus: String(latestPayout?.status || '').trim() || null,
+      latestPayoutCreatedAt: String(latestPayout?.createdAt || '').trim() || null,
     };
     reportCache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, report });
     return report;

@@ -83,6 +83,7 @@ export const ADMIN_ROUTES: AdminRouteDefinition[] = [
   route({ id: "push", href: "/push", label: "Push-notiser", shortLabel: "Push", icon: BellRing, section: "growth", keywords: "notification meddelande" }),
 
   route({ id: "finance", href: "/finance", label: "Ekonomi", shortLabel: "Ekonomi", icon: CircleDollarSign, section: "finance", keywords: "finance payout intäkt reconciliation utbetalningar tiers provision moms" }),
+  route({ id: "restaurant-finance", href: "/finance/restauranger", label: "Restaurangekonomi", shortLabel: "Restauranger", icon: ReceiptText, section: "finance", keywords: "restaurang ekonomi payout rapport utbetalning provision moms snapshot lås" }),
 
   route({ id: "users", href: "/users", label: "Personal", icon: Users, section: "system", keywords: "admin användare säkerhet personal team konton" }),
   route({ id: "api-health", href: "/api-health", label: "API-status", icon: Gauge, section: "system", keywords: "uptime hälsa status" }),

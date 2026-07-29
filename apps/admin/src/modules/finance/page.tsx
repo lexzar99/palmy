@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   AlertCircle,
   ArrowRight,
+  Banknote,
   CheckCircle2,
   CircleDollarSign,
   Landmark,
@@ -54,20 +55,31 @@ function presetRange(kind: "month" | "lastMonth" | "7" | "30"): { from: string; 
 }
 
 const STATUS_LABEL: Record<string, string> = { DRAFT: "Utkast", APPROVED: "Låst", PAID: "Betald", HOLD: "Upplåst" };
+const MOLLIE_PAYOUT_STATUS: Record<string, string> = {
+  requested: "Begärd",
+  initiated: "Påbörjad",
+  "processing-at-bank": "Behandlas av banken",
+  completed: "Genomförd",
+  canceled: "Avbruten",
+  failed: "Misslyckad",
+};
 const statusTone = (s: string | null): "neutral" | "info" | "success" | "warning" =>
   s === "PAID" ? "success" : s === "APPROVED" ? "info" : s === "HOLD" ? "warning" : "neutral";
 type FinanceTab = "utbetalningar" | "tiers" | "satser";
+type FinancePageProps = {
+  view?: "overview" | "restaurants";
+};
 const money = (value: number | null | undefined) => value == null ? "—" : formatCurrency(value);
 const negativeMoney = (value: number | null | undefined) =>
   value == null ? "—" : value > 0 ? `−${formatCurrency(value)}` : formatCurrency(0);
 
-export function FinancePage() {
+export function FinancePage({ view = "overview" }: FinancePageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
   const tab: FinanceTab = tabParam === "tiers" || tabParam === "satser" ? tabParam : "utbetalningar";
   const changeTab = (t: FinanceTab) => {
-    router.replace(`/finance?tab=${t}`, { scroll: false });
+    router.replace(`/finance/restauranger?tab=${t}`, { scroll: false });
   };
   const init = presetRange("month");
   const [from, setFrom] = useState(init.from);
@@ -109,29 +121,42 @@ export function FinancePage() {
     <div className="page-stack">
       <PageHeader
         breadcrumb="Plattform"
-        title="Ekonomi"
+        title={view === "overview" ? "Ekonomiöversikt" : "Restaurangekonomi"}
         actions={(
-          <Button onClick={() => void summary.refetch()} disabled={summary.isFetching}>
-            <RefreshCw size={14} className={summary.isFetching ? "animate-spin" : undefined} />
-            Uppdatera
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {view === "overview" ? (
+              <Button onClick={() => router.push("/finance/restauranger")}>
+                Restaurangekonomi <ArrowRight size={14} />
+              </Button>
+            ) : (
+              <Button onClick={() => router.push("/finance")}>
+                Ekonomiöversikt
+              </Button>
+            )}
+            <Button onClick={() => void summary.refetch()} disabled={summary.isFetching}>
+              <RefreshCw size={14} className={summary.isFetching ? "animate-spin" : undefined} />
+              Uppdatera
+            </Button>
+          </div>
         )}
       />
 
-      <Tabs<FinanceTab>
-        value={tab}
-        onChange={changeTab}
-        options={[
-          { value: "utbetalningar", label: "Utbetalningar" },
-          { value: "tiers", label: "Tiers" },
-          { value: "satser", label: "Provision & moms" },
-        ]}
-      />
+      {view === "restaurants" ? (
+        <Tabs<FinanceTab>
+          value={tab}
+          onChange={changeTab}
+          options={[
+            { value: "utbetalningar", label: "Utbetalningar" },
+            { value: "tiers", label: "Tiers" },
+            { value: "satser", label: "Provision & moms" },
+          ]}
+        />
+      ) : null}
 
-      {tab === "tiers" && <TiersPage embedded />}
-      {tab === "satser" && <FinanceSettingsPage embedded />}
+      {view === "restaurants" && tab === "tiers" && <TiersPage embedded />}
+      {view === "restaurants" && tab === "satser" && <FinanceSettingsPage embedded />}
 
-      {tab === "utbetalningar" && (<>
+      {(view === "overview" || tab === "utbetalningar") && (<>
       {summary.isError ? (
         <ErrorPanel
           title="Ekonomi-modulen kunde inte laddas"
@@ -140,14 +165,15 @@ export function FinancePage() {
         />
       ) : (
         <>
-          {/* ── Hero: periodens viktigaste siffra ── */}
+          {view === "overview" ? (<>
+          {/* ── Plattformsekonomi: samma visuella språk som översikten ── */}
           <section className="hero-card">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="hero-stat-label">Att betala ut · {periodLabel}</p>
-                <p className="hero-value mt-2">{totals ? formatCurrency(totals.payout) : "—"}</p>
+                <p className="hero-stat-label">Intäkt efter avgifter · {periodLabel}</p>
+                <p className="hero-value mt-2">{money(totals?.commissionAfterMollieFees)}</p>
                 <p className="mt-1.5 text-[12.5px] font-medium text-[rgba(254,247,240,0.65)]">
-                  {totals ? `${formatNumber(totals.orderCount)} ordrar · ${formatNumber(rows.length)} restauranger` : "Laddar…"}
+                  {totals ? `${formatNumber(totals.orderCount)} riktiga betalningar · brutto ${formatCurrency(totals.grossTotal)}` : "Laddar…"}
                 </p>
               </div>
               <div className="segmented">
@@ -204,7 +230,7 @@ export function FinancePage() {
 
           {/* ── Mollie, avstämning och beräkningslogik ── */}
           <div className="grid gap-4 xl:grid-cols-12">
-            <Surface className="flex flex-col px-5 py-5 xl:col-span-4">
+            <Surface className="flex flex-col px-5 py-5 xl:col-span-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="eyebrow">Mollie · just nu</p>
@@ -229,14 +255,56 @@ export function FinancePage() {
                 </div>
               </div>
               <div className="mt-4 flex items-center justify-between gap-3 rounded-[11px] bg-[var(--bg-page)] px-3 py-3 text-[12px]">
-                <span className="font-semibold text-[var(--text-secondary)]">Nästa utbetalning</span>
+                <span className="font-semibold text-[var(--text-secondary)]">
+                  Nästa utbetalning{mollie?.nextPayoutDateSource === "schedule" ? " enligt schema" : ""}
+                </span>
                 <span className="font-extrabold text-[var(--text-primary)]">
                   {mollie?.nextPayoutDate ? formatDate(mollie.nextPayoutDate) : "—"}
                 </span>
               </div>
             </Surface>
 
-            <Surface className="flex flex-col px-5 py-5 xl:col-span-4">
+            <Surface className="flex flex-col px-5 py-5 xl:col-span-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="eyebrow">Mollie · bankflöde</p>
+                  <h2 className="section-title mt-1">Utbetalningsspårning</h2>
+                </div>
+                <span className="flex h-[38px] w-[38px] items-center justify-center rounded-[11px] bg-[var(--brand-orange-soft)] text-[var(--brand-orange)]">
+                  <Banknote size={17} />
+                </span>
+              </div>
+              <p className="mt-5 text-[28px] font-black tracking-[-0.03em] text-[var(--text-primary)]">
+                {money(mollie?.nextSettlementAmount)}
+              </p>
+              <p className="mt-1 text-[12px] font-semibold text-[var(--text-muted)]">Kommande settlement</p>
+              {mollie?.nextSettlementStatus ? (
+                <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+                  {mollie.nextSettlementStatus}
+                </p>
+              ) : null}
+              <div className="mt-4 grid gap-3 border-t border-[var(--border-subtle)] pt-4">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[12px] font-semibold text-[var(--text-secondary)]">Senaste utbetalning</span>
+                  <span className="text-[13px] font-extrabold text-[var(--text-primary)]">{money(mollie?.latestPayoutAmount)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[12px] font-semibold text-[var(--text-secondary)]">Status</span>
+                  <Badge tone={mollie?.latestPayoutStatus === "failed" ? "warning" : mollie?.latestPayoutStatus === "completed" ? "success" : "info"}>
+                    {mollie?.latestPayoutStatus
+                      ? MOLLIE_PAYOUT_STATUS[mollie.latestPayoutStatus] || mollie.latestPayoutStatus
+                      : "Ingen registrerad"}
+                  </Badge>
+                </div>
+              </div>
+              {mollie?.latestPayoutCreatedAt ? (
+                <p className="mt-4 text-[11.5px] leading-5 text-[var(--text-muted)]">
+                  Senast uppdaterad {formatDate(mollie.latestPayoutCreatedAt)}.
+                </p>
+              ) : null}
+            </Surface>
+
+            <Surface className="flex flex-col px-5 py-5 xl:col-span-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="eyebrow">Automatisk kontroll</p>
@@ -279,7 +347,7 @@ export function FinancePage() {
               </p>
             </Surface>
 
-            <Surface className="flex flex-col px-5 py-5 xl:col-span-4">
+            <Surface className="flex flex-col px-5 py-5 xl:col-span-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="eyebrow">Samma logik överallt</p>
@@ -365,6 +433,55 @@ export function FinancePage() {
               </div>
             )}
           </Surface>
+          </>) : null}
+
+          {view === "restaurants" ? (<>
+          <section className="hero-card">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="hero-stat-label">Att betala ut · {periodLabel}</p>
+                <p className="hero-value mt-2">{totals ? formatCurrency(totals.payout) : "—"}</p>
+                <p className="mt-1.5 text-[12.5px] font-medium text-[rgba(254,247,240,0.65)]">
+                  {totals ? `${formatNumber(totals.orderCount)} riktiga betalningar · ${formatNumber(rows.length)} restauranger` : "Laddar…"}
+                </p>
+              </div>
+              <div className="segmented">
+                {PERIOD_PRESETS.map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setPreset(key)}
+                    className={activePreset === key ? "is-active" : ""}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="mt-5 grid gap-x-7 gap-y-4 border-t border-[rgba(254,247,240,0.14)] pt-4 sm:grid-cols-2 lg:grid-cols-5">
+              {[
+                ["Brutto", totals?.grossTotal],
+                ["Återbetalningar", totals?.refunds],
+                ["Netto", totals?.netSales],
+                ["Provision inkl moms", totals?.commissionInclVat],
+                ["Mollie-avgifter", totals?.mollieFees],
+              ].map(([label, value]) => (
+                <div key={String(label)}>
+                  <p className="hero-stat-label">{label}</p>
+                  <p className="hero-stat-value">{money(value as number | null | undefined)}</p>
+                </div>
+              ))}
+            </div>
+            <details className="mt-4 text-[12.5px]">
+              <summary className="cursor-pointer font-bold text-[rgba(254,247,240,0.7)] hover:text-white">
+                Eget datumintervall
+              </summary>
+              <div className="mt-3 flex flex-wrap items-end gap-3">
+                <Field label="Från"><Input type="date" value={from} max={to} onChange={(e) => { setFrom(e.target.value); setActivePreset(null); }} /></Field>
+                <Field label="Till"><Input type="date" value={to} min={from} onChange={(e) => { setTo(e.target.value); setActivePreset(null); }} /></Field>
+              </div>
+            </details>
+          </section>
 
           {/* ── Filterrad ── */}
           <div className="flex flex-wrap items-center gap-2">
@@ -464,6 +581,7 @@ export function FinancePage() {
               </p>
             </Surface>
           )}
+          </>) : null}
         </>
       )}
       </>)}

@@ -172,7 +172,7 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["finance"] });
-      router.push("/finance");
+      router.push("/finance/restauranger");
     },
   });
   const payoutError = (savePayout.error as { response?: { data?: { error?: string } }; message?: string } | null)
@@ -218,12 +218,12 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
       <PageHeader
         breadcrumb={
           <>
-            <Link href="/finance">Plattform / Ekonomi</Link>
+            <Link href="/finance/restauranger">Plattform / Restaurangekonomi</Link>
             {spec.data?.restaurant.name ? ` / ${spec.data.restaurant.name}` : ""}
           </>
         }
         title="Utbetalning"
-        onBack={() => router.push("/finance")}
+        onBack={() => router.push("/finance/restauranger")}
         actions={
           <>
             <span className="inline-flex items-center rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-page)] px-3 py-2 text-[13px] font-semibold text-[var(--text-secondary)]">
@@ -585,7 +585,7 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
             <Button onClick={() => spec.data && printPayoutSpec(spec.data, manualAdjustment, automaticRecovery, printOptions)}>
               <Printer size={16} /> Skriv ut / PDF
             </Button>
-            <Link href="/finance" className="inline-flex items-center rounded-xl border border-[var(--border-subtle)] px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+            <Link href="/finance/restauranger" className="inline-flex items-center rounded-xl border border-[var(--border-subtle)] px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
               Avbryt
             </Link>
             <Button
