@@ -1876,7 +1876,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
         </div>
         <Link href="/search" className="text-[12px] font-bold text-gold-600 hover:text-gold-500 transition-all shrink-0 ml-3">{t("home.viewAll")}</Link>
       </div>
-      <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar -mx-5 px-5 md:mx-0 md:px-0 snap-x snap-mandatory">
+      <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar -mx-5 pl-7 pr-5 md:mx-0 md:px-0 snap-x snap-mandatory">
         {sortedSection.map((r, i) => {
           const inZone = orderType !== "DELIVERY" || zoneRestaurantIds === null || zoneRestaurantIds.includes(r.id);
           const isComingSoon = r.comingSoon === true;
@@ -2176,7 +2176,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
               onPointerDown={revealPromoCards}
               onFocus={revealPromoCards}
               onScroll={handlePromoScroll}
-              className="flex items-start gap-3 overflow-x-auto pb-1 no-scrollbar -mx-5 px-5 sm:mx-0 sm:px-0"
+              className="flex items-start gap-3 overflow-x-auto pb-1 no-scrollbar -mx-5 pl-7 pr-5 sm:mx-0 sm:px-0"
               style={{ scrollSnapType: "x mandatory" }}
             >
               {renderedPromoCards.map((item, i) => {
