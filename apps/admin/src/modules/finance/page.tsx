@@ -304,6 +304,8 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
   const totals = summary.data?.totals;
   const mollie = summary.data?.mollie;
   const reconciliation = summary.data?.reconciliation;
+  const activeRows = rows.filter((row) => row.orderCount > 0);
+  const inactiveRows = rows.filter((row) => row.orderCount === 0);
   const periodLabel = activePreset
     ? PERIOD_PRESETS.find(([key]) => key === activePreset)?.[1] || ""
     : `${from} – ${to}`;
@@ -527,15 +529,40 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
               ) : rows.length === 0 ? (
                 <Surface className="px-6 py-6"><EmptyState title="Inga restauranger i perioden" /></Surface>
               ) : (
-                <div className="grid min-w-0 gap-3 xl:grid-cols-2">
-                  {rows.map((row) => (
+                <>
+                  <div className="grid min-w-0 gap-3 xl:grid-cols-2">
+                  {activeRows.map((row) => (
                     <RestaurantFinanceCard
                       key={row.restaurantId}
                       row={row}
                       onOpen={() => openPayout(row.restaurantId)}
                     />
                   ))}
-                </div>
+                  </div>
+                  {inactiveRows.length > 0 ? (
+                    <details className="surface overflow-hidden" open={Boolean(query.trim())}>
+                      <summary className="cursor-pointer px-4 py-3 text-[12.5px] font-extrabold text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]">
+                        Utan aktivitet under perioden ({formatNumber(inactiveRows.length)})
+                      </summary>
+                      <div className="grid border-t border-[var(--border-subtle)] sm:grid-cols-2 xl:grid-cols-3">
+                        {inactiveRows.map((row) => (
+                          <button
+                            key={row.restaurantId}
+                            type="button"
+                            onClick={() => openPayout(row.restaurantId)}
+                            className="flex min-w-0 items-center justify-between gap-3 border-b border-[var(--border-subtle)] px-4 py-3 text-left hover:bg-[var(--bg-hover)] sm:border-r"
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate text-[12.5px] font-extrabold text-[var(--text-primary)]">{row.name}</span>
+                              <span className="mt-0.5 block text-[11px] text-[var(--text-muted)]">{row.city || "Ingen stad"} · 0 betalningar</span>
+                            </span>
+                            <ArrowRight size={14} className="shrink-0 text-[var(--text-muted)]" />
+                          </button>
+                        ))}
+                      </div>
+                    </details>
+                  ) : null}
+                </>
               )}
             </>
           )}
