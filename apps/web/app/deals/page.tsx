@@ -219,6 +219,7 @@ export default function DealsPage() {
                   {rail.products.map((product) => {
                     const off = percentOff(product);
                     const restaurantImage = product.restaurant.heroImageUrl || product.restaurant.imageUrl || product.imageUrl;
+                    const productImage = product.imageUrl || restaurantImage;
                     return (
                       <Link
                         key={product.id}
@@ -226,8 +227,8 @@ export default function DealsPage() {
                         className="w-[200px] shrink-0 overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(17,17,19,0.08)]"
                       >
                         <div className="relative h-[116px] bg-[var(--cream,#FEF7F0)]">
-                          {restaurantImage ? (
-                            <SmartImage src={restaurantImage} alt={rail.name} sizes="200px" className="h-full w-full object-cover" loading="lazy" />
+                          {productImage ? (
+                            <SmartImage src={productImage} alt={product.name} sizes="200px" className="h-full w-full object-cover" loading="lazy" />
                           ) : null}
                           {off > 0 && (
                             <span className="absolute left-3 top-3 rounded-full bg-[var(--orange)] px-2.5 py-1 text-[12px] font-black text-white">
@@ -237,6 +238,14 @@ export default function DealsPage() {
                         </div>
                         <div className="p-3">
                           <h3 className="line-clamp-2 min-h-[34px] text-[13px] font-black leading-tight">{product.name}</h3>
+                          <div className="mt-1.5 flex min-w-0 items-center gap-1.5">
+                            {restaurantImage ? (
+                              <span className="relative h-6 w-6 shrink-0 overflow-hidden rounded-full bg-[var(--bg-deep)]">
+                                <SmartImage src={restaurantImage} alt="" sizes="24px" className="h-full w-full object-cover" loading="lazy" />
+                              </span>
+                            ) : null}
+                            <span className="truncate text-[11px] font-bold text-[var(--muted)]">{rail.name}</span>
+                          </div>
                           <div className="mt-2 flex items-baseline gap-2">
                             <span className="text-[15px] font-black text-[var(--orange)]">{kr(product.discountPrice)}</span>
                             <span className="text-[11px] font-bold text-[var(--muted)] line-through">{kr(product.originalPrice)}</span>
