@@ -58,6 +58,8 @@ const statusTone = (s: string | null): "neutral" | "info" | "success" | "warning
   s === "PAID" ? "success" : s === "APPROVED" ? "info" : s === "HOLD" ? "warning" : "neutral";
 type FinanceTab = "utbetalningar" | "tiers" | "satser";
 const money = (value: number | null | undefined) => value == null ? "—" : formatCurrency(value);
+const negativeMoney = (value: number | null | undefined) =>
+  value == null ? "—" : value > 0 ? `−${formatCurrency(value)}` : formatCurrency(0);
 
 export function FinancePage() {
   const router = useRouter();
@@ -428,7 +430,7 @@ export function FinancePage() {
                           </div>
                         </td>
                         <td className="px-4 py-3.5 text-right font-bold tabular-nums">{money(r.grossTotal)}</td>
-                        <td className="px-4 py-3.5 text-right font-bold tabular-nums text-[var(--danger)]">−{money(r.refunds)}</td>
+                        <td className="px-4 py-3.5 text-right font-bold tabular-nums text-[var(--danger)]">{negativeMoney(r.refunds)}</td>
                         <td className="px-4 py-3.5 text-right font-extrabold tabular-nums">{money(r.netSales)}</td>
                         <td className="px-4 py-3.5 text-right font-bold tabular-nums">{money(r.mollieFees)}</td>
                         <td className="px-4 py-3.5 text-right font-bold tabular-nums">{money(r.refundTransactionFees)}</td>
@@ -444,7 +446,7 @@ export function FinancePage() {
                     <tr className="border-t-2 border-[var(--border-strong)] bg-[var(--bg-page)] font-black text-[var(--text-primary)]">
                       <td className="sticky left-0 z-10 bg-[var(--bg-page)] px-4 py-4">Totalt · alla restauranger</td>
                       <td className="px-4 py-4 text-right tabular-nums">{money(totals?.grossTotal)}</td>
-                      <td className="px-4 py-4 text-right tabular-nums text-[var(--danger)]">−{money(totals?.refunds)}</td>
+                      <td className="px-4 py-4 text-right tabular-nums text-[var(--danger)]">{negativeMoney(totals?.refunds)}</td>
                       <td className="px-4 py-4 text-right tabular-nums">{money(totals?.netSales)}</td>
                       <td className="px-4 py-4 text-right tabular-nums">{money(totals?.mollieFees)}</td>
                       <td className="px-4 py-4 text-right tabular-nums">{money(totals?.refundTransactionFees)}</td>
