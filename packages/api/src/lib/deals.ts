@@ -478,6 +478,8 @@ export const formatDealForClient = (
       id: string;
       name: string;
       slug: string;
+      imageUrl?: string | null;
+      heroImageUrl?: string | null;
     } | null;
     applicableRestaurantIds?: string[];
   },

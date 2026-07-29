@@ -1144,7 +1144,7 @@ router.get('/', async (req, res) => {
       },
       include: {
         restaurant: {
-          select: { id: true, name: true, slug: true },
+          select: { id: true, name: true, slug: true, imageUrl: true, heroImageUrl: true },
         },
       },
       orderBy: [
@@ -1174,6 +1174,8 @@ router.get('/', async (req, res) => {
                   id: deal.restaurant.id,
                   name: deal.restaurant.name,
                   slug: deal.restaurant.slug,
+                  imageUrl: deal.restaurant.imageUrl,
+                  heroImageUrl: deal.restaurant.heroImageUrl,
                 }
               : null,
             applicableRestaurantIds: parseJsonArray(deal.applicableRestaurantIds),

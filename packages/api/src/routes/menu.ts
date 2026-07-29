@@ -505,6 +505,7 @@ router.get('/discounted', async (req, res) => {
                 slug: true,
                 name: true,
                 imageUrl: true,
+                heroImageUrl: true,
                 city: true,
                 cuisine: true,
                 openingHours: true,
