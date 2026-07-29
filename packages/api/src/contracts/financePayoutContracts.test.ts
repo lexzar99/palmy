@@ -147,7 +147,6 @@ assert.equal(eligible.reduce((sum, order) => sum + order.refundAmount, 0), 2_000
 
 const reconciliation = reconcileFinanceOrders({
   feeStatus: 'partial',
-  feeByPaymentId: new Map([['tr_paid', 250]]),
   orders: [
     {
       id: 'paid',
@@ -188,10 +187,7 @@ assert.equal(
   reconciliation.some((item) => item.code === 'DELIVERED_WITHOUT_SETTLED_PAYMENT' && item.amountOre === 8_000),
   true,
 );
-assert.equal(
-  reconciliation.some((item) => item.code === 'MOLLIE_FEE_MISSING' && item.affectedOrderCount === 1),
-  true,
-);
+assert.equal(reconciliation.some((item) => item.id.startsWith('missing-fee:')), false);
 assert.equal(reconciliation.some((item) => item.orderId === 'paid'), false);
 
 const platformPayout = computePayout(

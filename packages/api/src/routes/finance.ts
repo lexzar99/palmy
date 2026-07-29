@@ -317,31 +317,12 @@ router.get('/summary', async (req, res) => {
       reconcileFinanceOrders({
         orders,
         feeStatus: mollieReport.feeStatus,
-        feeByPaymentId: mollieReport.feeByPaymentId,
       }).map((deviation) => ({
         ...deviation,
         restaurantName: deviation.restaurantId
           ? restaurantNameById.get(deviation.restaurantId) || 'Okänd restaurang'
           : null,
       }));
-    for (const row of rows) {
-      if (row.mollieFees == null || row.commissionAfterMollieFees >= 0) continue;
-      deviations.push({
-        id: `negative-margin:${row.restaurantId}`,
-        code: 'NEGATIVE_PROCESSING_MARGIN',
-        severity: 'critical',
-        restaurantId: row.restaurantId,
-        restaurantName: row.name,
-        orderId: null,
-        orderNumber: null,
-        paymentId: null,
-        title: 'Mollie-avgifterna är högre än provisionen',
-        detail: `${row.name} ger negativ transaktionsmarginal efter Mollie-avgifter under perioden.`,
-        amountOre: Math.round(Math.abs(row.commissionAfterMollieFees) * 100),
-        affectedOrderCount: row.orderCount,
-        confirmedLoss: true,
-      });
-    }
     const deviationSeverityRank = { critical: 3, warning: 2, info: 1 } as const;
     deviations.sort((a, b) =>
       deviationSeverityRank[b.severity] - deviationSeverityRank[a.severity] ||

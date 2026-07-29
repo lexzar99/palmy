@@ -110,9 +110,7 @@ export interface FinanceSummary {
         | "MOLLIE_PAYMENT_ID_MISSING"
         | "DUPLICATE_MOLLIE_PAYMENT_ID"
         | "REFUND_AMOUNT_INVALID"
-        | "MOLLIE_FEE_MISSING"
-        | "MOLLIE_REPORTING_UNAVAILABLE"
-        | "NEGATIVE_PROCESSING_MARGIN";
+        | "MOLLIE_REPORTING_UNAVAILABLE";
       severity: "critical" | "warning" | "info";
       restaurantId: string | null;
       restaurantName: string | null;

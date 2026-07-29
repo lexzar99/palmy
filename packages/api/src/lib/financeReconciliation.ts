@@ -27,9 +27,7 @@ export type FinanceDeviation = {
     | 'MOLLIE_PAYMENT_ID_MISSING'
     | 'DUPLICATE_MOLLIE_PAYMENT_ID'
     | 'REFUND_AMOUNT_INVALID'
-    | 'MOLLIE_FEE_MISSING'
-    | 'MOLLIE_REPORTING_UNAVAILABLE'
-    | 'NEGATIVE_PROCESSING_MARGIN';
+    | 'MOLLIE_REPORTING_UNAVAILABLE';
   severity: FinanceDeviationSeverity;
   restaurantId: string | null;
   orderId: string | null;
@@ -49,7 +47,6 @@ const isMollie = (order: FinanceReconciliationOrder) =>
 export function reconcileFinanceOrders(input: {
   orders: readonly FinanceReconciliationOrder[];
   feeStatus: MollieFeeStatus;
-  feeByPaymentId: ReadonlyMap<string, number>;
 }): FinanceDeviation[] {
   const deviations: FinanceDeviation[] = [];
   const realOrders = input.orders.filter(isFinanceRealPaymentOrder);
@@ -185,32 +182,6 @@ export function reconcileFinanceOrders(input: {
       affectedOrderCount: ordersByPaymentId.size,
       confirmedLoss: false,
     });
-  } else if (input.feeStatus === 'partial') {
-    const missingByRestaurant = new Map<string | null, FinanceReconciliationOrder[]>();
-    for (const [paymentId, paymentOrders] of ordersByPaymentId) {
-      if (input.feeByPaymentId.has(paymentId)) continue;
-      const restaurantId = paymentOrders[0]?.restaurantId || null;
-      const rows = missingByRestaurant.get(restaurantId) || [];
-      rows.push(...paymentOrders);
-      missingByRestaurant.set(restaurantId, rows);
-    }
-    for (const [restaurantId, paymentOrders] of missingByRestaurant) {
-      const uniquePaymentIds = [...new Set(paymentOrders.map((order) => order.molliePaymentId).filter(Boolean))];
-      deviations.push({
-        id: `missing-fee:${restaurantId || 'unknown'}`,
-        code: 'MOLLIE_FEE_MISSING',
-        severity: 'warning',
-        restaurantId,
-        orderId: null,
-        orderNumber: null,
-        paymentId: null,
-        title: `${uniquePaymentIds.length} Mollie-avgifter är inte slutbokförda`,
-        detail: `Betalningarna räknas med och avgifterna visas preliminärt. Mollies exakta bokförda avgifter ersätter dem automatiskt innan rapporten kan låsas.`,
-        amountOre: null,
-        affectedOrderCount: paymentOrders.length,
-        confirmedLoss: false,
-      });
-    }
   }
 
   const severityRank: Record<FinanceDeviationSeverity, number> = {
