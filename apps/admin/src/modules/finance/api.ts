@@ -38,6 +38,7 @@ export interface FinanceRow {
   commissionInclVat: number;
   mollieFees: number | null;
   refundTransactionFees: number | null;
+  refundProcessingFees: number | null;
   commissionAfterMollieFees: number | null;
   mollieFeeStatus: "available" | "partial" | "unavailable";
   subscription: number;
@@ -63,6 +64,7 @@ export interface FinanceSummary {
     commissionInclVat: number;
     mollieFees: number | null;
     refundTransactionFees: number | null;
+    refundProcessingFees: number | null;
     commissionAfterMollieFees: number | null;
     subscription: number;
     feeVat: number;
@@ -72,6 +74,26 @@ export interface FinanceSummary {
     owed: number;
     refunds: number;
     orderCount: number;
+  };
+  refundImpact: {
+    refundCount: number;
+    refundedAmount: number;
+    balanceImpact: number | null;
+    withoutRefunds: {
+      commission: number;
+      commissionVat: number;
+      mollieFees: number | null;
+      resultExVat: number | null;
+      restaurantPayout: number;
+    };
+    withOneRefund: {
+      refundedAmount: number;
+      commission: number;
+      commissionVat: number;
+      mollieFees: number | null;
+      resultExVat: number | null;
+      restaurantPayout: number;
+    };
   };
   mollie: {
     feeStatus: "available" | "partial" | "unavailable";

@@ -27,6 +27,39 @@ router.use(authenticate, requireSuperAdmin);
 
 const fromOre = (n?: number | null) => Number(n || 0) / 100;
 
+const clampedRefundOre = (order: {
+  total: number;
+  refundAmount?: number | null;
+  paymentStatus?: string | null;
+}) => Math.min(
+  Math.max(0, Number(order.total || 0)),
+  Math.max(
+    0,
+    Number(order.refundAmount ?? (
+      String(order.paymentStatus || '').toUpperCase() === 'REFUNDED'
+        ? order.total
+        : 0
+    )),
+  ),
+);
+
+const orderAtAmount = (order: {
+  total: number;
+  deliveryFee: number;
+  tipAmount: number;
+  foodVatPercent: number | null;
+}, amountOre: number): OrderEcon | null => {
+  const originalOre = Math.max(0, Number(order.total || 0));
+  const normalizedOre = Math.min(originalOre, Math.max(0, Math.round(amountOre)));
+  if (originalOre <= 0 || normalizedOre <= 0) return null;
+  return {
+    total: normalizedOre,
+    deliveryFee: Math.round(Math.max(0, Number(order.deliveryFee || 0)) * normalizedOre / originalOre),
+    tipAmount: Math.round(Math.max(0, Number(order.tipAmount || 0)) * normalizedOre / originalOre),
+    foodVatPercent: order.foodVatPercent,
+  };
+};
+
 const parseDate = (value: unknown): Date | null => {
   const d = value ? new Date(String(value)) : null;
   return d && Number.isFinite(d.getTime()) ? d : null;
@@ -216,22 +249,59 @@ router.get('/summary', async (req, res) => {
             .map((order) => String(order.molliePaymentId || '').trim())
             .filter(Boolean),
         );
+        const observedRefundFees = [...mollieReport.refundFeeByPaymentId.values()]
+          .filter((fee) => Number.isFinite(fee) && fee >= 0)
+          .sort((a, b) => a - b);
+        const provisionalRefundFeeOre = observedRefundFees.length > 0
+          ? observedRefundFees[Math.floor(observedRefundFees.length / 2)]
+          : null;
+        const missingRefundFeeCount = [...refundedPaymentIds]
+          .filter((id) => !mollieReport.refundFeeByPaymentId.has(id))
+          .length;
+        const refundProcessingFeesDisplayable = mollieReport.feeStatus !== 'unavailable' &&
+          (missingRefundFeeCount === 0 || provisionalRefundFeeOre != null);
+        const liveRefundProcessingFeesOre = !refundProcessingFeesDisplayable
+          ? null
+          : [...refundedPaymentIds].reduce(
+              (sum, id) => sum + (
+                mollieReport.refundFeeByPaymentId.get(id) ??
+                provisionalRefundFeeOre ??
+                0
+              ),
+              0,
+            );
         const refundFeesDisplayable = mollieReport.feeStatus !== 'unavailable' &&
-          [...refundedPaymentIds].every((id) => mollieReport.displayFeeByPaymentId.has(id));
+          [...refundedPaymentIds].every((id) => mollieReport.displayFeeByPaymentId.has(id)) &&
+          refundProcessingFeesDisplayable;
         const liveRefundTransactionFeesOre = !refundFeesDisplayable
           ? null
           : [...refundedPaymentIds].reduce(
-              (sum, id) => sum + (mollieReport.displayFeeByPaymentId.get(id) || 0),
+              (sum, id) => sum +
+                (mollieReport.displayFeeByPaymentId.get(id) || 0) +
+                (mollieReport.refundFeeByPaymentId.has(id)
+                  ? 0
+                  : provisionalRefundFeeOre || 0),
               0,
+            );
+        const liveMollieFeesWithRefundEstimateOre = liveMollieFeesOre == null ||
+          liveRefundProcessingFeesOre == null
+          ? liveMollieFeesOre
+          : liveMollieFeesOre + (
+              missingRefundFeeCount * (provisionalRefundFeeOre || 0)
             );
         const mollieFeesOre = frozenMetrics && Object.prototype.hasOwnProperty.call(frozenMetrics, 'mollieFees')
           ? (frozenMetrics.mollieFees == null ? null : Math.round(Number(frozenMetrics.mollieFees)))
-          : liveMollieFeesOre;
+          : liveMollieFeesWithRefundEstimateOre;
         const refundTransactionFeesOre = frozenMetrics && Object.prototype.hasOwnProperty.call(frozenMetrics, 'refundTransactionFees')
           ? (frozenMetrics.refundTransactionFees == null
               ? null
               : Math.round(Number(frozenMetrics.refundTransactionFees)))
           : liveRefundTransactionFeesOre;
+        const refundProcessingFeesOre = frozenMetrics && Object.prototype.hasOwnProperty.call(frozenMetrics, 'refundProcessingFees')
+          ? (frozenMetrics.refundProcessingFees == null
+              ? null
+              : Math.round(Number(frozenMetrics.refundProcessingFees)))
+          : liveRefundProcessingFeesOre;
         const economic = selectFinanceSummaryEconomicValues({
           orderCount: b.orderCount,
           grossSales: b.restaurantGrossOre,
@@ -286,10 +356,13 @@ router.get('/summary', async (req, res) => {
           refundTransactionFees: refundTransactionFeesOre == null
             ? null
             : fromOre(refundTransactionFeesOre),
+          refundProcessingFees: refundProcessingFeesOre == null
+            ? null
+            : fromOre(refundProcessingFeesOre),
           commissionAfterMollieFees: mollieFeesOre == null
             ? null
             : fromOre(economic.commission - mollieFeesOre),
-          mollieFeeStatus: frozenMetrics?.mollieFeeStatus || (rowFeesComplete
+          mollieFeeStatus: frozenMetrics?.mollieFeeStatus || (rowFeesComplete && missingRefundFeeCount === 0
             ? 'available'
             : mollieReport.feeStatus === 'unavailable'
               ? 'unavailable'
@@ -308,7 +381,7 @@ router.get('/summary', async (req, res) => {
 
     const totals = sumFinanceSummaryRows(rows);
     const nullableSum = (
-      field: 'mollieFees' | 'refundTransactionFees' | 'commissionAfterMollieFees',
+      field: 'mollieFees' | 'refundTransactionFees' | 'refundProcessingFees' | 'commissionAfterMollieFees',
     ) => rows.every((row) => row[field] != null)
       ? rows.reduce((sum, row) => sum + Number(row[field]), 0)
       : null;
@@ -335,6 +408,52 @@ router.get('/summary', async (req, res) => {
     const amountToReviewOre = deviations
       .filter((deviation) => !deviation.confirmedLoss && deviation.severity === 'critical')
       .reduce((sum, deviation) => sum + Math.max(0, Number(deviation.amountOre || 0)), 0);
+    const currentMollieFeesOre = nullableSum('mollieFees') == null
+      ? null
+      : Math.round(Number(nullableSum('mollieFees')) * 100);
+    const currentRefundProcessingFeesOre = nullableSum('refundProcessingFees') == null
+      ? null
+      : Math.round(Number(nullableSum('refundProcessingFees')) * 100);
+    const restoredScenario = (keptRefundOrderId: string | null) => {
+      const scenarioOrdersByRestaurant = new Map<string, OrderEcon[]>();
+      for (const order of reportOrders) {
+        if (!order.restaurantId) continue;
+        const refundOre = clampedRefundOre(order);
+        const keepThisRefund = keptRefundOrderId === order.id;
+        const scenarioOrder = refundOre > 0 && !keepThisRefund
+          ? orderAtAmount(order, Number(order.total || 0))
+          : netPayoutOrder(order);
+        if (!scenarioOrder) continue;
+        const list = scenarioOrdersByRestaurant.get(order.restaurantId) || [];
+        list.push(scenarioOrder);
+        scenarioOrdersByRestaurant.set(order.restaurantId, list);
+      }
+      const breakdowns = restaurants.map((restaurant) =>
+        computePayout(scenarioOrdersByRestaurant.get(restaurant.id) || [], restaurant, economy)
+      );
+      return {
+        commissionOre: breakdowns.reduce((sum, row) => sum + row.commissionOre, 0),
+        commissionVatOre: breakdowns.reduce((sum, row) => sum + row.feeVatOre, 0),
+        payoutOre: breakdowns.reduce((sum, row) => sum + row.payoutOre, 0),
+      };
+    };
+    const refundedOrders = reportOrders.filter((order) => clampedRefundOre(order) > 0);
+    const largestRefundOrder = [...refundedOrders]
+      .sort((a, b) => clampedRefundOre(b) - clampedRefundOre(a))[0] || null;
+    const noRefundScenario = restoredScenario(null);
+    const oneRefundScenario = largestRefundOrder
+      ? restoredScenario(largestRefundOrder.id)
+      : noRefundScenario;
+    const paymentFeesWithoutRefundProcessingOre = currentMollieFeesOre == null ||
+      currentRefundProcessingFeesOre == null
+      ? null
+      : Math.max(0, currentMollieFeesOre - currentRefundProcessingFeesOre);
+    const largestRefundProcessingFeeOre = largestRefundOrder
+      ? (
+          mollieReport.refundFeeByPaymentId.get(String(largestRefundOrder.molliePaymentId || '')) ??
+          ([...mollieReport.refundFeeByPaymentId.values()][0] ?? null)
+        )
+      : 0;
 
     res.json({
       period: { from: start.toISOString(), to: end.toISOString() },
@@ -355,7 +474,50 @@ router.get('/summary', async (req, res) => {
         commissionInclVat: rows.reduce((sum, row) => sum + row.commissionInclVat, 0),
         mollieFees: nullableSum('mollieFees'),
         refundTransactionFees: nullableSum('refundTransactionFees'),
+        refundProcessingFees: nullableSum('refundProcessingFees'),
         commissionAfterMollieFees: nullableSum('commissionAfterMollieFees'),
+      },
+      refundImpact: {
+        refundCount: refundedOrders.length,
+        refundedAmount: fromOre(refundedOrders.reduce(
+          (sum, order) => sum + clampedRefundOre(order),
+          0,
+        )),
+        balanceImpact: currentRefundProcessingFeesOre == null
+          ? null
+          : fromOre(
+              refundedOrders.reduce((sum, order) => sum + clampedRefundOre(order), 0) +
+              currentRefundProcessingFeesOre,
+            ),
+        withoutRefunds: {
+          commission: fromOre(noRefundScenario.commissionOre),
+          commissionVat: fromOre(noRefundScenario.commissionVatOre),
+          mollieFees: paymentFeesWithoutRefundProcessingOre == null
+            ? null
+            : fromOre(paymentFeesWithoutRefundProcessingOre),
+          resultExVat: paymentFeesWithoutRefundProcessingOre == null
+            ? null
+            : fromOre(noRefundScenario.commissionOre - paymentFeesWithoutRefundProcessingOre),
+          restaurantPayout: fromOre(noRefundScenario.payoutOre),
+        },
+        withOneRefund: {
+          refundedAmount: largestRefundOrder ? fromOre(clampedRefundOre(largestRefundOrder)) : 0,
+          commission: fromOre(oneRefundScenario.commissionOre),
+          commissionVat: fromOre(oneRefundScenario.commissionVatOre),
+          mollieFees: paymentFeesWithoutRefundProcessingOre == null ||
+            largestRefundProcessingFeeOre == null
+            ? null
+            : fromOre(paymentFeesWithoutRefundProcessingOre + largestRefundProcessingFeeOre),
+          resultExVat: paymentFeesWithoutRefundProcessingOre == null ||
+            largestRefundProcessingFeeOre == null
+            ? null
+            : fromOre(
+                oneRefundScenario.commissionOre -
+                paymentFeesWithoutRefundProcessingOre -
+                largestRefundProcessingFeeOre,
+              ),
+          restaurantPayout: fromOre(oneRefundScenario.payoutOre),
+        },
       },
       mollie: {
         feeStatus: mollieReport.feeStatus,

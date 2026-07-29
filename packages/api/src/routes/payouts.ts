@@ -108,6 +108,7 @@ async function recordPayoutSnapshot(
     realPaymentCount: number;
     mollieFees: number | null;
     refundTransactionFees: number | null;
+    refundProcessingFees: number | null;
     mollieFeeStatus: string;
   },
 ) {
@@ -257,6 +258,7 @@ router.post('/', async (req: AuthRequest, res) => {
       realPaymentCount: number;
       mollieFees: number | null;
       refundTransactionFees: number | null;
+      refundProcessingFees: number | null;
       mollieFeeStatus: string;
     } | undefined;
     if (nextStatus === 'APPROVED' || nextStatus === 'PAID') {
@@ -316,29 +318,6 @@ router.post('/', async (req: AuthRequest, res) => {
           'Samma Mollie payment ID finns på flera ordrar. Rapporten kan inte låsas innan dubbelkopplingen har rättats.',
         );
       }
-      const mollieFinance = await getMollieFinanceReport({
-        from: start,
-        paymentIds,
-        refundedPaymentIds: financialOrders
-          .filter((order) =>
-            Number(order.refundAmount || 0) > 0 ||
-            String(order.paymentStatus || '').toUpperCase() === 'REFUNDED'
-          )
-          .map((order) => String(order.molliePaymentId || '').trim())
-          .filter(Boolean),
-      });
-      const complete = paymentIds.length === 0 || (
-        mollieFinance.feeStatus !== 'unavailable' &&
-        paymentIds.every((id) => mollieFinance.feeByPaymentId.has(id))
-      );
-      if (!complete) {
-        throw new PayoutRequestError(
-          409,
-          'PAYOUT_MOLLIE_FEES_NOT_RECONCILED',
-          mollieFinance.feeError ||
-            'Alla Mollie-avgifter måste vara bokförda och avstämda innan månadsrapporten kan låsas.',
-        );
-      }
       const refundedIds = new Set(financialOrders
         .filter((order) =>
           Number(order.refundAmount || 0) > 0 ||
@@ -346,6 +325,24 @@ router.post('/', async (req: AuthRequest, res) => {
         )
         .map((order) => String(order.molliePaymentId || '').trim())
         .filter(Boolean));
+      const mollieFinance = await getMollieFinanceReport({
+        from: start,
+        paymentIds,
+        refundedPaymentIds: [...refundedIds],
+      });
+      const complete = paymentIds.length === 0 || (
+        mollieFinance.feeStatus !== 'unavailable' &&
+        paymentIds.every((id) => mollieFinance.feeByPaymentId.has(id)) &&
+        [...refundedIds].every((id) => mollieFinance.refundFeeByPaymentId.has(id))
+      );
+      if (!complete) {
+        throw new PayoutRequestError(
+          409,
+          'PAYOUT_MOLLIE_FEES_NOT_RECONCILED',
+          mollieFinance.feeError ||
+            'Alla betal- och återbetalningsavgifter måste vara bokförda hos Mollie innan månadsrapporten kan låsas.',
+        );
+      }
       financeSnapshotMetrics = {
         grossTotal: financialOrders.reduce((sum, order) => sum + Math.max(0, Number(order.total || 0)), 0),
         refunds: financialOrders.reduce((sum, order) => sum + Math.min(
@@ -365,6 +362,9 @@ router.post('/', async (req: AuthRequest, res) => {
           : null,
         refundTransactionFees: complete
           ? [...refundedIds].reduce((sum, id) => sum + (mollieFinance.feeByPaymentId.get(id) || 0), 0)
+          : null,
+        refundProcessingFees: complete
+          ? [...refundedIds].reduce((sum, id) => sum + (mollieFinance.refundFeeByPaymentId.get(id) || 0), 0)
           : null,
         mollieFeeStatus: complete ? 'available' : mollieFinance.feeStatus,
       };
