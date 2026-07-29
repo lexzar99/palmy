@@ -151,43 +151,85 @@ function PeriodBar({
 
 function FinanceFlowChart({
   payout,
+  commissionInclVat,
   mollieFees,
   vat,
   result,
 }: {
   payout: number | null | undefined;
+  commissionInclVat: number | null | undefined;
   mollieFees: number | null | undefined;
   vat: number | null | undefined;
   result: number | null | undefined;
 }) {
-  const parts = [
-    { label: "Till restauranger", value: Math.max(0, Number(payout || 0)), color: "rgba(254,247,240,0.86)" },
+  const payoutValue = Math.max(0, Number(payout || 0));
+  const commissionInclVatValue = Math.max(0, Number(commissionInclVat || 0));
+  const primaryParts = [
+    { label: "Till restauranger", value: payoutValue, color: "rgba(254,247,240,0.86)" },
+    { label: "Provision inkl moms", value: commissionInclVatValue, color: "var(--brand-orange)" },
+  ];
+  const commissionParts = [
     { label: "Mollie", value: Math.max(0, Number(mollieFees || 0)), color: "var(--brand-orange)" },
     { label: "Moms", value: Math.max(0, Number(vat || 0)), color: "#f6b44b" },
     { label: "ViaEats ex moms", value: Math.max(0, Number(result || 0)), color: "#79b8ff" },
   ];
-  const total = parts.reduce((sum, part) => sum + part.value, 0);
+  const primaryTotal = primaryParts.reduce((sum, part) => sum + part.value, 0);
+  const commissionTotal = commissionParts.reduce((sum, part) => sum + part.value, 0);
 
   return (
-    <div>
+    <div className="grid gap-5">
+      <div>
+        <div
+          className="flex h-4 overflow-hidden rounded-full bg-[rgba(254,247,240,0.08)]"
+          role="img"
+          aria-label={primaryParts.map((part) => `${part.label} ${money(part.value)}`).join(", ")}
+        >
+          {primaryParts.map((part) => (
+            <span
+              key={part.label}
+              className="h-full border-r border-[rgba(10,35,64,0.2)] last:border-r-0"
+              style={{
+                width: primaryTotal > 0 ? `${(part.value / primaryTotal) * 100}%` : "0%",
+                background: part.color,
+              }}
+            />
+          ))}
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-4">
+          {primaryParts.map((part) => (
+            <div key={part.label} className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: part.color }} />
+                <p className="hero-stat-label truncate">{part.label}</p>
+              </div>
+              <p className="hero-stat-value truncate">{money(part.value)}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="border-t border-[var(--border-subtle)] pt-4">
+        <p className="mb-3 text-[10.5px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+          Provision inkl moms {money(commissionInclVatValue)} består av
+        </p>
       <div
-        className="flex h-4 overflow-hidden rounded-full bg-[rgba(254,247,240,0.08)]"
+        className="flex h-3 overflow-hidden rounded-full bg-[rgba(254,247,240,0.08)]"
         role="img"
-        aria-label={parts.map((part) => `${part.label} ${money(part.value)}`).join(", ")}
+        aria-label={commissionParts.map((part) => `${part.label} ${money(part.value)}`).join(", ")}
       >
-        {parts.map((part) => (
+        {commissionParts.map((part) => (
           <span
             key={part.label}
             className="h-full border-r border-[rgba(10,35,64,0.2)] last:border-r-0"
             style={{
-              width: total > 0 ? `${(part.value / total) * 100}%` : "0%",
+              width: commissionTotal > 0 ? `${(part.value / commissionTotal) * 100}%` : "0%",
               background: part.color,
             }}
           />
         ))}
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
-        {parts.map((part) => (
+      <div className="mt-3 grid grid-cols-3 gap-x-5 gap-y-3">
+        {commissionParts.map((part) => (
           <div key={part.label} className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: part.color }} />
@@ -196,6 +238,7 @@ function FinanceFlowChart({
             <p className="hero-stat-value truncate">{money(part.value)}</p>
           </div>
         ))}
+      </div>
       </div>
     </div>
   );
@@ -465,6 +508,7 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                     <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.09em] text-[var(--text-muted)]">Så fördelas pengarna</p>
                     <FinanceFlowChart
                       payout={totals?.payout}
+                      commissionInclVat={totals?.commissionInclVat}
                       mollieFees={totals?.mollieFees}
                       vat={totals?.feeVat}
                       result={totals?.commissionAfterMollieFees}
