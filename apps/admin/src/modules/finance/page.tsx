@@ -523,8 +523,14 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                 />
                 <MetricCard
                   label="Automatisk kontroll"
-                  value={reconciliation?.deviationCount ? `${formatNumber(reconciliation.deviationCount)} att kontrollera` : "Allt stämmer"}
-                  detail={`${formatNumber(reconciliation?.realPaymentCount || 0)} betalningar kontrollerade`}
+                  value={reconciliation?.deviationCount
+                    ? `${formatNumber(reconciliation.deviationCount)} att kontrollera`
+                    : mollie?.feeStatus === "partial"
+                      ? "Inga avvikelser"
+                      : "Allt stämmer"}
+                  detail={mollie?.feeStatus === "partial"
+                    ? `${formatNumber(reconciliation?.realPaymentCount || 0)} betalningar · ${formatNumber(mollie.estimatedPaymentCount)} avgifter preliminära`
+                    : `${formatNumber(reconciliation?.realPaymentCount || 0)} betalningar kontrollerade`}
                   icon={reconciliation?.deviationCount
                     ? <AlertCircle size={16} className="text-[var(--warning)]" />
                     : <CheckCircle2 size={16} className="text-[var(--success)]" />}
