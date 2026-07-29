@@ -55,13 +55,10 @@ function presetRange(kind: "month" | "lastMonth" | "7" | "30"): { from: string; 
 }
 
 const STATUS_LABEL: Record<string, string> = { DRAFT: "Utkast", APPROVED: "Låst", PAID: "Betald", HOLD: "Upplåst" };
-const MOLLIE_PAYOUT_STATUS: Record<string, string> = {
-  requested: "Begärd",
-  initiated: "Påbörjad",
-  "processing-at-bank": "Behandlas av banken",
-  completed: "Genomförd",
-  canceled: "Avbruten",
-  failed: "Misslyckad",
+const MOLLIE_SETTLEMENT_STATUS: Record<string, string> = {
+  open: "Öppen",
+  pending: "Väntar",
+  paidout: "Utbetald",
 };
 const statusTone = (s: string | null): "neutral" | "info" | "success" | "warning" =>
   s === "PAID" ? "success" : s === "APPROVED" ? "info" : s === "HOLD" ? "warning" : "neutral";
@@ -196,7 +193,7 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                 ["Återbetalningar", totals?.refunds],
                 ["Netto", totals?.netSales],
                 ["Mollie-avgifter", totals?.mollieFees],
-                ["Refund-avgifter", totals?.refundTransactionFees],
+                ["Avgifter på återbetalningar", totals?.refundTransactionFees],
                 ["Provision ex moms", totals?.commission],
                 ["Moms", totals?.commissionVat],
                 ["Provision inkl moms", totals?.commissionInclVat],
@@ -210,9 +207,13 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
               ))}
             </div>
 
-            {summary.data?.mollie.feeStatus !== "available" ? (
+            {summary.data?.mollie.feeStatus === "partial" ? (
               <p className="mt-4 rounded-[10px] border border-[rgba(254,247,240,0.14)] px-3 py-2 text-[12px] text-[rgba(254,247,240,0.72)]">
-                Mollie-avgifter: {summary.data?.mollie.feeError || "rapportdata saknas"}. Beloppen visas inte som 0 kr eftersom det skulle ge en felaktig rapport.
+                {formatNumber(summary.data.mollie.estimatedPaymentCount)} avgifter är preliminära och ersätts automatiskt när Mollie slutbokför dem.
+              </p>
+            ) : summary.data?.mollie.feeStatus === "unavailable" ? (
+              <p className="mt-4 rounded-[10px] border border-[rgba(254,247,240,0.14)] px-3 py-2 text-[12px] text-[rgba(254,247,240,0.72)]">
+                Mollie-data kunde inte hämtas: {summary.data.mollie.feeError || "okänt fel"}.
               </p>
             ) : null}
 
@@ -228,151 +229,57 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
             </details>
           </section>
 
-          {/* ── Mollie, avstämning och beräkningslogik ── */}
-          <div className="grid gap-4 xl:grid-cols-12">
-            <Surface className="flex flex-col px-5 py-5 xl:col-span-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="eyebrow">Mollie · just nu</p>
-                  <h2 className="section-title mt-1">Saldo & utbetalning</h2>
-                </div>
-                <span className="flex h-[38px] w-[38px] items-center justify-center rounded-[11px] bg-[var(--brand-navy-soft)] text-[var(--brand-navy-ink)]">
-                  <Landmark size={17} />
-                </span>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Surface className="px-4 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-[13px] font-extrabold text-[var(--text-primary)]">Mollie-saldo</h2>
+                <Landmark size={16} className="text-[var(--brand-navy-ink)]" />
               </div>
-              <p className="mt-5 text-[28px] font-black tracking-[-0.03em] text-[var(--text-primary)]">
-                {money(mollie?.totalBalance)}
+              <p className="mt-3 text-[23px] font-black tracking-[-0.03em] text-[var(--text-primary)]">{money(mollie?.totalBalance)}</p>
+              <p className="mt-2 text-[11.5px] text-[var(--text-muted)]">
+                Tillgängligt {money(mollie?.availableBalance)} · Väntande {money(mollie?.pendingBalance)}
               </p>
-              <p className="mt-1 text-[12px] font-semibold text-[var(--text-muted)]">Totalt saldo hos Mollie</p>
-              <div className="mt-4 grid grid-cols-2 gap-3 border-t border-[var(--border-subtle)] pt-4">
-                <div>
-                  <p className="eyebrow">Tillgängligt</p>
-                  <p className="mt-1 text-[14px] font-extrabold text-[var(--text-primary)]">{money(mollie?.availableBalance)}</p>
-                </div>
-                <div>
-                  <p className="eyebrow">Väntande</p>
-                  <p className="mt-1 text-[14px] font-extrabold text-[var(--text-primary)]">{money(mollie?.pendingBalance)}</p>
-                </div>
-              </div>
-              <div className="mt-4 flex items-center justify-between gap-3 rounded-[11px] bg-[var(--bg-page)] px-3 py-3 text-[12px]">
-                <span className="font-semibold text-[var(--text-secondary)]">
-                  Nästa utbetalning{mollie?.nextPayoutDateSource === "schedule" ? " enligt schema" : ""}
-                </span>
-                <span className="font-extrabold text-[var(--text-primary)]">
-                  {mollie?.nextPayoutDate ? formatDate(mollie.nextPayoutDate) : "—"}
-                </span>
-              </div>
             </Surface>
 
-            <Surface className="flex flex-col px-5 py-5 xl:col-span-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="eyebrow">Mollie · bankflöde</p>
-                  <h2 className="section-title mt-1">Utbetalningsspårning</h2>
-                </div>
-                <span className="flex h-[38px] w-[38px] items-center justify-center rounded-[11px] bg-[var(--brand-orange-soft)] text-[var(--brand-orange)]">
-                  <Banknote size={17} />
-                </span>
+            <Surface className="px-4 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-[13px] font-extrabold text-[var(--text-primary)]">Nästa utbetalning</h2>
+                <Banknote size={16} className="text-[var(--brand-orange)]" />
               </div>
-              <p className="mt-5 text-[28px] font-black tracking-[-0.03em] text-[var(--text-primary)]">
+              <p className="mt-3 text-[23px] font-black tracking-[-0.03em] text-[var(--text-primary)]">
+                {mollie?.nextPayoutDate ? formatDate(mollie.nextPayoutDate) : "—"}
+              </p>
+              <p className="mt-2 text-[11.5px] text-[var(--text-muted)]">
                 {money(mollie?.nextSettlementAmount)}
+                {mollie?.nextSettlementStatus ? ` · ${MOLLIE_SETTLEMENT_STATUS[mollie.nextSettlementStatus] || mollie.nextSettlementStatus}` : ""}
               </p>
-              <p className="mt-1 text-[12px] font-semibold text-[var(--text-muted)]">Kommande settlement</p>
-              {mollie?.nextSettlementStatus ? (
-                <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.06em] text-[var(--text-muted)]">
-                  {mollie.nextSettlementStatus}
-                </p>
-              ) : null}
-              <div className="mt-4 grid gap-3 border-t border-[var(--border-subtle)] pt-4">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[12px] font-semibold text-[var(--text-secondary)]">Senaste utbetalning</span>
-                  <span className="text-[13px] font-extrabold text-[var(--text-primary)]">{money(mollie?.latestPayoutAmount)}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-[12px] font-semibold text-[var(--text-secondary)]">Status</span>
-                  <Badge tone={mollie?.latestPayoutStatus === "failed" ? "warning" : mollie?.latestPayoutStatus === "completed" ? "success" : "info"}>
-                    {mollie?.latestPayoutStatus
-                      ? MOLLIE_PAYOUT_STATUS[mollie.latestPayoutStatus] || mollie.latestPayoutStatus
-                      : "Ingen registrerad"}
-                  </Badge>
-                </div>
-              </div>
-              {mollie?.latestPayoutCreatedAt ? (
-                <p className="mt-4 text-[11.5px] leading-5 text-[var(--text-muted)]">
-                  Senast uppdaterad {formatDate(mollie.latestPayoutCreatedAt)}.
-                </p>
-              ) : null}
             </Surface>
 
-            <Surface className="flex flex-col px-5 py-5 xl:col-span-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="eyebrow">Automatisk kontroll</p>
-                  <h2 className="section-title mt-1">Avstämningsstatus</h2>
-                </div>
-                <span className={`flex h-[38px] w-[38px] items-center justify-center rounded-[11px] ${
-                  reconciliation?.status === "ok"
-                    ? "bg-[var(--success-soft)] text-[var(--success)]"
-                    : "bg-[var(--warning-soft)] text-[var(--warning)]"
-                }`}>
-                  {reconciliation?.status === "ok" ? <ShieldCheck size={17} /> : <AlertCircle size={17} />}
-                </span>
+            <Surface className="px-4 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-[13px] font-extrabold text-[var(--text-primary)]">Avvikelser</h2>
+                {reconciliation?.status === "ok"
+                  ? <ShieldCheck size={16} className="text-[var(--success)]" />
+                  : <AlertCircle size={16} className="text-[var(--warning)]" />}
               </div>
-              <div className="mt-5 flex items-end justify-between gap-3">
-                <div>
-                  <p className="text-[28px] font-black tracking-[-0.03em] text-[var(--text-primary)]">
-                    {formatNumber(reconciliation?.deviationCount || 0)}
-                  </p>
-                  <p className="text-[12px] font-semibold text-[var(--text-muted)]">upptäckta avvikelser</p>
-                </div>
+              <div className="mt-3 flex items-center gap-2">
+                <p className="text-[23px] font-black tracking-[-0.03em] text-[var(--text-primary)]">{formatNumber(reconciliation?.deviationCount || 0)}</p>
                 <Badge tone={reconciliation?.status === "ok" ? "success" : reconciliation?.status === "critical" ? "warning" : "info"}>
-                  {reconciliation?.status === "ok" ? "Allt stämmer" : reconciliation?.status === "critical" ? "Kräver åtgärd" : "Kontrollera"}
+                  {reconciliation?.status === "ok" ? "Allt stämmer" : "Kontrollera"}
                 </Badge>
               </div>
-              <div className="mt-4 grid grid-cols-2 gap-3 border-t border-[var(--border-subtle)] pt-4">
-                <div>
-                  <p className="eyebrow">Bekräftad negativ marginal</p>
-                  <p className={`mt-1 text-[14px] font-extrabold ${reconciliation?.confirmedLoss ? "text-[var(--danger)]" : "text-[var(--text-primary)]"}`}>
-                    {money(reconciliation?.confirmedLoss)}
-                  </p>
-                </div>
-                <div>
-                  <p className="eyebrow">Belopp att granska</p>
-                  <p className="mt-1 text-[14px] font-extrabold text-[var(--text-primary)]">{money(reconciliation?.amountToReview)}</p>
-                </div>
-              </div>
-              <p className="mt-4 text-[11.5px] leading-5 text-[var(--text-muted)]">
-                {formatNumber(reconciliation?.realPaymentCount || 0)} riktiga betalningar avstämda ·{" "}
-                {formatNumber(reconciliation?.excludedPaymentCount || 0)} pending/failed eller ej slutförda exkluderade.
-              </p>
+              <p className="mt-2 text-[11.5px] text-[var(--text-muted)]">Att granska {money(reconciliation?.amountToReview)}</p>
             </Surface>
 
-            <Surface className="flex flex-col px-5 py-5 xl:col-span-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="eyebrow">Samma logik överallt</p>
-                  <h2 className="section-title mt-1">Så räknas perioden</h2>
-                </div>
-                <span className="flex h-[38px] w-[38px] items-center justify-center rounded-[11px] bg-[var(--brand-orange-soft)] text-[var(--brand-orange)]">
-                  <CircleDollarSign size={17} />
-                </span>
+            <Surface className="px-4 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-[13px] font-extrabold text-[var(--text-primary)]">Mollie-avgifter</h2>
+                <CircleDollarSign size={16} className="text-[var(--brand-orange)]" />
               </div>
-              <div className="mt-4 grid gap-3 text-[12.5px]">
-                {[
-                  ["Brutto", "Slutförda, betalda orderbelopp före återbetalning"],
-                  ["Netto", "Brutto − genomförda återbetalningar"],
-                  ["Vår intäkt", "Provision ex moms − alla Mollie-avgifter"],
-                  ["Till restaurang", "Restauranggrund − provision − abonnemang − avgiftsmoms"],
-                ].map(([label, formula]) => (
-                  <div key={label} className="flex gap-3 rounded-[11px] bg-[var(--bg-page)] px-3 py-2.5">
-                    <CheckCircle2 size={14} className="mt-0.5 shrink-0 text-[var(--success)]" />
-                    <div>
-                      <p className="font-extrabold text-[var(--text-primary)]">{label}</p>
-                      <p className="mt-0.5 leading-5 text-[var(--text-muted)]">{formula}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <p className="mt-3 text-[23px] font-black tracking-[-0.03em] text-[var(--text-primary)]">{money(totals?.mollieFees)}</p>
+              <p className="mt-2 text-[11.5px] text-[var(--text-muted)]">
+                {formatNumber(mollie?.matchedPaymentCount || 0)} exakta · {formatNumber(mollie?.estimatedPaymentCount || 0)} preliminära
+              </p>
             </Surface>
           </div>
 
@@ -383,7 +290,7 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                 <h2 className="section-title mt-1">Avvikelser & förklaringar</h2>
               </div>
               <span className="text-[12px] font-semibold text-[var(--text-muted)]">
-                Mollie-avgifter matchade {formatNumber(reconciliation?.matchedFeeCount || 0)}/{formatNumber(reconciliation?.molliePaymentCount || 0)}
+                {formatNumber(reconciliation?.realPaymentCount || 0)} verkliga betalningar · {formatNumber(reconciliation?.excludedPaymentCount || 0)} ej slutförda exkluderade
               </span>
             </div>
             {!reconciliation || reconciliation.deviations.length === 0 ? (
@@ -513,7 +420,7 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                     <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-page)] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]">
                       {[
                         "Restaurang", "Brutto", "Återbetalningar", "Netto",
-                        "Mollie-avgifter", "Refund-avgifter", "Provision ex moms",
+                        "Mollie-avgifter", "Avgifter återbetalningar", "Provision ex moms",
                         "Moms", "Provision inkl moms", "Provision − Mollie", "Att betala ut",
                       ].map((label, index) => (
                         <th key={label} className={`${index === 0 ? "sticky left-0 z-10 min-w-[260px] bg-[var(--bg-page)]" : "min-w-[145px] text-right"} px-4 py-3`}>
@@ -577,7 +484,7 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                 </table>
               </div>
               <p className="border-t border-[var(--border-subtle)] px-4 py-3 text-[11px] text-[var(--text-muted)]">
-                Refund-avgifter är den ursprungliga Mollie-transaktionsavgiften för betalningar som senare återbetalats. Den ingår redan i totala Mollie-avgifter och adderas inte en gång till.
+                Avgifter på återbetalningar visar både den ursprungliga betalningsavgiften som Mollie behåller och eventuell återbetalningsavgift. Beloppet ingår redan i totala Mollie-avgifter.
               </p>
             </Surface>
           )}

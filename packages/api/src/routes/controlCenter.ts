@@ -795,10 +795,13 @@ router.get('/control-center', async (req, res) => {
     const mollieReport = await getMollieFinanceReport({
       from: period.start,
       paymentIds: periodMolliePaymentIds,
+      refundedPaymentIds: periodRefundOrders
+        .map((order) => String(order.molliePaymentId || '').trim())
+        .filter(Boolean),
     });
-    const mollieFeesOre = mollieReport.feeStatus === 'available'
-      ? [...mollieReport.feeByPaymentId.values()].reduce((sum, amount) => sum + amount, 0)
-      : null;
+    const mollieFeesOre = mollieReport.feeStatus === 'unavailable'
+      ? null
+      : [...mollieReport.displayFeeByPaymentId.values()].reduce((sum, amount) => sum + amount, 0);
     const paymentMix = Array.from(periodOrders.reduce((map, order) => {
       const method = order.paymentMethod || 'UNKNOWN';
       const current = map.get(method) || { method, count: 0, revenue: 0 };

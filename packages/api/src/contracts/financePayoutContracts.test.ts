@@ -42,7 +42,9 @@ import {
   sumFinanceSummaryRows,
 } from '../lib/financeSummary';
 import {
+  estimateMollieFeeFromObservations,
   estimateNextMolliePayoutDate,
+  mollieFeeBreakdownFromTransactions,
   molliePaymentFeesFromTransactions,
 } from '../lib/mollieFinance';
 import { reconcileFinanceOrders } from '../lib/financeReconciliation';
@@ -99,7 +101,11 @@ assert.equal(isFinanceRealPaymentOrder({ ...paidDelivered, paymentStatus: 'REFUN
 assert.equal(isFinanceRealPaymentOrder({ ...paidDelivered, paymentStatus: 'PENDING' }), false);
 assert.equal(isFinanceRealPaymentOrder({ ...paidDelivered, paymentStatus: 'FAILED' }), false);
 assert.equal(isFinanceRealPaymentOrder({ ...paidDelivered, paymentStatus: 'REFUNDING' }), false);
-assert.equal(isFinanceRealPaymentOrder({ ...paidDelivered, status: 'AWAITING_PAYMENT' }), false);
+assert.equal(isFinanceRealPaymentOrder({ ...paidDelivered, status: 'AWAITING_PAYMENT' }), true);
+assert.equal(
+  isFinanceRealPaymentOrder({ ...paidDelivered, status: 'CANCELLED', paymentStatus: 'REFUNDED' }),
+  true,
+);
 assert.equal(isPayoutSettlementBlockingOrder(paidDelivered), false);
 assert.equal(isPayoutSettlementBlockingOrder({ ...paidDelivered, status: 'PREPARING' }), true);
 assert.equal(isPayoutSettlementBlockingOrder({ ...paidDelivered, paymentStatus: 'PENDING' }), true);
@@ -492,6 +498,38 @@ const mollieFees = molliePaymentFeesFromTransactions([
 assert.equal(mollieFees.get('tr_a'), 325);
 assert.equal(mollieFees.get('tr_b'), 200);
 assert.equal(mollieFees.has('tr_c'), false);
+const refundFeeBreakdown = mollieFeeBreakdownFromTransactions([
+  {
+    id: 'bst_payment_refunded',
+    type: 'payment',
+    context: { paymentId: 'tr_refunded' },
+    deductionDetails: { fees: { currency: 'SEK', value: '-2.92' } },
+  },
+  {
+    id: 'bst_refund',
+    type: 'refund',
+    context: { paymentId: 'tr_refunded', refundId: 're_refunded' },
+    deductionDetails: { fees: { currency: 'SEK', value: '-2.70' } },
+  },
+]);
+assert.equal(refundFeeBreakdown.paymentByPaymentId.get('tr_refunded'), 292);
+assert.equal(refundFeeBreakdown.refundByPaymentId.get('tr_refunded'), 270);
+assert.equal(refundFeeBreakdown.totalByPaymentId.get('tr_refunded'), 562);
+assert.equal(
+  estimateMollieFeeFromObservations(35_500, [
+    { amountOre: 15_000, feeOre: 435 },
+    { amountOre: 27_000, feeOre: 543 },
+    { amountOre: 62_500, feeOre: 863 },
+  ]),
+  620,
+);
+assert.equal(
+  estimateMollieFeeFromObservations(25_500, [
+    { amountOre: 10_000, feeOre: 405 },
+    { amountOre: 20_000, feeOre: 530 },
+  ]),
+  599,
+);
 assert.equal(
   estimateNextMolliePayoutDate('twice-a-week', new Date('2026-07-29T10:00:00.000Z')),
   '2026-07-31',

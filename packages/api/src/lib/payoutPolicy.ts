@@ -249,19 +249,16 @@ export function isPayoutEligibleOrder(
 }
 
 /**
- * Turnover is recognized only for completed fulfilment backed by money that
- * actually settled. Fully refunded payments remain part of gross turnover and
- * are then deducted as refunds; pending, failed and in-flight money never
- * enters the report.
+ * The cash report follows the PSP-backed payment rather than fulfilment.
+ * A paid order remains real gross turnover even when it is later canceled and
+ * refunded; the refund is then deducted separately. Fulfilment still controls
+ * restaurant payout eligibility through `isPayoutEligibleOrder`.
  */
 export function isFinanceRealPaymentOrder(
   order: Pick<PayoutOrder, 'status' | 'paymentStatus'>,
 ): boolean {
-  return (
-    (PAYOUT_ORDER_STATUSES as readonly string[]).includes(String(order.status || '').toUpperCase()) &&
-    (FINANCE_REAL_PAYMENT_STATUSES as readonly string[]).includes(
-      String(order.paymentStatus || '').toUpperCase(),
-    )
+  return (FINANCE_REAL_PAYMENT_STATUSES as readonly string[]).includes(
+    String(order.paymentStatus || '').toUpperCase(),
   );
 }
 

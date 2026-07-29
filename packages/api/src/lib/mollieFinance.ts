@@ -50,13 +50,27 @@ type MolliePayout = {
   createdAt?: unknown;
 };
 
+type MolliePayment = {
+  id?: unknown;
+  amount?: MollieAmount;
+  method?: unknown;
+  details?: Record<string, unknown> | null;
+};
+
 export type MollieFeeStatus = 'available' | 'partial' | 'unavailable';
 
 export type MollieFinanceReport = {
   feeStatus: MollieFeeStatus;
   feeError: string | null;
+  /** Fully booked payment + refund fees. Used when a report is locked. */
   feeByPaymentId: Map<string, number>;
+  /** Booked fees plus a provisional estimate for payments still pending in Mollie. */
+  displayFeeByPaymentId: Map<string, number>;
+  estimatedFeeByPaymentId: Map<string, number>;
+  paymentFeeByPaymentId: Map<string, number>;
+  refundFeeByPaymentId: Map<string, number>;
   matchedPaymentCount: number;
+  estimatedPaymentCount: number;
   requestedPaymentCount: number;
   availableBalanceOre: number | null;
   pendingBalanceOre: number | null;
@@ -77,6 +91,7 @@ type CachedReport = {
 };
 
 const reportCache = new Map<string, CachedReport>();
+const paymentCache = new Map<string, { expiresAt: number; payment: MolliePayment }>();
 
 function exactOre(amount: MollieAmount): number | null {
   if (!amount) return null;
@@ -110,8 +125,20 @@ function contextPaymentId(context: MollieBalanceTransaction['context']): string 
 export function molliePaymentFeesFromTransactions(
   transactions: readonly MollieBalanceTransaction[],
 ): Map<string, number> {
-  const embeddedFees = new Map<string, number>();
-  const separateFees = new Map<string, number>();
+  return mollieFeeBreakdownFromTransactions(transactions).totalByPaymentId;
+}
+
+export function mollieFeeBreakdownFromTransactions(
+  transactions: readonly MollieBalanceTransaction[],
+): {
+  totalByPaymentId: Map<string, number>;
+  paymentByPaymentId: Map<string, number>;
+  refundByPaymentId: Map<string, number>;
+} {
+  const embeddedPaymentFees = new Map<string, number>();
+  const embeddedRefundFees = new Map<string, number>();
+  const separatePaymentFees = new Map<string, number>();
+  const separateRefundFees = new Map<string, number>();
 
   for (const transaction of transactions) {
     const paymentId = contextPaymentId(transaction.context);
@@ -119,7 +146,8 @@ export function molliePaymentFeesFromTransactions(
     const type = String(transaction.type || '').toLowerCase();
     const detailedFee = exactOre(transaction.deductionDetails?.fees);
     if (detailedFee != null && detailedFee !== 0) {
-      embeddedFees.set(paymentId, (embeddedFees.get(paymentId) || 0) + Math.abs(detailedFee));
+      const target = type.includes('refund') ? embeddedRefundFees : embeddedPaymentFees;
+      target.set(paymentId, (target.get(paymentId) || 0) + Math.abs(detailedFee));
       continue;
     }
     if (type !== 'payment-fee' && type !== 'reimbursement-fee') continue;
@@ -129,16 +157,112 @@ export function molliePaymentFeesFromTransactions(
     if (amount == null || amount === 0) continue;
     // A reimbursement reduces the original processing cost.
     const signed = type === 'reimbursement-fee' ? -Math.abs(amount) : Math.abs(amount);
-    separateFees.set(paymentId, (separateFees.get(paymentId) || 0) + signed);
+    separatePaymentFees.set(paymentId, (separatePaymentFees.get(paymentId) || 0) + signed);
   }
 
-  const result = new Map<string, number>();
-  const paymentIds = new Set([...embeddedFees.keys(), ...separateFees.keys()]);
+  const paymentByPaymentId = new Map<string, number>();
+  const refundByPaymentId = new Map<string, number>();
+  const totalByPaymentId = new Map<string, number>();
+  const paymentIds = new Set([
+    ...embeddedPaymentFees.keys(),
+    ...embeddedRefundFees.keys(),
+    ...separatePaymentFees.keys(),
+    ...separateRefundFees.keys(),
+  ]);
   for (const paymentId of paymentIds) {
-    // Do not add both representations of the same fee.
-    result.set(paymentId, Math.max(0, embeddedFees.get(paymentId) ?? separateFees.get(paymentId) ?? 0));
+    // Do not add both the embedded and legacy separate representation.
+    const paymentFee = Math.max(
+      0,
+      embeddedPaymentFees.get(paymentId) ?? separatePaymentFees.get(paymentId) ?? 0,
+    );
+    const refundFee = Math.max(
+      0,
+      embeddedRefundFees.get(paymentId) ?? separateRefundFees.get(paymentId) ?? 0,
+    );
+    if (paymentFee > 0) paymentByPaymentId.set(paymentId, paymentFee);
+    if (refundFee > 0) refundByPaymentId.set(paymentId, refundFee);
+    totalByPaymentId.set(paymentId, paymentFee + refundFee);
   }
-  return result;
+  return { totalByPaymentId, paymentByPaymentId, refundByPaymentId };
+}
+
+function paymentFingerprint(payment: MolliePayment): string {
+  const details = payment.details || {};
+  return [
+    String(payment.method || '').toLowerCase(),
+    String(details.cardCountryCode || '').toUpperCase(),
+    String(details.cardFunding || '').toLowerCase(),
+    String(details.cardAudience || '').toLowerCase(),
+  ].join(':');
+}
+
+function median(values: readonly number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? Math.round((sorted[middle - 1] + sorted[middle]) / 2)
+    : sorted[middle];
+}
+
+export function estimateMollieFeeFromObservations(
+  amountOre: number,
+  observations: readonly { amountOre: number; feeOre: number }[],
+): number | null {
+  if (observations.length === 0 || amountOre < 0) return null;
+  const distinctAmounts = new Set(observations.map((row) => row.amountOre));
+  if (observations.length >= 2 && distinctAmounts.size >= 2) {
+    const meanX = observations.reduce((sum, row) => sum + row.amountOre, 0) / observations.length;
+    const meanY = observations.reduce((sum, row) => sum + row.feeOre, 0) / observations.length;
+    const denominator = observations.reduce(
+      (sum, row) => sum + ((row.amountOre - meanX) ** 2),
+      0,
+    );
+    if (denominator > 0) {
+      const slope = Math.max(0, observations.reduce(
+        (sum, row) => sum + ((row.amountOre - meanX) * (row.feeOre - meanY)),
+        0,
+      ) / denominator);
+      const fixed = Math.max(0, meanY - (slope * meanX));
+      return Math.max(0, Math.round(fixed + (slope * amountOre)));
+    }
+  }
+  return median(observations.map((row) => row.feeOre));
+}
+
+async function collectPayments(
+  token: string,
+  paymentIds: readonly string[],
+): Promise<Map<string, MolliePayment>> {
+  const payments = new Map<string, MolliePayment>();
+  const missing: string[] = [];
+  for (const paymentId of paymentIds) {
+    const cached = paymentCache.get(paymentId);
+    if (cached && cached.expiresAt > Date.now()) {
+      payments.set(paymentId, cached.payment);
+    } else {
+      missing.push(paymentId);
+    }
+  }
+  for (let offset = 0; offset < missing.length; offset += 10) {
+    const batch = missing.slice(offset, offset + 10);
+    const results = await Promise.all(batch.map(async (paymentId) => {
+      try {
+        return await mollieGet<MolliePayment>(`/payments/${encodeURIComponent(paymentId)}`, token);
+      } catch {
+        return null;
+      }
+    }));
+    results.forEach((payment, index) => {
+      if (!payment) return;
+      payments.set(batch[index], payment);
+      paymentCache.set(batch[index], {
+        expiresAt: Date.now() + 5 * 60_000,
+        payment,
+      });
+    });
+  }
+  return payments;
 }
 
 const stockholmDate = (date: Date) =>
@@ -266,7 +390,12 @@ function unavailableReport(message: string, requestedPaymentCount: number): Moll
     feeStatus: 'unavailable',
     feeError: message,
     feeByPaymentId: new Map(),
+    displayFeeByPaymentId: new Map(),
+    estimatedFeeByPaymentId: new Map(),
+    paymentFeeByPaymentId: new Map(),
+    refundFeeByPaymentId: new Map(),
     matchedPaymentCount: 0,
+    estimatedPaymentCount: 0,
     requestedPaymentCount,
     availableBalanceOre: null,
     pendingBalanceOre: null,
@@ -285,9 +414,13 @@ function unavailableReport(message: string, requestedPaymentCount: number): Moll
 export async function getMollieFinanceReport(input: {
   from: Date;
   paymentIds: readonly string[];
+  refundedPaymentIds?: readonly string[];
   env?: NodeJS.ProcessEnv;
 }): Promise<MollieFinanceReport> {
   const paymentIds = [...new Set(input.paymentIds.map((id) => String(id || '').trim()).filter(Boolean))].sort();
+  const refundedPaymentIds = new Set(
+    (input.refundedPaymentIds || []).map((id) => String(id || '').trim()).filter(Boolean),
+  );
   const env = input.env ?? process.env;
   const token = reportingToken(env);
   if (!token) {
@@ -297,7 +430,11 @@ export async function getMollieFinanceReport(input: {
     );
   }
 
-  const cacheKey = `${input.from.toISOString().slice(0, 10)}:${paymentIds.join(',')}`;
+  const cacheKey = [
+    input.from.toISOString().slice(0, 10),
+    paymentIds.join(','),
+    [...refundedPaymentIds].sort().join(','),
+  ].join(':');
   const cached = reportCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.report;
 
@@ -316,11 +453,73 @@ export async function getMollieFinanceReport(input: {
         .then((value) => ({ value, error: null }))
         .catch((error: unknown) => ({ value: null, error })),
     ]);
-    const allFees = molliePaymentFeesFromTransactions(transactions);
+    const allFees = mollieFeeBreakdownFromTransactions(transactions);
+    // Recent booked payments are also training data, so a short date range can
+    // still estimate today's paid-but-not-booked transactions.
+    const trainingPaymentIds = [...allFees.paymentByPaymentId.keys()].slice(0, 50);
+    const payments = await collectPayments(
+      token,
+      [...new Set([...paymentIds, ...trainingPaymentIds])],
+    );
     const feeByPaymentId = new Map<string, number>();
+    const displayFeeByPaymentId = new Map<string, number>();
+    const estimatedFeeByPaymentId = new Map<string, number>();
+    const paymentFeeByPaymentId = new Map<string, number>();
+    const refundFeeByPaymentId = new Map<string, number>();
+
     for (const paymentId of paymentIds) {
-      const fee = allFees.get(paymentId);
-      if (fee != null) feeByPaymentId.set(paymentId, fee);
+      const paymentFee = allFees.paymentByPaymentId.get(paymentId);
+      if (paymentFee != null) paymentFeeByPaymentId.set(paymentId, paymentFee);
+      const refundFee = allFees.refundByPaymentId.get(paymentId);
+      if (refundFee != null) refundFeeByPaymentId.set(paymentId, refundFee);
+      if (paymentFee != null && (!refundedPaymentIds.has(paymentId) || refundFee != null)) {
+        feeByPaymentId.set(paymentId, paymentFee + (refundFee || 0));
+      }
+    }
+
+    const observationsByFingerprint = new Map<string, Array<{ amountOre: number; feeOre: number }>>();
+    const observationsByMethod = new Map<string, Array<{ amountOre: number; feeOre: number }>>();
+    for (const [paymentId, paymentFee] of allFees.paymentByPaymentId) {
+      const payment = payments.get(paymentId);
+      const amountOre = exactOre(payment?.amount);
+      if (!payment || amountOre == null) continue;
+      const fingerprint = paymentFingerprint(payment);
+      const method = String(payment.method || '').toLowerCase();
+      const fingerprintRows = observationsByFingerprint.get(fingerprint) || [];
+      fingerprintRows.push({ amountOre, feeOre: paymentFee });
+      observationsByFingerprint.set(fingerprint, fingerprintRows);
+      const methodRows = observationsByMethod.get(method) || [];
+      methodRows.push({ amountOre, feeOre: paymentFee });
+      observationsByMethod.set(method, methodRows);
+    }
+    const typicalRefundFee = median([...refundFeeByPaymentId.values()]);
+
+    for (const paymentId of paymentIds) {
+      const exactFee = feeByPaymentId.get(paymentId);
+      if (exactFee != null) {
+        displayFeeByPaymentId.set(paymentId, exactFee);
+        continue;
+      }
+      const payment = payments.get(paymentId);
+      const amountOre = exactOre(payment?.amount);
+      if (!payment || amountOre == null) continue;
+      const bookedPaymentFee = paymentFeeByPaymentId.get(paymentId);
+      const method = String(payment.method || '').toLowerCase();
+      const estimatedPaymentFee = bookedPaymentFee ?? estimateMollieFeeFromObservations(
+        amountOre,
+        observationsByFingerprint.get(paymentFingerprint(payment))
+          || observationsByMethod.get(method)
+          || [],
+      );
+      if (estimatedPaymentFee == null) continue;
+      const bookedRefundFee = refundFeeByPaymentId.get(paymentId);
+      const estimatedRefundFee = refundedPaymentIds.has(paymentId)
+        ? (bookedRefundFee ?? typicalRefundFee)
+        : 0;
+      if (estimatedRefundFee == null) continue;
+      const estimatedTotal = estimatedPaymentFee + estimatedRefundFee;
+      displayFeeByPaymentId.set(paymentId, estimatedTotal);
+      estimatedFeeByPaymentId.set(paymentId, estimatedTotal);
     }
     const available = exactOre(balance.availableAmount);
     const pending = exactOre(balance.pendingAmount);
@@ -330,13 +529,22 @@ export async function getMollieFinanceReport(input: {
     const settlementDate = String(nextSettlement?.settledAt || '').trim() || null;
     const scheduledDate = estimateNextMolliePayoutDate(transferFrequency);
     const matchedPaymentCount = feeByPaymentId.size;
+    const estimatedPaymentCount = estimatedFeeByPaymentId.size;
+    const missingPaymentCount = paymentIds.length - matchedPaymentCount - estimatedPaymentCount;
     const report: MollieFinanceReport = {
       feeStatus: matchedPaymentCount === paymentIds.length ? 'available' : 'partial',
       feeError: matchedPaymentCount === paymentIds.length
         ? null
-        : `${paymentIds.length - matchedPaymentCount} betalningar saknar bokförd Mollie-avgift`,
+        : missingPaymentCount > 0
+          ? `${estimatedPaymentCount} avgifter är preliminära och ${missingPaymentCount} kunde inte beräknas`
+          : `${estimatedPaymentCount} avgifter är preliminära tills Mollie bokför dem`,
       feeByPaymentId,
+      displayFeeByPaymentId,
+      estimatedFeeByPaymentId,
+      paymentFeeByPaymentId,
+      refundFeeByPaymentId,
       matchedPaymentCount,
+      estimatedPaymentCount,
       requestedPaymentCount: paymentIds.length,
       availableBalanceOre: available,
       pendingBalanceOre: pending,

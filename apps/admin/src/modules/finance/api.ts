@@ -77,6 +77,7 @@ export interface FinanceSummary {
     feeStatus: "available" | "partial" | "unavailable";
     feeError: string | null;
     matchedPaymentCount: number;
+    estimatedPaymentCount: number;
     requestedPaymentCount: number;
     availableBalance: number | null;
     pendingBalance: number | null;

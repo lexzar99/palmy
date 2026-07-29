@@ -112,10 +112,16 @@ router.get('/summary', async (req, res) => {
     const economy = economyFromSettings(settingsRow);
     const persistedMap = new Map(persisted.map((p) => [p.restaurantId, p]));
     const reportOrders = orders.filter(isFinanceRealPaymentOrder);
+    const reportMollieOrders = reportOrders
+      .filter((order) => String(order.paymentProvider || '').toLowerCase() === 'mollie');
     const mollieReport = await getMollieFinanceReport({
       from: start,
-      paymentIds: reportOrders
-        .filter((order) => String(order.paymentProvider || '').toLowerCase() === 'mollie')
+      paymentIds: reportMollieOrders.map((order) => String(order.molliePaymentId || '')),
+      refundedPaymentIds: reportMollieOrders
+        .filter((order) =>
+          Math.max(0, Number(order.refundAmount || 0)) > 0 ||
+          String(order.paymentStatus || '').toUpperCase() === 'REFUNDED'
+        )
         .map((order) => String(order.molliePaymentId || '')),
     });
     const frozenPayoutIds = persisted
@@ -193,9 +199,14 @@ router.get('/summary', async (req, res) => {
         )];
         const rowFeesComplete = mollieReport.feeStatus !== 'unavailable' &&
           rowMolliePaymentIds.every((id) => mollieReport.feeByPaymentId.has(id));
-        const liveMollieFeesOre = rowFeesComplete
-          ? rowMolliePaymentIds.reduce((sum, id) => sum + (mollieReport.feeByPaymentId.get(id) || 0), 0)
-          : null;
+        const rowFeesDisplayable = mollieReport.feeStatus !== 'unavailable' &&
+          rowMolliePaymentIds.every((id) => mollieReport.displayFeeByPaymentId.has(id));
+        const liveMollieFeesOre = !rowFeesDisplayable
+          ? null
+          : rowMolliePaymentIds.reduce(
+              (sum, id) => sum + (mollieReport.displayFeeByPaymentId.get(id) || 0),
+              0,
+            );
         const refundedPaymentIds = new Set(
           restaurantReportOrders
             .filter((order) =>
@@ -205,12 +216,14 @@ router.get('/summary', async (req, res) => {
             .map((order) => String(order.molliePaymentId || '').trim())
             .filter(Boolean),
         );
-        const liveRefundTransactionFeesOre = rowFeesComplete
-          ? [...refundedPaymentIds].reduce(
-              (sum, id) => sum + (mollieReport.feeByPaymentId.get(id) || 0),
+        const refundFeesDisplayable = mollieReport.feeStatus !== 'unavailable' &&
+          [...refundedPaymentIds].every((id) => mollieReport.displayFeeByPaymentId.has(id));
+        const liveRefundTransactionFeesOre = !refundFeesDisplayable
+          ? null
+          : [...refundedPaymentIds].reduce(
+              (sum, id) => sum + (mollieReport.displayFeeByPaymentId.get(id) || 0),
               0,
-            )
-          : null;
+            );
         const mollieFeesOre = frozenMetrics && Object.prototype.hasOwnProperty.call(frozenMetrics, 'mollieFees')
           ? (frozenMetrics.mollieFees == null ? null : Math.round(Number(frozenMetrics.mollieFees)))
           : liveMollieFeesOre;
@@ -367,6 +380,7 @@ router.get('/summary', async (req, res) => {
         feeStatus: mollieReport.feeStatus,
         feeError: mollieReport.feeError,
         matchedPaymentCount: mollieReport.matchedPaymentCount,
+        estimatedPaymentCount: mollieReport.estimatedPaymentCount,
         requestedPaymentCount: mollieReport.requestedPaymentCount,
         availableBalance: mollieReport.availableBalanceOre == null
           ? null

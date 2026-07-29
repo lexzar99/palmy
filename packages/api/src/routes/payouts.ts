@@ -282,7 +282,6 @@ router.post('/', async (req: AuthRequest, res) => {
         where: {
           restaurantId: restaurantKey,
           createdAt: { gte: start, lte: end },
-          status: { in: [...PAYOUT_ORDER_STATUSES] },
           paymentStatus: { in: ['PAID', 'PARTIALLY_REFUNDED', 'REFUNDED'] },
           ...PAYOUT_NON_TEST_ORDER_FILTER,
         },
@@ -320,6 +319,13 @@ router.post('/', async (req: AuthRequest, res) => {
       const mollieFinance = await getMollieFinanceReport({
         from: start,
         paymentIds,
+        refundedPaymentIds: financialOrders
+          .filter((order) =>
+            Number(order.refundAmount || 0) > 0 ||
+            String(order.paymentStatus || '').toUpperCase() === 'REFUNDED'
+          )
+          .map((order) => String(order.molliePaymentId || '').trim())
+          .filter(Boolean),
       });
       const complete = paymentIds.length === 0 || (
         mollieFinance.feeStatus !== 'unavailable' &&
@@ -466,7 +472,6 @@ router.post('/', async (req: AuthRequest, res) => {
               where: {
                 restaurantId: restaurantKey,
                 createdAt: { gte: start, lte: end },
-                status: { in: [...PAYOUT_ORDER_STATUSES] },
                 paymentStatus: { in: ['PAID', 'PARTIALLY_REFUNDED', 'REFUNDED'] },
                 ...PAYOUT_NON_TEST_ORDER_FILTER,
               },
