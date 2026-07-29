@@ -23,6 +23,8 @@ export interface ControlCenterSummary {
   pendingRefundCount: number;
   avgTicket: number;
   avgRating: number;
+  incomeAfterFees: number | null;
+  mollieFees: number | null;
   registeredCustomers?: number;
 }
 
@@ -87,6 +89,15 @@ export interface ControlCenterData {
     timeZone: string;
   };
   summary: ControlCenterSummary;
+  mollie: {
+    feeStatus: "available" | "partial" | "unavailable";
+    feeError: string | null;
+    totalBalance: number | null;
+    availableBalance: number | null;
+    pendingBalance: number | null;
+    nextPayoutDate: string | null;
+    transferFrequency: string | null;
+  };
   liveStatusCounts: Record<string, number>;
   trend: Array<{ label: string; revenue: number; orders: number }>;
   paymentMix: Array<{ method: string; count: number; revenue: number }>;

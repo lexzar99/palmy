@@ -15,6 +15,7 @@ import type { Prisma } from '@prisma/client';
  */
 export const PAYOUT_ORDER_STATUSES = ['DELIVERED', 'COMPLETED'] as const;
 export const PAYOUT_PAYMENT_STATUSES = ['PAID', 'PARTIALLY_REFUNDED'] as const;
+export const FINANCE_REAL_PAYMENT_STATUSES = ['PAID', 'PARTIALLY_REFUNDED', 'REFUNDED'] as const;
 export const PAYOUT_NON_PAYABLE_FINAL_PAYMENT_STATUSES = ['FAILED', 'REFUNDED'] as const;
 export const DEFAULT_PAYOUT_REFUND_WINDOW_HOURS = 72;
 const MAX_PAYOUT_REFUND_WINDOW_HOURS = 24 * 30;
@@ -244,6 +245,23 @@ export function isPayoutEligibleOrder(
   return (
     (PAYOUT_ORDER_STATUSES as readonly string[]).includes(String(order.status || '').toUpperCase()) &&
     (PAYOUT_PAYMENT_STATUSES as readonly string[]).includes(String(order.paymentStatus || '').toUpperCase())
+  );
+}
+
+/**
+ * Turnover is recognized only for completed fulfilment backed by money that
+ * actually settled. Fully refunded payments remain part of gross turnover and
+ * are then deducted as refunds; pending, failed and in-flight money never
+ * enters the report.
+ */
+export function isFinanceRealPaymentOrder(
+  order: Pick<PayoutOrder, 'status' | 'paymentStatus'>,
+): boolean {
+  return (
+    (PAYOUT_ORDER_STATUSES as readonly string[]).includes(String(order.status || '').toUpperCase()) &&
+    (FINANCE_REAL_PAYMENT_STATUSES as readonly string[]).includes(
+      String(order.paymentStatus || '').toUpperCase(),
+    )
   );
 }
 

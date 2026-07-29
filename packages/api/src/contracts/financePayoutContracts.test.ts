@@ -11,6 +11,7 @@ import {
   canTransitionPayout,
   isPayoutRefundWindowClosed,
   isPayoutOrderRefundWindowClosed,
+  isFinanceRealPaymentOrder,
   isPayoutEligibleOrder,
   isPayoutSettlementBlockingOrder,
   netPayoutOrder,
@@ -40,6 +41,11 @@ import {
   selectFinanceSummaryEconomicValues,
   sumFinanceSummaryRows,
 } from '../lib/financeSummary';
+import {
+  estimateNextMolliePayoutDate,
+  molliePaymentFeesFromTransactions,
+} from '../lib/mollieFinance';
+import { reconcileFinanceOrders } from '../lib/financeReconciliation';
 
 const paidDelivered = {
   status: 'DELIVERED',
@@ -87,6 +93,13 @@ assert.equal(isPayoutEligibleOrder({ ...paidDelivered, paymentStatus: 'FAILED' }
 assert.equal(isPayoutEligibleOrder({ ...paidDelivered, paymentStatus: 'REFUNDING' }), false);
 assert.equal(isPayoutEligibleOrder({ ...paidDelivered, paymentStatus: 'REFUNDED' }), false);
 assert.equal(isPayoutEligibleOrder({ ...paidDelivered, paymentStatus: 'PARTIALLY_REFUNDED' }), true);
+assert.equal(isFinanceRealPaymentOrder(paidDelivered), true);
+assert.equal(isFinanceRealPaymentOrder({ ...paidDelivered, paymentStatus: 'PARTIALLY_REFUNDED' }), true);
+assert.equal(isFinanceRealPaymentOrder({ ...paidDelivered, paymentStatus: 'REFUNDED' }), true);
+assert.equal(isFinanceRealPaymentOrder({ ...paidDelivered, paymentStatus: 'PENDING' }), false);
+assert.equal(isFinanceRealPaymentOrder({ ...paidDelivered, paymentStatus: 'FAILED' }), false);
+assert.equal(isFinanceRealPaymentOrder({ ...paidDelivered, paymentStatus: 'REFUNDING' }), false);
+assert.equal(isFinanceRealPaymentOrder({ ...paidDelivered, status: 'AWAITING_PAYMENT' }), false);
 assert.equal(isPayoutSettlementBlockingOrder(paidDelivered), false);
 assert.equal(isPayoutSettlementBlockingOrder({ ...paidDelivered, status: 'PREPARING' }), true);
 assert.equal(isPayoutSettlementBlockingOrder({ ...paidDelivered, paymentStatus: 'PENDING' }), true);
@@ -125,6 +138,55 @@ const eligible = payoutOrders([
 assert.equal(eligible.length, 2);
 assert.equal(eligible.reduce((sum, order) => sum + order.total, 0), 18_000);
 assert.equal(eligible.reduce((sum, order) => sum + order.refundAmount, 0), 2_000);
+
+const reconciliation = reconcileFinanceOrders({
+  feeStatus: 'partial',
+  feeByPaymentId: new Map([['tr_paid', 250]]),
+  orders: [
+    {
+      id: 'paid',
+      orderNumber: '1001',
+      restaurantId: 'restaurant-1',
+      status: 'DELIVERED',
+      paymentStatus: 'PAID',
+      paymentProvider: 'mollie',
+      molliePaymentId: 'tr_paid',
+      total: 10_000,
+      refundAmount: null,
+    },
+    {
+      id: 'failed',
+      orderNumber: '1002',
+      restaurantId: 'restaurant-1',
+      status: 'DELIVERED',
+      paymentStatus: 'FAILED',
+      paymentProvider: 'mollie',
+      molliePaymentId: 'tr_failed',
+      total: 8_000,
+      refundAmount: null,
+    },
+    {
+      id: 'missing-fee',
+      orderNumber: '1003',
+      restaurantId: 'restaurant-1',
+      status: 'COMPLETED',
+      paymentStatus: 'REFUNDED',
+      paymentProvider: 'mollie',
+      molliePaymentId: 'tr_refunded',
+      total: 5_000,
+      refundAmount: 5_000,
+    },
+  ],
+});
+assert.equal(
+  reconciliation.some((item) => item.code === 'DELIVERED_WITHOUT_SETTLED_PAYMENT' && item.amountOre === 8_000),
+  true,
+);
+assert.equal(
+  reconciliation.some((item) => item.code === 'MOLLIE_FEE_MISSING' && item.affectedOrderCount === 1),
+  true,
+);
+assert.equal(reconciliation.some((item) => item.orderId === 'paid'), false);
 
 const platformPayout = computePayout(
   [partial!],
@@ -397,6 +459,48 @@ assert.deepEqual(sumFinanceSummaryRows([
   payout: 7_650,
   owed: 0,
 });
+
+const mollieFees = molliePaymentFeesFromTransactions([
+  {
+    id: 'bst_payment_a',
+    type: 'payment',
+    context: { paymentId: 'tr_a' },
+    deductionDetails: { fees: { currency: 'SEK', value: '3.25' } },
+  },
+  {
+    // Older separate fee representation for another payment.
+    id: 'bst_fee_b',
+    type: 'payment-fee',
+    context: { 'payment-fee': { paymentId: 'tr_b' } },
+    resultAmount: { currency: 'SEK', value: '-2.00' },
+  },
+  {
+    // Do not double count a separate row when the detailed fee exists.
+    id: 'bst_fee_a',
+    type: 'payment-fee',
+    context: { paymentId: 'tr_a' },
+    resultAmount: { currency: 'SEK', value: '-3.25' },
+  },
+  {
+    // Capital/reserve deductions are deliberately not transaction fees.
+    id: 'bst_capital',
+    type: 'payment',
+    context: { paymentId: 'tr_c' },
+    deductionDetails: { fees: { currency: 'EUR', value: '99.00' } },
+  },
+]);
+assert.equal(mollieFees.get('tr_a'), 325);
+assert.equal(mollieFees.get('tr_b'), 200);
+assert.equal(mollieFees.has('tr_c'), false);
+assert.equal(
+  estimateNextMolliePayoutDate('twice-a-week', new Date('2026-07-29T10:00:00.000Z')),
+  '2026-07-31',
+);
+assert.equal(
+  estimateNextMolliePayoutDate('every-monday', new Date('2026-07-29T10:00:00.000Z')),
+  '2026-08-03',
+);
+assert.equal(estimateNextMolliePayoutDate('never'), null);
 
 async function runPayoutSourceAuditContracts() {
   process.env.NODE_ENV = 'test';

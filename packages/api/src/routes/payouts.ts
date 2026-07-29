@@ -14,6 +14,7 @@ import {
   isPayoutSettlementBlockingOrder,
   PAYOUT_NON_PAYABLE_FINAL_PAYMENT_STATUSES,
   PAYOUT_NON_TEST_ORDER_FILTER,
+  PAYOUT_ORDER_STATUSES,
   payoutRefundWindowClosesAt,
   payoutRefundWindowHours,
   PayoutProviderAuditError,
@@ -31,6 +32,7 @@ import {
   syncRecoveryReservations,
 } from '../lib/payoutRecovery';
 import { reconcileMollieRefundsForPayout } from '../lib/payments/reconcile';
+import { getMollieFinanceReport } from '../lib/mollieFinance';
 
 const router = Router();
 router.use(authenticate, requireSuperAdmin);
@@ -43,6 +45,24 @@ const parseDate = (value: unknown) => {
   return date && Number.isFinite(date.getTime()) ? date : null;
 };
 
+const financeSnapshotOrderFingerprint = (orders: readonly Record<string, any>[]) =>
+  JSON.stringify(
+    [...orders]
+      .sort((a, b) => String(a.id).localeCompare(String(b.id)))
+      .map((order) => ({
+        id: order.id,
+        status: order.status,
+        paymentStatus: order.paymentStatus,
+        paymentProvider: order.paymentProvider,
+        molliePaymentId: order.molliePaymentId,
+        total: order.total,
+        refundAmount: order.refundAmount,
+        updatedAt: order.updatedAt instanceof Date
+          ? order.updatedAt.toISOString()
+          : String(order.updatedAt || ''),
+      })),
+  );
+
 class PayoutRequestError extends Error {
   constructor(
     public readonly status: number,
@@ -52,6 +72,72 @@ class PayoutRequestError extends Error {
     super(message);
     this.name = 'PayoutRequestError';
   }
+}
+
+const payoutSnapshotValues = (payout: any) => ({
+  periodStart: payout.periodStart,
+  periodEnd: payout.periodEnd,
+  grossSales: payout.grossSales,
+  orderCount: payout.orderCount,
+  commissionAmount: payout.commissionAmount,
+  subscriptionAmount: payout.subscriptionAmount,
+  manualAdjustmentAmount: payout.manualAdjustmentAmount,
+  lateRefundAdjustmentAmount: payout.lateRefundAdjustmentAmount,
+  payoutAmount: payout.payoutAmount,
+  foodVatAmount: payout.foodVatAmount,
+  platformTipAmount: payout.platformTipAmount,
+  commissionPctSnapshot: payout.commissionPctSnapshot,
+  feeVatPctSnapshot: payout.feeVatPctSnapshot,
+  foodVatPctSnapshot: payout.foodVatPctSnapshot,
+  selfDeliverySnapshot: payout.selfDeliverySnapshot,
+  status: payout.status,
+  notes: payout.notes,
+  payoutReference: payout.payoutReference,
+  approvedAt: payout.approvedAt,
+  approvedBy: payout.approvedBy,
+});
+
+async function recordPayoutSnapshot(
+  tx: any,
+  payout: any,
+  req: AuthRequest,
+  reason: 'LOCK' | 'LEGACY_UNLOCK_CAPTURE',
+  financeMetrics?: {
+    grossTotal: number;
+    refunds: number;
+    realPaymentCount: number;
+    mollieFees: number | null;
+    refundTransactionFees: number | null;
+    mollieFeeStatus: string;
+  },
+) {
+  const existingSnapshots = await tx.auditLog.count({
+    where: {
+      action: 'PAYOUT_REPORT_SNAPSHOT',
+      resourceType: 'RestaurantPayout',
+      resourceId: payout.id,
+    },
+  });
+  await tx.auditLog.create({
+    data: {
+      adminId: req.admin?.id ?? null,
+      adminEmail: req.admin?.email ?? null,
+      action: 'PAYOUT_REPORT_SNAPSHOT',
+      resourceType: 'RestaurantPayout',
+      resourceId: payout.id,
+      changes: JSON.stringify({
+        revision: existingSnapshots + 1,
+        original: existingSnapshots === 0,
+        reason,
+        snapshot: {
+          ...payoutSnapshotValues(payout),
+          ...financeMetrics,
+        },
+      }),
+      ipAddress: (req.ip || req.headers['x-forwarded-for'] as string || null) as string | null,
+      userAgent: (req.headers['user-agent'] || null) as string | null,
+    },
+  });
 }
 
 const serializePayout = (payout: any) => ({
@@ -164,6 +250,15 @@ router.post('/', async (req: AuthRequest, res) => {
     const refundWindowHours = payoutRefundWindowHours();
 
     let payoutAudit: Awaited<ReturnType<typeof reconcileMollieRefundsForPayout>> | undefined;
+    let financeSnapshotFingerprint: string | undefined;
+    let financeSnapshotMetrics: {
+      grossTotal: number;
+      refunds: number;
+      realPaymentCount: number;
+      mollieFees: number | null;
+      refundTransactionFees: number | null;
+      mollieFeeStatus: string;
+    } | undefined;
     if (nextStatus === 'APPROVED' || nextStatus === 'PAID') {
       try {
         payoutAudit = await reconcileMollieRefundsForPayout({
@@ -181,6 +276,92 @@ router.post('/', async (req: AuthRequest, res) => {
           error?.message || 'Mollie-refunds kunde inte stämmas av. Utbetalningen är blockerad.',
         );
       }
+    }
+    if (nextStatus === 'APPROVED') {
+      const financialOrders = await prisma.order.findMany({
+        where: {
+          restaurantId: restaurantKey,
+          createdAt: { gte: start, lte: end },
+          status: { in: [...PAYOUT_ORDER_STATUSES] },
+          paymentStatus: { in: ['PAID', 'PARTIALLY_REFUNDED', 'REFUNDED'] },
+          ...PAYOUT_NON_TEST_ORDER_FILTER,
+        },
+        select: {
+          id: true,
+          total: true,
+          refundAmount: true,
+          paymentStatus: true,
+          status: true,
+          paymentProvider: true,
+          molliePaymentId: true,
+          updatedAt: true,
+        },
+      });
+      financeSnapshotFingerprint = financeSnapshotOrderFingerprint(financialOrders);
+      const mollieOrders = financialOrders
+        .filter((order) => String(order.paymentProvider || '').toLowerCase() === 'mollie');
+      const rawPaymentIds = mollieOrders
+        .map((order) => String(order.molliePaymentId || '').trim());
+      if (rawPaymentIds.some((id) => !id)) {
+        throw new PayoutRequestError(
+          409,
+          'PAYOUT_MOLLIE_PAYMENT_ID_MISSING',
+          'En eller flera betalda Mollie-ordrar saknar payment ID. Rapporten kan inte låsas innan de har stämts av.',
+        );
+      }
+      const paymentIds = [...new Set(rawPaymentIds)];
+      if (paymentIds.length !== rawPaymentIds.length) {
+        throw new PayoutRequestError(
+          409,
+          'PAYOUT_MOLLIE_PAYMENT_ID_DUPLICATED',
+          'Samma Mollie payment ID finns på flera ordrar. Rapporten kan inte låsas innan dubbelkopplingen har rättats.',
+        );
+      }
+      const mollieFinance = await getMollieFinanceReport({
+        from: start,
+        paymentIds,
+      });
+      const complete = paymentIds.length === 0 || (
+        mollieFinance.feeStatus !== 'unavailable' &&
+        paymentIds.every((id) => mollieFinance.feeByPaymentId.has(id))
+      );
+      if (!complete) {
+        throw new PayoutRequestError(
+          409,
+          'PAYOUT_MOLLIE_FEES_NOT_RECONCILED',
+          mollieFinance.feeError ||
+            'Alla Mollie-avgifter måste vara bokförda och avstämda innan månadsrapporten kan låsas.',
+        );
+      }
+      const refundedIds = new Set(financialOrders
+        .filter((order) =>
+          Number(order.refundAmount || 0) > 0 ||
+          String(order.paymentStatus || '').toUpperCase() === 'REFUNDED'
+        )
+        .map((order) => String(order.molliePaymentId || '').trim())
+        .filter(Boolean));
+      financeSnapshotMetrics = {
+        grossTotal: financialOrders.reduce((sum, order) => sum + Math.max(0, Number(order.total || 0)), 0),
+        refunds: financialOrders.reduce((sum, order) => sum + Math.min(
+          Math.max(0, Number(order.total || 0)),
+          Math.max(
+            0,
+            Number(order.refundAmount ?? (
+              String(order.paymentStatus || '').toUpperCase() === 'REFUNDED'
+                ? order.total
+                : 0
+            )),
+          ),
+        ), 0),
+        realPaymentCount: financialOrders.length,
+        mollieFees: complete
+          ? paymentIds.reduce((sum, id) => sum + (mollieFinance.feeByPaymentId.get(id) || 0), 0)
+          : null,
+        refundTransactionFees: complete
+          ? [...refundedIds].reduce((sum, id) => sum + (mollieFinance.feeByPaymentId.get(id) || 0), 0)
+          : null,
+        mollieFeeStatus: complete ? 'available' : mollieFinance.feeStatus,
+      };
     }
 
     const payout = await prisma.$transaction(async (tx) => {
@@ -201,6 +382,21 @@ router.post('/', async (req: AuthRequest, res) => {
           'INVALID_PAYOUT_TRANSITION',
           `Utbetalningen kan inte gå från ${currentStatus} till ${nextStatus}`,
         );
+      }
+
+      // Older approved rows predate explicit revision snapshots. Capture their
+      // immutable state before an unlock can replace the working copy.
+      if (existing && currentStatus === 'APPROVED' && nextStatus === 'HOLD') {
+        const snapshotCount = await tx.auditLog.count({
+          where: {
+            action: 'PAYOUT_REPORT_SNAPSHOT',
+            resourceType: 'RestaurantPayout',
+            resourceId: existing.id,
+          },
+        });
+        if (snapshotCount === 0) {
+          await recordPayoutSnapshot(tx, existing, req, 'LEGACY_UNLOCK_CAPTURE');
+        }
       }
 
       // PAID snapshots are immutable. A repeated PAID request after a client
@@ -242,7 +438,7 @@ router.post('/', async (req: AuthRequest, res) => {
         throw new PayoutRequestError(404, 'RESTAURANT_NOT_FOUND', 'Restaurang hittades inte');
       }
 
-      const [settingsRow, settlementRows] = await Promise.all([
+      const [settingsRow, settlementRows, financeSnapshotRows] = await Promise.all([
         tx.restaurantSettings.findUnique({ where: { id: 'settings' } }),
         tx.order.findMany({
           where: {
@@ -265,7 +461,40 @@ router.post('/', async (req: AuthRequest, res) => {
             updatedAt: true,
           },
         }),
+        nextStatus === 'APPROVED'
+          ? tx.order.findMany({
+              where: {
+                restaurantId: restaurantKey,
+                createdAt: { gte: start, lte: end },
+                status: { in: [...PAYOUT_ORDER_STATUSES] },
+                paymentStatus: { in: ['PAID', 'PARTIALLY_REFUNDED', 'REFUNDED'] },
+                ...PAYOUT_NON_TEST_ORDER_FILTER,
+              },
+              select: {
+                id: true,
+                total: true,
+                refundAmount: true,
+                paymentStatus: true,
+                status: true,
+                paymentProvider: true,
+                molliePaymentId: true,
+                updatedAt: true,
+              },
+            })
+          : Promise.resolve([]),
       ]);
+
+      if (
+        nextStatus === 'APPROVED' &&
+        (!financeSnapshotFingerprint ||
+          financeSnapshotOrderFingerprint(financeSnapshotRows) !== financeSnapshotFingerprint)
+      ) {
+        throw new PayoutRequestError(
+          409,
+          'PAYOUT_FINANCE_SNAPSHOT_STALE',
+          'Order- eller refundunderlaget ändrades medan rapporten låstes. Ladda om och kontrollera perioden igen.',
+        );
+      }
 
       if (nextStatus === 'APPROVED' || nextStatus === 'PAID') {
         if (!payoutAudit) {
@@ -474,6 +703,7 @@ router.post('/', async (req: AuthRequest, res) => {
       });
       if (nextStatus === 'APPROVED') {
         await syncRecoveryReservations(tx, saved.id, recoveryPlan.allocations);
+        await recordPayoutSnapshot(tx, saved, req, 'LOCK', financeSnapshotMetrics);
       } else if (existing) {
         await releaseRecoveryReservations(tx, saved.id, `PAYOUT_${nextStatus}`);
       }

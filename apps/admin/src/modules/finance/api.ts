@@ -25,13 +25,21 @@ export interface FinanceRow {
   orderCount: number;
   payoutOrderCount: number;
   periodOrderCount: number;
-  grossSales: number; // restaurangens intäkt (self: allt, platform: matvärde)
+  grossSales: number; // restaurangens utbetalningsgrund (legacy/detail)
+  grossTotal: number; // kundbetalningar före återbetalningar
+  netSales: number; // grossTotal − refunds
   foodBase: number;
   deliveryFee: number;
   tip: number;
   restaurantTip: number;
   platformTip: number;
-  commission: number;
+  commission: number; // provision ex moms
+  commissionVat: number;
+  commissionInclVat: number;
+  mollieFees: number | null;
+  refundTransactionFees: number | null;
+  commissionAfterMollieFees: number | null;
+  mollieFeeStatus: "available" | "partial" | "unavailable";
   subscription: number;
   feeVat: number;
   foodVat: number;
@@ -48,7 +56,14 @@ export interface FinanceSummary {
   economy: EconomyRates;
   totals: {
     grossSales: number;
+    grossTotal: number;
+    netSales: number;
     commission: number;
+    commissionVat: number;
+    commissionInclVat: number;
+    mollieFees: number | null;
+    refundTransactionFees: number | null;
+    commissionAfterMollieFees: number | null;
     subscription: number;
     feeVat: number;
     foodVat: number;
@@ -57,6 +72,52 @@ export interface FinanceSummary {
     owed: number;
     refunds: number;
     orderCount: number;
+  };
+  mollie: {
+    feeStatus: "available" | "partial" | "unavailable";
+    feeError: string | null;
+    matchedPaymentCount: number;
+    requestedPaymentCount: number;
+    availableBalance: number | null;
+    pendingBalance: number | null;
+    totalBalance: number | null;
+    nextPayoutDate: string | null;
+    transferFrequency: string | null;
+  };
+  reconciliation: {
+    status: "ok" | "attention" | "critical";
+    checkedOrderCount: number;
+    realPaymentCount: number;
+    excludedPaymentCount: number;
+    molliePaymentCount: number;
+    matchedFeeCount: number;
+    deviationCount: number;
+    criticalCount: number;
+    confirmedLoss: number;
+    amountToReview: number;
+    deviations: Array<{
+      id: string;
+      code:
+        | "DELIVERED_WITHOUT_SETTLED_PAYMENT"
+        | "SETTLED_PAYMENT_OUTSIDE_ACCOUNTING"
+        | "MOLLIE_PAYMENT_ID_MISSING"
+        | "DUPLICATE_MOLLIE_PAYMENT_ID"
+        | "REFUND_AMOUNT_INVALID"
+        | "MOLLIE_FEE_MISSING"
+        | "MOLLIE_REPORTING_UNAVAILABLE"
+        | "NEGATIVE_PROCESSING_MARGIN";
+      severity: "critical" | "warning" | "info";
+      restaurantId: string | null;
+      restaurantName: string | null;
+      orderId: string | null;
+      orderNumber: string | null;
+      paymentId: string | null;
+      title: string;
+      detail: string;
+      amount: number | null;
+      affectedOrderCount: number;
+      confirmedLoss: boolean;
+    }>;
   };
   rows: FinanceRow[];
 }
@@ -147,6 +208,19 @@ export interface PayoutSpec {
     paidAt: string | null;
     paidBy: string | null;
     updatedAt: string;
+    revisions: Array<{
+      id: string;
+      revision: number;
+      original: boolean;
+      reason: string;
+      createdAt: string;
+      createdBy: string | null;
+      commissionPct: number | null;
+      commissionExVat: number;
+      vat: number;
+      payout: number;
+      manualAdjustment: number;
+    }>;
   } | null;
 }
 

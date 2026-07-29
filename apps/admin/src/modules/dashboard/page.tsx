@@ -37,6 +37,7 @@ import { useAdminSession } from "@/shared/hooks/use-admin-session";
 import { useUiStore } from "@/shared/store/ui-store";
 import {
   formatCurrencyExact as formatCurrency,
+  formatDate,
   formatNumber,
   shortText,
 } from "@/shared/utils/format";
@@ -357,6 +358,12 @@ export function DashboardPage() {
                 <p className="hero-stat-value">{formatCurrency(data.summary.periodCommission)}</p>
               </div>
               <div>
+                <p className="hero-stat-label">Intäkt efter Mollie-avgifter</p>
+                <p className="hero-stat-value">
+                  {data.summary.incomeAfterFees == null ? "—" : formatCurrency(data.summary.incomeAfterFees)}
+                </p>
+              </div>
+              <div>
                 <p className="hero-stat-label">Att överföra</p>
                 <p className="hero-stat-value">{formatCurrency(data.summary.periodPayoutExposure)}</p>
               </div>
@@ -399,6 +406,25 @@ export function DashboardPage() {
               <span className="font-semibold text-[var(--text-secondary)]">Snittbetyg</span>
               <span className="font-extrabold text-[var(--text-primary)]">
                 {data.summary.avgRating > 0 ? data.summary.avgRating.toFixed(1) : "–"} <Star size={11} className="-mt-0.5 inline" aria-hidden />
+              </span>
+            </div>
+            <div className="border-t border-[var(--border-subtle)] pt-3">
+              <div className="flex items-center justify-between gap-3 text-[13px]">
+                <span className="font-semibold text-[var(--text-secondary)]">Totalt Mollie-saldo</span>
+                <span className="font-extrabold text-[var(--text-primary)]">
+                  {data.mollie.totalBalance == null ? "—" : formatCurrency(data.mollie.totalBalance)}
+                </span>
+              </div>
+              {data.mollie.totalBalance != null ? (
+                <p className="mt-1 text-right text-[11px] text-[var(--text-muted)]">
+                  {formatCurrency(data.mollie.availableBalance)} tillgängligt · {formatCurrency(data.mollie.pendingBalance)} väntande
+                </p>
+              ) : null}
+            </div>
+            <div className="flex items-center justify-between text-[13px]">
+              <span className="font-semibold text-[var(--text-secondary)]">Nästa Mollie-utbetalning</span>
+              <span className="font-extrabold text-[var(--text-primary)]">
+                {data.mollie.nextPayoutDate ? formatDate(data.mollie.nextPayoutDate) : "—"}
               </span>
             </div>
           </div>

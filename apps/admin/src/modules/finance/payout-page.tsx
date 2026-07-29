@@ -151,10 +151,10 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
         ? ["HOLD", "DRAFT", "APPROVED"]
         : ["DRAFT", "HOLD", "APPROVED"];
   const payoutStatusLabel: Record<string, string> = {
-    DRAFT: "Utkast",
-    APPROVED: "Godkänd",
+    DRAFT: "Upplåst utkast",
+    APPROVED: "Låst rapport",
     PAID: "Betald",
-    HOLD: "Pausad",
+    HOLD: "Upplåst för ändring",
   };
 
   const savePayout = useMutation({
@@ -253,7 +253,7 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
             {usesFrozenSnapshot && persisted ? (
               <>
                 <p className="mb-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-page)] px-4 py-3 text-xs font-semibold text-[var(--text-secondary)]">
-                  Fryst ekonomisnapshot från godkännandet. Detta är det enda belopp som får överföras; dagens provision eller orderdata ändrar inte underlaget.
+                  Låst ekonomisnapshot. Detta är det enda belopp som får överföras; dagens provision eller orderdata ändrar inte underlaget.
                 </p>
                 <CalcRow label={`Fryst restaurangintäkt (${persisted.orderCount} ordrar)`} value={persisted.grossSales} strong />
                 {persisted.foodVatAmount != null ? (
@@ -269,7 +269,9 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
               </>
             ) : (
               <>
-                <CalcRow label={`Bruttoförsäljning (${b.orderCount} ordrar)`} value={b.grossTotal} />
+                <CalcRow label={`Bruttoförsäljning (${b.orderCount} utbetalningsbara ordrar)`} value={b.originalGrossTotal} />
+                {b.refunds > 0 ? <CalcRow label="Återbetalningar" value={b.refunds} minus /> : null}
+                <CalcRow label="Netto efter återbetalningar" value={b.grossTotal} strong />
                 <CalcRow label="varav matvärde (provisionsbas)" value={b.foodBase} sub />
                 <CalcRow label={spec.data.restaurant.selfDelivery ? "varav leveransavgift till restaurangen" : "varav leveransavgift till plattformen"} value={b.deliveryFee} sub />
                 <CalcRow label={spec.data.restaurant.selfDelivery ? "varav dricks till restaurangen" : "varav dricks till bud/plattform"} value={b.tip} sub />
@@ -372,9 +374,10 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
                   Underlaget kan godkännas först {formatDateTime(spec.data.refundWindow.closesAt)} efter refundfönstret på {spec.data.refundWindow.hours} timmar.
                 </p>
               ) : (
-                <p>Refundfönstret är stängt och underlaget kan godkännas.</p>
+                <p>Refundfönstret är stängt och rapporten kan låsas.</p>
               )}
-              <p>Efter godkännande måste en annan superadmin logga in, ange betalningsreferens och markera utbetalningen som betald.</p>
+              <p>När rapporten låses sparas en permanent revision. Vid upplåsning ligger originalet kvar oförändrat i historiken.</p>
+              <p>Efter låsning måste en annan superadmin logga in, ange betalningsreferens och markera utbetalningen som betald.</p>
               {spec.data.lateRefundRecovery.blocked ? (
                 <p className="font-semibold text-[var(--danger-text)]">{spec.data.lateRefundRecovery.error}</p>
               ) : automaticRecovery > 0 || spec.data.lateRefundRecovery.remaining > 0 ? (
@@ -397,6 +400,46 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
               </p>
             ) : null}
           </Surface>
+
+          {persisted?.revisions?.length ? (
+            <Surface className="overflow-hidden p-0">
+              <div className="border-b border-[var(--row-divider)] px-[18px] py-[13px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]">
+                Låsta snapshots
+              </div>
+              <div className="overflow-x-auto">
+                <table className="data-table min-w-[760px]">
+                  <thead>
+                    <tr>
+                      <th>Version</th>
+                      <th>Låst</th>
+                      <th>Provision</th>
+                      <th className="text-right">Provision ex moms</th>
+                      <th className="text-right">Moms</th>
+                      <th className="text-right">Utbetalning</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {persisted.revisions.map((revision) => (
+                      <tr key={revision.id}>
+                        <td className="font-bold">
+                          <span className="mr-2">Version {revision.revision}</span>
+                          {revision.original ? <Badge tone="info">Original</Badge> : null}
+                        </td>
+                        <td>
+                          {formatDateTime(revision.createdAt)}
+                          {revision.createdBy ? <span className="block text-[11px] text-[var(--text-muted)]">{revision.createdBy}</span> : null}
+                        </td>
+                        <td>{revision.commissionPct == null ? "—" : `${revision.commissionPct}%`}</td>
+                        <td className="text-right font-semibold tabular-nums">{formatCurrency(revision.commissionExVat)}</td>
+                        <td className="text-right font-semibold tabular-nums">{formatCurrency(revision.vat)}</td>
+                        <td className="text-right font-black tabular-nums">{formatCurrency(revision.payout)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Surface>
+          ) : null}
 
           <Surface className="overflow-hidden p-0">
             <div className="border-b border-[var(--row-divider)] px-[18px] py-[13px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]">
@@ -553,7 +596,13 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
               }
               onClick={() => savePayout.mutate()}
             >
-              {savePayout.isPending ? <Loader2 size={16} className="animate-spin" /> : "Spara utbetalning"}
+              {savePayout.isPending
+                ? <Loader2 size={16} className="animate-spin" />
+                : status === "APPROVED"
+                  ? "Lås rapport"
+                  : status === "HOLD"
+                    ? "Lås upp för ändring"
+                    : "Spara utbetalning"}
             </Button>
           </div>
         </>

@@ -3,9 +3,15 @@ import prisma from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { hasOpeningHours } from '../lib/openingHours';
 import { computePayout, economyFromSettings } from '../lib/financeCalc';
-import { PAYOUT_NON_TEST_ORDER_FILTER, PAYOUT_PAYMENT_STATUSES, payoutOrders } from '../lib/payoutPolicy';
+import {
+  PAYOUT_NON_TEST_ORDER_FILTER,
+  PAYOUT_ORDER_STATUSES,
+  PAYOUT_PAYMENT_STATUSES,
+  payoutOrders,
+} from '../lib/payoutPolicy';
 import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
 import { moneyDto } from '../utils/money';
+import { getMollieFinanceReport } from '../lib/mollieFinance';
 
 const router = Router();
 router.use(authenticate);
@@ -238,6 +244,17 @@ router.get('/control-center', async (req, res) => {
           pendingRefundCount: 0,
           avgTicket: 0,
           avgRating: 0,
+          incomeAfterFees: null,
+          mollieFees: null,
+        },
+        mollie: {
+          feeStatus: 'unavailable',
+          feeError: 'Inga restauranger i urvalet',
+          totalBalance: null,
+          availableBalance: null,
+          pendingBalance: null,
+          nextPayoutDate: null,
+          transferFrequency: null,
         },
         liveStatusCounts: {},
         trend: [],
@@ -295,6 +312,8 @@ router.get('/control-center', async (req, res) => {
           customerPhone: true,
           userId: true,
           paymentMethod: true,
+          paymentProvider: true,
+          molliePaymentId: true,
           refundAmount: true,
           rating: true,
           review: true,
@@ -330,6 +349,8 @@ router.get('/control-center', async (req, res) => {
           customerPhone: true,
           userId: true,
           paymentMethod: true,
+          paymentProvider: true,
+          molliePaymentId: true,
           refundAmount: true,
           foodVatPercent: true,
           rating: true,
@@ -346,11 +367,20 @@ router.get('/control-center', async (req, res) => {
       prisma.order.findMany({
         where: {
           ...whereForRestaurants,
+          status: { in: [...PAYOUT_ORDER_STATUSES] },
           paymentStatus: { in: ['REFUNDED', 'PARTIALLY_REFUNDED'] },
           createdAt: { gte: period.start, lt: period.end },
           ...orderBusinessFilters,
         },
-        select: { id: true, total: true, refundAmount: true, restaurantId: true },
+        select: {
+          id: true,
+          total: true,
+          refundAmount: true,
+          restaurantId: true,
+          paymentStatus: true,
+          paymentProvider: true,
+          molliePaymentId: true,
+        },
       }),
       prisma.order.findMany({
         where: {
@@ -738,7 +768,17 @@ router.get('/control-center', async (req, res) => {
     const periodCommission = restaurantSnapshots.reduce((sum, snapshot) => sum + snapshot.commissionEstimate, 0);
     const periodPayoutExposure = payoutQueue.reduce((sum, row) => sum + row.payout, 0);
     const periodRefundAmountOre = periodRefundOrders.reduce(
-      (sum, order) => sum + Math.max(0, Number(order.refundAmount ?? order.total ?? 0)),
+      (sum, order) => sum + Math.min(
+        Math.max(0, Number(order.total || 0)),
+        Math.max(
+          0,
+          Number(order.refundAmount || (
+            String(order.paymentStatus || '').toUpperCase() === 'REFUNDED'
+              ? order.total
+              : 0
+          )),
+        ),
+      ),
       0,
     );
     const pendingRefundAmountOre = periodPendingRefundOrders.reduce(
@@ -746,6 +786,19 @@ router.get('/control-center', async (req, res) => {
       0,
     );
     const todayRevenueOre = todayOrders.reduce((sum, order) => sum + netPaidAmount(order), 0);
+    const periodMolliePaymentIds = [...new Set(
+      [...periodOrders, ...periodRefundOrders]
+        .filter((order) => String(order.paymentProvider || '').toLowerCase() === 'mollie')
+        .map((order) => String(order.molliePaymentId || '').trim())
+        .filter(Boolean),
+    )];
+    const mollieReport = await getMollieFinanceReport({
+      from: period.start,
+      paymentIds: periodMolliePaymentIds,
+    });
+    const mollieFeesOre = mollieReport.feeStatus === 'available'
+      ? [...mollieReport.feeByPaymentId.values()].reduce((sum, amount) => sum + amount, 0)
+      : null;
     const paymentMix = Array.from(periodOrders.reduce((map, order) => {
       const method = order.paymentMethod || 'UNKNOWN';
       const current = map.get(method) || { method, count: 0, revenue: 0 };
@@ -775,6 +828,10 @@ router.get('/control-center', async (req, res) => {
       avgTicket: periodOrderCount > 0 ? (periodRevenueOre / 100) / periodOrderCount : 0,
       avgRating: weightedRating,
       registeredCustomers: totalCustomers,
+      incomeAfterFees: mollieFeesOre == null
+        ? null
+        : (periodRevenueOre - mollieFeesOre) / 100,
+      mollieFees: mollieFeesOre == null ? null : mollieFeesOre / 100,
     };
 
     res.json({
@@ -787,6 +844,15 @@ router.get('/control-center', async (req, res) => {
         timeZone: REPORT_TIME_ZONE,
       },
       summary,
+      mollie: {
+        feeStatus: mollieReport.feeStatus,
+        feeError: mollieReport.feeError,
+        totalBalance: mollieReport.totalBalanceOre == null ? null : mollieReport.totalBalanceOre / 100,
+        availableBalance: mollieReport.availableBalanceOre == null ? null : mollieReport.availableBalanceOre / 100,
+        pendingBalance: mollieReport.pendingBalanceOre == null ? null : mollieReport.pendingBalanceOre / 100,
+        nextPayoutDate: mollieReport.nextPayoutDate,
+        transferFrequency: mollieReport.transferFrequency,
+      },
       liveStatusCounts,
       trend: Array.from(trendMap.values()),
       paymentMix,
