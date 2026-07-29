@@ -32,12 +32,16 @@ export function hasVerifiedSupabasePhone(
   return Boolean(identity?.phone && identity.phone_confirmed_at);
 }
 
-/** Validate the provenance retained on a local platform-JWT account row. */
+/**
+ * Legacy platform JWTs were already issued by ViaEats after customer
+ * verification. During the phone-only migration, the verified phone on the
+ * local row is authoritative even when an old OAuth label remains as history.
+ * New OAuth sessions are rejected before they can mint a platform JWT.
+ */
 export function localCustomerAuthMethod(
   identity: LocalCustomerIdentity | null | undefined,
 ): CustomerAuthMethod | null {
-  const provider = String(identity?.oauthProvider || '').toLowerCase();
-  if (provider === 'phone' && identity?.phone && identity.isVerified === true) {
+  if (identity?.phone && identity.isVerified === true) {
     return 'phone';
   }
   return null;

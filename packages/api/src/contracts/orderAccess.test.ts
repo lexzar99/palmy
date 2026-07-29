@@ -68,6 +68,10 @@ assert.equal(allowLegacyOrderPhoneProof('test'), true);
 assert.equal(localCustomerAuthMethod({ oauthProvider: 'google' }), null);
 assert.equal(localCustomerAuthMethod({ oauthProvider: 'apple' }), null);
 assert.equal(
+  localCustomerAuthMethod({ oauthProvider: 'apple', phone: '+46700000000', isVerified: true }),
+  'phone',
+);
+assert.equal(
   localCustomerAuthMethod({ oauthProvider: 'phone', phone: '+46700000000', isVerified: true }),
   'phone',
 );
@@ -75,7 +79,10 @@ assert.equal(
   localCustomerAuthMethod({ oauthProvider: 'phone', phone: '+46700000000', isVerified: false }),
   null,
 );
-assert.equal(localCustomerAuthMethod({ oauthProvider: null, isVerified: true }), null);
+assert.equal(
+  localCustomerAuthMethod({ oauthProvider: null, phone: '+46700000000', isVerified: true }),
+  'phone',
+);
 
 const proofSecret = 'contract-test-secret-at-least-32-bytes';
 const orderId = 'cm-order-owner-1';

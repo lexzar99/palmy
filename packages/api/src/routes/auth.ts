@@ -442,6 +442,14 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
         code: 'CUSTOMER_AUTH_METHOD_NOT_ALLOWED',
       });
     }
+    const tokenPhone = normalizePhone(String(payload.phone || ''));
+    const accountPhone = normalizePhone(String(account.phone || ''));
+    if (!tokenPhone || tokenPhone !== accountPhone) {
+      return res.status(401).json({
+        error: 'Verifiera ditt telefonnummer igen',
+        code: 'VERIFIED_PHONE_SESSION_REQUIRED',
+      });
+    }
     req.user = payload;
     setCachedCustomerIdentity(token, req.user);
     return next();
