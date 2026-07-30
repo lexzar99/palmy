@@ -362,9 +362,11 @@ export function DashboardPage() {
                 <p className="hero-stat-value">{formatCurrency(data.summary.periodCommissionInclVat)}</p>
               </div>
               <div>
-                <p className="hero-stat-label">Kortavgifter · restaurang</p>
+                <p className="hero-stat-label">Kortavgifter · dras från restaurang</p>
                 <p className="hero-stat-value">
-                  {data.summary.periodMollieFees == null ? "—" : formatCurrency(data.summary.periodMollieFees)}
+                  {data.summary.mollieFeesChargedToRestaurants == null
+                    ? "—"
+                    : formatCurrency(data.summary.mollieFeesChargedToRestaurants)}
                 </p>
               </div>
               <div>
