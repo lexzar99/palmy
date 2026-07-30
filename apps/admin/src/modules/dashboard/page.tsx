@@ -352,27 +352,23 @@ export function DashboardPage() {
           </div>
 
           <div className="mt-4 flex flex-wrap items-end justify-between gap-4 border-t border-[rgba(254,247,240,0.14)] pt-4">
-            <div className="flex flex-wrap gap-x-8 gap-y-3">
+            <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-3">
               <div>
                 <p className="hero-stat-label">Provision ex moms</p>
                 <p className="hero-stat-value">{formatCurrency(data.summary.periodCommission)}</p>
+              </div>
+              <div>
+                <p className="hero-stat-label">Moms på provision</p>
+                <p className="hero-stat-value">{formatCurrency(data.summary.periodCommissionVat)}</p>
               </div>
               <div>
                 <p className="hero-stat-label">Provision inkl moms</p>
                 <p className="hero-stat-value">{formatCurrency(data.summary.periodCommissionInclVat)}</p>
               </div>
               <div>
-                <p className="hero-stat-label">Kortavgifter · dras från restaurang</p>
+                <p className="hero-stat-label">Kortavgifter · avdrag från restaurang</p>
                 <p className="hero-stat-value">
-                  {data.summary.mollieFeesChargedToRestaurants == null
-                    ? "—"
-                    : formatCurrency(data.summary.mollieFeesChargedToRestaurants)}
-                </p>
-              </div>
-              <div>
-                <p className="hero-stat-label">ViaEats intäkt ex moms</p>
-                <p className="hero-stat-value">
-                  {data.summary.incomeAfterFees == null ? "—" : formatCurrency(data.summary.incomeAfterFees)}
+                  {formatCurrency(data.summary.mollieFeesChargedToRestaurants ?? 0)}
                 </p>
               </div>
               <div>

@@ -815,6 +815,16 @@ router.get('/control-center', async (req, res) => {
     const periodMollieFees = restaurantSnapshots.every((snapshot) => snapshot.mollieFees != null)
       ? restaurantSnapshots.reduce((sum, snapshot) => sum + Number(snapshot.mollieFees || 0), 0)
       : null;
+    // Detta är beloppet som faktiskt redan har dragits från restaurangernas
+    // synliga utbetalningar. Det används i översikten så avgiften aldrig
+    // försvinner bara för att en enskild Mollie-rad är preliminär.
+    const mollieFeesChargedToRestaurantsOre = restaurantSnapshots.reduce(
+      (sum, snapshot) => sum + Math.max(
+        0,
+        Math.round((snapshot.payoutBeforeMollie - snapshot.payoutEstimate) * 100),
+      ),
+      0,
+    );
     const periodPayoutExposure = payoutQueue.reduce((sum, row) => sum + row.payout, 0);
     const periodRefundAmountOre = periodRefundOrders.reduce(
       (sum, order) => sum + Math.min(
@@ -872,8 +882,9 @@ router.get('/control-center', async (req, res) => {
       // därför provision + abonnemang även när Mollie ännu inte rapporterat
       // exakt avgift.
       incomeAfterFees: periodCommission + periodSubscription,
+      periodMollieFees: mollieFeesOre == null ? null : mollieFeesOre / 100,
       mollieFees: mollieFeesOre == null ? null : mollieFeesOre / 100,
-      mollieFeesChargedToRestaurants: mollieFeesOre == null ? null : mollieFeesOre / 100,
+      mollieFeesChargedToRestaurants: mollieFeesChargedToRestaurantsOre / 100,
     };
 
     res.json({
