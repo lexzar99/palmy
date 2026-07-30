@@ -243,11 +243,14 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
       ) : (
         <>
           <div className="grid gap-[13px] md:grid-cols-4">
-            <Kpi label="Restaurangens intäkt" value={formatCurrency(restaurantGross)} />
+            <Kpi label="Restaurangens brutto" value={formatCurrency(restaurantGross)} />
             <Kpi label="Betalda order" value={displayedOrderCount} />
             <Kpi label={isOwed ? "Att fakturera" : "Att överföra"} value={formatCurrency(net)} />
-            <Kpi label="ViaEats avgiftsavdrag" value={formatCurrency(platformDeductions)} accent />
+            <Kpi label="Mollieavgift · restaurang" value={formatCurrency(platformDeductions)} accent />
           </div>
+          <p className="-mt-1 text-[11.5px] text-[var(--text-muted)]">
+            Kort- och refundavgifter betalas av restaurangen och dras direkt från beloppet som ska överföras.
+          </p>
 
           <Surface className="px-6 py-6">
             {usesFrozenSnapshot && persisted ? (
@@ -263,8 +266,8 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
                 <CalcRow label={`ViaEats provision (${persisted.commissionPctSnapshot ?? "—"}%)`} value={persisted.commissionAmount} minus />
                 <CalcRow label="Abonnemang" value={persisted.subscriptionAmount} minus />
                 <CalcRow label={`Moms på ViaEats ersättning (${persisted.feeVatPctSnapshot ?? "—"}%)`} value={frozenFeeVat} minus />
-                {persisted.mollieFeeAmount > 0 ? <CalcRow label="Mollie-kort- och refundavgifter" value={persisted.mollieFeeAmount} minus /> : null}
-                <CalcRow label="Summa avgiftsavdrag inkl. moms" value={serviceFeeTotal} strong />
+                {persisted.mollieFeeAmount > 0 ? <CalcRow label="Kort- och refundavgifter · restaurang" value={persisted.mollieFeeAmount} minus /> : null}
+                <CalcRow label="Summa avdrag från restaurangen" value={serviceFeeTotal} strong />
                 {persisted.manualAdjustmentAmount !== 0 ? <CalcRow label="Manuell justering" value={persisted.manualAdjustmentAmount} minus /> : null}
                 {persisted.lateRefundAdjustmentAmount > 0 ? <CalcRow label="Automatisk recovery för sena refunds" value={persisted.lateRefundAdjustmentAmount} minus /> : null}
               </>
@@ -281,8 +284,8 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
                 <CalcRow label={`ViaEats provision (${b.commissionPct}%)`} value={b.commission} minus />
                 <CalcRow label={`Abonnemang (${b.tierLabel})`} value={b.subscription} minus />
                 <CalcRow label={`Moms på ViaEats ersättning (${b.feeVatPct}%)`} value={b.feeVat} minus />
-                {b.mollieFees != null ? <CalcRow label="Mollie-kort- och refundavgifter" value={b.mollieFees} minus /> : null}
-                <CalcRow label="Summa avgiftsavdrag inkl. moms" value={serviceFeeTotal} strong />
+                {b.mollieFees != null ? <CalcRow label="Kort- och refundavgifter · restaurang" value={b.mollieFees} minus /> : null}
+                <CalcRow label="Summa avdrag från restaurangen" value={serviceFeeTotal} strong />
                 {manualAdjustment !== 0 ? <CalcRow label="Manuell justering" value={manualAdjustment} minus /> : null}
                 {automaticRecovery > 0 ? <CalcRow label="Automatisk recovery för sena refunds" value={automaticRecovery} minus /> : null}
               </>

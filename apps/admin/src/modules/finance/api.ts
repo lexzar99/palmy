@@ -40,6 +40,7 @@ export interface FinanceRow {
   refundTransactionFees: number | null;
   refundProcessingFees: number | null;
   restaurantMollieFee: number | null;
+  companyRevenueExVat: number | null;
   commissionAfterMollieFees: number | null;
   mollieFeeStatus: "available" | "partial" | "unavailable";
   subscription: number;
@@ -67,6 +68,7 @@ export interface FinanceSummary {
     refundTransactionFees: number | null;
     refundProcessingFees: number | null;
     restaurantMollieFee: number | null;
+    companyRevenueExVat: number | null;
     commissionAfterMollieFees: number | null;
     subscription: number;
     feeVat: number;

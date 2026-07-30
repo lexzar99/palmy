@@ -237,7 +237,12 @@ router.get('/control-center', async (req, res) => {
           periodRevenue: 0,
           periodOrders: 0,
           periodCommission: 0,
+          periodCommissionVat: 0,
+          periodCommissionInclVat: 0,
+          periodSubscription: 0,
           periodPayoutExposure: 0,
+          periodMollieFees: null,
+          mollieFeesChargedToRestaurants: null,
           periodRefundAmount: 0,
           periodRefundCount: 0,
           pendingRefundAmount: 0,
@@ -515,6 +520,24 @@ router.get('/control-center', async (req, res) => {
     const platformSettings = await prisma.restaurantSettings.findUnique({ where: { id: 'settings' } });
     const economy = economyFromSettings(platformSettings);
 
+    // Mollie-avgifter vidaredebiteras restaurangen och ska därför minska
+    // restaurangens utbetalning, inte ViaEats provisionsintäkt. Hämta samma
+    // periodrapport som ekonomisidan använder så översikten inte visar en
+    // annan sanning.
+    const periodMolliePaymentIds = [...new Set(
+      [...periodOrders, ...periodRefundOrders]
+        .filter((order) => String(order.paymentProvider || '').toLowerCase() === 'mollie')
+        .map((order) => String(order.molliePaymentId || '').trim())
+        .filter(Boolean),
+    )];
+    const mollieReport = await getMollieFinanceReport({
+      from: period.start,
+      paymentIds: periodMolliePaymentIds,
+      refundedPaymentIds: periodRefundOrders
+        .map((order) => String(order.molliePaymentId || '').trim())
+        .filter(Boolean),
+    });
+
     const restaurantSnapshots = restaurants.map((restaurant) => {
       const orders = groupedByRestaurant.get(restaurant.id) || [];
       const currentLiveOrders = liveByRestaurant.get(restaurant.id) || [];
@@ -539,8 +562,24 @@ router.get('/control-center', async (req, res) => {
       const tierLabel = econ.tierLabel;
       const commissionEstimate = econ.commissionOre / 100;
       const subscriptionEstimate = econ.subscriptionOre / 100;
+      const currentPeriodMolliePaymentIds = [...new Set(
+        currentPeriodOrders
+          .filter((order) => String(order.paymentProvider || '').toLowerCase() === 'mollie')
+          .map((order) => String(order.molliePaymentId || '').trim())
+          .filter(Boolean),
+      )];
+      const mollieFees = mollieReport.feeStatus === 'unavailable'
+        ? null
+        : currentPeriodMolliePaymentIds.reduce(
+            (sum, paymentId) => sum + (mollieReport.displayFeeByPaymentId.get(paymentId) || 0),
+            0,
+          ) / 100;
       // Netto vi är skyldiga restaurangen — provision + abonnemang + moms på avgifter avdraget.
-      const payoutEstimate = Math.max(0, econ.payoutOre / 100);
+      const payoutBeforeMollie = Math.max(0, econ.payoutOre / 100);
+      const payoutEstimate = mollieFees == null
+        ? payoutBeforeMollie
+        : Math.max(0, payoutBeforeMollie - mollieFees);
+      const commissionVatEstimate = Math.round((econ.commissionOre * economy.vatPlatformFeePct) / 100) / 100;
       const pendingOrders = currentLiveOrders.filter((order) => order.status === 'PENDING').length;
       const reviewScore = reviewOrders.length
         ? reviewOrders.reduce((sum, order) => sum + (order.rating || 0), 0) / reviewOrders.length
@@ -596,7 +635,11 @@ router.get('/control-center', async (req, res) => {
         reviewScore,
         reviewCount: reviewOrders.length,
         payoutEstimate,
+        payoutBeforeMollie,
+        mollieFees,
         commissionEstimate,
+        commissionVatEstimate,
+        commissionInclVatEstimate: commissionEstimate + commissionVatEstimate,
         subscriptionEstimate,
         refundsLast30d: orders.filter((order) => (order.refundAmount || 0) > 0).length,
         setupMissing: !hasHours || !restaurant.adminEmail || !restaurant.imageUrl || !restaurant.heroImageUrl,
@@ -766,6 +809,12 @@ router.get('/control-center', async (req, res) => {
     const periodRevenueOre = periodOrders.reduce((sum, order) => sum + netPaidAmount(order), 0);
     const periodOrderCount = periodOrders.filter((order) => netPaidAmount(order) > 0).length;
     const periodCommission = restaurantSnapshots.reduce((sum, snapshot) => sum + snapshot.commissionEstimate, 0);
+    const periodCommissionVat = restaurantSnapshots.reduce((sum, snapshot) => sum + snapshot.commissionVatEstimate, 0);
+    const periodCommissionInclVat = restaurantSnapshots.reduce((sum, snapshot) => sum + snapshot.commissionInclVatEstimate, 0);
+    const periodSubscription = restaurantSnapshots.reduce((sum, snapshot) => sum + snapshot.subscriptionEstimate, 0);
+    const periodMollieFees = restaurantSnapshots.every((snapshot) => snapshot.mollieFees != null)
+      ? restaurantSnapshots.reduce((sum, snapshot) => sum + Number(snapshot.mollieFees || 0), 0)
+      : null;
     const periodPayoutExposure = payoutQueue.reduce((sum, row) => sum + row.payout, 0);
     const periodRefundAmountOre = periodRefundOrders.reduce(
       (sum, order) => sum + Math.min(
@@ -786,22 +835,7 @@ router.get('/control-center', async (req, res) => {
       0,
     );
     const todayRevenueOre = todayOrders.reduce((sum, order) => sum + netPaidAmount(order), 0);
-    const periodMolliePaymentIds = [...new Set(
-      [...periodOrders, ...periodRefundOrders]
-        .filter((order) => String(order.paymentProvider || '').toLowerCase() === 'mollie')
-        .map((order) => String(order.molliePaymentId || '').trim())
-        .filter(Boolean),
-    )];
-    const mollieReport = await getMollieFinanceReport({
-      from: period.start,
-      paymentIds: periodMolliePaymentIds,
-      refundedPaymentIds: periodRefundOrders
-        .map((order) => String(order.molliePaymentId || '').trim())
-        .filter(Boolean),
-    });
-    const mollieFeesOre = mollieReport.feeStatus === 'unavailable'
-      ? null
-      : [...mollieReport.displayFeeByPaymentId.values()].reduce((sum, amount) => sum + amount, 0);
+    const mollieFeesOre = periodMollieFees == null ? null : Math.round(periodMollieFees * 100);
     const paymentMix = Array.from(periodOrders.reduce((map, order) => {
       const method = order.paymentMethod || 'UNKNOWN';
       const current = map.get(method) || { method, count: 0, revenue: 0 };
@@ -823,6 +857,9 @@ router.get('/control-center', async (req, res) => {
       periodRevenue: periodRevenueOre / 100,
       periodOrders: periodOrderCount,
       periodCommission,
+      periodCommissionVat,
+      periodCommissionInclVat,
+      periodSubscription,
       periodPayoutExposure,
       periodRefundAmount: periodRefundAmountOre / 100,
       periodRefundCount: periodRefundOrders.length,
@@ -831,10 +868,12 @@ router.get('/control-center', async (req, res) => {
       avgTicket: periodOrderCount > 0 ? (periodRevenueOre / 100) / periodOrderCount : 0,
       avgRating: weightedRating,
       registeredCustomers: totalCustomers,
-      incomeAfterFees: mollieFeesOre == null
-        ? null
-        : (periodRevenueOre - mollieFeesOre) / 100,
+      // Kortavgiften ligger på restaurangens utbetalning. ViaEats intäkt är
+      // därför provision + abonnemang även när Mollie ännu inte rapporterat
+      // exakt avgift.
+      incomeAfterFees: periodCommission + periodSubscription,
       mollieFees: mollieFeesOre == null ? null : mollieFeesOre / 100,
+      mollieFeesChargedToRestaurants: mollieFeesOre == null ? null : mollieFeesOre / 100,
     };
 
     res.json({

@@ -354,17 +354,27 @@ export function DashboardPage() {
           <div className="mt-4 flex flex-wrap items-end justify-between gap-4 border-t border-[rgba(254,247,240,0.14)] pt-4">
             <div className="flex flex-wrap gap-x-8 gap-y-3">
               <div>
-                <p className="hero-stat-label">Provision</p>
+                <p className="hero-stat-label">Provision ex moms</p>
                 <p className="hero-stat-value">{formatCurrency(data.summary.periodCommission)}</p>
               </div>
               <div>
-                <p className="hero-stat-label">Intäkt efter Mollie-avgifter</p>
+                <p className="hero-stat-label">Provision inkl moms</p>
+                <p className="hero-stat-value">{formatCurrency(data.summary.periodCommissionInclVat)}</p>
+              </div>
+              <div>
+                <p className="hero-stat-label">Kortavgifter · restaurang</p>
+                <p className="hero-stat-value">
+                  {data.summary.periodMollieFees == null ? "—" : formatCurrency(data.summary.periodMollieFees)}
+                </p>
+              </div>
+              <div>
+                <p className="hero-stat-label">ViaEats intäkt ex moms</p>
                 <p className="hero-stat-value">
                   {data.summary.incomeAfterFees == null ? "—" : formatCurrency(data.summary.incomeAfterFees)}
                 </p>
               </div>
               <div>
-                <p className="hero-stat-label">Att överföra</p>
+                <p className="hero-stat-label">Att betala ut</p>
                 <p className="hero-stat-value">{formatCurrency(data.summary.periodPayoutExposure)}</p>
               </div>
               <div>

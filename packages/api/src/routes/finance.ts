@@ -407,9 +407,11 @@ router.get('/summary', async (req, res) => {
             ? null
             : fromOre(refundProcessingFeesOre),
           restaurantMollieFee: restaurantMollieFeeOre == null ? null : fromOre(restaurantMollieFeeOre),
-          commissionAfterMollieFees: mollieFeesOre == null
-            ? null
-            : fromOre(economic.commission - mollieFeesOre),
+          companyRevenueExVat: fromOre(economic.commission + economic.subscription),
+          // Legacyfältet behålls för klientkompatibilitet men följer nu den
+          // nya policyn: Mollie-kortavgiften faktureras restaurangen och
+          // minskar därför inte ViaEats intäkt.
+          commissionAfterMollieFees: fromOre(economic.commission + economic.subscription),
           mollieFeeStatus: frozenMetrics?.mollieFeeStatus || (rowFeesComplete && missingRefundFeeCount === 0
             ? 'available'
             : mollieReport.feeStatus === 'unavailable'
@@ -429,7 +431,7 @@ router.get('/summary', async (req, res) => {
 
     const totals = sumFinanceSummaryRows(rows);
     const nullableSum = (
-      field: 'mollieFees' | 'refundTransactionFees' | 'refundProcessingFees' | 'restaurantMollieFee' | 'commissionAfterMollieFees',
+      field: 'mollieFees' | 'refundTransactionFees' | 'refundProcessingFees' | 'restaurantMollieFee' | 'companyRevenueExVat' | 'commissionAfterMollieFees',
     ) => rows.every((row) => row[field] != null)
       ? rows.reduce((sum, row) => sum + Number(row[field]), 0)
       : null;
@@ -481,6 +483,7 @@ router.get('/summary', async (req, res) => {
       );
       return {
         commissionOre: breakdowns.reduce((sum, row) => sum + row.commissionOre, 0),
+        subscriptionOre: breakdowns.reduce((sum, row) => sum + row.subscriptionOre, 0),
         commissionVatOre: breakdowns.reduce((sum, row) => sum + row.feeVatOre, 0),
         payoutOre: breakdowns.reduce((sum, row) => sum + row.payoutOre, 0),
       };
@@ -540,6 +543,7 @@ router.get('/summary', async (req, res) => {
         refundTransactionFees: nullableSum('refundTransactionFees'),
         refundProcessingFees: nullableSum('refundProcessingFees'),
         restaurantMollieFee: nullableSum('restaurantMollieFee'),
+        companyRevenueExVat: nullableSum('companyRevenueExVat'),
         commissionAfterMollieFees: nullableSum('commissionAfterMollieFees'),
       },
       refundImpact: {
@@ -562,7 +566,7 @@ router.get('/summary', async (req, res) => {
             : fromOre(paymentFeesWithoutRefundProcessingOre),
           resultExVat: paymentFeesWithoutRefundProcessingOre == null
             ? null
-            : fromOre(noRefundScenario.commissionOre - paymentFeesWithoutRefundProcessingOre),
+            : fromOre(noRefundScenario.commissionOre + noRefundScenario.subscriptionOre),
           restaurantPayout: fromOre(noRefundScenario.payoutOre),
         },
         withOneRefund: {
@@ -577,9 +581,7 @@ router.get('/summary', async (req, res) => {
             largestRefundProcessingFeeOre == null
             ? null
             : fromOre(
-                oneRefundScenario.commissionOre -
-                paymentFeesWithoutRefundProcessingOre -
-                largestRefundProcessingFeeOre,
+                oneRefundScenario.commissionOre + oneRefundScenario.subscriptionOre,
               ),
           restaurantPayout: fromOre(oneRefundScenario.payoutOre),
         },

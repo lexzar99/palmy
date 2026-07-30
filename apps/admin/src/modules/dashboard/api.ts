@@ -16,7 +16,12 @@ export interface ControlCenterSummary {
   periodRevenue: number;
   periodOrders: number;
   periodCommission: number;
+  periodCommissionVat: number;
+  periodCommissionInclVat: number;
+  periodSubscription: number;
   periodPayoutExposure: number;
+  periodMollieFees: number | null;
+  mollieFeesChargedToRestaurants: number | null;
   periodRefundAmount: number;
   periodRefundCount: number;
   pendingRefundAmount: number;
@@ -73,7 +78,11 @@ export interface ControlCenterRestaurantSnapshot {
   reviewCount: number;
   payoutEstimate: number;
   commissionEstimate: number;
+  commissionVatEstimate: number;
+  commissionInclVatEstimate: number;
   subscriptionEstimate: number;
+  mollieFees: number | null;
+  payoutBeforeMollie: number;
   refundsLast30d: number;
   focus: string;
   updatedAt: string;

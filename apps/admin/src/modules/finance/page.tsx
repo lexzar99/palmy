@@ -169,9 +169,8 @@ function FinanceFlowChart({
     { label: "Provision inkl moms", value: commissionInclVatValue, color: "var(--brand-orange)" },
   ];
   const commissionParts = [
-    { label: "Mollie", value: Math.max(0, Number(mollieFees || 0)), color: "var(--brand-orange)" },
-    { label: "Moms", value: Math.max(0, Number(vat || 0)), color: "#f6b44b" },
-    { label: "ViaEats ex moms", value: Math.max(0, Number(result || 0)), color: "#79b8ff" },
+    { label: "ViaEats intäkt ex moms", value: Math.max(0, Number(result || 0)), color: "#79b8ff" },
+    { label: "Moms att reservera", value: Math.max(0, Number(vat || 0)), color: "#f6b44b" },
   ];
   const primaryTotal = primaryParts.reduce((sum, part) => sum + part.value, 0);
   const commissionTotal = commissionParts.reduce((sum, part) => sum + part.value, 0);
@@ -210,7 +209,7 @@ function FinanceFlowChart({
 
       <div className="border-t border-[var(--border-subtle)] pt-4">
         <p className="mb-3 text-[10.5px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">
-          Provision inkl moms {money(commissionInclVatValue)} består av
+          Så fördelas ViaEats intäkt
         </p>
       <div
         className="flex h-3 overflow-hidden rounded-full bg-[rgba(254,247,240,0.08)]"
@@ -228,7 +227,7 @@ function FinanceFlowChart({
           />
         ))}
       </div>
-      <div className="mt-3 grid grid-cols-3 gap-x-5 gap-y-3">
+      <div className="mt-3 grid grid-cols-2 gap-x-5 gap-y-3">
         {commissionParts.map((part) => (
           <div key={part.label} className="min-w-0">
             <div className="flex items-center gap-2">
@@ -239,6 +238,9 @@ function FinanceFlowChart({
           </div>
         ))}
       </div>
+      <p className="mt-3 text-[11px] text-[var(--text-muted)]">
+        Kortavgift {money(mollieFees)} debiteras restauranger och dras från deras utbetalning.
+      </p>
       </div>
     </div>
   );
@@ -283,7 +285,6 @@ function RestaurantFinanceCard({
   onOpen: () => void;
 }) {
   const active = row.orderCount > 0;
-  const resultNegative = row.commissionAfterMollieFees != null && row.commissionAfterMollieFees < 0;
   const payoutLabel = row.owed > 0 ? "Att fakturera restaurangen" : "Att betala ut";
   const payoutValue = row.owed > 0 ? row.owed : row.payout;
 
@@ -310,20 +311,22 @@ function RestaurantFinanceCard({
         <ArrowRight size={16} className="mt-1 shrink-0 text-[var(--text-muted)] transition-transform group-hover:translate-x-0.5" />
       </button>
 
-      <div className="grid grid-cols-3 border-y border-[var(--border-subtle)] bg-[var(--bg-page)]">
+      <div className="grid grid-cols-2 border-y border-[var(--border-subtle)] bg-[var(--bg-page)] sm:grid-cols-4">
         <div className="min-w-0 px-3 py-3">
           <p className="card-label">Netto</p>
           <p className="mt-1 truncate text-[14px] font-extrabold tabular-nums text-[var(--text-primary)]">{money(row.netSales)}</p>
         </div>
         <div className="min-w-0 border-x border-[var(--border-subtle)] px-3 py-3">
+          <p className="card-label">Kortavgift</p>
+          <p className="mt-1 truncate text-[14px] font-black tabular-nums text-[var(--text-primary)]">{money(row.restaurantMollieFee)}</p>
+        </div>
+        <div className="min-w-0 border-l border-[var(--border-subtle)] px-3 py-3">
+          <p className="card-label">Provision inkl moms</p>
+          <p className="mt-1 truncate text-[14px] font-black tabular-nums text-[var(--text-primary)]">{money(row.commissionInclVat)}</p>
+        </div>
+        <div className="min-w-0 border-l border-[var(--border-subtle)] px-3 py-3">
           <p className="card-label">{payoutLabel}</p>
           <p className="mt-1 truncate text-[14px] font-black tabular-nums text-[var(--text-primary)]">{money(payoutValue)}</p>
-        </div>
-        <div className="min-w-0 px-3 py-3">
-          <p className="card-label">ViaEats ex moms</p>
-          <p className={`mt-1 truncate text-[14px] font-black tabular-nums ${resultNegative ? "text-[var(--danger)]" : "text-[var(--text-primary)]"}`}>
-            {money(row.commissionAfterMollieFees)}
-          </p>
         </div>
       </div>
 
@@ -335,8 +338,8 @@ function RestaurantFinanceCard({
         <div className="grid grid-cols-2 gap-x-5 border-t border-[var(--border-subtle)] px-4 py-3 sm:grid-cols-3">
           <MoneyLine label="Brutto" value={row.grossTotal} />
           <MoneyLine label="Återbetalt" value={row.refunds} negative />
-          <MoneyLine label="Mollie totalt" value={row.mollieFees} />
-          <MoneyLine label="Debiteras restaurang" value={row.restaurantMollieFee} />
+          <MoneyLine label="Mollie totalt · restaurang" value={row.mollieFees} />
+          <MoneyLine label="Dras från utbetalning" value={row.restaurantMollieFee} negative />
           <MoneyLine label="På refundade köp" value={row.refundTransactionFees} />
           <MoneyLine label="Refundavgift" value={row.refundProcessingFees} />
           <MoneyLine label="Provision ex moms" value={row.commission} />
@@ -421,9 +424,7 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
   const cashAfterVatReserve = balanceAfterRestaurantPayout != null && totals?.feeVat != null
     ? balanceAfterRestaurantPayout - totals.feeVat
     : null;
-  const periodResultExVat = totals?.mollieFees != null
-    ? (totals?.commission || 0) + (totals?.subscription || 0) - totals.mollieFees
-    : null;
+  const periodResultExVat = totals?.companyRevenueExVat ?? null;
   const balanceOutsidePeriod = cashAfterVatReserve != null && periodResultExVat != null
     ? cashAfterVatReserve - periodResultExVat
     : null;
@@ -497,10 +498,10 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                 <section className="hero-card flex flex-col xl:col-span-8">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
-                      <p className="hero-stat-label">Nettoförsäljning · {periodLabel}</p>
-                      <p className="hero-value mt-2">{money(totals?.netSales)}</p>
+                      <p className="hero-stat-label">ViaEats intäkt ex moms · {periodLabel}</p>
+                      <p className="hero-value mt-2">{money(totals?.companyRevenueExVat)}</p>
                       <p className="mt-1.5 text-[12.5px] font-medium text-[var(--text-secondary)]">
-                        {formatNumber(totals?.orderCount || 0)} verkliga betalningar · brutto {money(totals?.grossTotal)}
+                        {formatNumber(totals?.orderCount || 0)} verkliga betalningar · netto {money(totals?.netSales)}
                       </p>
                     </div>
                     <div className="w-full max-w-full sm:w-auto sm:min-w-[280px]">{heroPeriodBar}</div>
@@ -542,7 +543,7 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                     />
                   </div>
                   <div className="mt-5 grid gap-3 border-t border-[var(--border-subtle)] pt-4">
-                    <MoneyLine label="Till restauranger" value={totals?.payout} />
+                    <MoneyLine label="Till restauranger efter avgift" value={totals?.payout} />
                     <MoneyLine label="Kvar efter utbetalning" value={balanceAfterRestaurantPayout} strong />
                     <MoneyLine label="Nästa Mollie-utbetalning" value={mollie?.nextSettlementAmount} />
                     <p className="text-[11px] text-[var(--text-muted)]">
@@ -633,11 +634,11 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                     </div>
                     <div className="rounded-[11px] bg-[var(--bg-page)] px-4 py-3">
                       <p className="card-label mb-1">Mollie och resultat</p>
-                      <MoneyLine label="Betalavgifter" value={paymentFees} />
+                      <MoneyLine label="Kortavgifter · restaurang" value={paymentFees} />
                       <MoneyLine label="Återbetalningsavgifter" value={totals?.refundProcessingFees} />
-                      <MoneyLine label="Mollie totalt" value={totals?.mollieFees} />
-                      <MoneyLine label="Debiteras restauranger" value={totals?.restaurantMollieFee} />
-                      <MoneyLine label="ViaEats ex moms" value={totals?.commissionAfterMollieFees} strong />
+                      <MoneyLine label="Mollie totalt · restaurang" value={totals?.mollieFees} />
+                      <MoneyLine label="Dras från restaurangutbetalning" value={totals?.restaurantMollieFee} negative />
+                      <MoneyLine label="ViaEats intäkt ex moms" value={totals?.companyRevenueExVat} strong />
                     </div>
                   </div>
 
@@ -667,7 +668,7 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                       <div className="grid grid-cols-3 divide-x divide-[var(--border-subtle)] border-y border-[var(--border-subtle)]">
                         <div className="min-w-0 px-3 py-3">
                           <p className="card-label">Nu</p>
-                          <p className="mt-1 truncate text-[15px] font-black">{money(totals?.commissionAfterMollieFees)}</p>
+                          <p className="mt-1 truncate text-[15px] font-black">{money(totals?.companyRevenueExVat)}</p>
                         </div>
                         <div className="min-w-0 px-3 py-3">
                           <p className="card-label">1 refund</p>
@@ -679,7 +680,7 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                         </div>
                       </div>
                       <p className="px-4 py-3 text-[11px] text-[var(--text-muted)]">
-                        Refunds har påverkat Mollie-saldot med {money(refundImpact?.balanceImpact)}. Avgifter på refundade köp är {money(totals?.refundTransactionFees)} inklusive ursprunglig betalavgift.
+                        Refunds har påverkat Mollie-saldot med {money(refundImpact?.balanceImpact)}. Avgifter på refundade köp är {money(totals?.refundTransactionFees)} och dras från restaurangens utbetalning.
                       </p>
                     </div>
                   </div>
@@ -696,7 +697,7 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                 <section className="hero-card xl:col-span-8">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
-                      <p className="hero-stat-label">Till restauranger · {periodLabel}</p>
+                      <p className="hero-stat-label">Till restauranger efter avgifter · {periodLabel}</p>
                       <p className="hero-value mt-2">{money(totals?.payout)}</p>
                       <p className="mt-1.5 text-[12.5px] font-medium text-[var(--text-secondary)]">
                         {formatNumber(activeRows.length)} aktiva restauranger · netto {money(totals?.netSales)}
@@ -743,9 +744,9 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                       <span className="text-[12px] text-[var(--text-secondary)]">Restauranger med belopp</span>
                       <span className="font-bold tabular-nums text-[var(--text-primary)]">{formatNumber(rows.filter((row) => row.payout > 0).length)}</span>
                     </div>
-                    <MoneyLine label="Mollie-avgifter" value={totals?.mollieFees} />
-                    <MoneyLine label="Debiteras restauranger" value={totals?.restaurantMollieFee} />
-                    <MoneyLine label="ViaEats ex moms" value={totals?.commissionAfterMollieFees} strong />
+                    <MoneyLine label="Kortavgifter · restaurang" value={totals?.mollieFees} />
+                    <MoneyLine label="Dras från restaurangutbetalning" value={totals?.restaurantMollieFee} negative />
+                    <MoneyLine label="ViaEats intäkt ex moms" value={totals?.companyRevenueExVat} strong />
                   </div>
                   <div className="mt-auto border-t border-[var(--border-subtle)] pt-4 text-[11.5px] text-[var(--text-secondary)]">
                     {mollie?.feeStatus === "partial"
@@ -840,7 +841,7 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                         <p className="card-label mb-1">ViaEats</p>
                         <MoneyLine label="Provision ex moms" value={totals?.commission} />
                         <MoneyLine label="Moms" value={totals?.commissionVat} />
-                        <MoneyLine label="Efter Mollie ex moms" value={totals?.commissionAfterMollieFees} strong />
+                        <MoneyLine label="ViaEats intäkt ex moms" value={totals?.companyRevenueExVat} strong />
                       </div>
                     </div>
                   </details>
