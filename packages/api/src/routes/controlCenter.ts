@@ -374,7 +374,6 @@ router.get('/control-center', async (req, res) => {
       prisma.order.findMany({
         where: {
           ...whereForRestaurants,
-          status: { in: [...PAYOUT_ORDER_STATUSES] },
           paymentStatus: { in: ['REFUNDED', 'PARTIALLY_REFUNDED'] },
           createdAt: { gte: period.start, lt: period.end },
           ...orderBusinessFilters,
