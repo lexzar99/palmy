@@ -18,6 +18,7 @@ export interface ControlCenterSummary {
   periodCommission: number;
   periodCommissionVat: number;
   periodCommissionInclVat: number;
+  periodFeeVat: number;
   periodSubscription: number;
   periodPayoutExposure: number;
   periodMollieFees: number | null;

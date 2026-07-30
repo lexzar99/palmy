@@ -239,6 +239,7 @@ router.get('/control-center', async (req, res) => {
           periodCommission: 0,
           periodCommissionVat: 0,
           periodCommissionInclVat: 0,
+          periodFeeVat: 0,
           periodSubscription: 0,
           periodPayoutExposure: 0,
           periodMollieFees: null,
@@ -589,6 +590,7 @@ router.get('/control-center', async (req, res) => {
         ? payoutBeforeMollie
         : Math.max(0, payoutBeforeMollie - mollieFees);
       const commissionVatEstimate = Math.round((econ.commissionOre * economy.vatPlatformFeePct) / 100) / 100;
+      const feeVatEstimate = econ.feeVatOre / 100;
       const pendingOrders = currentLiveOrders.filter((order) => order.status === 'PENDING').length;
       const reviewScore = reviewOrders.length
         ? reviewOrders.reduce((sum, order) => sum + (order.rating || 0), 0) / reviewOrders.length
@@ -649,6 +651,7 @@ router.get('/control-center', async (req, res) => {
         commissionEstimate,
         commissionVatEstimate,
         commissionInclVatEstimate: commissionEstimate + commissionVatEstimate,
+        feeVatEstimate,
         subscriptionEstimate,
         refundsLast30d: orders.filter((order) => (order.refundAmount || 0) > 0).length,
         setupMissing: !hasHours || !restaurant.adminEmail || !restaurant.imageUrl || !restaurant.heroImageUrl,
@@ -820,6 +823,7 @@ router.get('/control-center', async (req, res) => {
     const periodCommission = restaurantSnapshots.reduce((sum, snapshot) => sum + snapshot.commissionEstimate, 0);
     const periodCommissionVat = restaurantSnapshots.reduce((sum, snapshot) => sum + snapshot.commissionVatEstimate, 0);
     const periodCommissionInclVat = restaurantSnapshots.reduce((sum, snapshot) => sum + snapshot.commissionInclVatEstimate, 0);
+    const periodFeeVat = restaurantSnapshots.reduce((sum, snapshot) => sum + snapshot.feeVatEstimate, 0);
     const periodSubscription = restaurantSnapshots.reduce((sum, snapshot) => sum + snapshot.subscriptionEstimate, 0);
     const periodMollieFees = restaurantSnapshots.every((snapshot) => snapshot.mollieFees != null)
       ? restaurantSnapshots.reduce((sum, snapshot) => sum + Number(snapshot.mollieFees || 0), 0)
@@ -878,6 +882,7 @@ router.get('/control-center', async (req, res) => {
       periodCommission,
       periodCommissionVat,
       periodCommissionInclVat,
+      periodFeeVat,
       periodSubscription,
       periodPayoutExposure,
       periodRefundAmount: periodRefundAmountOre / 100,

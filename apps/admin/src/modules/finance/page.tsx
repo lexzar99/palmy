@@ -447,18 +447,19 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="eyebrow">Utbetalning</p>
-                      <h2 className="section-title mt-1">Pengarna efter restauranger</h2>
+                      <h2 className="section-title mt-1">Kvar exklusive moms</h2>
                     </div>
                     <span className="flex h-[38px] w-[38px] items-center justify-center rounded-[11px] bg-[var(--brand-navy-soft)] text-[var(--brand-navy-ink)]">
                       <Landmark size={17} />
                     </span>
                   </div>
-                  <p className="mt-5 text-[30px] font-black tracking-[-0.04em] text-[var(--text-primary)]">{money(balanceAfterRestaurantPayout)}</p>
-                  <p className="mt-1 text-[11.5px] text-[var(--text-muted)]">Kvar på Mollie efter planerade restaurangutbetalningar</p>
+                  <p className="mt-5 text-[30px] font-black tracking-[-0.04em] text-[var(--text-primary)]">{money(cashAfterVatReserve)}</p>
+                  <p className="mt-1 text-[11.5px] text-[var(--text-muted)]">Efter restaurangutbetalningar och reserverad moms</p>
                   <div className="mt-5 grid gap-3 border-t border-[var(--border-subtle)] pt-4">
                     <MoneyLine label="Att betala restauranger" value={totals?.payout} />
+                    <MoneyLine label="Kvar efter restauranger" value={balanceAfterRestaurantPayout} />
                     <MoneyLine label="ViaEats provision ex moms" value={totals?.commission} />
-                    <MoneyLine label="Moms att reservera" value={totals?.commissionVat} />
+                    <MoneyLine label="Moms att reservera" value={totals?.feeVat} />
                     <MoneyLine label="Restaurangavgift att fakturera" value={totals?.owed} />
                     <MoneyLine label="Fristående betalningar netto" value={mollie?.unlinkedNet} />
                     <MoneyLine label="Nästa Mollie-utbetalning" value={mollie?.nextSettlementAmount} />

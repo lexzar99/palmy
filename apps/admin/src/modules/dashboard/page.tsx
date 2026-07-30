@@ -196,6 +196,12 @@ export function DashboardPage() {
     .sort((a, b) => b.scopedRevenue - a.scopedRevenue)
     .slice(0, 5);
   const topRevenueMax = Math.max(1, ...topRestaurants.map((r) => r.scopedRevenue));
+  const balanceAfterRestaurantPayouts = data.mollie.totalBalance == null
+    ? null
+    : data.mollie.totalBalance - data.summary.periodPayoutExposure;
+  const balanceExVat = balanceAfterRestaurantPayouts == null
+    ? null
+    : balanceAfterRestaurantPayouts - data.summary.periodFeeVat;
 
   return (
     <div className="page-stack">
@@ -434,6 +440,17 @@ export function DashboardPage() {
                   {formatCurrency(data.mollie.availableBalance)} tillgängligt · {formatCurrency(data.mollie.pendingBalance)} väntande
                 </p>
               ) : null}
+            </div>
+            <div className="rounded-[10px] bg-[var(--brand-orange-soft)] px-3 py-3">
+              <div className="flex items-center justify-between gap-3 text-[13px]">
+                <span className="font-bold text-[var(--text-secondary)]">Kvar ex moms</span>
+                <span className="font-black text-[var(--text-primary)]">
+                  {balanceExVat == null ? "—" : formatCurrency(balanceExVat)}
+                </span>
+              </div>
+              <p className="mt-1 text-right text-[11px] text-[var(--text-muted)]">
+                Efter restaurangutbetalningar och {formatCurrency(data.summary.periodFeeVat)} moms
+              </p>
             </div>
             <div className="flex items-center justify-between text-[13px]">
               <span className="font-semibold text-[var(--text-secondary)]">Nästa Mollie-utbetalning</span>
