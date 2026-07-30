@@ -54,3 +54,8 @@ test("phone linking forwards the verified SMS session to the backend", () => {
   assert.match(profile, /token: phoneVerificationToken/);
   assert.doesNotMatch(profile, /lockPhone\(addPhoneFull\(\)\);/);
 });
+
+test("a backend exchange failure is not mislabeled as an incorrect SMS code", () => {
+  assert.match(phoneAuth, /codeWasVerified = true/);
+  assert.match(phoneAuth, /Numret verifierades, men inloggningen kunde inte slutföras/);
+});

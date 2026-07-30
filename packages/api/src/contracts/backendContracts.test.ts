@@ -180,6 +180,19 @@ assert.equal(customerAuthMethod({
   phone_confirmed_at: '2026-07-15T12:00:00.000Z',
   app_metadata: { provider: 'phone' },
 }), 'phone');
+const linkedPhoneIdentity = {
+  phone: '+46700000000',
+  phone_confirmed_at: '2026-07-15T12:00:00.000Z',
+  app_metadata: { provider: 'google', providers: ['google'] },
+};
+assert.equal(customerAuthMethod(linkedPhoneIdentity), null);
+assert.equal(customerAuthMethod(linkedPhoneIdentity, ['oauth']), null);
+assert.equal(customerAuthMethod(linkedPhoneIdentity, ['token_refresh']), null);
+assert.equal(customerAuthMethod(linkedPhoneIdentity, ['otp']), 'phone');
+assert.equal(customerAuthMethod({
+  ...linkedPhoneIdentity,
+  app_metadata: { provider: 'apple' },
+}, ['otp']), 'phone');
 assert.equal(hasVerifiedSupabasePhone({ phone: '+46700000000', phone_confirmed_at: null }), false);
 assert.equal(hasVerifiedSupabasePhone({ phone: '+46700000000', phone_confirmed_at: '2026-07-15T12:00:00.000Z' }), true);
 

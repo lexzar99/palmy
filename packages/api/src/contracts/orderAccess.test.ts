@@ -161,7 +161,7 @@ assert.match(ordersRouteSource, /issueOrderNativeSession\(orderId\)/);
 assert.match(ordersRouteSource, /verifyOrderNativeSession\(/);
 assert.doesNotMatch(ordersRouteSource, /supabaseAdmin\.auth\.getUser/);
 assert.match(orderAccessSource, /payload\.role === 'USER'/);
-assert.match(orderAccessSource, /customerAuthMethod\(sbUser\)/);
+assert.match(orderAccessSource, /customerAuthMethod\(sbUser,\s*authenticationMethods\)/);
 assert.match(orderAccessSource, /row\.deletedAt \|\| row\.isActive === false/);
 assert.match(
   orderAccessSource,

@@ -157,10 +157,12 @@ export default function PhoneAuth({
     e.preventDefault();
     setLoading(true);
     setError("");
+    let codeWasVerified = false;
     try {
       const supabase = createSupabaseBrowserClient();
       const { data, error: err } = await supabase.auth.verifyOtp({ phone: fullPhone(), token: code.trim(), type: "sms" });
       if (err) throw err;
+      codeWasVerified = true;
       const accessToken = data.session?.access_token;
       if (!accessToken) throw new Error("Ingen session skapades");
       // Byt Supabase phone-session mot ett långlivat platform-JWT. Utan detta
@@ -201,7 +203,13 @@ export default function PhoneAuth({
       setStep("firstName");
       setLoading(false);
     } catch (err: any) {
-      setError(err?.message?.includes("expired") ? "Koden har gått ut. Skicka en ny." : "Fel kod, försök igen.");
+      if (codeWasVerified) {
+        const backendMessage = String(err?.response?.data?.error || "").trim();
+        setError(backendMessage || "Numret verifierades, men inloggningen kunde inte slutföras. Försök igen.");
+      } else {
+        const message = String(err?.message || "").toLowerCase();
+        setError(message.includes("expired") ? "Koden har gått ut. Skicka en ny." : "Fel kod, försök igen.");
+      }
       setLoading(false);
     }
   };

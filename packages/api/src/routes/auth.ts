@@ -78,6 +78,19 @@ const isAiAgentLogin = (req: any) => {
   return AI_AGENT_LOGIN_IDS.has(loginId);
 };
 
+function supabaseSessionAuthenticationMethods(accessToken: string): string[] {
+  const payload = jwt.decode(accessToken);
+  if (!payload || typeof payload === 'string' || !Array.isArray(payload.amr)) {
+    return [];
+  }
+  return payload.amr
+    .map((entry: unknown) => {
+      if (!entry || typeof entry !== 'object') return '';
+      return String((entry as { method?: unknown }).method || '').toLowerCase();
+    })
+    .filter(Boolean);
+}
+
 // ── Rate-limit på auth-endpoints ────────────────────────────────────────────
 // snabbt flöde: 10 försök per IP per 10 min → 5 min lockout. Generöst nog
 // att fat-fingers inte låser ute riktiga användare, snålt nog att stoppa bots.
@@ -240,7 +253,13 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
       // token caches harmlessly for 30s.
       const { data: { user }, error } = await cached('auth:sb', token, 30_000, () => supabaseAdmin!.auth.getUser(token));
       if (!error && user) {
-        const authMethod = customerAuthMethod(user);
+        // getUser above validates the token before these decoded claims are
+        // trusted. `amr=otp` is required when Supabase keeps an older
+        // Google/Apple provider as primary after phone OTP.
+        const authMethod = customerAuthMethod(
+          user,
+          supabaseSessionAuthenticationMethods(token),
+        );
         if (!authMethod) {
           return res.status(401).json({
             error: 'Verifiera ditt telefonnummer med SMS-koden',

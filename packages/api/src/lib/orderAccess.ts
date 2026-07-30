@@ -267,8 +267,8 @@ function activeLocalIdentity(
 }
 
 /**
- * Resolve one customer bearer through the launch allow-list (phone OTP,
- * Google or Apple) and the authoritative local tombstone/account state.
+ * Resolve one customer bearer through the phone-OTP policy and the
+ * authoritative local tombstone/account state.
  * Every order route uses this helper; no route may trust a JWT subject alone.
  */
 export async function resolveActiveCustomerFromAuthorization(
@@ -298,7 +298,19 @@ export async function resolveActiveCustomerFromAuthorization(
     try {
       const result = await supabaseAdmin.auth.getUser(bearer);
       const sbUser = result.data.user;
-      const method = customerAuthMethod(sbUser);
+      // getUser validates the bearer before decoded AMR claims are used.
+      const decoded = jwt.decode(bearer);
+      const authenticationMethods =
+        decoded && typeof decoded !== 'string' && Array.isArray(decoded.amr)
+          ? decoded.amr
+              .map((entry: unknown) =>
+                entry && typeof entry === 'object'
+                  ? String((entry as { method?: unknown }).method || '').toLowerCase()
+                  : '',
+              )
+              .filter(Boolean)
+          : [];
+      const method = customerAuthMethod(sbUser, authenticationMethods);
       if (result.error || !sbUser?.id || !method) return null;
 
       // An id tombstone is authoritative. Never fall back to email/phone and
