@@ -391,7 +391,7 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                 </div>
 
                 <div className="mt-6 grid gap-3 lg:grid-cols-[1.35fr_1fr]">
-                  <div className="grid grid-cols-2 gap-x-7 gap-y-5 rounded-[13px] bg-[rgba(254,247,240,0.06)] px-5 py-5 sm:grid-cols-4">
+                  <div className="grid grid-cols-2 items-center gap-x-7 gap-y-5 rounded-[13px] bg-[rgba(254,247,240,0.06)] px-5 py-5 sm:grid-cols-4">
                     <div>
                       <p className="hero-stat-label">Brutto</p>
                       <p className="hero-stat-value">{money(mollie?.periodGross)}</p>
@@ -650,11 +650,11 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                     <p className="hero-stat-value">{money(totals?.netSales)}</p>
                   </div>
                   <div>
-                    <p className="hero-stat-label">Mollie totalt</p>
+                    <p className="hero-stat-label">Mollieavgifter</p>
                     <p className="hero-stat-value">{money(totals?.mollieFees)}</p>
                   </div>
                   <div>
-                    <p className="hero-stat-label">Dras av</p>
+                    <p className="hero-stat-label">Avdrag</p>
                     <p className="hero-stat-value">{negativeMoney(mollieFeesDeductedFromPayouts)}</p>
                   </div>
                   <div>
