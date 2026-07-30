@@ -39,6 +39,7 @@ export interface FinanceRow {
   mollieFees: number | null;
   refundTransactionFees: number | null;
   refundProcessingFees: number | null;
+  restaurantMollieFee: number | null;
   commissionAfterMollieFees: number | null;
   mollieFeeStatus: "available" | "partial" | "unavailable";
   subscription: number;
@@ -65,6 +66,7 @@ export interface FinanceSummary {
     mollieFees: number | null;
     refundTransactionFees: number | null;
     refundProcessingFees: number | null;
+    restaurantMollieFee: number | null;
     commissionAfterMollieFees: number | null;
     subscription: number;
     feeVat: number;
@@ -146,6 +148,13 @@ export interface FinanceSummary {
       confirmedLoss: boolean;
     }>;
   };
+  internalTestCosts: {
+    orderCount: number;
+    gross: number;
+    refunds: number;
+    mollieFees: number | null;
+    netLoss: number | null;
+  };
   rows: FinanceRow[];
 }
 
@@ -206,6 +215,9 @@ export interface PayoutSpec {
     subscription: number;
     feeVatPct: number;
     feeVat: number;
+    mollieFees: number | null;
+    paymentFees: number | null;
+    refundProcessingFees: number | null;
     restaurantGross: number;
     payout: number;
     owed: number;
@@ -221,6 +233,7 @@ export interface PayoutSpec {
     subscriptionAmount: number;
     manualAdjustmentAmount: number;
     lateRefundAdjustmentAmount: number;
+    mollieFeeAmount: number;
     payoutAmount: number;
     foodVatAmount: number | null;
     platformTipAmount: number | null;

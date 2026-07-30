@@ -111,6 +111,9 @@ export function printPayoutSpec(
     ? persisted.commissionAmount + persisted.subscriptionAmount
     : b.commission + b.subscription;
   const platformFeeTotal = platformFeeBase + platformFeeVat;
+  const mollieFeeTotal = frozen && persisted
+    ? Number(persisted.mollieFeeAmount || 0)
+    : Number((b as { mollieFees?: number | null }).mollieFees || 0);
   const modeLabel: Record<PayoutPrintMode, string> = {
     summary: "Totalt antal order och belopp",
     orders: "Varje order med ordernummer och belopp",
@@ -364,7 +367,8 @@ export function printPayoutSpec(
               line(`ViaEats provision (${persisted.commissionPctSnapshot ?? "-"}%)`, kr(persisted.commissionAmount), { minus: true }),
               line("Abonnemang", kr(persisted.subscriptionAmount), { minus: true }),
               line(`Moms på ViaEats ersättning (${persisted.feeVatPctSnapshot ?? "-"}%)`, kr(platformFeeVat), { minus: true }),
-              line("Summa avgiftsavdrag inkl. moms", kr(platformFeeTotal), { strong: true }),
+              mollieFeeTotal > 0 ? line("Mollie-kort- och refundavgifter", kr(mollieFeeTotal), { minus: true }) : "",
+              line("Summa avgiftsavdrag inkl. moms", kr(platformFeeTotal + mollieFeeTotal), { strong: true }),
               Math.abs(persisted.manualAdjustmentAmount) > 0 ? line("Manuell justering", kr(persisted.manualAdjustmentAmount), { minus: true }) : "",
               persisted.lateRefundAdjustmentAmount > 0 ? line("Automatisk recovery för sena refunds", kr(persisted.lateRefundAdjustmentAmount), { minus: true }) : "",
             ].join("")
@@ -380,7 +384,8 @@ export function printPayoutSpec(
               line(`ViaEats provision (${b.commissionPct}%)`, kr(b.commission), { minus: true }),
               line(`Abonnemang (${b.tierLabel})`, kr(b.subscription), { minus: true }),
               line(`Moms på ViaEats ersättning (${b.feeVatPct}%)`, kr(b.feeVat), { minus: true }),
-              line("Summa avgiftsavdrag inkl. moms", kr(platformFeeTotal), { strong: true }),
+              mollieFeeTotal > 0 ? line("Mollie-kort- och refundavgifter", kr(mollieFeeTotal), { minus: true }) : "",
+              line("Summa avgiftsavdrag inkl. moms", kr(platformFeeTotal + mollieFeeTotal), { strong: true }),
               Math.abs(Number(manualAdjustment) || 0) > 0 ? line("Manuell justering", kr(Number(manualAdjustment) || 0), { minus: true }) : "",
               (Number(lateRefundRecovery) || 0) > 0 ? line("Automatisk recovery för sena refunds", kr(Number(lateRefundRecovery) || 0), { minus: true }) : "",
             ].join("")}

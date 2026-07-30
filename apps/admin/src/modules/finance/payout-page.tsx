@@ -131,8 +131,8 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
     : 0;
   const frozenPlatformTip = usesFrozenSnapshot && persisted ? (persisted.platformTipAmount || 0) : 0;
   const serviceFeeTotal = usesFrozenSnapshot && persisted
-    ? persisted.commissionAmount + persisted.subscriptionAmount + frozenFeeVat
-    : (b?.commission ?? 0) + (b?.subscription ?? 0) + (b?.feeVat ?? 0);
+    ? persisted.commissionAmount + persisted.subscriptionAmount + frozenFeeVat + (persisted.mollieFeeAmount || 0)
+    : (b?.commission ?? 0) + (b?.subscription ?? 0) + (b?.feeVat ?? 0) + (b?.mollieFees ?? 0);
   const net = usesFrozenSnapshot && persisted
     ? persisted.payoutAmount
     : isOwed
@@ -263,6 +263,7 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
                 <CalcRow label={`ViaEats provision (${persisted.commissionPctSnapshot ?? "—"}%)`} value={persisted.commissionAmount} minus />
                 <CalcRow label="Abonnemang" value={persisted.subscriptionAmount} minus />
                 <CalcRow label={`Moms på ViaEats ersättning (${persisted.feeVatPctSnapshot ?? "—"}%)`} value={frozenFeeVat} minus />
+                {persisted.mollieFeeAmount > 0 ? <CalcRow label="Mollie-kort- och refundavgifter" value={persisted.mollieFeeAmount} minus /> : null}
                 <CalcRow label="Summa avgiftsavdrag inkl. moms" value={serviceFeeTotal} strong />
                 {persisted.manualAdjustmentAmount !== 0 ? <CalcRow label="Manuell justering" value={persisted.manualAdjustmentAmount} minus /> : null}
                 {persisted.lateRefundAdjustmentAmount > 0 ? <CalcRow label="Automatisk recovery för sena refunds" value={persisted.lateRefundAdjustmentAmount} minus /> : null}
@@ -280,6 +281,7 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
                 <CalcRow label={`ViaEats provision (${b.commissionPct}%)`} value={b.commission} minus />
                 <CalcRow label={`Abonnemang (${b.tierLabel})`} value={b.subscription} minus />
                 <CalcRow label={`Moms på ViaEats ersättning (${b.feeVatPct}%)`} value={b.feeVat} minus />
+                {b.mollieFees != null ? <CalcRow label="Mollie-kort- och refundavgifter" value={b.mollieFees} minus /> : null}
                 <CalcRow label="Summa avgiftsavdrag inkl. moms" value={serviceFeeTotal} strong />
                 {manualAdjustment !== 0 ? <CalcRow label="Manuell justering" value={manualAdjustment} minus /> : null}
                 {automaticRecovery > 0 ? <CalcRow label="Automatisk recovery för sena refunds" value={automaticRecovery} minus /> : null}

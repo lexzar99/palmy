@@ -336,6 +336,7 @@ function RestaurantFinanceCard({
           <MoneyLine label="Brutto" value={row.grossTotal} />
           <MoneyLine label="Återbetalt" value={row.refunds} negative />
           <MoneyLine label="Mollie totalt" value={row.mollieFees} />
+          <MoneyLine label="Debiteras restaurang" value={row.restaurantMollieFee} />
           <MoneyLine label="På refundade köp" value={row.refundTransactionFees} />
           <MoneyLine label="Refundavgift" value={row.refundProcessingFees} />
           <MoneyLine label="Provision ex moms" value={row.commission} />
@@ -589,6 +590,25 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                 </Surface>
               ) : null}
 
+              {summary.data?.internalTestCosts?.orderCount ? (
+                <Surface className="border-l-[3px] border-l-[var(--warning)] px-5 py-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="eyebrow">Separat från restauranger</p>
+                      <h2 className="section-title mt-1">Interna testkostnader</h2>
+                      <p className="mt-1 text-[11.5px] text-[var(--text-muted)]">
+                        {formatNumber(summary.data.internalTestCosts.orderCount)} testordrar är exkluderade från restaurangernas avräkning.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-3 gap-5 text-right">
+                      <div><p className="card-label">Brutto</p><p className="mt-1 font-black tabular-nums">{money(summary.data.internalTestCosts.gross)}</p></div>
+                      <div><p className="card-label">Mollie</p><p className="mt-1 font-black tabular-nums">{money(summary.data.internalTestCosts.mollieFees)}</p></div>
+                      <div><p className="card-label">Kostnad</p><p className="mt-1 font-black tabular-nums text-[var(--warning)]">{money(summary.data.internalTestCosts.netLoss)}</p></div>
+                    </div>
+                  </div>
+                </Surface>
+              ) : null}
+
               <details className="surface group/report overflow-hidden">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 hover:bg-[var(--bg-hover)]">
                   <span>
@@ -616,6 +636,7 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                       <MoneyLine label="Betalavgifter" value={paymentFees} />
                       <MoneyLine label="Återbetalningsavgifter" value={totals?.refundProcessingFees} />
                       <MoneyLine label="Mollie totalt" value={totals?.mollieFees} />
+                      <MoneyLine label="Debiteras restauranger" value={totals?.restaurantMollieFee} />
                       <MoneyLine label="ViaEats ex moms" value={totals?.commissionAfterMollieFees} strong />
                     </div>
                   </div>
@@ -723,6 +744,7 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                       <span className="font-bold tabular-nums text-[var(--text-primary)]">{formatNumber(rows.filter((row) => row.payout > 0).length)}</span>
                     </div>
                     <MoneyLine label="Mollie-avgifter" value={totals?.mollieFees} />
+                    <MoneyLine label="Debiteras restauranger" value={totals?.restaurantMollieFee} />
                     <MoneyLine label="ViaEats ex moms" value={totals?.commissionAfterMollieFees} strong />
                   </div>
                   <div className="mt-auto border-t border-[var(--border-subtle)] pt-4 text-[11.5px] text-[var(--text-secondary)]">

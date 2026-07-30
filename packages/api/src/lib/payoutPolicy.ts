@@ -36,6 +36,7 @@ export const PAYOUT_TEST_ORDER_EXCLUSIONS: Prisma.OrderWhereInput[] = [
 // payout queries need NULL payment references to remain visible/payable.
 export const PAYOUT_NON_TEST_ORDER_FILTER: Prisma.OrderWhereInput = {
   AND: [
+    { accountingExcluded: false },
     {
       OR: [
         { discountCode: null },
@@ -347,6 +348,7 @@ export type PayoutMoneySnapshot = {
   manualAdjustmentAmount: number;
   lateRefundAdjustmentAmount: number;
   payoutAmount: number;
+  mollieFeeAmount: number;
   foodVatAmount?: number | null;
   platformTipAmount?: number | null;
 };
@@ -359,6 +361,7 @@ export type PayoutEconomicSnapshot = {
   subscriptionAmount: number;
   manualAdjustmentAmount: number;
   lateRefundAdjustmentAmount: number;
+  mollieFeeAmount?: number | null | undefined;
 };
 
 export type RecoveryPlanSource = {
@@ -397,6 +400,7 @@ export function samePayoutMoneySnapshot(
     left.manualAdjustmentAmount === right.manualAdjustmentAmount &&
     left.lateRefundAdjustmentAmount === right.lateRefundAdjustmentAmount &&
     left.payoutAmount === right.payoutAmount &&
+    left.mollieFeeAmount === right.mollieFeeAmount &&
     (left.foodVatAmount == null || right.foodVatAmount == null || left.foodVatAmount === right.foodVatAmount) &&
     (left.platformTipAmount == null || right.platformTipAmount == null || left.platformTipAmount === right.platformTipAmount);
 }
@@ -408,11 +412,12 @@ export function buildPayoutMoneySnapshot(
   economy: EconomySettings,
   manualAdjustmentAmount: number,
   lateRefundAdjustmentAmount = 0,
+  mollieFeeAmount = 0,
 ): {
   breakdown: PayoutBreakdown;
   snapshot: PayoutMoneySnapshot;
   economicSnapshot: Required<Pick<PayoutEconomicSnapshot,
-    'commissionPctSnapshot' | 'feeVatPctSnapshot' | 'foodVatPctSnapshot' | 'selfDeliverySnapshot'>>;
+    'commissionPctSnapshot' | 'feeVatPctSnapshot' | 'foodVatPctSnapshot' | 'selfDeliverySnapshot' | 'mollieFeeAmount'>>;
 } {
   const breakdown = computePayout(payoutOrders(orders), restaurant, economy);
   const manualAdjustmentOre = Number.isFinite(manualAdjustmentAmount)
@@ -421,6 +426,7 @@ export function buildPayoutMoneySnapshot(
   const lateRefundAdjustmentOre = Number.isFinite(lateRefundAdjustmentAmount)
     ? Math.max(0, Math.round(lateRefundAdjustmentAmount))
     : 0;
+  const mollieFeeOre = Math.max(0, Math.round(Number(mollieFeeAmount) || 0));
   return {
     breakdown,
     snapshot: {
@@ -432,7 +438,8 @@ export function buildPayoutMoneySnapshot(
       lateRefundAdjustmentAmount: lateRefundAdjustmentOre,
       payoutAmount: breakdown.owedOre > 0
         ? 0
-        : Math.max(0, breakdown.payoutOre - manualAdjustmentOre - lateRefundAdjustmentOre),
+        : Math.max(0, breakdown.payoutOre - manualAdjustmentOre - lateRefundAdjustmentOre - mollieFeeOre),
+      mollieFeeAmount: mollieFeeOre,
       foodVatAmount: breakdown.foodVatOre,
       platformTipAmount: breakdown.platformTipOre,
     },
@@ -441,6 +448,7 @@ export function buildPayoutMoneySnapshot(
       feeVatPctSnapshot: breakdown.feeVatPct,
       foodVatPctSnapshot: breakdown.foodVatPct,
       selfDeliverySnapshot: restaurant.selfDelivery,
+      mollieFeeAmount: mollieFeeOre,
     },
   };
 }
@@ -489,7 +497,8 @@ export function recomputePayoutFromEconomicSnapshot(
     ((commissionAmount + subscriptionAmount) * Number(source.feeVatPctSnapshot)) / 100,
   );
   const grossSales = source.selfDeliverySnapshot ? grossTotal : foodBase;
-  const rawPayoutAmount = grossSales - commissionAmount - subscriptionAmount - feeVatAmount;
+  const mollieFeeAmount = nonNegativeOre(source.mollieFeeAmount);
+  const rawPayoutAmount = grossSales - commissionAmount - subscriptionAmount - feeVatAmount - mollieFeeAmount;
   const manualAdjustmentAmount = Number.isFinite(source.manualAdjustmentAmount)
     ? Math.round(source.manualAdjustmentAmount)
     : 0;
@@ -502,6 +511,7 @@ export function recomputePayoutFromEconomicSnapshot(
     subscriptionAmount,
     manualAdjustmentAmount,
     lateRefundAdjustmentAmount,
+    mollieFeeAmount,
     foodVatAmount,
     platformTipAmount: source.selfDeliverySnapshot ? 0 : tipTotal,
     // Preserve the existing fail-closed owed behaviour: a negative commercial

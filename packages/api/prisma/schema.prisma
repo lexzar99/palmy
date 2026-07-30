@@ -186,6 +186,13 @@ model Order {
   // attackerare enumerera cuid:er för PII.
   accessToken               String?
   paymentStatus             String                    @default("PENDING")
+  // Explicit accounting classification. Test payments remain in the order
+  // and Mollie ledgers, but can be excluded from partner settlement without
+  // rewriting the original payment/refund history.
+  accountingExcluded        Boolean                   @default(false)
+  accountingExclusionReason String?
+  accountingExcludedAt      DateTime?
+  accountingExcludedBy      String?
   // Durable completion marker for idempotent coupon/referral/payment effects.
   // Existing paid rows are backfilled by migration; new orders start null.
   paymentEffectsCompletedAt DateTime?
@@ -1264,6 +1271,8 @@ model RestaurantPayout {
   payoutAmount               Int                        @default(0)
   foodVatAmount              Int?
   platformTipAmount          Int?
+  // Mollie processing fees charged to the restaurant and frozen at approval.
+  mollieFeeAmount            Int                        @default(0)
   // Frozen on approval. A paid source period is recomputed with these exact
   // commercial terms when a later cumulative refund must be recovered.
   commissionPctSnapshot      Int?

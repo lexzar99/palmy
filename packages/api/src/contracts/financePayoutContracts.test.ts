@@ -60,6 +60,7 @@ const paidDelivered = {
 
 assert.deepEqual(PAYOUT_NON_TEST_ORDER_FILTER, {
   AND: [
+    { accountingExcluded: false },
     {
       OR: [
         { discountCode: null },
@@ -257,12 +258,14 @@ assert.deepEqual(settlement.snapshot, {
   foodVatAmount: 385,
   platformTipAmount: 400,
   payoutAmount: 5_000,
+  mollieFeeAmount: 0,
 });
 assert.deepEqual(settlement.economicSnapshot, {
   commissionPctSnapshot: 20,
   feeVatPctSnapshot: 25,
   foodVatPctSnapshot: 6,
   selfDeliverySnapshot: false,
+  mollieFeeAmount: 0,
 });
 
 assert.equal(canTransitionPayout(null, 'PAID'), false);
@@ -299,6 +302,7 @@ assert.deepEqual(
     foodVatAmount: 289,
     platformTipAmount: 300,
     payoutAmount: 3_725,
+    mollieFeeAmount: 0,
   },
 );
 

@@ -86,6 +86,7 @@ const payoutSnapshotValues = (payout: any) => ({
   payoutAmount: payout.payoutAmount,
   foodVatAmount: payout.foodVatAmount,
   platformTipAmount: payout.platformTipAmount,
+  mollieFeeAmount: payout.mollieFeeAmount,
   commissionPctSnapshot: payout.commissionPctSnapshot,
   feeVatPctSnapshot: payout.feeVatPctSnapshot,
   foodVatPctSnapshot: payout.foodVatPctSnapshot,
@@ -658,6 +659,7 @@ router.post('/', async (req: AuthRequest, res) => {
         economyFromSettings(settingsRow),
         requestedAdjustmentOre,
         0,
+        financeSnapshotMetrics?.mollieFees || 0,
       );
       const recoveryPlan = nextStatus === 'APPROVED'
         ? await calculateLateRefundRecoveryPlan(tx, {
@@ -674,6 +676,7 @@ router.post('/', async (req: AuthRequest, res) => {
         economyFromSettings(settingsRow),
         requestedAdjustmentOre,
         recoveryPlan.totalAmount,
+        financeSnapshotMetrics?.mollieFees || 0,
       );
       const updateData = {
         ...calculated,

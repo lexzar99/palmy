@@ -4,6 +4,7 @@ import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { computePayout, economyFromSettings, type OrderEcon } from '../lib/financeCalc';
 import {
   FINANCE_ACCOUNTING_ORDER_FILTER,
+  FINANCE_REAL_PAYMENT_STATUSES,
   isFinanceRealPaymentOrder,
   netPayoutOrder,
   PAYOUT_NON_TEST_ORDER_FILTER,
@@ -80,7 +81,7 @@ router.get('/summary', async (req, res) => {
   try {
     const { start, end } = resolvePeriod(req.query.from, req.query.to);
 
-    const [settingsRow, restaurants, orders, persisted] = await Promise.all([
+    const [settingsRow, restaurants, orders, excludedOrders, persisted] = await Promise.all([
       prisma.restaurantSettings.findUnique({ where: { id: 'settings' } }),
       prisma.restaurant.findMany({
         where: { archivedAt: null },
@@ -119,6 +120,27 @@ router.get('/summary', async (req, res) => {
           refundAmount: true,
         },
       }),
+      prisma.order.findMany({
+        where: {
+          createdAt: { gte: start, lte: end },
+          accountingExcluded: true,
+          paymentStatus: { in: [...FINANCE_REAL_PAYMENT_STATUSES] },
+        },
+        select: {
+          id: true,
+          orderNumber: true,
+          restaurantId: true,
+          molliePaymentId: true,
+          paymentProvider: true,
+          status: true,
+          paymentStatus: true,
+          total: true,
+          deliveryFee: true,
+          tipAmount: true,
+          foodVatPercent: true,
+          refundAmount: true,
+        },
+      }),
       prisma.restaurantPayout.findMany({
         where: { periodStart: start, periodEnd: end },
         select: {
@@ -132,6 +154,7 @@ router.get('/summary', async (req, res) => {
           commissionAmount: true,
           subscriptionAmount: true,
           payoutAmount: true,
+          mollieFeeAmount: true,
           foodVatAmount: true,
           platformTipAmount: true,
           commissionPctSnapshot: true,
@@ -151,6 +174,18 @@ router.get('/summary', async (req, res) => {
       from: start,
       paymentIds: reportMollieOrders.map((order) => String(order.molliePaymentId || '')),
       refundedPaymentIds: reportMollieOrders
+        .filter((order) =>
+          Math.max(0, Number(order.refundAmount || 0)) > 0 ||
+          String(order.paymentStatus || '').toUpperCase() === 'REFUNDED'
+        )
+        .map((order) => String(order.molliePaymentId || '')),
+    });
+    const excludedMollieOrders = excludedOrders
+      .filter((order) => String(order.paymentProvider || '').toLowerCase() === 'mollie');
+    const excludedMollieReport = await getMollieFinanceReport({
+      from: start,
+      paymentIds: excludedMollieOrders.map((order) => String(order.molliePaymentId || '')),
+      refundedPaymentIds: excludedMollieOrders
         .filter((order) =>
           Math.max(0, Number(order.refundAmount || 0)) > 0 ||
           String(order.paymentStatus || '').toUpperCase() === 'REFUNDED'
@@ -316,6 +351,18 @@ router.get('/summary', async (req, res) => {
           commissionPct: b.commissionPct,
           selfDelivery: r.selfDelivery,
         }, p);
+        const frozenMollieFeeSnapshot = frozenMetrics && Object.prototype.hasOwnProperty.call(frozenMetrics, 'mollieFees')
+          ? (frozenMetrics.mollieFees == null ? 0 : Math.max(0, Math.round(Number(frozenMetrics.mollieFees))))
+          : Math.max(0, Math.round(Number(p?.mollieFeeAmount || 0)));
+        const restaurantMollieFeeOre = economic.usesFrozenSnapshot
+          ? frozenMollieFeeSnapshot
+          : mollieFeesOre;
+        const livePayoutAfterMollieFeesOre = !economic.usesFrozenSnapshot && restaurantMollieFeeOre != null
+          ? economic.payout - restaurantMollieFeeOre
+          : economic.payout;
+        const liveOwedAfterMollieFeesOre = !economic.usesFrozenSnapshot && restaurantMollieFeeOre != null
+          ? Math.max(0, economic.owed + Math.max(0, -livePayoutAfterMollieFeesOre))
+          : economic.owed;
         const commissionVatPct = economic.usesFrozenSnapshot && p?.feeVatPctSnapshot != null
           ? Number(p.feeVatPctSnapshot)
           : economy.vatPlatformFeePct;
@@ -359,6 +406,7 @@ router.get('/summary', async (req, res) => {
           refundProcessingFees: refundProcessingFeesOre == null
             ? null
             : fromOre(refundProcessingFeesOre),
+          restaurantMollieFee: restaurantMollieFeeOre == null ? null : fromOre(restaurantMollieFeeOre),
           commissionAfterMollieFees: mollieFeesOre == null
             ? null
             : fromOre(economic.commission - mollieFeesOre),
@@ -371,8 +419,8 @@ router.get('/summary', async (req, res) => {
           feeVat: fromOre(economic.feeVat),
           foodVatPct: economic.foodVatPct,
           foodVat: fromOre(economic.foodVat),
-          payout: fromOre(economic.payout),
-          owed: fromOre(economic.owed),
+          payout: fromOre(Math.max(0, livePayoutAfterMollieFeesOre)),
+          owed: fromOre(liveOwedAfterMollieFeesOre),
           usesFrozenSnapshot: economic.usesFrozenSnapshot,
           status: p?.status ?? null,
           payoutReference: p?.payoutReference ?? null,
@@ -381,7 +429,7 @@ router.get('/summary', async (req, res) => {
 
     const totals = sumFinanceSummaryRows(rows);
     const nullableSum = (
-      field: 'mollieFees' | 'refundTransactionFees' | 'refundProcessingFees' | 'commissionAfterMollieFees',
+      field: 'mollieFees' | 'refundTransactionFees' | 'refundProcessingFees' | 'restaurantMollieFee' | 'commissionAfterMollieFees',
     ) => rows.every((row) => row[field] != null)
       ? rows.reduce((sum, row) => sum + Number(row[field]), 0)
       : null;
@@ -452,8 +500,24 @@ router.get('/summary', async (req, res) => {
       ? (
           mollieReport.refundFeeByPaymentId.get(String(largestRefundOrder.molliePaymentId || '')) ??
           ([...mollieReport.refundFeeByPaymentId.values()][0] ?? null)
-        )
+      )
       : 0;
+    const internalTestGrossOre = excludedOrders.reduce(
+      (sum, order) => sum + Math.max(0, Number(order.total || 0)),
+      0,
+    );
+    const internalTestRefundOre = excludedOrders.reduce(
+      (sum, order) => sum + clampedRefundOre(order),
+      0,
+    );
+    const internalTestMollieFeesOre = excludedMollieReport.feeStatus === 'unavailable'
+      ? null
+      : excludedMollieOrders.reduce(
+          (sum, order) => sum + (
+            excludedMollieReport.displayFeeByPaymentId.get(String(order.molliePaymentId || '').trim()) || 0
+          ),
+          0,
+        );
 
     res.json({
       period: { from: start.toISOString(), to: end.toISOString() },
@@ -475,6 +539,7 @@ router.get('/summary', async (req, res) => {
         mollieFees: nullableSum('mollieFees'),
         refundTransactionFees: nullableSum('refundTransactionFees'),
         refundProcessingFees: nullableSum('refundProcessingFees'),
+        restaurantMollieFee: nullableSum('restaurantMollieFee'),
         commissionAfterMollieFees: nullableSum('commissionAfterMollieFees'),
       },
       refundImpact: {
@@ -518,6 +583,15 @@ router.get('/summary', async (req, res) => {
               ),
           restaurantPayout: fromOre(oneRefundScenario.payoutOre),
         },
+      },
+      internalTestCosts: {
+        orderCount: excludedOrders.length,
+        gross: fromOre(internalTestGrossOre),
+        refunds: fromOre(internalTestRefundOre),
+        mollieFees: internalTestMollieFeesOre == null ? null : fromOre(internalTestMollieFeesOre),
+        netLoss: internalTestMollieFeesOre == null
+          ? null
+          : fromOre(Math.max(0, internalTestRefundOre + internalTestMollieFeesOre - internalTestGrossOre)),
       },
       mollie: {
         feeStatus: mollieReport.feeStatus,
@@ -619,6 +693,8 @@ router.get('/payout/:restaurantId', async (req, res) => {
           tipAmount: true,
           foodVatPercent: true,
           refundAmount: true,
+          paymentProvider: true,
+          molliePaymentId: true,
           type: true,
         },
         orderBy: { createdAt: 'asc' },
@@ -690,6 +766,34 @@ router.get('/payout/:restaurantId', async (req, res) => {
       restaurant,
       economy,
     );
+    const mollieOrders = orders.filter((order) => String(order.paymentProvider || '').toLowerCase() === 'mollie');
+    const molliePaymentIds = [...new Set(mollieOrders.map((order) => String(order.molliePaymentId || '').trim()).filter(Boolean))];
+    const detailMollieReport = await getMollieFinanceReport({
+      from: start,
+      paymentIds: molliePaymentIds,
+      refundedPaymentIds: mollieOrders
+        .filter((order) => Number(order.refundAmount || 0) > 0 || String(order.paymentStatus || '').toUpperCase() === 'REFUNDED')
+        .map((order) => String(order.molliePaymentId || '').trim())
+        .filter(Boolean),
+    });
+    const detailMollieFeesOre = detailMollieReport.feeStatus === 'unavailable'
+      ? null
+      : molliePaymentIds.reduce((sum, id) => sum + (detailMollieReport.displayFeeByPaymentId.get(id) || 0), 0);
+    const detailPaymentFeesOre = detailMollieReport.feeStatus === 'unavailable'
+      ? null
+      : molliePaymentIds.reduce((sum, id) => sum + (detailMollieReport.paymentFeeByPaymentId.get(id) || 0), 0);
+    const detailRefundProcessingFeesOre = detailMollieReport.feeStatus === 'unavailable'
+      ? null
+      : molliePaymentIds.reduce((sum, id) => sum + (detailMollieReport.refundFeeByPaymentId.get(id) || 0), 0);
+    const lockedMollieFeesOre = persisted && ['APPROVED', 'PAID'].includes(String(persisted.status || '').toUpperCase())
+      ? Math.max(0, Number(persisted.mollieFeeAmount || 0))
+      : detailMollieFeesOre;
+    const adjustedPayoutOre = lockedMollieFeesOre == null
+      ? b.payoutOre
+      : Math.max(0, b.payoutOre - lockedMollieFeesOre);
+    const adjustedOwedOre = lockedMollieFeesOre == null
+      ? b.owedOre
+      : Math.max(0, b.owedOre + Math.max(0, lockedMollieFeesOre - b.payoutOre));
     const originalGrossTotal = financialOrders.reduce(
       (sum, order) => sum + Math.max(0, Number(order.total || 0)),
       0,
@@ -726,9 +830,9 @@ router.get('/payout/:restaurantId', async (req, res) => {
         targetPeriodStart: start,
         // A PAID target cannot absorb more recovery. Capacity zero makes the
         // response expose the exact carry remainder for the next period.
-        targetCapacityAmount: persisted?.status === 'PAID' || b.owedOre > 0
+        targetCapacityAmount: persisted?.status === 'PAID' || adjustedOwedOre > 0
           ? 0
-          : Math.max(0, b.payoutOre - manualAdjustmentAmount),
+          : Math.max(0, adjustedPayoutOre - manualAdjustmentAmount),
       });
       recoveryPreview = {
         blocked: false,
@@ -794,8 +898,11 @@ router.get('/payout/:restaurantId', async (req, res) => {
         feeVatPct: b.feeVatPct,
         feeVat: fromOre(b.feeVatOre),
         restaurantGross: fromOre(b.restaurantGrossOre),
-        payout: fromOre(b.payoutOre),
-        owed: fromOre(b.owedOre),
+        payout: fromOre(adjustedPayoutOre),
+        owed: fromOre(adjustedOwedOre),
+        mollieFees: lockedMollieFeesOre == null ? null : fromOre(lockedMollieFeesOre),
+        paymentFees: detailPaymentFeesOre == null ? null : fromOre(detailPaymentFeesOre),
+        refundProcessingFees: detailRefundProcessingFeesOre == null ? null : fromOre(detailRefundProcessingFeesOre),
         foodVatPct: b.foodVatPct,
         foodVat: fromOre(b.foodVatOre),
       },
@@ -824,6 +931,7 @@ router.get('/payout/:restaurantId', async (req, res) => {
             subscriptionAmount: fromOre(persisted.subscriptionAmount),
             manualAdjustmentAmount: fromOre(persisted.manualAdjustmentAmount),
             lateRefundAdjustmentAmount: fromOre(persisted.lateRefundAdjustmentAmount),
+            mollieFeeAmount: fromOre(persisted.mollieFeeAmount),
             payoutAmount: fromOre(persisted.payoutAmount),
             foodVatAmount: persisted.foodVatAmount == null ? null : fromOre(persisted.foodVatAmount),
             platformTipAmount: persisted.platformTipAmount == null ? null : fromOre(persisted.platformTipAmount),
