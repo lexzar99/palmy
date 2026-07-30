@@ -324,6 +324,9 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
   const balanceAfterRestaurantPayout = mollie?.totalBalance != null && totals?.payout != null
     ? mollie.totalBalance - totals.payout
     : null;
+  const mollieFeesDeductedFromPayouts = totals?.restaurantMollieFee == null
+    ? null
+    : Math.max(0, totals.restaurantMollieFee - Number(totals.owed || 0));
   const cashAfterVatReserve = balanceAfterRestaurantPayout != null && totals?.feeVat != null
     ? balanceAfterRestaurantPayout - totals.feeVat
     : null;
@@ -589,7 +592,8 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                       <MoneyLine label="Kortavgifter · restaurang" value={paymentFees} />
                       <MoneyLine label="Återbetalningsavgifter" value={totals?.refundProcessingFees} />
                       <MoneyLine label="Mollie totalt · restaurang" value={totals?.mollieFees} />
-                      <MoneyLine label="Dras från restaurangutbetalning" value={totals?.restaurantMollieFee} negative />
+                      <MoneyLine label="Dras från restaurangutbetalning" value={mollieFeesDeductedFromPayouts} negative />
+                      <MoneyLine label="Faktureras restaurang" value={totals?.owed} />
                       <MoneyLine label="ViaEats intäkt ex moms" value={totals?.companyRevenueExVat} strong />
                     </div>
                   </div>
@@ -697,7 +701,8 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                       <span className="font-bold tabular-nums text-[var(--text-primary)]">{formatNumber(rows.filter((row) => row.payout > 0).length)}</span>
                     </div>
                     <MoneyLine label="Kortavgifter · restaurang" value={totals?.mollieFees} />
-                    <MoneyLine label="Dras från restaurangutbetalning" value={totals?.restaurantMollieFee} negative />
+                    <MoneyLine label="Dras från restaurangutbetalning" value={mollieFeesDeductedFromPayouts} negative />
+                    <MoneyLine label="Faktureras restaurang" value={totals?.owed} />
                     <MoneyLine label="ViaEats intäkt ex moms" value={totals?.companyRevenueExVat} strong />
                   </div>
                   <div className="mt-auto border-t border-[var(--border-subtle)] pt-4 text-[11.5px] text-[var(--text-secondary)]">
