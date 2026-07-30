@@ -149,103 +149,6 @@ function PeriodBar({
   );
 }
 
-function FinanceFlowChart({
-  payout,
-  commissionInclVat,
-  mollieFees,
-  vat,
-  result,
-}: {
-  payout: number | null | undefined;
-  commissionInclVat: number | null | undefined;
-  mollieFees: number | null | undefined;
-  vat: number | null | undefined;
-  result: number | null | undefined;
-}) {
-  const payoutValue = Math.max(0, Number(payout || 0));
-  const commissionInclVatValue = Math.max(0, Number(commissionInclVat || 0));
-  const primaryParts = [
-    { label: "Till restauranger", value: payoutValue, color: "rgba(254,247,240,0.86)" },
-    { label: "Provision inkl moms", value: commissionInclVatValue, color: "var(--brand-orange)" },
-  ];
-  const commissionParts = [
-    { label: "ViaEats intäkt ex moms", value: Math.max(0, Number(result || 0)), color: "#79b8ff" },
-    { label: "Moms att reservera", value: Math.max(0, Number(vat || 0)), color: "#f6b44b" },
-  ];
-  const primaryTotal = primaryParts.reduce((sum, part) => sum + part.value, 0);
-  const commissionTotal = commissionParts.reduce((sum, part) => sum + part.value, 0);
-
-  return (
-    <div className="grid gap-5">
-      <div>
-        <div
-          className="flex h-4 overflow-hidden rounded-full bg-[rgba(254,247,240,0.08)]"
-          role="img"
-          aria-label={primaryParts.map((part) => `${part.label} ${money(part.value)}`).join(", ")}
-        >
-          {primaryParts.map((part) => (
-            <span
-              key={part.label}
-              className="h-full border-r border-[rgba(10,35,64,0.2)] last:border-r-0"
-              style={{
-                width: primaryTotal > 0 ? `${(part.value / primaryTotal) * 100}%` : "0%",
-                background: part.color,
-              }}
-            />
-          ))}
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-4">
-          {primaryParts.map((part) => (
-            <div key={part.label} className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: part.color }} />
-                <p className="hero-stat-label truncate">{part.label}</p>
-              </div>
-              <p className="hero-stat-value truncate">{money(part.value)}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="border-t border-[var(--border-subtle)] pt-4">
-        <p className="mb-3 text-[10.5px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">
-          Så fördelas ViaEats intäkt
-        </p>
-      <div
-        className="flex h-3 overflow-hidden rounded-full bg-[rgba(254,247,240,0.08)]"
-        role="img"
-        aria-label={commissionParts.map((part) => `${part.label} ${money(part.value)}`).join(", ")}
-      >
-        {commissionParts.map((part) => (
-          <span
-            key={part.label}
-            className="h-full border-r border-[rgba(10,35,64,0.2)] last:border-r-0"
-            style={{
-              width: commissionTotal > 0 ? `${(part.value / commissionTotal) * 100}%` : "0%",
-              background: part.color,
-            }}
-          />
-        ))}
-      </div>
-      <div className="mt-3 grid grid-cols-2 gap-x-5 gap-y-3">
-        {commissionParts.map((part) => (
-          <div key={part.label} className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: part.color }} />
-              <p className="hero-stat-label truncate">{part.label}</p>
-            </div>
-            <p className="hero-stat-value truncate">{money(part.value)}</p>
-          </div>
-        ))}
-      </div>
-      <p className="mt-3 text-[11px] text-[var(--text-muted)]">
-        Kortavgift {money(mollieFees)} debiteras restauranger och dras från deras utbetalning.
-      </p>
-      </div>
-    </div>
-  );
-}
-
 function RestaurantPayoutChart({ rows }: { rows: FinanceRow[] }) {
   const visible = rows.filter((row) => row.payout > 0 || row.owed > 0).slice(0, 5);
   const maxValue = Math.max(1, ...visible.map((row) => Math.max(row.payout, row.owed)));
@@ -294,14 +197,14 @@ function RestaurantFinanceCard({
         active ? "border-t-[3px] border-t-[var(--brand-orange)]" : ""
       }`}
     >
-      <button type="button" onClick={onOpen} className="flex w-full flex-wrap items-start justify-between gap-3 px-4 py-4 text-left">
+      <button type="button" onClick={onOpen} className="flex w-full flex-wrap items-start justify-between gap-3 px-5 py-5 text-left">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-[14px] font-black text-[var(--text-primary)]">{row.name}</h2>
+            <h2 className="text-[17px] font-black tracking-[-0.02em] text-[var(--text-primary)]">{row.name}</h2>
             <Badge tone={statusTone(row.status)}>{row.status ? STATUS_LABEL[row.status] || row.status : "Ej hanterad"}</Badge>
             {!active ? <Badge tone="neutral">Ingen aktivitet</Badge> : null}
           </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11.5px] text-[var(--text-muted)]">
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-[var(--text-muted)]">
             <span>{row.city || "Ingen stad"}</span>
             <span>·</span>
             <span>{formatNumber(row.orderCount)} betalningar</span>
@@ -311,22 +214,22 @@ function RestaurantFinanceCard({
         <ArrowRight size={16} className="mt-1 shrink-0 text-[var(--text-muted)] transition-transform group-hover:translate-x-0.5" />
       </button>
 
-      <div className="grid grid-cols-2 border-y border-[var(--border-subtle)] bg-[var(--bg-page)] sm:grid-cols-4">
-        <div className="min-w-0 px-3 py-3">
+      <div className="grid grid-cols-2 border-y border-[var(--border-subtle)] bg-[var(--bg-page)]">
+        <div className="min-w-0 px-5 py-4">
           <p className="card-label">Netto</p>
-          <p className="mt-1 truncate text-[14px] font-extrabold tabular-nums text-[var(--text-primary)]">{money(row.netSales)}</p>
+          <p className="mt-1 text-[18px] font-black tabular-nums text-[var(--text-primary)]">{money(row.netSales)}</p>
         </div>
-        <div className="min-w-0 border-x border-[var(--border-subtle)] px-3 py-3">
-          <p className="card-label">Kortavgift</p>
-          <p className="mt-1 truncate text-[14px] font-black tabular-nums text-[var(--text-primary)]">{money(row.restaurantMollieFee)}</p>
+        <div className="min-w-0 border-l border-[var(--border-subtle)] px-5 py-4">
+          <p className="card-label">Mollieavgift</p>
+          <p className="mt-1 text-[18px] font-black tabular-nums text-[var(--text-primary)]">{money(row.restaurantMollieFee)}</p>
         </div>
-        <div className="min-w-0 border-l border-[var(--border-subtle)] px-3 py-3">
+        <div className="min-w-0 border-t border-[var(--border-subtle)] px-5 py-4">
           <p className="card-label">Provision inkl moms</p>
-          <p className="mt-1 truncate text-[14px] font-black tabular-nums text-[var(--text-primary)]">{money(row.commissionInclVat)}</p>
+          <p className="mt-1 text-[18px] font-black tabular-nums text-[var(--text-primary)]">{money(row.commissionInclVat)}</p>
         </div>
-        <div className="min-w-0 border-l border-[var(--border-subtle)] px-3 py-3">
+        <div className="min-w-0 border-l border-t border-[var(--border-subtle)] px-5 py-4">
           <p className="card-label">{payoutLabel}</p>
-          <p className="mt-1 truncate text-[14px] font-black tabular-nums text-[var(--text-primary)]">{money(payoutValue)}</p>
+          <p className="mt-1 text-[18px] font-black tabular-nums text-[var(--text-primary)]">{money(payoutValue)}</p>
         </div>
       </div>
 
@@ -431,6 +334,13 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
   const availablePayoutShortfall = mollie?.availableBalance != null && totals?.payout != null
     ? Math.max(0, totals.payout - mollie.availableBalance)
     : null;
+  const ledgerDifference = mollie?.periodDifference == null
+    ? null
+    : Math.abs(mollie.periodDifference);
+  const ledgerIsExact = mollie?.periodLedgerStatus === "exact";
+  const actionableDeviations = reconciliation?.deviations.filter(
+    (deviation) => deviation.severity !== "info",
+  ) || [];
 
   const heroPeriodBar = (
     <PeriodBar
@@ -498,53 +408,56 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                 <section className="hero-card flex flex-col xl:col-span-8">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
-                      <p className="hero-stat-label">ViaEats intäkt ex moms · {periodLabel}</p>
-                      <p className="hero-value mt-2">{money(totals?.companyRevenueExVat)}</p>
+                      <p className="hero-stat-label">Mollie-saldo · avstämt öre för öre</p>
+                      <p className="hero-value mt-2">{money(mollie?.totalBalance)}</p>
                       <p className="mt-1.5 text-[12.5px] font-medium text-[var(--text-secondary)]">
-                        {formatNumber(totals?.orderCount || 0)} verkliga betalningar · netto {money(totals?.netSales)}
+                        {ledgerIsExact && ledgerDifference === 0
+                          ? "Allt förklarat · 0 öre i differens"
+                          : ledgerDifference == null
+                            ? "Inväntar komplett balansrapport"
+                            : `${money(ledgerDifference)} återstår att förklara`}
                       </p>
                     </div>
                     <div className="w-full max-w-full sm:w-auto sm:min-w-[280px]">{heroPeriodBar}</div>
                   </div>
-                  <div className="flex flex-1 flex-col justify-center py-7">
-                    <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.09em] text-[var(--text-muted)]">Så fördelas pengarna</p>
-                    <FinanceFlowChart
-                      payout={totals?.payout}
-                      commissionInclVat={totals?.commissionInclVat}
-                      mollieFees={totals?.mollieFees}
-                      vat={totals?.feeVat}
-                      result={totals?.commissionAfterMollieFees}
-                    />
+                  <div className="mt-7 grid grid-cols-2 gap-x-8 gap-y-5 border-t border-[rgba(254,247,240,0.14)] pt-5 sm:grid-cols-4">
+                    <div>
+                      <p className="hero-stat-label">Mollie brutto</p>
+                      <p className="hero-stat-value">{money(mollie?.periodGross)}</p>
+                    </div>
+                    <div>
+                      <p className="hero-stat-label">Återbetalningar</p>
+                      <p className="hero-stat-value">{negativeMoney(mollie?.periodRefunds)}</p>
+                    </div>
+                    <div>
+                      <p className="hero-stat-label">Alla Mollieavgifter</p>
+                      <p className="hero-stat-value">{negativeMoney(mollie?.periodFees)}</p>
+                    </div>
+                    <div>
+                      <p className="hero-stat-label">Oförklarat</p>
+                      <p className="hero-stat-value">{money(ledgerDifference)}</p>
+                    </div>
                   </div>
                 </section>
 
                 <Surface className="flex flex-col px-5 py-5 xl:col-span-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="eyebrow">Mollie · just nu</p>
-                      <h2 className="section-title mt-1">Saldo & nästa steg</h2>
+                      <p className="eyebrow">Utbetalning</p>
+                      <h2 className="section-title mt-1">Pengarna efter restauranger</h2>
                     </div>
                     <span className="flex h-[38px] w-[38px] items-center justify-center rounded-[11px] bg-[var(--brand-navy-soft)] text-[var(--brand-navy-ink)]">
                       <Landmark size={17} />
                     </span>
                   </div>
-                  <p className="mt-5 text-[30px] font-black tracking-[-0.04em] text-[var(--text-primary)]">{money(mollie?.totalBalance)}</p>
-                  <p className="mt-1 text-[11.5px] text-[var(--text-muted)]">
-                    {money(mollie?.availableBalance)} tillgängligt · {money(mollie?.pendingBalance)} väntande
-                  </p>
-                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-[var(--bg-panel-soft)]">
-                    <div
-                      className="h-full rounded-full bg-[var(--brand-orange)]"
-                      style={{
-                        width: mollie?.totalBalance
-                          ? `${Math.min(100, Math.max(0, (Number(mollie.availableBalance || 0) / mollie.totalBalance) * 100))}%`
-                          : "0%",
-                      }}
-                    />
-                  </div>
+                  <p className="mt-5 text-[30px] font-black tracking-[-0.04em] text-[var(--text-primary)]">{money(balanceAfterRestaurantPayout)}</p>
+                  <p className="mt-1 text-[11.5px] text-[var(--text-muted)]">Kvar på Mollie efter planerade restaurangutbetalningar</p>
                   <div className="mt-5 grid gap-3 border-t border-[var(--border-subtle)] pt-4">
-                    <MoneyLine label="Till restauranger efter avgift" value={totals?.payout} />
-                    <MoneyLine label="Kvar efter utbetalning" value={balanceAfterRestaurantPayout} strong />
+                    <MoneyLine label="Att betala restauranger" value={totals?.payout} />
+                    <MoneyLine label="ViaEats provision ex moms" value={totals?.commission} />
+                    <MoneyLine label="Moms att reservera" value={totals?.commissionVat} />
+                    <MoneyLine label="Restaurangavgift att fakturera" value={totals?.owed} />
+                    <MoneyLine label="Fristående betalningar netto" value={mollie?.unlinkedNet} />
                     <MoneyLine label="Nästa Mollie-utbetalning" value={mollie?.nextSettlementAmount} />
                     <p className="text-[11px] text-[var(--text-muted)]">
                       {mollie?.nextPayoutDate ? formatDate(mollie.nextPayoutDate) : "Datum saknas"}
@@ -552,23 +465,62 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                     </p>
                   </div>
                   <div className="mt-auto flex items-center gap-2 pt-5 text-[11.5px] font-bold text-[var(--text-secondary)]">
-                    {reconciliation?.deviationCount
+                    {reconciliation?.status !== "ok"
                       ? <AlertCircle size={15} className="text-[var(--warning)]" />
                       : <CheckCircle2 size={15} className="text-[var(--success)]" />}
-                    {reconciliation?.deviationCount
-                      ? `${formatNumber(reconciliation.deviationCount)} avvikelser att kontrollera`
-                      : "Inga betalningsavvikelser"}
+                    {reconciliation?.status !== "ok"
+                      ? `${formatNumber(reconciliation?.deviationCount ?? 0)} avvikelser att kontrollera`
+                      : "Balansboken stämmer"}
                   </div>
                 </Surface>
               </div>
 
-              {reconciliation?.deviations.length ? (
+              <Surface className="px-5 py-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="eyebrow">Automatisk avstämning</p>
+                    <h2 className="section-title mt-1">Så blir varje öre Mollie-saldo</h2>
+                  </div>
+                  <Badge tone={ledgerIsExact && ledgerDifference === 0 ? "success" : "warning"}>
+                    {ledgerIsExact && ledgerDifference === 0 ? "0 öre i differens" : "Preliminär"}
+                  </Badge>
+                </div>
+                <div className="mt-5 grid gap-2 md:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] md:items-center">
+                  {[
+                    ["Mollie brutto", mollie?.periodGross],
+                    ["Återbetalningar", mollie?.periodRefunds],
+                    ["Mollieavgifter", mollie?.periodFees],
+                    ["Slutsaldo", mollie?.periodClosingBalance ?? mollie?.totalBalance],
+                  ].map(([label, value], index) => (
+                    <div key={String(label)} className="contents">
+                      {index > 0 ? (
+                        <span className="hidden text-center text-xl font-black text-[var(--text-muted)] md:block">
+                          {index === 3 ? "=" : "−"}
+                        </span>
+                      ) : null}
+                      <div className="rounded-[12px] bg-[var(--bg-page)] px-4 py-4">
+                        <p className="card-label">{label}</p>
+                        <p className="mt-1 text-[20px] font-black tabular-nums text-[var(--text-primary)]">{money(value as number | null | undefined)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {mollie?.unlinkedPaymentCount ? (
+                  <p className="mt-4 rounded-[10px] bg-[var(--brand-orange-soft)] px-4 py-3 text-[12px] font-semibold text-[var(--text-secondary)]">
+                    {formatNumber(mollie.unlinkedPaymentCount)} fristående terminalbetalningar: {money(mollie.unlinkedGross)} brutto
+                    {" · "}{money(mollie.unlinkedFees)} Mollieavgift
+                    {" · "}{money(mollie.unlinkedNet)} netto. De ligger separat och påverkar ingen restaurang.
+                  </p>
+                ) : null}
+              </Surface>
+
+              {actionableDeviations.length ? (
                 <Surface className="overflow-hidden">
                   <div className="border-b border-[var(--border-subtle)] px-4 py-3">
                     <h2 className="text-[13px] font-extrabold text-[var(--text-primary)]">Behöver kontrolleras</h2>
                   </div>
                   <div>
-                    {reconciliation.deviations.map((deviation) => (
+                    {actionableDeviations.map((deviation) => (
                       <button
                         key={deviation.id}
                         type="button"

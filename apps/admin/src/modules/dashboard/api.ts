@@ -22,6 +22,8 @@ export interface ControlCenterSummary {
   periodPayoutExposure: number;
   periodMollieFees: number | null;
   mollieFeesChargedToRestaurants: number | null;
+  mollieFeesDeductedFromPayouts: number;
+  mollieFeesToInvoice: number | null;
   periodRefundAmount: number;
   periodRefundCount: number;
   pendingRefundAmount: number;

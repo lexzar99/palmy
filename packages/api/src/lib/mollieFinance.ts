@@ -53,11 +53,15 @@ type MolliePayout = {
 type MolliePayment = {
   id?: unknown;
   amount?: MollieAmount;
+  amountRefunded?: MollieAmount;
+  createdAt?: unknown;
+  status?: unknown;
   method?: unknown;
   details?: Record<string, unknown> | null;
 };
 
 export type MollieFeeStatus = 'available' | 'partial' | 'unavailable';
+export type MollieLedgerStatus = 'exact' | 'partial' | 'unavailable';
 
 export type MollieFinanceReport = {
   feeStatus: MollieFeeStatus;
@@ -83,6 +87,22 @@ export type MollieFinanceReport = {
   latestPayoutAmountOre: number | null;
   latestPayoutStatus: string | null;
   latestPayoutCreatedAt: string | null;
+  /** Hela Mollie-kontot för vald period, inklusive betalningar utan order. */
+  periodLedgerStatus: MollieLedgerStatus;
+  periodReportUntil: string | null;
+  periodGrossOre: number | null;
+  periodRefundsOre: number | null;
+  periodFeesOre: number | null;
+  periodOtherMovementsOre: number | null;
+  periodDifferenceOre: number | null;
+  periodOpeningBalanceOre: number | null;
+  periodClosingBalanceOre: number | null;
+  unlinkedPaymentCount: number;
+  unlinkedGrossOre: number;
+  unlinkedRefundsOre: number;
+  unlinkedFeesOre: number | null;
+  unlinkedNetOre: number | null;
+  feeCalibrationOre: number | null;
 };
 
 type CachedReport = {
@@ -105,6 +125,76 @@ function exactOre(amount: MollieAmount): number | null {
   if (!Number.isSafeInteger(ore)) return null;
   return negative ? -ore : ore;
 }
+
+type MollieBalanceReportBucket = {
+  amount?: MollieAmount;
+  subtotals?: MollieBalanceReportBucket[];
+};
+
+type MollieBalanceReport = {
+  from?: unknown;
+  until?: unknown;
+  totals?: Record<string, Record<string, MollieBalanceReportBucket>>;
+};
+
+const bucketOre = (bucket: MollieBalanceReportBucket | null | undefined) =>
+  exactOre(bucket?.amount) ?? 0;
+
+function balanceReportExternalMovement(
+  report: MollieBalanceReport | null,
+  category: string,
+): number | null {
+  const row = report?.totals?.[category];
+  if (!row) return null;
+  // movedToAvailable är bara en intern flytt från pending till available och
+  // får därför aldrig räknas en gång till i periodens kassaflöde.
+  return bucketOre(row.pending) + bucketOre(row.immediatelyAvailable);
+}
+
+function balanceReportBalance(
+  report: MollieBalanceReport | null,
+  category: 'open' | 'close',
+): number | null {
+  const row = report?.totals?.[category];
+  if (!row) return null;
+  return bucketOre(row.pending) + bucketOre(row.available);
+}
+
+export function allocateExactFeeTotal(
+  feeByPaymentId: ReadonlyMap<string, number>,
+  estimatedFeeByPaymentId: ReadonlyMap<string, number>,
+  exactTotalOre: number,
+): Map<string, number> {
+  const calibrated = new Map<string, number>(feeByPaymentId);
+  const estimatedRows = [...estimatedFeeByPaymentId.entries()];
+  const bookedTotal = [...feeByPaymentId.values()].reduce((sum, fee) => sum + fee, 0);
+  const estimatedTarget = Math.max(0, Math.round(exactTotalOre) - bookedTotal);
+  if (estimatedRows.length === 0) return calibrated;
+
+  const estimatedTotal = estimatedRows.reduce((sum, [, fee]) => sum + Math.max(0, fee), 0);
+  if (estimatedTotal <= 0) {
+    estimatedRows.forEach(([paymentId], index) => {
+      calibrated.set(paymentId, index === 0 ? estimatedTarget : 0);
+    });
+    return calibrated;
+  }
+
+  const allocations = estimatedRows.map(([paymentId, fee]) => {
+    const raw = estimatedTarget * Math.max(0, fee) / estimatedTotal;
+    return { paymentId, allocated: Math.floor(raw), fraction: raw - Math.floor(raw) };
+  });
+  let remainder = estimatedTarget - allocations.reduce((sum, row) => sum + row.allocated, 0);
+  allocations
+    .sort((a, b) => b.fraction - a.fraction || a.paymentId.localeCompare(b.paymentId))
+    .forEach((row) => {
+      if (remainder <= 0) return;
+      row.allocated += 1;
+      remainder -= 1;
+    });
+  allocations.forEach((row) => calibrated.set(row.paymentId, row.allocated));
+  return calibrated;
+}
+
 function contextPaymentId(context: MollieBalanceTransaction['context']): string | null {
   if (!context || typeof context !== 'object') return null;
   const direct = String(context.paymentId || '').trim();
@@ -265,6 +355,45 @@ async function collectPayments(
   return payments;
 }
 
+async function collectPeriodPayments(
+  token: string,
+  from: Date,
+  to: Date,
+): Promise<MolliePayment[]> {
+  const payments: MolliePayment[] = [];
+  let nextUrl: string | null = `${MOLLIE_API_BASE}/payments?limit=250&sort=desc`;
+  let page = 0;
+
+  while (nextUrl && page < MAX_TRANSACTION_PAGES) {
+    const payload: {
+      _embedded?: { payments?: MolliePayment[] };
+      _links?: { next?: { href?: unknown } | null };
+    } = await mollieGet(nextUrl, token);
+    const rows = payload._embedded?.payments || [];
+    payments.push(...rows.filter((payment) => {
+      const createdAt = new Date(String(payment.createdAt || ''));
+      const status = String(payment.status || '').toLowerCase();
+      return createdAt >= from && createdAt <= to &&
+        ['paid', 'refunded', 'partially_refunded'].includes(status);
+    }));
+    page += 1;
+
+    const oldest = rows.reduce<number | null>((value, row) => {
+      const time = new Date(String(row.createdAt || '')).getTime();
+      if (!Number.isFinite(time)) return value;
+      return value == null ? time : Math.min(value, time);
+    }, null);
+    if (oldest != null && oldest < from.getTime()) break;
+
+    const href = String(payload._links?.next?.href || '').trim();
+    nextUrl = href || null;
+  }
+  if (page >= MAX_TRANSACTION_PAGES && nextUrl) {
+    throw new Error('MOLLIE_PAYMENT_PAGINATION_LIMIT');
+  }
+  return payments;
+}
+
 const stockholmDate = (date: Date) =>
   new Intl.DateTimeFormat('sv-SE', {
     timeZone: 'Europe/Stockholm',
@@ -276,6 +405,12 @@ const stockholmDate = (date: Date) =>
 function atStockholmNoon(date = new Date()): Date {
   const [year, month, day] = stockholmDate(date).split('-').map(Number);
   return new Date(Date.UTC(year, month - 1, day, 12));
+}
+
+function nextStockholmDate(date: Date): string {
+  const next = atStockholmNoon(date);
+  next.setUTCDate(next.getUTCDate() + 1);
+  return stockholmDate(next);
 }
 
 function nextWeekday(from: Date, allowedDays: readonly number[]): Date {
@@ -408,11 +543,27 @@ function unavailableReport(message: string, requestedPaymentCount: number): Moll
     latestPayoutAmountOre: null,
     latestPayoutStatus: null,
     latestPayoutCreatedAt: null,
+    periodLedgerStatus: 'unavailable',
+    periodReportUntil: null,
+    periodGrossOre: null,
+    periodRefundsOre: null,
+    periodFeesOre: null,
+    periodOtherMovementsOre: null,
+    periodDifferenceOre: null,
+    periodOpeningBalanceOre: null,
+    periodClosingBalanceOre: null,
+    unlinkedPaymentCount: 0,
+    unlinkedGrossOre: 0,
+    unlinkedRefundsOre: 0,
+    unlinkedFeesOre: null,
+    unlinkedNetOre: null,
+    feeCalibrationOre: null,
   };
 }
 
 export async function getMollieFinanceReport(input: {
   from: Date;
+  to?: Date;
   paymentIds: readonly string[];
   refundedPaymentIds?: readonly string[];
   env?: NodeJS.ProcessEnv;
@@ -432,6 +583,7 @@ export async function getMollieFinanceReport(input: {
 
   const cacheKey = [
     input.from.toISOString().slice(0, 10),
+    (input.to || new Date()).toISOString().slice(0, 10),
     paymentIds.join(','),
     [...refundedPaymentIds].sort().join(','),
   ].join(':');
@@ -441,9 +593,26 @@ export async function getMollieFinanceReport(input: {
   try {
     // Card/Klarna movements can become available after the order date.
     const earliest = new Date(input.from.getTime() - 45 * 24 * 60 * 60 * 1000);
-    const [balance, transactions, nextSettlementResult, payoutsResult] = await Promise.all([
+    const now = new Date();
+    const requestedTo = input.to && input.to < now ? input.to : now;
+    const todayKey = stockholmDate(now);
+    const requestedToKey = stockholmDate(requestedTo);
+    const reportUntil = requestedToKey < todayKey ? nextStockholmDate(requestedTo) : todayKey;
+    const reportFrom = stockholmDate(input.from);
+    const balanceReportPromise = reportUntil > reportFrom
+      ? mollieGet<MollieBalanceReport>(
+          `/balances/primary/report?from=${encodeURIComponent(reportFrom)}&until=${encodeURIComponent(reportUntil)}&grouping=transaction-categories`,
+          token,
+        ).then((value) => ({ value, error: null }))
+          .catch((error: unknown) => ({ value: null, error }))
+      : Promise.resolve({ value: null, error: null });
+    const [balance, transactions, periodPaymentsResult, balanceReportResult, nextSettlementResult, payoutsResult] = await Promise.all([
       mollieGet<MollieBalance>('/balances/primary', token),
       collectBalanceTransactions(token, earliest),
+      collectPeriodPayments(token, input.from, requestedTo)
+        .then((value) => ({ value, error: null }))
+        .catch((error: unknown) => ({ value: null, error })),
+      balanceReportPromise,
       mollieGet<MollieSettlement>('/settlements/next', token)
         .then((value) => ({ value, error: null }))
         .catch((error: unknown) => ({ value: null, error })),
@@ -523,6 +692,100 @@ export async function getMollieFinanceReport(input: {
     }
     const available = exactOre(balance.availableAmount);
     const pending = exactOre(balance.pendingAmount);
+    const totalBalance = available == null || pending == null ? null : available + pending;
+    const balanceReport = balanceReportResult.value;
+    const reportOpeningBalance = balanceReportBalance(balanceReport, 'open');
+    const reportClosingBalance = balanceReportBalance(balanceReport, 'close');
+    const reportFees = balanceReportExternalMovement(balanceReport, 'fee-prepayments');
+    const reportOtherMovements = balanceReport
+      ? ['chargebacks', 'capital', 'transfers', 'corrections', 'topups']
+          .reduce((sum, category) =>
+            sum + (balanceReportExternalMovement(balanceReport, category) || 0),
+          0)
+      : null;
+    const reportCoversRequestedPeriod = Boolean(balanceReport) && (
+      requestedToKey < todayKey ||
+      (reportClosingBalance != null && totalBalance != null && reportClosingBalance === totalBalance)
+    );
+    const periodPayments = periodPaymentsResult.value;
+    const periodGross = periodPayments
+      ? periodPayments.reduce((sum, payment) => sum + Math.max(0, exactOre(payment.amount) || 0), 0)
+      : null;
+    const periodRefunds = periodPayments
+      ? periodPayments.reduce((sum, payment) => sum + Math.max(0, exactOre(payment.amountRefunded) || 0), 0)
+      : null;
+    const requestedPaymentIds = new Set(paymentIds);
+    const unlinkedPayments = periodPayments
+      ? periodPayments.filter((payment) => {
+          const paymentId = String(payment.id || '').trim();
+          return paymentId && !requestedPaymentIds.has(paymentId);
+        })
+      : [];
+    const unlinkedPaymentIds = unlinkedPayments
+      .map((payment) => String(payment.id || '').trim())
+      .filter(Boolean);
+    const unlinkedGross = unlinkedPayments.reduce(
+      (sum, payment) => sum + Math.max(0, exactOre(payment.amount) || 0),
+      0,
+    );
+    const unlinkedRefunds = unlinkedPayments.reduce(
+      (sum, payment) => sum + Math.max(0, exactOre(payment.amountRefunded) || 0),
+      0,
+    );
+    const unlinkedFeesComplete = unlinkedPaymentIds.every((paymentId) =>
+      allFees.totalByPaymentId.has(paymentId)
+    );
+    const unlinkedFees = unlinkedFeesComplete
+      ? unlinkedPaymentIds.reduce(
+          (sum, paymentId) => sum + (allFees.totalByPaymentId.get(paymentId) || 0),
+          0,
+        )
+      : null;
+    const exactPeriodFees = reportCoversRequestedPeriod && reportFees != null
+      ? Math.abs(reportFees)
+      : null;
+    const periodDifference = (
+      reportCoversRequestedPeriod &&
+      reportOpeningBalance != null &&
+      totalBalance != null &&
+      periodGross != null &&
+      periodRefunds != null &&
+      exactPeriodFees != null &&
+      reportOtherMovements != null
+    )
+      ? totalBalance - (
+          reportOpeningBalance +
+          periodGross -
+          periodRefunds -
+          exactPeriodFees +
+          reportOtherMovements
+        )
+      : null;
+    const exactRequestedFees = exactPeriodFees != null && unlinkedFees != null
+      ? Math.max(0, exactPeriodFees - unlinkedFees)
+      : null;
+    const preCalibrationTotal = [...displayFeeByPaymentId.values()]
+      .reduce((sum, fee) => sum + fee, 0);
+    let feeCalibrationOre: number | null = null;
+    if (
+      exactRequestedFees != null &&
+      estimatedFeeByPaymentId.size > 0 &&
+      paymentIds.every((paymentId) => displayFeeByPaymentId.has(paymentId))
+    ) {
+      const calibrated = allocateExactFeeTotal(
+        feeByPaymentId,
+        estimatedFeeByPaymentId,
+        exactRequestedFees,
+      );
+      for (const [paymentId, fee] of calibrated) {
+        displayFeeByPaymentId.set(paymentId, fee);
+        if (estimatedFeeByPaymentId.has(paymentId)) {
+          estimatedFeeByPaymentId.set(paymentId, fee);
+        }
+      }
+      feeCalibrationOre = [...displayFeeByPaymentId.values()]
+        .reduce((sum, fee) => sum + fee, 0) - preCalibrationTotal;
+    }
     const transferFrequency = String(balance.transferFrequency || '').trim() || null;
     const nextSettlement = nextSettlementResult.value;
     const latestPayout = payoutsResult.value?._embedded?.payouts?.[0] || null;
@@ -548,7 +811,7 @@ export async function getMollieFinanceReport(input: {
       requestedPaymentCount: paymentIds.length,
       availableBalanceOre: available,
       pendingBalanceOre: pending,
-      totalBalanceOre: available == null || pending == null ? null : available + pending,
+      totalBalanceOre: totalBalance,
       nextPayoutDate: settlementDate || scheduledDate,
       nextPayoutDateSource: settlementDate ? 'settlement' : scheduledDate ? 'schedule' : null,
       transferFrequency,
@@ -557,6 +820,27 @@ export async function getMollieFinanceReport(input: {
       latestPayoutAmountOre: exactOre(latestPayout?.amount),
       latestPayoutStatus: String(latestPayout?.status || '').trim() || null,
       latestPayoutCreatedAt: String(latestPayout?.createdAt || '').trim() || null,
+      periodLedgerStatus: exactPeriodFees != null
+        ? 'exact'
+        : balanceReport || periodPayments
+          ? 'partial'
+          : 'unavailable',
+      periodReportUntil: String(balanceReport?.until || '').trim() || null,
+      periodGrossOre: periodGross,
+      periodRefundsOre: periodRefunds,
+      periodFeesOre: exactPeriodFees,
+      periodOtherMovementsOre: reportOtherMovements,
+      periodDifferenceOre: periodDifference,
+      periodOpeningBalanceOre: reportOpeningBalance,
+      periodClosingBalanceOre: reportClosingBalance,
+      unlinkedPaymentCount: unlinkedPayments.length,
+      unlinkedGrossOre: unlinkedGross,
+      unlinkedRefundsOre: unlinkedRefunds,
+      unlinkedFeesOre: unlinkedFees,
+      unlinkedNetOre: unlinkedFees == null
+        ? null
+        : Math.max(0, unlinkedGross - unlinkedRefunds - unlinkedFees),
+      feeCalibrationOre,
     };
     reportCache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, report });
     return report;

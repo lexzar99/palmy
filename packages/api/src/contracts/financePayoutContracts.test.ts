@@ -42,6 +42,7 @@ import {
   sumFinanceSummaryRows,
 } from '../lib/financeSummary';
 import {
+  allocateExactFeeTotal,
   estimateMollieFeeFromObservations,
   estimateNextMolliePayoutDate,
   mollieFeeBreakdownFromTransactions,
@@ -529,6 +530,26 @@ assert.equal(
     { amountOre: 20_000, feeOre: 530 },
   ]),
   599,
+);
+const calibratedFees = allocateExactFeeTotal(
+  new Map([
+    ['tr_booked_a', 7_179],
+    ['tr_booked_b', 5_553],
+  ]),
+  new Map([
+    ['tr_pending_a', 595],
+    ['tr_pending_b', 448],
+    ['tr_pending_c', 453],
+    ['tr_pending_d', 558],
+    ['tr_pending_e', 377],
+  ]),
+  15_138,
+);
+assert.equal([...calibratedFees.values()].reduce((sum, fee) => sum + fee, 0), 15_138);
+assert.equal(
+  ['tr_pending_a', 'tr_pending_b', 'tr_pending_c', 'tr_pending_d', 'tr_pending_e']
+    .reduce((sum, id) => sum + Number(calibratedFees.get(id) || 0), 0),
+  2_406,
 );
 assert.equal(
   estimateNextMolliePayoutDate('twice-a-week', new Date('2026-07-29T10:00:00.000Z')),

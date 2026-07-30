@@ -27,7 +27,9 @@ export type FinanceDeviation = {
     | 'MOLLIE_PAYMENT_ID_MISSING'
     | 'DUPLICATE_MOLLIE_PAYMENT_ID'
     | 'REFUND_AMOUNT_INVALID'
-    | 'MOLLIE_REPORTING_UNAVAILABLE';
+    | 'MOLLIE_REPORTING_UNAVAILABLE'
+    | 'UNLINKED_MOLLIE_PAYMENT'
+    | 'MOLLIE_LEDGER_DIFFERENCE';
   severity: FinanceDeviationSeverity;
   restaurantId: string | null;
   orderId: string | null;

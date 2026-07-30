@@ -328,6 +328,7 @@ router.post('/', async (req: AuthRequest, res) => {
         .filter(Boolean));
       const mollieFinance = await getMollieFinanceReport({
         from: start,
+        to: end,
         paymentIds,
         refundedPaymentIds: [...refundedIds],
       });

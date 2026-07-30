@@ -116,6 +116,21 @@ export interface FinanceSummary {
     latestPayoutAmount: number | null;
     latestPayoutStatus: string | null;
     latestPayoutCreatedAt: string | null;
+    periodLedgerStatus: "exact" | "partial" | "unavailable";
+    periodReportUntil: string | null;
+    periodGross: number | null;
+    periodRefunds: number | null;
+    periodFees: number | null;
+    periodOtherMovements: number | null;
+    periodDifference: number | null;
+    periodOpeningBalance: number | null;
+    periodClosingBalance: number | null;
+    unlinkedPaymentCount: number;
+    unlinkedGross: number;
+    unlinkedRefunds: number;
+    unlinkedFees: number | null;
+    unlinkedNet: number | null;
+    feeCalibration: number | null;
   };
   reconciliation: {
     status: "ok" | "attention" | "critical";
@@ -136,7 +151,9 @@ export interface FinanceSummary {
         | "MOLLIE_PAYMENT_ID_MISSING"
         | "DUPLICATE_MOLLIE_PAYMENT_ID"
         | "REFUND_AMOUNT_INVALID"
-        | "MOLLIE_REPORTING_UNAVAILABLE";
+        | "MOLLIE_REPORTING_UNAVAILABLE"
+        | "UNLINKED_MOLLIE_PAYMENT"
+        | "MOLLIE_LEDGER_DIFFERENCE";
       severity: "critical" | "warning" | "info";
       restaurantId: string | null;
       restaurantName: string | null;

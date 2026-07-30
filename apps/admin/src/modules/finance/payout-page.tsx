@@ -140,7 +140,10 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
       : Math.max(0, (b?.payout ?? 0) - manualAdjustment - automaticRecovery);
   const restaurantGross = usesFrozenSnapshot && persisted ? persisted.grossSales : (b?.restaurantGross ?? 0);
   const displayedOrderCount = usesFrozenSnapshot && persisted ? persisted.orderCount : (b?.orderCount ?? 0);
-  const platformDeductions = serviceFeeTotal;
+  const restaurantMollieFee = usesFrozenSnapshot && persisted
+    ? (persisted.mollieFeeAmount || 0)
+    : (b?.mollieFees || 0);
+  const viaEatsChargeInclVat = Math.max(0, serviceFeeTotal - restaurantMollieFee);
   const persistedStatus = spec.data?.persisted?.status || "NEW";
   const refundWindowClosed = spec.data?.refundWindow.closed ?? false;
   const allowedStatuses = persistedStatus === "PAID"
@@ -242,11 +245,11 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
         </Surface>
       ) : (
         <>
-          <div className="grid gap-[13px] md:grid-cols-4">
-            <Kpi label="Restaurangens brutto" value={formatCurrency(restaurantGross)} />
-            <Kpi label="Betalda order" value={displayedOrderCount} />
+          <div className="grid gap-[13px] sm:grid-cols-2 xl:grid-cols-4">
+            <Kpi label={`Netto från ${displayedOrderCount} order`} value={formatCurrency(restaurantGross)} />
+            <Kpi label="ViaEats inkl moms" value={formatCurrency(viaEatsChargeInclVat)} />
+            <Kpi label="Mollieavgift · restaurang" value={formatCurrency(restaurantMollieFee)} />
             <Kpi label={isOwed ? "Att fakturera" : "Att överföra"} value={formatCurrency(net)} />
-            <Kpi label="Mollieavgift · restaurang" value={formatCurrency(platformDeductions)} accent />
           </div>
           <p className="-mt-1 text-[11.5px] text-[var(--text-muted)]">
             Kort- och refundavgifter betalas av restaurangen och dras direkt från beloppet som ska överföras.

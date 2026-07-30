@@ -243,6 +243,8 @@ router.get('/control-center', async (req, res) => {
           periodPayoutExposure: 0,
           periodMollieFees: null,
           mollieFeesChargedToRestaurants: null,
+          mollieFeesDeductedFromPayouts: 0,
+          mollieFeesToInvoice: null,
           periodRefundAmount: 0,
           periodRefundCount: 0,
           pendingRefundAmount: 0,
@@ -516,6 +518,12 @@ router.get('/control-center', async (req, res) => {
       existing.push(order);
       periodByRestaurant.set(order.restaurantId || 'unknown', existing);
     }
+    const periodRefundsByRestaurant = new Map<string, typeof periodRefundOrders>();
+    for (const order of periodRefundOrders) {
+      const existing = periodRefundsByRestaurant.get(order.restaurantId || 'unknown') || [];
+      existing.push(order);
+      periodRefundsByRestaurant.set(order.restaurantId || 'unknown', existing);
+    }
 
     const platformSettings = await prisma.restaurantSettings.findUnique({ where: { id: 'settings' } });
     const economy = economyFromSettings(platformSettings);
@@ -532,6 +540,7 @@ router.get('/control-center', async (req, res) => {
     )];
     const mollieReport = await getMollieFinanceReport({
       from: period.start,
+      to: period.end,
       paymentIds: periodMolliePaymentIds,
       refundedPaymentIds: periodRefundOrders
         .map((order) => String(order.molliePaymentId || '').trim())
@@ -542,6 +551,7 @@ router.get('/control-center', async (req, res) => {
       const orders = groupedByRestaurant.get(restaurant.id) || [];
       const currentLiveOrders = liveByRestaurant.get(restaurant.id) || [];
       const currentPeriodOrders = periodByRestaurant.get(restaurant.id) || [];
+      const currentPeriodRefundOrders = periodRefundsByRestaurant.get(restaurant.id) || [];
       const openingHours = parseJson<Record<string, any>>(restaurant.openingHours, {});
       const hasHours = hasOpeningHours(openingHours);
       const availability = resolveRestaurantAvailability(restaurant, {
@@ -563,7 +573,7 @@ router.get('/control-center', async (req, res) => {
       const commissionEstimate = econ.commissionOre / 100;
       const subscriptionEstimate = econ.subscriptionOre / 100;
       const currentPeriodMolliePaymentIds = [...new Set(
-        currentPeriodOrders
+        [...currentPeriodOrders, ...currentPeriodRefundOrders]
           .filter((order) => String(order.paymentProvider || '').toLowerCase() === 'mollie')
           .map((order) => String(order.molliePaymentId || '').trim())
           .filter(Boolean),
@@ -815,16 +825,16 @@ router.get('/control-center', async (req, res) => {
     const periodMollieFees = restaurantSnapshots.every((snapshot) => snapshot.mollieFees != null)
       ? restaurantSnapshots.reduce((sum, snapshot) => sum + Number(snapshot.mollieFees || 0), 0)
       : null;
-    // Detta är beloppet som faktiskt redan har dragits från restaurangernas
-    // synliga utbetalningar. Det används i översikten så avgiften aldrig
-    // försvinner bara för att en enskild Mollie-rad är preliminär.
-    const mollieFeesChargedToRestaurantsOre = restaurantSnapshots.reduce(
-      (sum, snapshot) => sum + Math.max(
-        0,
-        Math.round((snapshot.payoutBeforeMollie - snapshot.payoutEstimate) * 100),
+    const mollieFeesDeductedFromPayouts = restaurantSnapshots.reduce(
+      (sum, snapshot) => sum + Math.min(
+        Number(snapshot.mollieFees || 0),
+        snapshot.payoutBeforeMollie,
       ),
       0,
     );
+    const mollieFeesToInvoice = periodMollieFees == null
+      ? null
+      : Math.max(0, periodMollieFees - mollieFeesDeductedFromPayouts);
     const periodPayoutExposure = payoutQueue.reduce((sum, row) => sum + row.payout, 0);
     const periodRefundAmountOre = periodRefundOrders.reduce(
       (sum, order) => sum + Math.min(
@@ -884,7 +894,9 @@ router.get('/control-center', async (req, res) => {
       incomeAfterFees: periodCommission + periodSubscription,
       periodMollieFees: mollieFeesOre == null ? null : mollieFeesOre / 100,
       mollieFees: mollieFeesOre == null ? null : mollieFeesOre / 100,
-      mollieFeesChargedToRestaurants: mollieFeesChargedToRestaurantsOre / 100,
+      mollieFeesChargedToRestaurants: periodMollieFees,
+      mollieFeesDeductedFromPayouts,
+      mollieFeesToInvoice,
     };
 
     res.json({

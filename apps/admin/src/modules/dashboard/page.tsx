@@ -366,9 +366,15 @@ export function DashboardPage() {
                 <p className="hero-stat-value">{formatCurrency(data.summary.periodCommissionInclVat)}</p>
               </div>
               <div>
-                <p className="hero-stat-label">Kortavgifter · avdrag från restaurang</p>
+                <p className="hero-stat-label">Mollieavgifter · restauranger</p>
                 <p className="hero-stat-value">
                   {formatCurrency(data.summary.mollieFeesChargedToRestaurants ?? 0)}
+                </p>
+                <p className="mt-1 text-[10.5px] font-semibold text-[rgba(254,247,240,0.58)]">
+                  {formatCurrency(data.summary.mollieFeesDeductedFromPayouts)} avdrag
+                  {Number(data.summary.mollieFeesToInvoice || 0) > 0
+                    ? ` · ${formatCurrency(data.summary.mollieFeesToInvoice)} faktureras`
+                    : ""}
                 </p>
               </div>
               <div>

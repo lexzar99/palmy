@@ -172,6 +172,7 @@ router.get('/summary', async (req, res) => {
       .filter((order) => String(order.paymentProvider || '').toLowerCase() === 'mollie');
     const mollieReport = await getMollieFinanceReport({
       from: start,
+      to: end,
       paymentIds: reportMollieOrders.map((order) => String(order.molliePaymentId || '')),
       refundedPaymentIds: reportMollieOrders
         .filter((order) =>
@@ -184,6 +185,7 @@ router.get('/summary', async (req, res) => {
       .filter((order) => String(order.paymentProvider || '').toLowerCase() === 'mollie');
     const excludedMollieReport = await getMollieFinanceReport({
       from: start,
+      to: end,
       paymentIds: excludedMollieOrders.map((order) => String(order.molliePaymentId || '')),
       refundedPaymentIds: excludedMollieOrders
         .filter((order) =>
@@ -311,22 +313,12 @@ router.get('/summary', async (req, res) => {
         const liveRefundTransactionFeesOre = !refundFeesDisplayable
           ? null
           : [...refundedPaymentIds].reduce(
-              (sum, id) => sum +
-                (mollieReport.displayFeeByPaymentId.get(id) || 0) +
-                (mollieReport.refundFeeByPaymentId.has(id)
-                  ? 0
-                  : provisionalRefundFeeOre || 0),
+              (sum, id) => sum + (mollieReport.displayFeeByPaymentId.get(id) || 0),
               0,
-            );
-        const liveMollieFeesWithRefundEstimateOre = liveMollieFeesOre == null ||
-          liveRefundProcessingFeesOre == null
-          ? liveMollieFeesOre
-          : liveMollieFeesOre + (
-              missingRefundFeeCount * (provisionalRefundFeeOre || 0)
             );
         const mollieFeesOre = frozenMetrics && Object.prototype.hasOwnProperty.call(frozenMetrics, 'mollieFees')
           ? (frozenMetrics.mollieFees == null ? null : Math.round(Number(frozenMetrics.mollieFees)))
-          : liveMollieFeesWithRefundEstimateOre;
+          : liveMollieFeesOre;
         const refundTransactionFeesOre = frozenMetrics && Object.prototype.hasOwnProperty.call(frozenMetrics, 'refundTransactionFees')
           ? (frozenMetrics.refundTransactionFees == null
               ? null
@@ -446,6 +438,40 @@ router.get('/summary', async (req, res) => {
           ? restaurantNameById.get(deviation.restaurantId) || 'Okänd restaurang'
           : null,
       }));
+    if (mollieReport.unlinkedPaymentCount > 0) {
+      deviations.push({
+        id: 'unlinked-mollie-payments',
+        code: 'UNLINKED_MOLLIE_PAYMENT',
+        severity: 'info',
+        restaurantId: null,
+        restaurantName: null,
+        orderId: null,
+        orderNumber: null,
+        paymentId: null,
+        title: `${mollieReport.unlinkedPaymentCount} Mollie-betalningar saknar restaurangorder`,
+        detail: `${fromOre(mollieReport.unlinkedGrossOre).toFixed(2)} kr är fristående betalningar och hålls utanför restaurangernas ekonomi.`,
+        amountOre: mollieReport.unlinkedGrossOre,
+        affectedOrderCount: mollieReport.unlinkedPaymentCount,
+        confirmedLoss: false,
+      });
+    }
+    if (mollieReport.periodDifferenceOre != null && mollieReport.periodDifferenceOre !== 0) {
+      deviations.push({
+        id: 'mollie-ledger-difference',
+        code: 'MOLLIE_LEDGER_DIFFERENCE',
+        severity: Math.abs(mollieReport.periodDifferenceOre) >= 100 ? 'critical' : 'warning',
+        restaurantId: null,
+        restaurantName: null,
+        orderId: null,
+        orderNumber: null,
+        paymentId: null,
+        title: 'Mollies balansbok har en oförklarad differens',
+        detail: `${Math.abs(mollieReport.periodDifferenceOre)} öre återstår efter öppningssaldo, betalningar, refunds, avgifter och övriga balansrörelser.`,
+        amountOre: Math.abs(mollieReport.periodDifferenceOre),
+        affectedOrderCount: 0,
+        confirmedLoss: false,
+      });
+    }
     const deviationSeverityRank = { critical: 3, warning: 2, info: 1 } as const;
     deviations.sort((a, b) =>
       deviationSeverityRank[b.severity] - deviationSeverityRank[a.severity] ||
@@ -622,11 +648,40 @@ router.get('/summary', async (req, res) => {
           : fromOre(mollieReport.latestPayoutAmountOre),
         latestPayoutStatus: mollieReport.latestPayoutStatus,
         latestPayoutCreatedAt: mollieReport.latestPayoutCreatedAt,
+        periodLedgerStatus: mollieReport.periodLedgerStatus,
+        periodReportUntil: mollieReport.periodReportUntil,
+        periodGross: mollieReport.periodGrossOre == null ? null : fromOre(mollieReport.periodGrossOre),
+        periodRefunds: mollieReport.periodRefundsOre == null ? null : fromOre(mollieReport.periodRefundsOre),
+        periodFees: mollieReport.periodFeesOre == null ? null : fromOre(mollieReport.periodFeesOre),
+        periodOtherMovements: mollieReport.periodOtherMovementsOre == null
+          ? null
+          : fromOre(mollieReport.periodOtherMovementsOre),
+        periodDifference: mollieReport.periodDifferenceOre == null
+          ? null
+          : fromOre(mollieReport.periodDifferenceOre),
+        periodOpeningBalance: mollieReport.periodOpeningBalanceOre == null
+          ? null
+          : fromOre(mollieReport.periodOpeningBalanceOre),
+        periodClosingBalance: mollieReport.periodClosingBalanceOre == null
+          ? null
+          : fromOre(mollieReport.periodClosingBalanceOre),
+        unlinkedPaymentCount: mollieReport.unlinkedPaymentCount,
+        unlinkedGross: fromOre(mollieReport.unlinkedGrossOre),
+        unlinkedRefunds: fromOre(mollieReport.unlinkedRefundsOre),
+        unlinkedFees: mollieReport.unlinkedFeesOre == null
+          ? null
+          : fromOre(mollieReport.unlinkedFeesOre),
+        unlinkedNet: mollieReport.unlinkedNetOre == null
+          ? null
+          : fromOre(mollieReport.unlinkedNetOre),
+        feeCalibration: mollieReport.feeCalibrationOre == null
+          ? null
+          : fromOre(mollieReport.feeCalibrationOre),
       },
       reconciliation: {
         status: deviations.some((deviation) => deviation.severity === 'critical')
           ? 'critical'
-          : deviations.length > 0
+          : deviations.some((deviation) => deviation.severity === 'warning')
             ? 'attention'
             : 'ok',
         checkedOrderCount: orders.length,
@@ -772,6 +827,7 @@ router.get('/payout/:restaurantId', async (req, res) => {
     const molliePaymentIds = [...new Set(mollieOrders.map((order) => String(order.molliePaymentId || '').trim()).filter(Boolean))];
     const detailMollieReport = await getMollieFinanceReport({
       from: start,
+      to: end,
       paymentIds: molliePaymentIds,
       refundedPaymentIds: mollieOrders
         .filter((order) => Number(order.refundAmount || 0) > 0 || String(order.paymentStatus || '').toUpperCase() === 'REFUNDED')
