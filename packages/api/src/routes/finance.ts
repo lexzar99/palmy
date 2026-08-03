@@ -942,7 +942,9 @@ router.get('/payout/:restaurantId', async (req, res) => {
     const detailPaymentFeesOre = detailMollieFeesOre == null || detailRefundProcessingFeesOre == null
       ? null
       : Math.max(0, detailMollieFeesOre - detailRefundProcessingFeesOre);
-    const lockedMollieFeesOre = persisted && ['APPROVED', 'PAID'].includes(String(persisted.status || '').toUpperCase())
+    // Approved reports remain editable through the explicit override flow, so
+    // show the current calculation for preview. Only a paid report is final.
+    const lockedMollieFeesOre = persisted && String(persisted.status || '').toUpperCase() === 'PAID'
       ? Math.max(0, Number(persisted.mollieFeeAmount || 0))
       : detailMollieFeesOre;
     const adjustedPayoutOre = lockedMollieFeesOre == null
@@ -1086,7 +1088,7 @@ router.get('/payout/:restaurantId', async (req, res) => {
         payout: fromOre(adjustedPayoutOre),
         owed: fromOre(adjustedOwedOre),
         mollieFees: lockedMollieFeesOre == null ? null : fromOre(lockedMollieFeesOre),
-        mollieFeeStatus: persisted && ['APPROVED', 'PAID'].includes(String(persisted.status || '').toUpperCase())
+        mollieFeeStatus: persisted && String(persisted.status || '').toUpperCase() === 'PAID'
           ? 'available'
           : detailMollieReport.feeStatus,
         paymentFees: detailPaymentFeesOre == null ? null : fromOre(detailPaymentFeesOre),

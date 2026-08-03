@@ -92,7 +92,6 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
   const queryClient = useQueryClient();
   const [manualAdjustmentAmount, setManualAdjustmentAmount] = useState("");
   const [adjustmentDirection, setAdjustmentDirection] = useState<AdjustmentDirection>("deduction");
-  const [status, setStatus] = useState("DRAFT");
   const [notes, setNotes] = useState("");
   const [payoutReference, setPayoutReference] = useState("");
   const [selfDelivery, setSelfDelivery] = useState(false);
@@ -116,7 +115,6 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
     const persistedAdjustment = Number(p?.manualAdjustmentAmount || 0);
     setManualAdjustmentAmount(persistedAdjustment === 0 ? "" : String(Math.abs(persistedAdjustment)));
     setAdjustmentDirection(persistedAdjustment < 0 ? "addition" : "deduction");
-    setStatus(p?.status || "DRAFT");
     setNotes(p?.notes || "");
     setPayoutReference(p?.payoutReference || "");
     if (spec.data?.restaurant) {
@@ -135,7 +133,7 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
   const manualAdjustmentIsValid = manualAdjustmentAmount.trim() === "" || Number.isFinite(parsedAdjustmentAmount);
   const adjustmentMagnitude = manualAdjustmentIsValid ? Math.abs(parsedAdjustmentAmount || 0) : 0;
   const manualAdjustment = adjustmentDirection === "deduction" ? adjustmentMagnitude : -adjustmentMagnitude;
-  const usesFrozenSnapshot = persisted?.status === "APPROVED" || persisted?.status === "PAID";
+  const usesFrozenSnapshot = persisted?.status === "PAID";
   const automaticRecovery = spec.data?.persisted?.status === "APPROVED" || spec.data?.persisted?.status === "PAID"
     ? (spec.data.persisted.lateRefundAdjustmentAmount || 0)
     : (spec.data?.lateRefundRecovery.reserved || 0);
@@ -169,13 +167,6 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
   const salesExVat = Math.max(0, restaurantGross - foodVat);
   const persistedStatus = spec.data?.persisted?.status || "NEW";
   const refundWindowClosed = spec.data?.refundWindow.closed ?? false;
-  const allowedStatuses = persistedStatus === "PAID"
-    ? ["PAID"]
-    : persistedStatus === "APPROVED"
-      ? ["APPROVED", "HOLD", "PAID"]
-      : persistedStatus === "HOLD"
-        ? ["HOLD", "DRAFT", "APPROVED"]
-        : ["DRAFT", "HOLD", "APPROVED"];
   const payoutStatusLabel: Record<string, string> = {
     DRAFT: "Upplåst utkast",
     APPROVED: "Låst rapport",
@@ -184,14 +175,14 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
   };
 
   const savePayout = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (saveMode: "DRAFT" | "OVERRIDE" | "PAID") => {
       if (!spec.data) return;
       await upsertPayout({
         restaurantId,
         periodStart: spec.data.period.from,
         periodEnd: spec.data.period.to,
         manualAdjustmentAmount: manualAdjustment,
-        status,
+        saveMode,
         notes: notes || null,
         payoutReference: payoutReference || null,
       });
@@ -421,13 +412,11 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
           <Surface className="px-6 py-6">
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Status">
-                <Select value={status} onChange={(e) => setStatus(e.target.value)}>
-                  {allowedStatuses.map((value) => (
-                    <option key={value} value={value} disabled={value === "APPROVED" && !refundWindowClosed}>
-                      {payoutStatusLabel[value]}
-                    </option>
-                  ))}
-                </Select>
+                <div className="flex min-h-11 items-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-page)] px-3">
+                  <Badge tone={persistedStatus === "PAID" ? "success" : persistedStatus === "APPROVED" ? "info" : "neutral"}>
+                    {payoutStatusLabel[persistedStatus] || "Inte sparad"}
+                  </Badge>
+                </div>
               </Field>
               <Field label="Betalningsreferens"><Input value={payoutReference} onChange={(e) => setPayoutReference(e.target.value)} /></Field>
             </div>
@@ -439,7 +428,7 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
               ) : (
                 <p>Refundfönstret är stängt och rapporten kan låsas.</p>
               )}
-              <p>När rapporten låses sparas en permanent revision. Vid upplåsning ligger originalet kvar oförändrat i historiken.</p>
+              <p>Spara utkast för ett redigerbart underlag. Spara och ersätt original skriver den nya månadsberäkningen som aktiv version, medan den tidigare versionen ligger kvar i revisionshistoriken.</p>
               <p>Efter låsning måste en annan superadmin logga in, ange betalningsreferens och markera utbetalningen som betald.</p>
               {spec.data.lateRefundRecovery.blocked ? (
                 <p className="font-semibold text-[var(--danger-text)]">{spec.data.lateRefundRecovery.error}</p>
@@ -487,6 +476,7 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
                         <td className="font-bold">
                           <span className="mr-2">Version {revision.revision}</span>
                           {revision.original ? <Badge tone="info">Original</Badge> : null}
+                          {revision.reason === "OVERRIDE" ? <Badge tone="warning">Ersatte original</Badge> : null}
                         </td>
                         <td>
                           {formatDateTime(revision.createdAt)}
@@ -652,23 +642,44 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
               Avbryt
             </Link>
             <Button
-              variant="primary"
               disabled={
-                (status === "APPROVED" && (!refundWindowClosed || spec.data.lateRefundRecovery.blocked)) ||
-                (status === "PAID" && !payoutReference.trim()) ||
+                persistedStatus === "PAID" ||
+                savePayout.isPending ||
                 !manualAdjustmentIsValid ||
                 (manualAdjustment !== 0 && !notes.trim())
               }
-              onClick={() => savePayout.mutate()}
+              onClick={() => savePayout.mutate("DRAFT")}
             >
-              {savePayout.isPending
+              {savePayout.isPending && savePayout.variables === "DRAFT"
                 ? <Loader2 size={16} className="animate-spin" />
-                : status === "APPROVED"
-                  ? "Lås rapport"
-                  : status === "HOLD"
-                    ? "Lås upp för ändring"
-                    : "Spara utbetalning"}
+                : "Spara utkast"}
             </Button>
+            <Button
+              variant="primary"
+              disabled={
+                persistedStatus === "PAID" ||
+                savePayout.isPending ||
+                !refundWindowClosed ||
+                spec.data.lateRefundRecovery.blocked ||
+                !manualAdjustmentIsValid ||
+                (manualAdjustment !== 0 && !notes.trim())
+              }
+              onClick={() => savePayout.mutate("OVERRIDE")}
+            >
+              {savePayout.isPending && savePayout.variables === "OVERRIDE"
+                ? <Loader2 size={16} className="animate-spin" />
+                : "Spara och ersätt original"}
+            </Button>
+            {persistedStatus === "APPROVED" ? (
+              <Button
+                disabled={savePayout.isPending || !payoutReference.trim()}
+                onClick={() => savePayout.mutate("PAID")}
+              >
+                {savePayout.isPending && savePayout.variables === "PAID"
+                  ? <Loader2 size={16} className="animate-spin" />
+                  : "Markera som betald"}
+              </Button>
+            ) : null}
           </div>
         </>
       )}

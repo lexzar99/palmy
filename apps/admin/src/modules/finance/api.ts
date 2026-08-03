@@ -334,7 +334,8 @@ export const upsertPayout = (payload: {
   periodStart: string;
   periodEnd: string;
   manualAdjustmentAmount: number;
-  status: string;
+  status?: string;
+  saveMode?: "DRAFT" | "OVERRIDE" | "PAID";
   notes?: string | null;
   payoutReference?: string | null;
 }) => apiPost<PayoutRecord>("/admin/payouts", payload);

@@ -102,7 +102,7 @@ async function recordPayoutSnapshot(
   tx: any,
   payout: any,
   req: AuthRequest,
-  reason: 'LOCK' | 'LEGACY_UNLOCK_CAPTURE',
+  reason: 'LOCK' | 'OVERRIDE' | 'LEGACY_UNLOCK_CAPTURE',
   financeMetrics?: {
     grossTotal: number;
     refunds: number;
@@ -214,6 +214,7 @@ router.post('/', async (req: AuthRequest, res) => {
       status,
       notes,
       payoutReference,
+      saveMode: rawSaveMode,
     } = req.body;
 
     if (!restaurantId || !periodStart || !periodEnd) {
@@ -229,7 +230,19 @@ router.post('/', async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Periodens slut måste vara efter start' });
     }
 
-    const nextStatus = String(status || 'DRAFT').toUpperCase();
+    const saveMode = String(rawSaveMode || '').trim().toUpperCase();
+    if (saveMode && !['DRAFT', 'OVERRIDE', 'PAID'].includes(saveMode)) {
+      return res.status(400).json({ error: 'Ogiltigt sparläge' });
+    }
+    const saveAsDraft = saveMode === 'DRAFT';
+    const overrideOriginal = saveMode === 'OVERRIDE';
+    const nextStatus = saveAsDraft
+      ? 'DRAFT'
+      : overrideOriginal
+        ? 'APPROVED'
+        : saveMode === 'PAID'
+          ? 'PAID'
+          : String(status || 'DRAFT').toUpperCase();
     if (!['DRAFT', 'APPROVED', 'PAID', 'HOLD'].includes(nextStatus)) {
       return res.status(400).json({ error: 'Ogiltig utbetalningsstatus' });
     }
@@ -337,15 +350,14 @@ router.post('/', async (req: AuthRequest, res) => {
       });
       const complete = paymentIds.length === 0 || (
         mollieFinance.feeStatus !== 'unavailable' &&
-        paymentIds.every((id) => mollieFinance.feeByPaymentId.has(id)) &&
-        [...refundedIds].every((id) => mollieFinance.refundFeeByPaymentId.has(id))
+        paymentIds.every((id) => mollieFinance.feeByPaymentId.has(id))
       );
       if (!complete) {
         throw new PayoutRequestError(
           409,
           'PAYOUT_MOLLIE_FEES_NOT_RECONCILED',
           mollieFinance.feeError ||
-            'Alla betal- och återbetalningsavgifter måste vara bokförda hos Mollie innan månadsrapporten kan låsas.',
+            'Alla faktiska transaktionsavgifter måste vara bokförda hos Mollie innan månadsrapporten kan sparas som original.',
         );
       }
       financeSnapshotMetrics = {
@@ -387,7 +399,11 @@ router.post('/', async (req: AuthRequest, res) => {
       });
 
       const currentStatus = String(existing?.status || 'NEW').toUpperCase();
-      if (!canTransitionPayout(currentStatus, nextStatus)) {
+      const explicitEditTransition = currentStatus !== 'PAID' && (
+        (saveAsDraft && currentStatus === 'APPROVED') ||
+        (overrideOriginal && ['NEW', 'DRAFT', 'HOLD', 'APPROVED'].includes(currentStatus))
+      );
+      if (!canTransitionPayout(currentStatus, nextStatus) && !explicitEditTransition) {
         throw new PayoutRequestError(
           409,
           'INVALID_PAYOUT_TRANSITION',
@@ -397,7 +413,11 @@ router.post('/', async (req: AuthRequest, res) => {
 
       // Older approved rows predate explicit revision snapshots. Capture their
       // immutable state before an unlock can replace the working copy.
-      if (existing && currentStatus === 'APPROVED' && nextStatus === 'HOLD') {
+      if (
+        existing &&
+        currentStatus === 'APPROVED' &&
+        (nextStatus === 'HOLD' || saveAsDraft || overrideOriginal)
+      ) {
         const snapshotCount = await tx.auditLog.count({
           where: {
             action: 'PAYOUT_REPORT_SNAPSHOT',
@@ -648,7 +668,7 @@ router.post('/', async (req: AuthRequest, res) => {
 
       // APPROVED is an immutable money snapshot. A repeated approval request is
       // idempotent; changes require HOLD -> DRAFT -> APPROVED.
-      if (currentStatus === 'APPROVED' && nextStatus === 'APPROVED') {
+      if (currentStatus === 'APPROVED' && nextStatus === 'APPROVED' && !overrideOriginal) {
         return tx.restaurantPayout.findUniqueOrThrow({
           where: { id: existing!.id },
           include: {
@@ -715,7 +735,7 @@ router.post('/', async (req: AuthRequest, res) => {
       });
       if (nextStatus === 'APPROVED') {
         await syncRecoveryReservations(tx, saved.id, recoveryPlan.allocations);
-        await recordPayoutSnapshot(tx, saved, req, 'LOCK', financeSnapshotMetrics);
+        await recordPayoutSnapshot(tx, saved, req, overrideOriginal ? 'OVERRIDE' : 'LOCK', financeSnapshotMetrics);
       } else if (existing) {
         await releaseRecoveryReservations(tx, saved.id, `PAYOUT_${nextStatus}`);
       }
@@ -734,6 +754,7 @@ router.post('/', async (req: AuthRequest, res) => {
         manualAdjustmentAmountOre: payout.manualAdjustmentAmount,
         lateRefundAdjustmentAmountOre: payout.lateRefundAdjustmentAmount,
         serverCalculated: true,
+        saveMode: saveMode || 'LEGACY',
       },
     });
 
