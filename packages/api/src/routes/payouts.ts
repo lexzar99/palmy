@@ -308,6 +308,7 @@ router.post('/', async (req: AuthRequest, res) => {
         },
         select: {
           id: true,
+          orderNumber: true,
           total: true,
           refundAmount: true,
           paymentStatus: true,
@@ -320,8 +321,26 @@ router.post('/', async (req: AuthRequest, res) => {
       financeSnapshotFingerprint = financeSnapshotOrderFingerprint(financialOrders);
       const mollieOrders = financialOrders
         .filter((order) => String(order.paymentProvider || '').toLowerCase() === 'mollie');
-      const rawPaymentIds = mollieOrders
-        .map((order) => String(order.molliePaymentId || '').trim());
+      const storedPaymentIds = mollieOrders
+        .map((order) => String(order.molliePaymentId || '').trim())
+        .filter(Boolean);
+      const mollieFinance = await getMollieFinanceReport({
+        from: start,
+        to: end,
+        paymentIds: [...new Set(storedPaymentIds)],
+        orderReferences: mollieOrders.map((order) => ({
+          id: String(order.id || ''),
+          orderNumber: String(order.orderNumber || ''),
+          refunded: Number(order.refundAmount || 0) > 0 ||
+            String(order.paymentStatus || '').toUpperCase() === 'REFUNDED',
+        })),
+      });
+      const rawPaymentIds = mollieOrders.map((order) =>
+        String(order.molliePaymentId || '').trim() ||
+        mollieFinance.paymentIdByOrderId.get(String(order.id || '')) ||
+        mollieFinance.paymentIdByOrderNumber.get(String(order.orderNumber || '')) ||
+        '',
+      );
       if (rawPaymentIds.some((id) => !id)) {
         throw new PayoutRequestError(
           409,
@@ -342,14 +361,13 @@ router.post('/', async (req: AuthRequest, res) => {
           Number(order.refundAmount || 0) > 0 ||
           String(order.paymentStatus || '').toUpperCase() === 'REFUNDED'
         )
-        .map((order) => String(order.molliePaymentId || '').trim())
+        .map((order) =>
+          String(order.molliePaymentId || '').trim() ||
+          mollieFinance.paymentIdByOrderId.get(String(order.id || '')) ||
+          mollieFinance.paymentIdByOrderNumber.get(String(order.orderNumber || '')) ||
+          '',
+        )
         .filter(Boolean));
-      const mollieFinance = await getMollieFinanceReport({
-        from: start,
-        to: end,
-        paymentIds,
-        refundedPaymentIds: [...refundedIds],
-      });
       const exactFeesComplete = paymentIds.length === 0 || (
         mollieFinance.feeStatus !== 'unavailable' &&
         paymentIds.every((id) => mollieFinance.feeByPaymentId.has(id))
@@ -406,7 +424,10 @@ router.post('/', async (req: AuthRequest, res) => {
           : null,
         mollieFeeStatus: exactFeesComplete ? 'available' : mollieFinance.feeStatus,
       };
-      overrideAwaitingMollie = overrideOriginal && !exactFeesComplete;
+      overrideAwaitingMollie = overrideOriginal && (
+        !exactFeesComplete ||
+        !isPayoutRefundWindowClosed(end, new Date(), refundWindowHours)
+      );
       if (overrideAwaitingMollie) nextStatus = 'HOLD';
     }
 
@@ -465,7 +486,7 @@ router.post('/', async (req: AuthRequest, res) => {
       }
 
       if (
-        (savesOriginal || nextStatus === 'PAID') &&
+        (nextStatus === 'APPROVED' || nextStatus === 'PAID') &&
         !isPayoutRefundWindowClosed(end, new Date(), refundWindowHours)
       ) {
         const closesAt = payoutRefundWindowClosesAt(end, refundWindowHours);
@@ -565,7 +586,7 @@ router.post('/', async (req: AuthRequest, res) => {
       }
 
       const unsettledOrderCount = settlementRows.filter(isPayoutSettlementBlockingOrder).length;
-      if ((savesOriginal || nextStatus === 'PAID') && unsettledOrderCount > 0) {
+      if ((nextStatus === 'APPROVED' || nextStatus === 'PAID') && unsettledOrderCount > 0) {
         throw new PayoutRequestError(
           409,
           'PAYOUT_PERIOD_NOT_SETTLED',
@@ -573,7 +594,7 @@ router.post('/', async (req: AuthRequest, res) => {
         );
       }
 
-      if (savesOriginal || nextStatus === 'PAID') {
+      if (nextStatus === 'APPROVED' || nextStatus === 'PAID') {
         const immatureTerminalOrders = settlementRows.filter((row: any) =>
           ['DELIVERED', 'COMPLETED'].includes(String(row.status || '').toUpperCase()) &&
           !isPayoutOrderRefundWindowClosed(row, new Date(), refundWindowHours),

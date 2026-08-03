@@ -424,7 +424,7 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
             <div className="mt-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-page)] px-4 py-3 text-xs leading-5 text-[var(--text-secondary)]">
               {!refundWindowClosed ? (
                 <p>
-                  Underlaget kan godkännas först {formatDateTime(spec.data.refundWindow.closesAt)} efter refundfönstret på {spec.data.refundWindow.hours} timmar.
+                  Du kan ersätta originalet preliminärt nu. Perioden blir permanent tidigast {formatDateTime(spec.data.refundWindow.closesAt)} efter refundfönstret på {spec.data.refundWindow.hours} timmar.
                 </p>
               ) : (
                 <p>Refundfönstret är stängt och rapporten kan låsas.</p>
@@ -661,7 +661,6 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
               disabled={
                 persistedStatus === "PAID" ||
                 savePayout.isPending ||
-                !refundWindowClosed ||
                 spec.data.lateRefundRecovery.blocked ||
                 !manualAdjustmentIsValid ||
                 (manualAdjustment !== 0 && !notes.trim())

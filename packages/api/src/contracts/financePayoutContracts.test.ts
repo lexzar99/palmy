@@ -439,15 +439,15 @@ const workingDraft = {
   feeVatPctSnapshot: 25,
   selfDeliverySnapshot: true,
 };
-assert.equal(
+assert.deepEqual(
   activeFinanceSummarySnapshot(workingDraft, null),
-  null,
-  'a new draft must not affect the period overview',
+  workingDraft,
+  'a saved draft must update the visible working calculation',
 );
 assert.deepEqual(
-  activeFinanceSummarySnapshot(workingDraft, { ...workingDraft, status: 'APPROVED', manualAdjustmentAmount: 0 }),
+  activeFinanceSummarySnapshot({ ...workingDraft, status: 'HOLD' }, { ...workingDraft, status: 'APPROVED', manualAdjustmentAmount: 0 }),
   { ...workingDraft, status: 'APPROVED', manualAdjustmentAmount: 0 },
-  'an edited draft keeps the previous original active until replacement',
+  'a provisional replacement keeps its saved active revision while waiting for Mollie',
 );
 
 // the finance overview row (and therefore cannot rewrite its reduced totals).

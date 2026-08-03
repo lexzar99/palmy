@@ -36,9 +36,10 @@ export function isFrozenFinanceSummaryStatus(status: unknown): boolean {
 }
 
 /**
- * A draft is only a working copy. It must not change the period overview
- * until it replaces the active original. If an original revision exists,
- * keep using that revision; otherwise use the live, unadjusted calculation.
+ * A draft is a visible working calculation and therefore uses its saved
+ * adjustment in the period overview. HOLD is different: an explicit
+ * replacement saved with provisional Mollie fees uses its latest revision as
+ * the active original while waiting for confirmation.
  */
 export function activeFinanceSummarySnapshot(
   persisted: PersistedFinanceSummarySnapshot | null | undefined,
@@ -46,8 +47,8 @@ export function activeFinanceSummarySnapshot(
 ): PersistedFinanceSummarySnapshot | null {
   if (!persisted) return null;
   const status = String(persisted.status || '').toUpperCase();
-  if (!['DRAFT', 'HOLD'].includes(status)) return persisted;
-  return latestRevision ? { ...latestRevision, status: 'APPROVED' } : null;
+  if (status !== 'HOLD') return persisted;
+  return latestRevision ? { ...latestRevision, status: 'APPROVED' } : persisted;
 }
 
 /**

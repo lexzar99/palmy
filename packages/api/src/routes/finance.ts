@@ -269,8 +269,11 @@ router.get('/summary', async (req, res) => {
       .map((r) => {
         const b = computePayout(ordersByRestaurant.get(r.id) || [], r, economy);
         const p = persistedMap.get(r.id) || null;
-        const frozenMetrics = p ? frozenMetricSnapshots.get(p.id) : null;
-        const activePersisted = activeFinanceSummarySnapshot(p, frozenMetrics as any);
+        const latestRevisionMetrics = p ? frozenMetricSnapshots.get(p.id) : null;
+        const frozenMetrics = String(p?.status || '').toUpperCase() === 'DRAFT'
+          ? null
+          : latestRevisionMetrics;
+        const activePersisted = activeFinanceSummarySnapshot(p, latestRevisionMetrics as any);
         const restaurantReportOrders = reportOrders.filter((order) => order.restaurantId === r.id);
         const liveGrossTotalOre = restaurantReportOrders.reduce(
           (sum, order) => sum + Math.max(0, Number(order.total || 0)),
