@@ -49,6 +49,8 @@ import {
   estimateMollieFeeFromSwedishPricing,
   estimateNextMolliePayoutDate,
   mollieFeeBreakdownFromTransactions,
+  mollieBalanceReportUntil,
+  mollieRefundFeeForDisplay,
   molliePaymentOrderReference,
   molliePaymentFeesFromTransactions,
 } from '../lib/mollieFinance';
@@ -608,6 +610,13 @@ assert.deepEqual(molliePaymentOrderReference({
   id: 'tr_description',
   description: 'VE-1002 – Palmyra',
 }), { orderId: null, orderNumber: 'VE-1002' });
+assert.equal(
+  mollieBalanceReportUntil(
+    new Date('2026-07-31T21:59:59.999Z'),
+    new Date('2026-08-03T12:00:00.000Z'),
+  ),
+  '2026-07-31',
+);
 const refundFeeBreakdown = mollieFeeBreakdownFromTransactions([
   {
     id: 'bst_payment_refunded',
@@ -664,6 +673,10 @@ assert.equal(estimateMollieFeeFromSwedishPricing({
   amount: { currency: 'SEK', value: '500.00' },
   method: 'swish',
 }), 750, 'Swish uses 0.90% + 3.00 SEK');
+assert.equal(mollieRefundFeeForDisplay({ method: 'swish', refunded: true }), 270);
+assert.equal(mollieRefundFeeForDisplay({ method: 'creditcard', refunded: true }), 0);
+assert.equal(mollieRefundFeeForDisplay({ method: 'swish', refunded: false }), 0);
+assert.equal(mollieRefundFeeForDisplay({ method: 'creditcard', refunded: true, bookedFeeOre: 125 }), 125);
 const calibratedFees = allocateExactFeeTotal(
   new Map([
     ['tr_booked_a', 7_179],

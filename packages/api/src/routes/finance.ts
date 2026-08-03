@@ -324,25 +324,15 @@ router.get('/summary', async (req, res) => {
             .map((order) => resolvedMolliePaymentId(mollieReport, order))
             .filter(Boolean),
         );
-        const observedRefundFees = [...mollieReport.refundFeeByPaymentId.values()]
-          .filter((fee) => Number.isFinite(fee) && fee >= 0)
-          .sort((a, b) => a - b);
-        const provisionalRefundFeeOre = observedRefundFees.length > 0
-          ? observedRefundFees[Math.floor(observedRefundFees.length / 2)]
-          : null;
         const missingRefundFeeCount = [...refundedPaymentIds]
-          .filter((id) => !mollieReport.refundFeeByPaymentId.has(id))
+          .filter((id) => !mollieReport.displayRefundFeeByPaymentId.has(id))
           .length;
         const refundProcessingFeesDisplayable = mollieReport.feeStatus !== 'unavailable' &&
-          (missingRefundFeeCount === 0 || provisionalRefundFeeOre != null);
+          missingRefundFeeCount === 0;
         const liveRefundProcessingFeesOre = !refundProcessingFeesDisplayable
           ? null
           : [...refundedPaymentIds].reduce(
-              (sum, id) => sum + (
-                mollieReport.refundFeeByPaymentId.get(id) ??
-                provisionalRefundFeeOre ??
-                0
-              ),
+              (sum, id) => sum + (mollieReport.displayRefundFeeByPaymentId.get(id) || 0),
               0,
             );
         const refundFeesDisplayable = mollieReport.feeStatus !== 'unavailable' &&
@@ -919,10 +909,7 @@ router.get('/payout/:restaurantId', async (req, res) => {
       const net = netPayoutOrder(order);
       return net ? [{ order, net }] : [];
     });
-    const financialOrders = orders.filter((order) =>
-      (PAYOUT_ORDER_STATUSES as readonly string[]).includes(String(order.status || '').toUpperCase()) &&
-      ['PAID', 'PARTIALLY_REFUNDED', 'REFUNDED'].includes(String(order.paymentStatus || '').toUpperCase()),
-    );
+    const financialOrders = orders.filter(isFinanceRealPaymentOrder);
     const b = computePayout(
       eligibleOrders.map(({ net }) => net),
       restaurant,
@@ -951,7 +938,7 @@ router.get('/payout/:restaurantId', async (req, res) => {
       : molliePaymentIds.reduce((sum, id) => sum + (detailMollieReport.displayFeeByPaymentId.get(id) || 0), 0);
     const detailRefundProcessingFeesOre = !detailFeesComplete
       ? null
-      : molliePaymentIds.reduce((sum, id) => sum + (detailMollieReport.refundFeeByPaymentId.get(id) || 0), 0);
+      : molliePaymentIds.reduce((sum, id) => sum + (detailMollieReport.displayRefundFeeByPaymentId.get(id) || 0), 0);
     const detailPaymentFeesOre = detailMollieFeesOre == null || detailRefundProcessingFeesOre == null
       ? null
       : Math.max(0, detailMollieFeesOre - detailRefundProcessingFeesOre);

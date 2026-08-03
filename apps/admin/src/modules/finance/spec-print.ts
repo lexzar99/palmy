@@ -114,12 +114,6 @@ export function printPayoutSpec(
   const mollieFeeTotal = frozen && persisted
     ? persisted.mollieFeeAmount
     : b.mollieFees;
-  const refundProcessingFee = frozen && persisted
-    ? (persisted.refundProcessingFeeAmount ?? 0)
-    : b.refundProcessingFees;
-  const paymentFee = mollieFeeTotal == null || refundProcessingFee == null
-    ? null
-    : Math.max(0, mollieFeeTotal - refundProcessingFee);
   const orderSales = frozen && persisted
     ? (persisted.originalGrossTotal ?? persisted.grossSales)
     : b.originalGrossTotal;
@@ -399,10 +393,8 @@ export function printPayoutSpec(
           line("Återbetalningar", kr(refunds), { sign: "−" }),
           line("Försäljning efter återbetalningar", kr(salesAfterRefunds), { strong: true }),
           orderExclusions > 0 ? line("Leveransavgift och dricks till ViaEats/bud", kr(orderExclusions), { sign: "−" }) : "",
-          section("Mollieavgifter för order"),
-          line(`Transaktionsavgifter (${frozen || b.mollieFeeStatus === "available" ? "exakta" : "beräknade från korttyp"})`, mollieValue(paymentFee), { sign: paymentFee == null ? undefined : "−" }),
-          (refundProcessingFee ?? 0) > 0 ? line("Avgifter för återbetalningar", mollieValue(refundProcessingFee), { sign: "−" }) : "",
-          line("Mollieavgifter totalt", mollieValue(mollieFeeTotal), { strong: true }),
+          section("Avgift för alla order"),
+          line(`Transaktionsavgift (${frozen || b.mollieFeeStatus === "available" ? "exakt" : "beräknad från korttyp"})`, mollieValue(mollieFeeTotal), { strong: true, sign: mollieFeeTotal == null ? undefined : "−" }),
           section("Moms och försäljning exklusive moms"),
           line(`Moms i restaurangens försäljning (${vatLabel(foodVatPct)})`, kr(foodVat)),
           line("Restaurangens försäljning exklusive moms", kr(salesExVat), { strong: true }),

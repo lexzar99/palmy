@@ -12,6 +12,7 @@ const SEK = 'SEK';
 const CACHE_TTL_MS = 60_000;
 const ERROR_CACHE_TTL_MS = 5 * 60_000;
 const MAX_TRANSACTION_PAGES = 100;
+const SWISH_REFUND_FEE_ORE = 270;
 
 type MollieAmount = {
   currency?: unknown;
@@ -78,6 +79,17 @@ const EEA_COUNTRY_CODES = new Set([
 const percentageFee = (amountOre: number, percentage: number, fixedOre: number) =>
   Math.max(0, Math.round(amountOre * percentage / 100) + fixedOre);
 
+export function mollieRefundFeeForDisplay(input: {
+  method: unknown;
+  refunded: boolean;
+  bookedFeeOre?: number | null;
+}): number {
+  if (input.bookedFeeOre != null) return Math.max(0, Math.round(input.bookedFeeOre));
+  return input.refunded && String(input.method || '').trim().toLowerCase() === 'swish'
+    ? SWISH_REFUND_FEE_ORE
+    : 0;
+}
+
 /**
  * Swedish standard online pricing from mollie.com/se/pricing.
  * This is only a provisional fallback; deductionDetails remains authoritative.
@@ -122,6 +134,8 @@ export type MollieFinanceReport = {
   estimatedFeeByPaymentId: Map<string, number>;
   paymentFeeByPaymentId: Map<string, number>;
   refundFeeByPaymentId: Map<string, number>;
+  /** Booked refund fee, or the provisional 2.70 SEK fee for refunded Swish payments. */
+  displayRefundFeeByPaymentId: Map<string, number>;
   paymentIdByOrderId: Map<string, string>;
   paymentIdByOrderNumber: Map<string, string>;
   matchedPaymentCount: number;
@@ -467,15 +481,15 @@ const stockholmDate = (date: Date) =>
     day: '2-digit',
   }).format(date);
 
+export function mollieBalanceReportUntil(requestedTo: Date, now = new Date()): string {
+  const requestedToKey = stockholmDate(requestedTo);
+  const todayKey = stockholmDate(now);
+  return requestedToKey < todayKey ? requestedToKey : todayKey;
+}
+
 function atStockholmNoon(date = new Date()): Date {
   const [year, month, day] = stockholmDate(date).split('-').map(Number);
   return new Date(Date.UTC(year, month - 1, day, 12));
-}
-
-function nextStockholmDate(date: Date): string {
-  const next = atStockholmNoon(date);
-  next.setUTCDate(next.getUTCDate() + 1);
-  return stockholmDate(next);
 }
 
 function nextWeekday(from: Date, allowedDays: readonly number[]): Date {
@@ -594,6 +608,7 @@ function unavailableReport(message: string, requestedPaymentCount: number): Moll
     estimatedFeeByPaymentId: new Map(),
     paymentFeeByPaymentId: new Map(),
     refundFeeByPaymentId: new Map(),
+    displayRefundFeeByPaymentId: new Map(),
     paymentIdByOrderId: new Map(),
     paymentIdByOrderNumber: new Map(),
     matchedPaymentCount: 0,
@@ -671,30 +686,24 @@ export async function getMollieFinanceReport(input: {
     const requestedTo = input.to && input.to < now ? input.to : now;
     const todayKey = stockholmDate(now);
     const requestedToKey = stockholmDate(requestedTo);
-    const reportUntil = requestedToKey < todayKey ? nextStockholmDate(requestedTo) : todayKey;
+    // Mollie's balance report `until` is inclusive. Passing the following day
+    // pulled 1 August into July (including its 8.66 SEK fee).
+    const reportUntil = mollieBalanceReportUntil(requestedTo, now);
     const reportFrom = stockholmDate(input.from);
-    const balanceReportPromise = reportUntil > reportFrom
+    const balanceReportPromise = reportUntil >= reportFrom
       ? mollieGet<MollieBalanceReport>(
           `/balances/primary/report?from=${encodeURIComponent(reportFrom)}&until=${encodeURIComponent(reportUntil)}&grouping=transaction-categories`,
           token,
         ).then((value) => ({ value, error: null }))
           .catch((error: unknown) => ({ value: null, error }))
       : Promise.resolve({ value: null, error: null });
-    const closingAnchorReportPromise = requestedToKey < todayKey
-      ? mollieGet<MollieBalanceReport>(
-          `/balances/primary/report?from=${encodeURIComponent(reportUntil)}&until=${encodeURIComponent(nextStockholmDate(new Date(requestedTo.getTime() + 24 * 60 * 60 * 1000)))}&grouping=transaction-categories`,
-          token,
-        ).then((value) => ({ value, error: null }))
-          .catch((error: unknown) => ({ value: null, error }))
-      : Promise.resolve({ value: null, error: null });
-    const [balance, transactions, periodPaymentsResult, balanceReportResult, closingAnchorReportResult, nextSettlementResult, payoutsResult] = await Promise.all([
+    const [balance, transactions, periodPaymentsResult, balanceReportResult, nextSettlementResult, payoutsResult] = await Promise.all([
       mollieGet<MollieBalance>('/balances/primary', token),
       collectBalanceTransactions(token, earliest),
       collectPeriodPayments(token, input.from, requestedTo)
         .then((value) => ({ value, error: null }))
         .catch((error: unknown) => ({ value: null, error })),
       balanceReportPromise,
-      closingAnchorReportPromise,
       mollieGet<MollieSettlement>('/settlements/next', token)
         .then((value) => ({ value, error: null }))
         .catch((error: unknown) => ({ value: null, error })),
@@ -745,15 +754,13 @@ export async function getMollieFinanceReport(input: {
     const estimatedFeeByPaymentId = new Map<string, number>();
     const paymentFeeByPaymentId = new Map<string, number>();
     const refundFeeByPaymentId = new Map<string, number>();
+    const displayRefundFeeByPaymentId = new Map<string, number>();
 
     for (const paymentId of paymentIds) {
       const paymentFee = allFees.paymentByPaymentId.get(paymentId);
       if (paymentFee != null) paymentFeeByPaymentId.set(paymentId, paymentFee);
       const refundFee = allFees.refundByPaymentId.get(paymentId);
       if (refundFee != null) refundFeeByPaymentId.set(paymentId, refundFee);
-      if (paymentFee != null && (!refundedPaymentIds.has(paymentId) || refundFee != null)) {
-        feeByPaymentId.set(paymentId, paymentFee + (refundFee || 0));
-      }
     }
 
     const observationsByFingerprint = new Map<string, Array<{ amountOre: number; feeOre: number }>>();
@@ -771,19 +778,27 @@ export async function getMollieFinanceReport(input: {
       methodRows.push({ amountOre, feeOre: paymentFee });
       observationsByMethod.set(method, methodRows);
     }
-    const typicalRefundFee = median([...refundFeeByPaymentId.values()]);
-
     for (const paymentId of paymentIds) {
-      const exactFee = feeByPaymentId.get(paymentId);
-      if (exactFee != null) {
-        displayFeeByPaymentId.set(paymentId, exactFee);
-        continue;
-      }
       const payment = payments.get(paymentId);
       const amountOre = exactOre(payment?.amount);
       if (!payment || amountOre == null) continue;
       const bookedPaymentFee = paymentFeeByPaymentId.get(paymentId);
       const method = String(payment.method || '').toLowerCase();
+      const bookedRefundFee = refundFeeByPaymentId.get(paymentId);
+      const refundedSwish = refundedPaymentIds.has(paymentId) && method === 'swish';
+      const displayRefundFee = mollieRefundFeeForDisplay({
+        method,
+        refunded: refundedPaymentIds.has(paymentId),
+        bookedFeeOre: bookedRefundFee,
+      });
+      displayRefundFeeByPaymentId.set(paymentId, displayRefundFee);
+
+      if (bookedPaymentFee != null && (!refundedSwish || bookedRefundFee != null)) {
+        const exactFee = bookedPaymentFee + (bookedRefundFee || 0);
+        feeByPaymentId.set(paymentId, exactFee);
+        displayFeeByPaymentId.set(paymentId, exactFee);
+        continue;
+      }
       const estimatedPaymentFee = bookedPaymentFee ??
         estimateMollieFeeFromSwedishPricing(payment) ??
         estimateMollieFeeFromObservations(
@@ -793,12 +808,7 @@ export async function getMollieFinanceReport(input: {
             || [],
         );
       if (estimatedPaymentFee == null) continue;
-      const bookedRefundFee = refundFeeByPaymentId.get(paymentId);
-      const estimatedRefundFee = refundedPaymentIds.has(paymentId)
-        ? (bookedRefundFee ?? typicalRefundFee)
-        : 0;
-      if (estimatedRefundFee == null) continue;
-      const estimatedTotal = estimatedPaymentFee + estimatedRefundFee;
+      const estimatedTotal = estimatedPaymentFee + displayRefundFee;
       displayFeeByPaymentId.set(paymentId, estimatedTotal);
       estimatedFeeByPaymentId.set(paymentId, estimatedTotal);
     }
@@ -807,9 +817,7 @@ export async function getMollieFinanceReport(input: {
     const totalBalance = available == null || pending == null ? null : available + pending;
     const balanceReport = balanceReportResult.value;
     const reportOpeningBalance = balanceReportBalance(balanceReport, 'open');
-    const reportClosingBalance = requestedToKey < todayKey
-      ? balanceReportBalance(closingAnchorReportResult.value, 'open')
-      : balanceReportBalance(balanceReport, 'close');
+    const reportClosingBalance = balanceReportBalance(balanceReport, 'close');
     const balanceReportFees = balanceReportExternalMovement(balanceReport, 'fee-prepayments');
     const reportOtherMovements = balanceReport
       ? ['chargebacks', 'capital', 'transfers', 'corrections', 'topups']
@@ -888,39 +896,10 @@ export async function getMollieFinanceReport(input: {
           reportOtherMovements
       )
       : null;
-    // Reconcile provisional per-payment estimates to the exact period total
-    // only after every external/NFC payment fee has been identified and
-    // removed. This preserves external movements while ensuring that no öre
-    // disappears from the restaurants' combined period settlement.
-    let feeCalibrationOre: number | null = null;
-    const exactLinkedFeeTarget = exactPeriodFees != null && unlinkedFees != null
-      ? exactPeriodFees - unlinkedFees
-      : null;
-    const bookedLinkedFees = [...feeByPaymentId.values()].reduce((sum, fee) => sum + fee, 0);
-    const allRequestedFeesDisplayable = paymentIds.every((paymentId) =>
-      displayFeeByPaymentId.has(paymentId)
-    );
-    if (
-      exactLinkedFeeTarget != null &&
-      exactLinkedFeeTarget >= bookedLinkedFees &&
-      allRequestedFeesDisplayable &&
-      estimatedFeeByPaymentId.size > 0
-    ) {
-      const previousDisplayTotal = paymentIds.reduce(
-        (sum, paymentId) => sum + (displayFeeByPaymentId.get(paymentId) || 0),
-        0,
-      );
-      const calibrated = allocateExactFeeTotal(
-        feeByPaymentId,
-        estimatedFeeByPaymentId,
-        exactLinkedFeeTarget,
-      );
-      for (const paymentId of paymentIds) {
-        const calibratedFee = calibrated.get(paymentId);
-        if (calibratedFee != null) displayFeeByPaymentId.set(paymentId, calibratedFee);
-      }
-      feeCalibrationOre = exactLinkedFeeTarget - previousDisplayTotal;
-    }
+    // Keep provisional fees untouched. The reconciliation must show the
+    // difference against Mollie's booked ledger (for example +2.70 SEK when a
+    // provisional Swish refund fee was not actually charged).
+    const feeCalibrationOre: number | null = null;
     const transferFrequency = String(balance.transferFrequency || '').trim() || null;
     const nextSettlement = nextSettlementResult.value;
     const latestPayout = payoutsResult.value?._embedded?.payouts?.[0] || null;
@@ -941,6 +920,7 @@ export async function getMollieFinanceReport(input: {
       estimatedFeeByPaymentId,
       paymentFeeByPaymentId,
       refundFeeByPaymentId,
+      displayRefundFeeByPaymentId,
       paymentIdByOrderId,
       paymentIdByOrderNumber,
       matchedPaymentCount,

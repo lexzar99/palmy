@@ -159,14 +159,6 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
   const restaurantMollieFee = usesFrozenSnapshot && persisted
     ? persisted.mollieFeeAmount
     : (b?.mollieFees ?? null);
-  const refundProcessingFee = usesFrozenSnapshot && persisted
-    ? (persisted.refundProcessingFeeAmount ?? 0)
-    : (b?.refundProcessingFees ?? null);
-  const paymentFee = usesFrozenSnapshot && persisted
-    ? (persisted.paymentFeeAmount ?? Math.max(0, persisted.mollieFeeAmount - (persisted.refundProcessingFeeAmount ?? 0)))
-    : restaurantMollieFee == null || refundProcessingFee == null
-      ? null
-      : Math.max(0, restaurantMollieFee - refundProcessingFee);
   const mollieFeeIsFinal = usesFrozenSnapshot || b?.mollieFeeStatus === "available";
   const commission = usesFrozenSnapshot && persisted ? persisted.commissionAmount : (b?.commission ?? 0);
   const subscription = usesFrozenSnapshot && persisted ? persisted.subscriptionAmount : (b?.subscription ?? 0);
@@ -296,10 +288,8 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
             {!spec.data.restaurant.selfDelivery && b.deliveryFee > 0 ? <CalcRow label="Leveransavgift till ViaEats" value={b.deliveryFee} sign="−" /> : null}
             {!spec.data.restaurant.selfDelivery && b.tip > 0 ? <CalcRow label="Dricks till bud/plattform" value={b.tip} sign="−" /> : null}
 
-            <p className="eyebrow mb-1 mt-5">Mollieavgifter för order</p>
-            <CalcRow label={`Transaktionsavgifter · ${mollieFeeIsFinal ? "exakta" : "beräknade från korttyp"}`} value={paymentFee} sign="−" />
-            {(refundProcessingFee ?? 0) > 0 ? <CalcRow label="Avgifter för återbetalningar" value={refundProcessingFee} sign="−" /> : null}
-            <CalcRow label="Mollieavgifter totalt" value={restaurantMollieFee} strong />
+            <p className="eyebrow mb-1 mt-5">Avgift för alla order</p>
+            <CalcRow label={`Transaktionsavgift · ${mollieFeeIsFinal ? "exakt" : "beräknad från korttyp"}`} value={restaurantMollieFee} sign="−" strong />
 
             <p className="eyebrow mb-1 mt-5">Moms och försäljning exklusive moms</p>
             <CalcRow label={`Moms i restaurangens försäljning (${vatLabel(usesFrozenSnapshot ? persisted?.foodVatPctSnapshot : b.foodVatPct)})`} value={foodVat} />
