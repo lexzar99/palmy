@@ -236,7 +236,7 @@ router.post('/', async (req: AuthRequest, res) => {
     }
     const saveAsDraft = saveMode === 'DRAFT';
     const overrideOriginal = saveMode === 'OVERRIDE';
-    const nextStatus = saveAsDraft
+    let nextStatus = saveAsDraft
       ? 'DRAFT'
       : overrideOriginal
         ? 'APPROVED'
@@ -268,6 +268,8 @@ router.post('/', async (req: AuthRequest, res) => {
     const refundWindowHours = payoutRefundWindowHours();
 
     let payoutAudit: Awaited<ReturnType<typeof reconcileMollieRefundsForPayout>> | undefined;
+    const savesOriginal = overrideOriginal || nextStatus === 'APPROVED';
+    let overrideAwaitingMollie = false;
     let financeSnapshotFingerprint: string | undefined;
     let financeSnapshotMetrics: {
       grossTotal: number;
@@ -278,7 +280,7 @@ router.post('/', async (req: AuthRequest, res) => {
       refundProcessingFees: number | null;
       mollieFeeStatus: string;
     } | undefined;
-    if (nextStatus === 'APPROVED' || nextStatus === 'PAID') {
+    if (savesOriginal || nextStatus === 'PAID') {
       try {
         payoutAudit = await reconcileMollieRefundsForPayout({
           restaurantId: restaurantKey,
@@ -296,7 +298,7 @@ router.post('/', async (req: AuthRequest, res) => {
         );
       }
     }
-    if (nextStatus === 'APPROVED') {
+    if (savesOriginal) {
       const financialOrders = await prisma.order.findMany({
         where: {
           restaurantId: restaurantKey,
@@ -348,11 +350,16 @@ router.post('/', async (req: AuthRequest, res) => {
         paymentIds,
         refundedPaymentIds: [...refundedIds],
       });
-      const complete = paymentIds.length === 0 || (
+      const exactFeesComplete = paymentIds.length === 0 || (
         mollieFinance.feeStatus !== 'unavailable' &&
         paymentIds.every((id) => mollieFinance.feeByPaymentId.has(id))
       );
-      if (!complete) {
+      const displayFeesComplete = paymentIds.length === 0 || (
+        mollieFinance.feeStatus !== 'unavailable' &&
+        paymentIds.every((id) => mollieFinance.displayFeeByPaymentId.has(id))
+      );
+      const feesCompleteForSave = overrideOriginal ? displayFeesComplete : exactFeesComplete;
+      if (!feesCompleteForSave) {
         throw new PayoutRequestError(
           409,
           'PAYOUT_MOLLIE_FEES_NOT_RECONCILED',
@@ -374,17 +381,33 @@ router.post('/', async (req: AuthRequest, res) => {
           ),
         ), 0),
         realPaymentCount: financialOrders.length,
-        mollieFees: complete
-          ? paymentIds.reduce((sum, id) => sum + (mollieFinance.feeByPaymentId.get(id) || 0), 0)
+        mollieFees: feesCompleteForSave
+          ? paymentIds.reduce(
+              (sum, id) => sum + (
+                overrideOriginal
+                  ? mollieFinance.displayFeeByPaymentId.get(id) || 0
+                  : mollieFinance.feeByPaymentId.get(id) || 0
+              ),
+              0,
+            )
           : null,
-        refundTransactionFees: complete
-          ? [...refundedIds].reduce((sum, id) => sum + (mollieFinance.feeByPaymentId.get(id) || 0), 0)
+        refundTransactionFees: feesCompleteForSave
+          ? [...refundedIds].reduce(
+              (sum, id) => sum + (
+                overrideOriginal
+                  ? mollieFinance.displayFeeByPaymentId.get(id) || 0
+                  : mollieFinance.feeByPaymentId.get(id) || 0
+              ),
+              0,
+            )
           : null,
-        refundProcessingFees: complete
+        refundProcessingFees: feesCompleteForSave
           ? [...refundedIds].reduce((sum, id) => sum + (mollieFinance.refundFeeByPaymentId.get(id) || 0), 0)
           : null,
-        mollieFeeStatus: complete ? 'available' : mollieFinance.feeStatus,
+        mollieFeeStatus: exactFeesComplete ? 'available' : mollieFinance.feeStatus,
       };
+      overrideAwaitingMollie = overrideOriginal && !exactFeesComplete;
+      if (overrideAwaitingMollie) nextStatus = 'HOLD';
     }
 
     const payout = await prisma.$transaction(async (tx) => {
@@ -442,7 +465,7 @@ router.post('/', async (req: AuthRequest, res) => {
       }
 
       if (
-        (nextStatus === 'APPROVED' || nextStatus === 'PAID') &&
+        (savesOriginal || nextStatus === 'PAID') &&
         !isPayoutRefundWindowClosed(end, new Date(), refundWindowHours)
       ) {
         const closesAt = payoutRefundWindowClosesAt(end, refundWindowHours);
@@ -492,7 +515,7 @@ router.post('/', async (req: AuthRequest, res) => {
             updatedAt: true,
           },
         }),
-        nextStatus === 'APPROVED'
+        savesOriginal
           ? tx.order.findMany({
               where: {
                 restaurantId: restaurantKey,
@@ -515,7 +538,7 @@ router.post('/', async (req: AuthRequest, res) => {
       ]);
 
       if (
-        nextStatus === 'APPROVED' &&
+        savesOriginal &&
         (!financeSnapshotFingerprint ||
           financeSnapshotOrderFingerprint(financeSnapshotRows) !== financeSnapshotFingerprint)
       ) {
@@ -526,7 +549,7 @@ router.post('/', async (req: AuthRequest, res) => {
         );
       }
 
-      if (nextStatus === 'APPROVED' || nextStatus === 'PAID') {
+      if (savesOriginal || nextStatus === 'PAID') {
         if (!payoutAudit) {
           throw new PayoutRequestError(
             409,
@@ -542,7 +565,7 @@ router.post('/', async (req: AuthRequest, res) => {
       }
 
       const unsettledOrderCount = settlementRows.filter(isPayoutSettlementBlockingOrder).length;
-      if ((nextStatus === 'APPROVED' || nextStatus === 'PAID') && unsettledOrderCount > 0) {
+      if ((savesOriginal || nextStatus === 'PAID') && unsettledOrderCount > 0) {
         throw new PayoutRequestError(
           409,
           'PAYOUT_PERIOD_NOT_SETTLED',
@@ -550,7 +573,7 @@ router.post('/', async (req: AuthRequest, res) => {
         );
       }
 
-      if (nextStatus === 'APPROVED' || nextStatus === 'PAID') {
+      if (savesOriginal || nextStatus === 'PAID') {
         const immatureTerminalOrders = settlementRows.filter((row: any) =>
           ['DELIVERED', 'COMPLETED'].includes(String(row.status || '').toUpperCase()) &&
           !isPayoutOrderRefundWindowClosed(row, new Date(), refundWindowHours),
@@ -646,7 +669,7 @@ router.post('/', async (req: AuthRequest, res) => {
         return paid;
       }
 
-      if (nextStatus === 'APPROVED') {
+      if (savesOriginal) {
         const overlapping = await tx.restaurantPayout.findFirst({
           where: {
             restaurantId: restaurantKey,
@@ -685,7 +708,7 @@ router.post('/', async (req: AuthRequest, res) => {
         0,
         financeSnapshotMetrics?.mollieFees || 0,
       );
-      const recoveryPlan = nextStatus === 'APPROVED'
+      const recoveryPlan = savesOriginal
         ? await calculateLateRefundRecoveryPlan(tx, {
             restaurantId: restaurantKey,
             targetPayoutId: existing?.id,
@@ -733,7 +756,21 @@ router.post('/', async (req: AuthRequest, res) => {
           restaurant: { select: { id: true, name: true, city: true, featuredClass: true } },
         },
       });
-      if (nextStatus === 'APPROVED') {
+      if (overrideOriginal) {
+        // There is normally only one row because of the unique period key.
+        // This also clears legacy duplicate working copies without touching
+        // another restaurant's draft for the same month.
+        await tx.restaurantPayout.deleteMany({
+          where: {
+            restaurantId: restaurantKey,
+            periodStart: start,
+            periodEnd: end,
+            status: { in: ['DRAFT', 'HOLD'] },
+            id: { not: saved.id },
+          },
+        });
+      }
+      if (savesOriginal) {
         await syncRecoveryReservations(tx, saved.id, recoveryPlan.allocations);
         await recordPayoutSnapshot(tx, saved, req, overrideOriginal ? 'OVERRIDE' : 'LOCK', financeSnapshotMetrics);
       } else if (existing) {
@@ -755,6 +792,7 @@ router.post('/', async (req: AuthRequest, res) => {
         lateRefundAdjustmentAmountOre: payout.lateRefundAdjustmentAmount,
         serverCalculated: true,
         saveMode: saveMode || 'LEGACY',
+        awaitingMollie: overrideAwaitingMollie,
       },
     });
 

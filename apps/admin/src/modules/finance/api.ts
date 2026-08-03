@@ -43,6 +43,8 @@ export interface FinanceRow {
   companyRevenueExVat: number | null;
   commissionAfterMollieFees: number | null;
   mollieFeeStatus: "available" | "partial" | "unavailable";
+  waitingForMollieConfirmation: boolean;
+  mollieConfirmationReady: boolean;
   subscription: number;
   feeVat: number;
   foodVat: number;
@@ -277,6 +279,7 @@ export interface PayoutSpec {
     manualAdjustmentAmount: number;
     lateRefundAdjustmentAmount: number;
     mollieFeeAmount: number;
+    mollieFeeStatus: "available" | "partial" | "unavailable";
     paymentFeeAmount?: number;
     refundProcessingFeeAmount?: number;
     payoutAmount: number;

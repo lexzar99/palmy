@@ -39,6 +39,7 @@ import {
   PayoutRecoveryError,
 } from '../lib/payoutRecovery';
 import {
+  activeFinanceSummarySnapshot,
   reconcileRestaurantFundingOre,
   selectFinanceSummaryEconomicValues,
   sumFinanceSummaryRows,
@@ -426,6 +427,29 @@ assert.equal(canAdminMarkPayoutPaid('a@viaeats.se', 'legacy-id-a', 'A@viaeats.se
 assert.equal(canAdminMarkPayoutPaid(null, 'admin-b', 'b@viaeats.se'), false);
 
 // Changing live orders, rates or delivery mode after approval must not rewrite
+const workingDraft = {
+  status: 'DRAFT',
+  orderCount: 4,
+  grossSales: 10_000,
+  commissionAmount: 2_000,
+  subscriptionAmount: 500,
+  manualAdjustmentAmount: 5_553,
+  payoutAmount: 1_222,
+  commissionPctSnapshot: 20,
+  feeVatPctSnapshot: 25,
+  selfDeliverySnapshot: true,
+};
+assert.equal(
+  activeFinanceSummarySnapshot(workingDraft, null),
+  null,
+  'a new draft must not affect the period overview',
+);
+assert.deepEqual(
+  activeFinanceSummarySnapshot(workingDraft, { ...workingDraft, status: 'APPROVED', manualAdjustmentAmount: 0 }),
+  { ...workingDraft, status: 'APPROVED', manualAdjustmentAmount: 0 },
+  'an edited draft keeps the previous original active until replacement',
+);
+
 // the finance overview row (and therefore cannot rewrite its reduced totals).
 const frozenOverview = selectFinanceSummaryEconomicValues({
   orderCount: 99,

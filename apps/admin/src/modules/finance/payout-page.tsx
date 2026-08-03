@@ -166,6 +166,7 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
   const foodVat = usesFrozenSnapshot && persisted ? (persisted.foodVatAmount || 0) : (b?.foodVat ?? 0);
   const salesExVat = Math.max(0, restaurantGross - foodVat);
   const persistedStatus = spec.data?.persisted?.status || "NEW";
+  const waitingForMollie = persistedStatus === "HOLD" && persisted?.mollieFeeStatus !== "available";
   const refundWindowClosed = spec.data?.refundWindow.closed ?? false;
   const payoutStatusLabel: Record<string, string> = {
     DRAFT: "Upplåst utkast",
@@ -414,7 +415,7 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
               <Field label="Status">
                 <div className="flex min-h-11 items-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-page)] px-3">
                   <Badge tone={persistedStatus === "PAID" ? "success" : persistedStatus === "APPROVED" ? "info" : "neutral"}>
-                    {payoutStatusLabel[persistedStatus] || "Inte sparad"}
+                    {waitingForMollie ? "Aktivt original · väntar på Mollie" : payoutStatusLabel[persistedStatus] || "Inte sparad"}
                   </Badge>
                 </div>
               </Field>
@@ -429,6 +430,7 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
                 <p>Refundfönstret är stängt och rapporten kan låsas.</p>
               )}
               <p>Spara utkast för ett redigerbart underlag. Spara och ersätt original skriver den nya månadsberäkningen som aktiv version, medan den tidigare versionen ligger kvar i revisionshistoriken.</p>
+              {waitingForMollie ? <p className="font-semibold text-[var(--warning)]">Den aktiva versionen använder beräknade avgifter och kan inte betalas förrän Mollie har bekräftat perioden.</p> : null}
               <p>Efter låsning måste en annan superadmin logga in, ange betalningsreferens och markera utbetalningen som betald.</p>
               {spec.data.lateRefundRecovery.blocked ? (
                 <p className="font-semibold text-[var(--danger-text)]">{spec.data.lateRefundRecovery.error}</p>

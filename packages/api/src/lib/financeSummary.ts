@@ -36,6 +36,21 @@ export function isFrozenFinanceSummaryStatus(status: unknown): boolean {
 }
 
 /**
+ * A draft is only a working copy. It must not change the period overview
+ * until it replaces the active original. If an original revision exists,
+ * keep using that revision; otherwise use the live, unadjusted calculation.
+ */
+export function activeFinanceSummarySnapshot(
+  persisted: PersistedFinanceSummarySnapshot | null | undefined,
+  latestRevision: PersistedFinanceSummarySnapshot | null | undefined,
+): PersistedFinanceSummarySnapshot | null {
+  if (!persisted) return null;
+  const status = String(persisted.status || '').toUpperCase();
+  if (!['DRAFT', 'HOLD'].includes(status)) return persisted;
+  return latestRevision ? { ...latestRevision, status: 'APPROVED' } : null;
+}
+
+/**
  * APPROVED/PAID rows are accounting documents. Never rewrite their overview
  * with today's orders, restaurant mode or fee settings; derive every exposed
  * economic value that can be derived from the persisted immutable snapshot.

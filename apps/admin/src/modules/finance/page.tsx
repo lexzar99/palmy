@@ -392,6 +392,23 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
   const actionableDeviations = reconciliation?.deviations.filter(
     (deviation) => deviation.severity !== "info",
   ) || [];
+  const mollieConfirmationRows = rows.filter((row) => row.mollieConfirmationReady);
+  const mollieConfirmationNotice = mollieConfirmationRows.length ? (
+    <Surface className="border-[var(--warning)] bg-[var(--warning-soft)] px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-black text-[var(--text-primary)]">Mollie har bekräftat avgifterna för perioden</p>
+          <p className="mt-1 text-xs font-semibold text-[var(--text-secondary)]">
+            Kontrollera plus/minus i avstämningen, justera vid behov och ersätt sedan originalet igen för att göra perioden permanent.
+          </p>
+        </div>
+        <Button onClick={() => openPayout(mollieConfirmationRows[0].restaurantId)}>
+          Kontrollera {mollieConfirmationRows.length === 1 ? mollieConfirmationRows[0].name : `${mollieConfirmationRows.length} restauranger`}
+          <ArrowRight size={14} />
+        </Button>
+      </div>
+    </Surface>
+  ) : null;
   const fundingReconciliationPanel = summary.data
     ? <FundingReconciliationCard value={summary.data.fundingReconciliation} />
     : null;
@@ -501,6 +518,7 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                 ) : null}
               </section>
 
+              {mollieConfirmationNotice}
               {fundingReconciliationPanel}
 
               <Surface className="px-5 py-5">
@@ -604,11 +622,12 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                 </div>
                 <p className="mt-3 text-[11.5px] text-[var(--text-muted)]">
                   {mollie?.feeStatus === "partial"
-                    ? `${formatNumber(mollie.estimatedPaymentCount)} avgifter är beräknade från korttyp och Mollies svenska prislista. Rapporten kan inte låsas förrän Mollie har bokfört exakta ören.`
+                    ? `${formatNumber(mollie.estimatedPaymentCount)} avgifter är beräknade från korttyp och Mollies svenska prislista. Originalet kan ersättas, men kontrollera avstämningen igen när Mollie har bokfört de exakta örena.`
                     : "Alla Mollieavgifter är bokförda och matchade mot payment-id."}
                 </p>
               </section>
 
+              {mollieConfirmationNotice}
               {fundingReconciliationPanel}
 
               <div className="flex flex-wrap items-center gap-2">

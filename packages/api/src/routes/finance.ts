@@ -15,6 +15,7 @@ import {
 } from '../lib/payoutPolicy';
 import { calculateLateRefundRecoveryPlan, PayoutRecoveryError } from '../lib/payoutRecovery';
 import {
+  activeFinanceSummarySnapshot,
   reconcileRestaurantFundingOre,
   selectFinanceSummaryEconomicValues,
   sumFinanceSummaryRows,
@@ -229,9 +230,7 @@ router.get('/summary', async (req, res) => {
         .map((order) => String(order.molliePaymentId || '')),
       orderReferences: mollieOrderReferences(excludedOrders),
     });
-    const frozenPayoutIds = persisted
-      .filter((row) => ['APPROVED', 'PAID'].includes(String(row.status || '').toUpperCase()))
-      .map((row) => row.id);
+    const frozenPayoutIds = persisted.map((row) => row.id);
     const frozenSnapshotLogs = frozenPayoutIds.length
       ? await prisma.auditLog.findMany({
           where: {
@@ -271,6 +270,7 @@ router.get('/summary', async (req, res) => {
         const b = computePayout(ordersByRestaurant.get(r.id) || [], r, economy);
         const p = persistedMap.get(r.id) || null;
         const frozenMetrics = p ? frozenMetricSnapshots.get(p.id) : null;
+        const activePersisted = activeFinanceSummarySnapshot(p, frozenMetrics as any);
         const restaurantReportOrders = reportOrders.filter((order) => order.restaurantId === r.id);
         const liveGrossTotalOre = restaurantReportOrders.reduce(
           (sum, order) => sum + Math.max(0, Number(order.total || 0)),
@@ -315,6 +315,15 @@ router.get('/summary', async (req, res) => {
               (sum, id) => sum + (mollieReport.displayFeeByPaymentId.get(id) || 0),
               0,
             );
+        const waitingForMollieConfirmation =
+          String(p?.status || '').toUpperCase() === 'HOLD' &&
+          frozenMetrics?.mollieFeeStatus &&
+          frozenMetrics.mollieFeeStatus !== 'available';
+        const mollieConfirmationReady = Boolean(
+          waitingForMollieConfirmation &&
+          rowFeesComplete &&
+          mollieReport.periodLedgerStatus === 'exact',
+        );
         const refundedPaymentIds = new Set(
           restaurantReportOrders
             .filter((order) =>
@@ -370,15 +379,15 @@ router.get('/summary', async (req, res) => {
           owed: b.owedOre,
           commissionPct: b.commissionPct,
           selfDelivery: r.selfDelivery,
-        }, p);
+        }, activePersisted);
         const frozenMollieFeeSnapshot = frozenMetrics && Object.prototype.hasOwnProperty.call(frozenMetrics, 'mollieFees')
           ? (frozenMetrics.mollieFees == null ? 0 : Math.max(0, Math.round(Number(frozenMetrics.mollieFees))))
           : Math.max(0, Math.round(Number(p?.mollieFeeAmount || 0)));
         const restaurantMollieFeeOre = economic.usesFrozenSnapshot
           ? frozenMollieFeeSnapshot
           : mollieFeesOre;
-        const manualAdjustmentOre = Math.round(Number(p?.manualAdjustmentAmount || 0));
-        const lateRefundAdjustmentOre = Math.max(0, Math.round(Number(p?.lateRefundAdjustmentAmount || 0)));
+        const manualAdjustmentOre = Math.round(Number(activePersisted?.manualAdjustmentAmount || 0));
+        const lateRefundAdjustmentOre = Math.max(0, Math.round(Number(activePersisted?.lateRefundAdjustmentAmount || 0)));
         const liveSettlement = economic.usesFrozenSnapshot
           ? { payoutAmount: economic.payout, owedAmount: economic.owed }
           : applySettlementAdjustments({
@@ -388,8 +397,8 @@ router.get('/summary', async (req, res) => {
               manualAdjustmentAmount: manualAdjustmentOre,
               lateRefundAdjustmentAmount: lateRefundAdjustmentOre,
             });
-        const commissionVatPct = economic.usesFrozenSnapshot && p?.feeVatPctSnapshot != null
-          ? Number(p.feeVatPctSnapshot)
+        const commissionVatPct = economic.usesFrozenSnapshot && activePersisted?.feeVatPctSnapshot != null
+          ? Number(activePersisted.feeVatPctSnapshot)
           : economy.vatPlatformFeePct;
         const realPaymentCount = frozenMetrics && Number.isFinite(Number(frozenMetrics.realPaymentCount))
           ? Math.max(0, Math.round(Number(frozenMetrics.realPaymentCount)))
@@ -442,12 +451,16 @@ router.get('/summary', async (req, res) => {
             : mollieReport.feeStatus === 'unavailable'
               ? 'unavailable'
               : 'partial'),
+          waitingForMollieConfirmation: Boolean(waitingForMollieConfirmation),
+          mollieConfirmationReady,
           subscription: fromOre(economic.subscription),
           feeVat: fromOre(economic.feeVat),
           foodVatPct: economic.foodVatPct,
           foodVat: fromOre(economic.foodVat),
           manualAdjustment: fromOre(manualAdjustmentOre),
-          adjustmentNote: manualAdjustmentOre === 0 ? null : p?.notes ?? null,
+          adjustmentNote: manualAdjustmentOre === 0
+            ? null
+            : String((activePersisted as any)?.notes || p?.notes || '').trim() || null,
           payout: fromOre(liveSettlement.payoutAmount),
           owed: fromOre(liveSettlement.owedAmount),
           usesFrozenSnapshot: economic.usesFrozenSnapshot,
@@ -1129,6 +1142,7 @@ router.get('/payout/:restaurantId', async (req, res) => {
             manualAdjustmentAmount: fromOre(persisted.manualAdjustmentAmount),
             lateRefundAdjustmentAmount: fromOre(persisted.lateRefundAdjustmentAmount),
             mollieFeeAmount: fromOre(persisted.mollieFeeAmount),
+            mollieFeeStatus: String(latestFrozenMetrics?.mollieFeeStatus || 'available'),
             paymentFeeAmount: latestFrozenMetrics?.mollieFees == null
               ? fromOre(persisted.mollieFeeAmount)
               : fromOre(Math.max(
