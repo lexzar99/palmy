@@ -565,8 +565,35 @@ assert.deepEqual(pairedRestaurantFunding, {
   salesDifference: 0,
   feeDifference: 0,
   adjustmentNet: 0,
+  invoiceTotal: 0,
   externalNet: 988,
 });
+
+const invoiceNeedsPayoutAdjustment = reconcileRestaurantFundingOre({
+  periodGross: 312_900,
+  periodRefunds: 0,
+  periodFees: 16_165,
+  externalGross: 1_000,
+  externalRefunds: 0,
+  externalFees: 12,
+  rows: [{
+    grossTotal: 311_900,
+    refunds: 0,
+    mollieFee: 16_153,
+    payout: 301_300,
+    owed: 5_553,
+    commission: 0,
+    subscription: 0,
+    feeVat: 0,
+    deliveryFee: 0,
+    tip: 0,
+    selfDelivery: true,
+    manualAdjustment: 0,
+  }],
+});
+assert.equal(invoiceNeedsPayoutAdjustment.calculatedRestaurantNet, 301_300);
+assert.equal(invoiceNeedsPayoutAdjustment.invoiceTotal, 5_553);
+assert.equal(invoiceNeedsPayoutAdjustment.difference, -5_553);
 
 const unpairedRestaurantFunding = reconcileRestaurantFundingOre({
   periodGross: 312_900,
@@ -593,6 +620,7 @@ const unpairedRestaurantFunding = reconcileRestaurantFundingOre({
 assert.equal(unpairedRestaurantFunding.difference, 0);
 assert.equal(unpairedRestaurantFunding.calculatedRestaurantNet, 295_747);
 assert.equal(unpairedRestaurantFunding.adjustmentNet, 5_553);
+assert.equal(unpairedRestaurantFunding.invoiceTotal, 5_553);
 
 const mollieFees = molliePaymentFeesFromTransactions([
   {

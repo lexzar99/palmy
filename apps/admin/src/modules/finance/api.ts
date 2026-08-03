@@ -92,6 +92,7 @@ export interface FinanceSummary {
     salesDifference: number | null;
     feeDifference: number | null;
     adjustmentNet: number;
+    invoiceTotal: number;
     externalPayments: {
       count: number;
       gross: number;

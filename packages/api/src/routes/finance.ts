@@ -665,6 +665,7 @@ router.get('/summary', async (req, res) => {
         salesDifference: fundingReconciliation.salesDifference == null ? null : fromOre(fundingReconciliation.salesDifference),
         feeDifference: fundingReconciliation.feeDifference == null ? null : fromOre(fundingReconciliation.feeDifference),
         adjustmentNet: fromOre(fundingReconciliation.adjustmentNet),
+        invoiceTotal: fromOre(fundingReconciliation.invoiceTotal),
         externalPayments: {
           count: mollieReport.unlinkedPaymentCount,
           gross: fromOre(mollieReport.unlinkedGrossOre),

@@ -116,6 +116,13 @@ function FundingReconciliationCard({ value }: { value: FinanceSummary["fundingRe
     if (value.adjustmentNet !== 0) {
       diagnostics.push(`Manuella justeringar balanserar inte: ${formatCurrency(Math.abs(value.adjustmentNet))}.`);
     }
+    if (value.invoiceTotal > 0) {
+      diagnostics.push(
+        difference < 0
+          ? `${formatCurrency(value.invoiceTotal)} ska faktureras restauranger och saknas därför i Mollies utbetalningsbara netto. Minska restaurangutbetalningen med ${formatCurrency(Math.abs(difference))}.`
+          : `${formatCurrency(value.invoiceTotal)} ska faktureras restauranger. Öka restaurangutbetalningen med ${formatCurrency(Math.abs(difference))} för att matcha Mollie.`,
+      );
+    }
     if (diagnostics.length === 0) {
       diagnostics.push("Differensen ligger i en ännu omatchad saldo- eller restaurangpost.");
     }
@@ -134,7 +141,8 @@ function FundingReconciliationCard({ value }: { value: FinanceSummary["fundingRe
       </div>
       <div className="mt-4 rounded-[12px] bg-[var(--bg-page)] px-4 py-3">
         <MoneyLine label="Mollie · restaurangernas netto" value={value.mollieRestaurantNet} />
-        <MoneyLine label="Utbetalningar, fakturor och ViaEats-avgifter" value={value.calculatedRestaurantNet} />
+        <MoneyLine label="Beräknade utbetalningar och ViaEats-avdrag" value={value.calculatedRestaurantNet} />
+        <MoneyLine label="Att fakturera restauranger separat" value={value.invoiceTotal} />
         <div className="mt-1 border-t border-[var(--border-subtle)] pt-1">
           <MoneyLine label="Oförklarad skillnad" value={difference == null ? null : Math.abs(difference)} strong />
         </div>
