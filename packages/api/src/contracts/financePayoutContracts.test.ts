@@ -673,10 +673,8 @@ assert.equal(estimateMollieFeeFromSwedishPricing({
   amount: { currency: 'SEK', value: '500.00' },
   method: 'swish',
 }), 750, 'Swish uses 0.90% + 3.00 SEK');
-assert.equal(mollieRefundFeeForDisplay({ method: 'swish', refunded: true }), 270);
-assert.equal(mollieRefundFeeForDisplay({ method: 'creditcard', refunded: true }), 0);
-assert.equal(mollieRefundFeeForDisplay({ method: 'swish', refunded: false }), 0);
-assert.equal(mollieRefundFeeForDisplay({ method: 'creditcard', refunded: true, bookedFeeOre: 125 }), 125);
+assert.equal(mollieRefundFeeForDisplay({}), 0, 'no unverified refund fee is assumed');
+assert.equal(mollieRefundFeeForDisplay({ bookedFeeOre: 125 }), 125, 'a booked Mollie refund fee is used exactly');
 const calibratedFees = allocateExactFeeTotal(
   new Map([
     ['tr_booked_a', 7_179],

@@ -12,7 +12,6 @@ const SEK = 'SEK';
 const CACHE_TTL_MS = 60_000;
 const ERROR_CACHE_TTL_MS = 5 * 60_000;
 const MAX_TRANSACTION_PAGES = 100;
-const SWISH_REFUND_FEE_ORE = 270;
 
 type MollieAmount = {
   currency?: unknown;
@@ -80,14 +79,9 @@ const percentageFee = (amountOre: number, percentage: number, fixedOre: number) 
   Math.max(0, Math.round(amountOre * percentage / 100) + fixedOre);
 
 export function mollieRefundFeeForDisplay(input: {
-  method: unknown;
-  refunded: boolean;
   bookedFeeOre?: number | null;
 }): number {
-  if (input.bookedFeeOre != null) return Math.max(0, Math.round(input.bookedFeeOre));
-  return input.refunded && String(input.method || '').trim().toLowerCase() === 'swish'
-    ? SWISH_REFUND_FEE_ORE
-    : 0;
+  return input.bookedFeeOre == null ? 0 : Math.max(0, Math.round(input.bookedFeeOre));
 }
 
 /**
@@ -134,7 +128,7 @@ export type MollieFinanceReport = {
   estimatedFeeByPaymentId: Map<string, number>;
   paymentFeeByPaymentId: Map<string, number>;
   refundFeeByPaymentId: Map<string, number>;
-  /** Booked refund fee, or the provisional 2.70 SEK fee for refunded Swish payments. */
+  /** Booked refund fee only; no unverified refund fee is assumed. */
   displayRefundFeeByPaymentId: Map<string, number>;
   paymentIdByOrderId: Map<string, string>;
   paymentIdByOrderNumber: Map<string, string>;
@@ -652,9 +646,6 @@ export async function getMollieFinanceReport(input: {
   env?: NodeJS.ProcessEnv;
 }): Promise<MollieFinanceReport> {
   const explicitPaymentIds = [...new Set(input.paymentIds.map((id) => String(id || '').trim()).filter(Boolean))].sort();
-  const explicitRefundedPaymentIds = new Set(
-    (input.refundedPaymentIds || []).map((id) => String(id || '').trim()).filter(Boolean),
-  );
   const orderReferences = (input.orderReferences || []).map((reference) => ({
     id: String(reference.id || '').trim(),
     orderNumber: String(reference.orderNumber || '').trim(),
@@ -673,7 +664,6 @@ export async function getMollieFinanceReport(input: {
     input.from.toISOString().slice(0, 10),
     (input.to || new Date()).toISOString().slice(0, 10),
     explicitPaymentIds.join(','),
-    [...explicitRefundedPaymentIds].sort().join(','),
     orderReferences.map((reference) => `${reference.id}:${reference.orderNumber}:${reference.refunded ? 1 : 0}`).sort().join(','),
   ].join(':');
   const cached = reportCache.get(cacheKey);
@@ -716,12 +706,9 @@ export async function getMollieFinanceReport(input: {
     const periodPayments = periodPaymentsResult.value;
     const orderIds = new Set(orderReferences.map((reference) => reference.id).filter(Boolean));
     const orderNumbers = new Set(orderReferences.map((reference) => reference.orderNumber).filter(Boolean));
-    const refundedOrderIds = new Set(orderReferences.filter((reference) => reference.refunded).map((reference) => reference.id));
-    const refundedOrderNumbers = new Set(orderReferences.filter((reference) => reference.refunded).map((reference) => reference.orderNumber));
     const paymentIdByOrderId = new Map<string, string>();
     const paymentIdByOrderNumber = new Map<string, string>();
     const inferredPaymentIds: string[] = [];
-    const inferredRefundedPaymentIds: string[] = [];
     for (const payment of periodPayments || []) {
       const paymentId = String(payment.id || '').trim();
       if (!paymentId) continue;
@@ -732,15 +719,8 @@ export async function getMollieFinanceReport(input: {
       inferredPaymentIds.push(paymentId);
       if (matchesOrderId && reference.orderId) paymentIdByOrderId.set(reference.orderId, paymentId);
       if (matchesOrderNumber && reference.orderNumber) paymentIdByOrderNumber.set(reference.orderNumber, paymentId);
-      if (
-        (reference.orderId && refundedOrderIds.has(reference.orderId)) ||
-        (reference.orderNumber && refundedOrderNumbers.has(reference.orderNumber))
-      ) {
-        inferredRefundedPaymentIds.push(paymentId);
-      }
     }
     const paymentIds = [...new Set([...explicitPaymentIds, ...inferredPaymentIds])].sort();
-    const refundedPaymentIds = new Set([...explicitRefundedPaymentIds, ...inferredRefundedPaymentIds]);
     const allFees = mollieFeeBreakdownFromTransactions(transactions);
     // Recent booked payments are also training data, so a short date range can
     // still estimate today's paid-but-not-booked transactions.
@@ -785,15 +765,12 @@ export async function getMollieFinanceReport(input: {
       const bookedPaymentFee = paymentFeeByPaymentId.get(paymentId);
       const method = String(payment.method || '').toLowerCase();
       const bookedRefundFee = refundFeeByPaymentId.get(paymentId);
-      const refundedSwish = refundedPaymentIds.has(paymentId) && method === 'swish';
       const displayRefundFee = mollieRefundFeeForDisplay({
-        method,
-        refunded: refundedPaymentIds.has(paymentId),
         bookedFeeOre: bookedRefundFee,
       });
       displayRefundFeeByPaymentId.set(paymentId, displayRefundFee);
 
-      if (bookedPaymentFee != null && (!refundedSwish || bookedRefundFee != null)) {
+      if (bookedPaymentFee != null) {
         const exactFee = bookedPaymentFee + (bookedRefundFee || 0);
         feeByPaymentId.set(paymentId, exactFee);
         displayFeeByPaymentId.set(paymentId, exactFee);
@@ -897,8 +874,8 @@ export async function getMollieFinanceReport(input: {
       )
       : null;
     // Keep provisional fees untouched. The reconciliation must show the
-    // difference against Mollie's booked ledger (for example +2.70 SEK when a
-    // provisional Swish refund fee was not actually charged).
+    // difference against Mollie's booked ledger instead of hiding unmatched
+    // charges by distributing them across restaurant transactions.
     const feeCalibrationOre: number | null = null;
     const transferFrequency = String(balance.transferFrequency || '').trim() || null;
     const nextSettlement = nextSettlementResult.value;
