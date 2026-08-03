@@ -14,6 +14,7 @@ export type PayoutPrintOptions = {
   mode?: PayoutPrintMode;
   showReferenceOrders?: boolean;
   showPaymentState?: boolean;
+  adjustmentNote?: string;
 };
 
 type PrintOrder = PayoutSpec["orders"][number];
@@ -95,12 +96,11 @@ export function printPayoutSpec(
   const dailyRows = payoutPrintDailyRows(printOrders);
   const showPaymentState = options.showPaymentState !== false;
   const owed = (b as { owed?: number }).owed || 0;
-  const isOwed = !frozen && owed > 0;
-  const net = frozen && persisted
-    ? persisted.payoutAmount
-    : isOwed
-      ? owed
-      : Math.max(0, b.payout - (Number(manualAdjustment) || 0) - (Number(lateRefundRecovery) || 0));
+  const settlementPosition = frozen && persisted
+    ? persisted.payoutAmount - persisted.owedAmount
+    : b.payout - owed - (Number(manualAdjustment) || 0) - (Number(lateRefundRecovery) || 0);
+  const isOwed = settlementPosition < 0;
+  const net = Math.abs(settlementPosition);
   const totalLabel = isOwed ? "Att fakturera restaurangen" : "Att överföra till restaurangen";
   const modelLabel = (frozen ? persisted?.selfDeliverySnapshot : spec.restaurant.selfDelivery) ? "Levererar själv" : "ViaEats levererar";
   const commissionPct = frozen ? persisted?.commissionPctSnapshot : b.commissionPct;
@@ -369,7 +369,13 @@ export function printPayoutSpec(
               line(`Moms på ViaEats ersättning (${persisted.feeVatPctSnapshot ?? "-"}%)`, kr(platformFeeVat), { minus: true }),
               mollieFeeTotal > 0 ? line("Mollie-kort- och refundavgifter", kr(mollieFeeTotal), { minus: true }) : "",
               line("Summa avgiftsavdrag inkl. moms", kr(platformFeeTotal + mollieFeeTotal), { strong: true }),
-              Math.abs(persisted.manualAdjustmentAmount) > 0 ? line("Manuell justering", kr(persisted.manualAdjustmentAmount), { minus: true }) : "",
+              Math.abs(persisted.manualAdjustmentAmount) > 0
+                ? line(
+                    persisted.manualAdjustmentAmount > 0 ? "Extra avdrag - manuell justering" : "Kreditering - manuell justering",
+                    kr(Math.abs(persisted.manualAdjustmentAmount)),
+                    { minus: persisted.manualAdjustmentAmount > 0 },
+                  )
+                : "",
               persisted.lateRefundAdjustmentAmount > 0 ? line("Automatisk recovery för sena refunds", kr(persisted.lateRefundAdjustmentAmount), { minus: true }) : "",
             ].join("")
           : [
@@ -386,12 +392,22 @@ export function printPayoutSpec(
               line(`Moms på ViaEats ersättning (${b.feeVatPct}%)`, kr(b.feeVat), { minus: true }),
               mollieFeeTotal > 0 ? line("Mollie-kort- och refundavgifter", kr(mollieFeeTotal), { minus: true }) : "",
               line("Summa avgiftsavdrag inkl. moms", kr(platformFeeTotal + mollieFeeTotal), { strong: true }),
-              Math.abs(Number(manualAdjustment) || 0) > 0 ? line("Manuell justering", kr(Number(manualAdjustment) || 0), { minus: true }) : "",
+              Math.abs(Number(manualAdjustment) || 0) > 0
+                ? line(
+                    Number(manualAdjustment) > 0 ? "Extra avdrag - manuell justering" : "Kreditering - manuell justering",
+                    kr(Math.abs(Number(manualAdjustment) || 0)),
+                    { minus: Number(manualAdjustment) > 0 },
+                  )
+                : "",
               (Number(lateRefundRecovery) || 0) > 0 ? line("Automatisk recovery för sena refunds", kr(Number(lateRefundRecovery) || 0), { minus: true }) : "",
             ].join("")}
       </table>
 
       <div class="total"><span>${esc(totalLabel)}</span><span class="v">${kr(net)}</span></div>
+
+      ${Math.abs(frozen && persisted ? persisted.manualAdjustmentAmount : Number(manualAdjustment) || 0) > 0
+        ? `<div class="note"><strong>Orsak till justering:</strong> ${esc(options.adjustmentNote || persisted?.notes || "Saknas")}</div>`
+        : ""}
 
       ${ordersSection}
 

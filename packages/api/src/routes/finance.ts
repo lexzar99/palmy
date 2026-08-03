@@ -5,6 +5,7 @@ import { computePayout, economyFromSettings, type OrderEcon } from '../lib/finan
 import {
   FINANCE_ACCOUNTING_ORDER_FILTER,
   FINANCE_REAL_PAYMENT_STATUSES,
+  applySettlementAdjustments,
   isFinanceRealPaymentOrder,
   netPayoutOrder,
   PAYOUT_NON_TEST_ORDER_FILTER,
@@ -14,6 +15,7 @@ import {
 } from '../lib/payoutPolicy';
 import { calculateLateRefundRecoveryPlan, PayoutRecoveryError } from '../lib/payoutRecovery';
 import {
+  reconcileRestaurantFundingOre,
   selectFinanceSummaryEconomicValues,
   sumFinanceSummaryRows,
 } from '../lib/financeSummary';
@@ -153,6 +155,8 @@ router.get('/summary', async (req, res) => {
           orderCount: true,
           commissionAmount: true,
           subscriptionAmount: true,
+          manualAdjustmentAmount: true,
+          lateRefundAdjustmentAmount: true,
           payoutAmount: true,
           mollieFeeAmount: true,
           foodVatAmount: true,
@@ -161,6 +165,7 @@ router.get('/summary', async (req, res) => {
           feeVatPctSnapshot: true,
           foodVatPctSnapshot: true,
           selfDeliverySnapshot: true,
+          notes: true,
         },
       }),
     ]);
@@ -349,12 +354,17 @@ router.get('/summary', async (req, res) => {
         const restaurantMollieFeeOre = economic.usesFrozenSnapshot
           ? frozenMollieFeeSnapshot
           : mollieFeesOre;
-        const livePayoutAfterMollieFeesOre = !economic.usesFrozenSnapshot && restaurantMollieFeeOre != null
-          ? economic.payout - restaurantMollieFeeOre
-          : economic.payout;
-        const liveOwedAfterMollieFeesOre = !economic.usesFrozenSnapshot && restaurantMollieFeeOre != null
-          ? Math.max(0, economic.owed + Math.max(0, -livePayoutAfterMollieFeesOre))
-          : economic.owed;
+        const manualAdjustmentOre = Math.round(Number(p?.manualAdjustmentAmount || 0));
+        const lateRefundAdjustmentOre = Math.max(0, Math.round(Number(p?.lateRefundAdjustmentAmount || 0)));
+        const liveSettlement = economic.usesFrozenSnapshot
+          ? { payoutAmount: economic.payout, owedAmount: economic.owed }
+          : applySettlementAdjustments({
+              payoutAmount: economic.payout,
+              owedAmount: economic.owed,
+              mollieFeeAmount: restaurantMollieFeeOre ?? 0,
+              manualAdjustmentAmount: manualAdjustmentOre,
+              lateRefundAdjustmentAmount: lateRefundAdjustmentOre,
+            });
         const commissionVatPct = economic.usesFrozenSnapshot && p?.feeVatPctSnapshot != null
           ? Number(p.feeVatPctSnapshot)
           : economy.vatPlatformFeePct;
@@ -413,8 +423,10 @@ router.get('/summary', async (req, res) => {
           feeVat: fromOre(economic.feeVat),
           foodVatPct: economic.foodVatPct,
           foodVat: fromOre(economic.foodVat),
-          payout: fromOre(Math.max(0, livePayoutAfterMollieFeesOre)),
-          owed: fromOre(liveOwedAfterMollieFeesOre),
+          manualAdjustment: fromOre(manualAdjustmentOre),
+          adjustmentNote: manualAdjustmentOre === 0 ? null : p?.notes ?? null,
+          payout: fromOre(liveSettlement.payoutAmount),
+          owed: fromOre(liveSettlement.owedAmount),
           usesFrozenSnapshot: economic.usesFrozenSnapshot,
           status: p?.status ?? null,
           payoutReference: p?.payoutReference ?? null,
@@ -427,6 +439,33 @@ router.get('/summary', async (req, res) => {
     ) => rows.every((row) => row[field] != null)
       ? rows.reduce((sum, row) => sum + Number(row[field]), 0)
       : null;
+    const toRoundedOre = (value: number | null | undefined) => Math.round(Number(value || 0) * 100);
+    const periodGrossOre = mollieReport.periodGrossOre;
+    const periodRefundsOre = mollieReport.periodRefundsOre;
+    const periodFeesOre = mollieReport.periodFeesOre;
+    const externalFeesOre = mollieReport.unlinkedFeesOre;
+    const fundingReconciliation = reconcileRestaurantFundingOre({
+      periodGross: periodGrossOre,
+      periodRefunds: periodRefundsOre,
+      periodFees: periodFeesOre,
+      externalGross: mollieReport.unlinkedGrossOre,
+      externalRefunds: mollieReport.unlinkedRefundsOre,
+      externalFees: externalFeesOre,
+      rows: rows.map((row) => ({
+        grossTotal: toRoundedOre(row.grossTotal),
+        refunds: toRoundedOre(row.refunds),
+        mollieFee: row.restaurantMollieFee == null ? null : toRoundedOre(row.restaurantMollieFee),
+        payout: toRoundedOre(row.payout),
+        owed: toRoundedOre(row.owed),
+        commission: toRoundedOre(row.commission),
+        subscription: toRoundedOre(row.subscription),
+        feeVat: toRoundedOre(row.feeVat),
+        deliveryFee: toRoundedOre(row.deliveryFee),
+        tip: toRoundedOre(row.tip),
+        selfDelivery: row.selfDelivery,
+        manualAdjustment: toRoundedOre(row.manualAdjustment),
+      })),
+    });
     const restaurantNameById = new Map(restaurants.map((restaurant) => [restaurant.id, restaurant.name]));
     const deviations: Array<FinanceDeviation & { restaurantName: string | null }> =
       reconcileFinanceOrders({
@@ -575,6 +614,23 @@ router.get('/summary', async (req, res) => {
         restaurantMollieFee: nullableSum('restaurantMollieFee'),
         companyRevenueExVat: nullableSum('companyRevenueExVat'),
         commissionAfterMollieFees: nullableSum('commissionAfterMollieFees'),
+        manualAdjustment: rows.reduce((sum, row) => sum + row.manualAdjustment, 0),
+      },
+      fundingReconciliation: {
+        status: fundingReconciliation.difference === 0 ? 'exact' : fundingReconciliation.difference == null ? 'unavailable' : 'difference',
+        mollieRestaurantNet: fundingReconciliation.mollieRestaurantNet == null ? null : fromOre(fundingReconciliation.mollieRestaurantNet),
+        calculatedRestaurantNet: fromOre(fundingReconciliation.calculatedRestaurantNet),
+        difference: fundingReconciliation.difference == null ? null : fromOre(fundingReconciliation.difference),
+        salesDifference: fundingReconciliation.salesDifference == null ? null : fromOre(fundingReconciliation.salesDifference),
+        feeDifference: fundingReconciliation.feeDifference == null ? null : fromOre(fundingReconciliation.feeDifference),
+        adjustmentNet: fromOre(fundingReconciliation.adjustmentNet),
+        externalPayments: {
+          count: mollieReport.unlinkedPaymentCount,
+          gross: fromOre(mollieReport.unlinkedGrossOre),
+          refunds: fromOre(mollieReport.unlinkedRefundsOre),
+          fees: externalFeesOre == null ? null : fromOre(externalFeesOre),
+          net: fundingReconciliation.externalNet == null ? null : fromOre(fundingReconciliation.externalNet),
+        },
       },
       refundImpact: {
         refundCount: refundedOrders.length,
@@ -880,6 +936,33 @@ router.get('/payout/:restaurantId', async (req, res) => {
     const refundWindowClosesAt = payoutRefundWindowClosesAt(end, refundWindowHours);
     const s = (settingsRow as any) || {};
     const manualAdjustmentAmount = Number(persisted?.manualAdjustmentAmount || 0);
+    const persistedOwedAmount = persisted
+      ? applySettlementAdjustments({
+          payoutAmount: Math.max(
+            0,
+            Number(persisted.grossSales || 0) -
+              Number(persisted.commissionAmount || 0) -
+              Number(persisted.subscriptionAmount || 0) -
+              Math.round(
+                ((Number(persisted.commissionAmount || 0) + Number(persisted.subscriptionAmount || 0)) *
+                  Number(persisted.feeVatPctSnapshot || 0)) / 100,
+              ),
+          ),
+          owedAmount: Math.max(
+            0,
+            Number(persisted.commissionAmount || 0) +
+              Number(persisted.subscriptionAmount || 0) +
+              Math.round(
+                ((Number(persisted.commissionAmount || 0) + Number(persisted.subscriptionAmount || 0)) *
+                  Number(persisted.feeVatPctSnapshot || 0)) / 100,
+              ) -
+              Number(persisted.grossSales || 0),
+          ),
+          mollieFeeAmount: Number(persisted.mollieFeeAmount || 0),
+          manualAdjustmentAmount: Number(persisted.manualAdjustmentAmount || 0),
+          lateRefundAdjustmentAmount: Number(persisted.lateRefundAdjustmentAmount || 0),
+        }).owedAmount
+      : 0;
     let recoveryPreview: {
       blocked: boolean;
       error: string | null;
@@ -1000,6 +1083,7 @@ router.get('/payout/:restaurantId', async (req, res) => {
             lateRefundAdjustmentAmount: fromOre(persisted.lateRefundAdjustmentAmount),
             mollieFeeAmount: fromOre(persisted.mollieFeeAmount),
             payoutAmount: fromOre(persisted.payoutAmount),
+            owedAmount: fromOre(persistedOwedAmount),
             foodVatAmount: persisted.foodVatAmount == null ? null : fromOre(persisted.foodVatAmount),
             platformTipAmount: persisted.platformTipAmount == null ? null : fromOre(persisted.platformTipAmount),
             commissionPctSnapshot: persisted.commissionPctSnapshot,

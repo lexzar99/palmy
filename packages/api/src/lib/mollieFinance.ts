@@ -647,13 +647,21 @@ export async function getMollieFinanceReport(input: {
         ).then((value) => ({ value, error: null }))
           .catch((error: unknown) => ({ value: null, error }))
       : Promise.resolve({ value: null, error: null });
-    const [balance, transactions, periodPaymentsResult, balanceReportResult, nextSettlementResult, payoutsResult] = await Promise.all([
+    const closingAnchorReportPromise = requestedToKey < todayKey
+      ? mollieGet<MollieBalanceReport>(
+          `/balances/primary/report?from=${encodeURIComponent(reportUntil)}&until=${encodeURIComponent(nextStockholmDate(new Date(requestedTo.getTime() + 24 * 60 * 60 * 1000)))}&grouping=transaction-categories`,
+          token,
+        ).then((value) => ({ value, error: null }))
+          .catch((error: unknown) => ({ value: null, error }))
+      : Promise.resolve({ value: null, error: null });
+    const [balance, transactions, periodPaymentsResult, balanceReportResult, closingAnchorReportResult, nextSettlementResult, payoutsResult] = await Promise.all([
       mollieGet<MollieBalance>('/balances/primary', token),
       collectBalanceTransactions(token, earliest),
       collectPeriodPayments(token, input.from, requestedTo)
         .then((value) => ({ value, error: null }))
         .catch((error: unknown) => ({ value: null, error })),
       balanceReportPromise,
+      closingAnchorReportPromise,
       mollieGet<MollieSettlement>('/settlements/next', token)
         .then((value) => ({ value, error: null }))
         .catch((error: unknown) => ({ value: null, error })),
@@ -738,8 +746,10 @@ export async function getMollieFinanceReport(input: {
     const totalBalance = available == null || pending == null ? null : available + pending;
     const balanceReport = balanceReportResult.value;
     const reportOpeningBalance = balanceReportBalance(balanceReport, 'open');
-    const reportClosingBalance = balanceReportBalance(balanceReport, 'close');
-    const reportFees = balanceReportExternalMovement(balanceReport, 'fee-prepayments');
+    const reportClosingBalance = requestedToKey < todayKey
+      ? balanceReportBalance(closingAnchorReportResult.value, 'open')
+      : balanceReportBalance(balanceReport, 'close');
+    const balanceReportFees = balanceReportExternalMovement(balanceReport, 'fee-prepayments');
     const reportOtherMovements = balanceReport
       ? ['chargebacks', 'capital', 'transfers', 'corrections', 'topups']
           .reduce((sum, category) =>
@@ -756,6 +766,18 @@ export async function getMollieFinanceReport(input: {
       : null;
     const periodRefunds = periodPayments
       ? periodPayments.reduce((sum, payment) => sum + Math.max(0, exactOre(payment.amountRefunded) || 0), 0)
+      : null;
+    const periodPaymentIds = periodPayments
+      ? periodPayments.map((payment) => String(payment.id || '').trim()).filter(Boolean)
+      : [];
+    const transactionFeesComplete = periodPaymentIds.every((paymentId) =>
+      allFees.totalByPaymentId.has(paymentId)
+    );
+    const transactionPeriodFees = periodPayments && transactionFeesComplete
+      ? periodPaymentIds.reduce(
+          (sum, paymentId) => sum + (allFees.totalByPaymentId.get(paymentId) || 0),
+          0,
+        )
       : null;
     const requestedPaymentIds = new Set(paymentIds);
     const unlinkedPayments = periodPayments
@@ -784,8 +806,10 @@ export async function getMollieFinanceReport(input: {
           0,
         )
       : null;
-    const exactPeriodFees = reportCoversRequestedPeriod && reportFees != null
-      ? Math.abs(reportFees)
+    const exactPeriodFees = requestedToKey < todayKey && transactionPeriodFees != null
+      ? transactionPeriodFees
+      : reportCoversRequestedPeriod && balanceReportFees != null
+        ? Math.abs(balanceReportFees)
       : null;
     const periodDifference = (
       reportCoversRequestedPeriod &&
@@ -802,14 +826,41 @@ export async function getMollieFinanceReport(input: {
           periodRefunds -
           exactPeriodFees +
           reportOtherMovements
-        )
+      )
       : null;
-    // The balance report is authoritative for the account total, but it can
-    // also contain failure fees, invoice rounding and other Mollie costs that
-    // do not belong to a restaurant payment. Never spread that account total
-    // over provisional payment estimates. A restaurant fee becomes final only
-    // when the balance transaction itself contains the payment ID.
-    const feeCalibrationOre: number | null = null;
+    // Reconcile provisional per-payment estimates to the exact period total
+    // only after every external/NFC payment fee has been identified and
+    // removed. This preserves external movements while ensuring that no öre
+    // disappears from the restaurants' combined period settlement.
+    let feeCalibrationOre: number | null = null;
+    const exactLinkedFeeTarget = exactPeriodFees != null && unlinkedFees != null
+      ? exactPeriodFees - unlinkedFees
+      : null;
+    const bookedLinkedFees = [...feeByPaymentId.values()].reduce((sum, fee) => sum + fee, 0);
+    const allRequestedFeesDisplayable = paymentIds.every((paymentId) =>
+      displayFeeByPaymentId.has(paymentId)
+    );
+    if (
+      exactLinkedFeeTarget != null &&
+      exactLinkedFeeTarget >= bookedLinkedFees &&
+      allRequestedFeesDisplayable &&
+      estimatedFeeByPaymentId.size > 0
+    ) {
+      const previousDisplayTotal = paymentIds.reduce(
+        (sum, paymentId) => sum + (displayFeeByPaymentId.get(paymentId) || 0),
+        0,
+      );
+      const calibrated = allocateExactFeeTotal(
+        feeByPaymentId,
+        estimatedFeeByPaymentId,
+        exactLinkedFeeTarget,
+      );
+      for (const paymentId of paymentIds) {
+        const calibratedFee = calibrated.get(paymentId);
+        if (calibratedFee != null) displayFeeByPaymentId.set(paymentId, calibratedFee);
+      }
+      feeCalibrationOre = exactLinkedFeeTarget - previousDisplayTotal;
+    }
     const transferFrequency = String(balance.transferFrequency || '').trim() || null;
     const nextSettlement = nextSettlementResult.value;
     const latestPayout = payoutsResult.value?._embedded?.payouts?.[0] || null;

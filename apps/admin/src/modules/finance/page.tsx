@@ -11,7 +11,7 @@ import {
   RefreshCw,
   Search,
 } from "lucide-react";
-import { financeSummaryQueryKey, getFinanceSummary, type FinanceRow } from "@/modules/finance/api";
+import { financeSummaryQueryKey, getFinanceSummary, type FinanceRow, type FinanceSummary } from "@/modules/finance/api";
 import { FinanceSettingsPage } from "@/modules/finance/settings-page";
 import { TiersPage } from "@/modules/tiers/page";
 import { DeliveryModeBadge } from "@/shared/components/delivery-mode";
@@ -98,6 +98,61 @@ function MoneyLine({
   );
 }
 
+function FundingReconciliationCard({ value }: { value: FinanceSummary["fundingReconciliation"] }) {
+  const difference = value.difference;
+  const exact = value.status === "exact" && difference === 0;
+  const diagnostics: string[] = [];
+  if (difference != null && difference !== 0) {
+    if (value.salesDifference != null && value.salesDifference !== 0) {
+      diagnostics.push(`Försäljning/refunds skiljer ${formatCurrency(Math.abs(value.salesDifference))}.`);
+    }
+    if (value.feeDifference != null && value.feeDifference !== 0) {
+      diagnostics.push(`Mollieavgifter skiljer ${formatCurrency(Math.abs(value.feeDifference))}.`);
+    }
+    if (value.adjustmentNet !== 0) {
+      diagnostics.push(`Manuella justeringar balanserar inte: ${formatCurrency(Math.abs(value.adjustmentNet))}.`);
+    }
+    if (diagnostics.length === 0) {
+      diagnostics.push("Differensen ligger i en ännu omatchad saldo- eller restaurangpost.");
+    }
+  }
+
+  return (
+    <Surface className="px-5 py-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="eyebrow">Kontroll för vald period</p>
+          <h2 className="section-title mt-1">Restaurangberäkningar mot Mollie</h2>
+        </div>
+        <Badge tone={exact ? "success" : value.status === "unavailable" ? "neutral" : "warning"}>
+          {exact ? "0,00 kr skillnad" : difference == null ? "Inväntar Mollie" : `${formatCurrency(Math.abs(difference))} skillnad`}
+        </Badge>
+      </div>
+      <div className="mt-4 rounded-[12px] bg-[var(--bg-page)] px-4 py-3">
+        <MoneyLine label="Mollie · restaurangernas netto" value={value.mollieRestaurantNet} />
+        <MoneyLine label="Utbetalningar, fakturor och ViaEats-avgifter" value={value.calculatedRestaurantNet} />
+        <div className="mt-1 border-t border-[var(--border-subtle)] pt-1">
+          <MoneyLine label="Oförklarad skillnad" value={difference == null ? null : Math.abs(difference)} strong />
+        </div>
+      </div>
+      {value.externalPayments.count > 0 ? (
+        <p className="mt-3 rounded-[10px] bg-[var(--brand-orange-soft)] px-4 py-3 text-[12px] font-semibold text-[var(--text-secondary)]">
+          Externa/NFC-betalningar hålls utanför restaurangerna: {money(value.externalPayments.gross)} brutto
+          {value.externalPayments.fees == null ? "" : ` − ${money(value.externalPayments.fees)} avgift`}
+          {value.externalPayments.net == null ? "" : ` = ${money(value.externalPayments.net)} extra netto`}.
+        </p>
+      ) : null}
+      {exact ? (
+        <p className="mt-3 text-[12px] font-bold text-[var(--success)]">Alla restaurangposter och parvisa justeringar går ihop på öret.</p>
+      ) : diagnostics.length > 0 ? (
+        <div className="mt-3 rounded-[10px] bg-[var(--warning-soft)] px-4 py-3 text-[12px] font-semibold text-[var(--text-secondary)]">
+          {diagnostics.map((diagnostic) => <p key={diagnostic}>{diagnostic}</p>)}
+        </div>
+      ) : null}
+    </Surface>
+  );
+}
+
 function PeriodBar({
   activePreset,
   from,
@@ -153,7 +208,7 @@ function RestaurantFinanceCard({
   row: FinanceRow;
   onOpen: () => void;
 }) {
-  const active = row.orderCount > 0;
+  const active = row.orderCount > 0 || row.manualAdjustment !== 0 || row.owed > 0;
   const payoutLabel = row.owed > 0 ? "Att fakturera restaurangen" : "Att betala ut";
   const payoutValue = row.owed > 0 ? row.owed : row.payout;
   const feeIsFinal = row.mollieFeeStatus === "available";
@@ -170,6 +225,11 @@ function RestaurantFinanceCard({
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-[17px] font-black tracking-[-0.02em] text-[var(--text-primary)]">{row.name}</h2>
             <Badge tone={statusTone(row.status)}>{row.status ? STATUS_LABEL[row.status] || row.status : "Ej hanterad"}</Badge>
+            {row.manualAdjustment !== 0 ? (
+              <Badge tone="warning">
+                {row.manualAdjustment > 0 ? "Extra avdrag" : "Kreditering"} {money(Math.abs(row.manualAdjustment))}
+              </Badge>
+            ) : null}
             {!active ? <Badge tone="neutral">Ingen aktivitet</Badge> : null}
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-[var(--text-muted)]">
@@ -210,8 +270,18 @@ function RestaurantFinanceCard({
           <MoneyLine label="Återbetalt" value={row.refunds} negative />
           <MoneyLine label="ViaEats inkl moms" value={viaEatsFeeInclVat} negative />
           <MoneyLine label="Mollie" value={row.restaurantMollieFee} negative />
+          <MoneyLine
+            label={row.manualAdjustment >= 0 ? "Manuell justering" : "Manuell kreditering"}
+            value={Math.abs(row.manualAdjustment)}
+            negative={row.manualAdjustment > 0}
+          />
           <MoneyLine label={payoutLabel} value={payoutValue} strong />
         </div>
+        {row.manualAdjustment !== 0 && row.adjustmentNote ? (
+          <p className="border-t border-[var(--border-subtle)] bg-[var(--bg-panel-soft)] px-4 py-2 text-[11.5px] font-semibold text-[var(--text-secondary)]">
+            Orsak: {row.adjustmentNote}
+          </p>
+        ) : null}
         <div className="flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] bg-[var(--bg-panel-soft)] px-4 py-3">
           {row.mollieFeeStatus === "partial" ? (
             <p className="mt-1 text-[10.5px] font-semibold text-[var(--warning)]">Beräknad från korttyp enligt Mollies prislista</p>
@@ -275,8 +345,8 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
   const totals = summary.data?.totals;
   const mollie = summary.data?.mollie;
   const reconciliation = summary.data?.reconciliation;
-  const activeRows = rows.filter((row) => row.orderCount > 0);
-  const inactiveRows = rows.filter((row) => row.orderCount === 0);
+  const activeRows = rows.filter((row) => row.orderCount > 0 || row.manualAdjustment !== 0 || row.owed > 0);
+  const inactiveRows = rows.filter((row) => row.orderCount === 0 && row.manualAdjustment === 0 && row.owed === 0);
   const periodLabel = activePreset
     ? PERIOD_PRESETS.find(([key]) => key === activePreset)?.[1] || ""
     : `${from} – ${to}`;
@@ -291,6 +361,9 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
   const actionableDeviations = reconciliation?.deviations.filter(
     (deviation) => deviation.severity !== "info",
   ) || [];
+  const fundingReconciliationPanel = summary.data
+    ? <FundingReconciliationCard value={summary.data.fundingReconciliation} />
+    : null;
 
   const heroPeriodBar = (
     <PeriodBar
@@ -394,6 +467,8 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                   </p>
                 ) : null}
               </section>
+
+              {fundingReconciliationPanel}
 
               <Surface className="px-5 py-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -500,6 +575,8 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                     : "Alla Mollieavgifter är bokförda och matchade mot payment-id."}
                 </p>
               </section>
+
+              {fundingReconciliationPanel}
 
               <div className="flex flex-wrap items-center gap-2">
                 <div className="relative min-w-[220px] flex-1">

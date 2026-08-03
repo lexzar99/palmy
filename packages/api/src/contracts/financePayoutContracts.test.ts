@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { computePayout, DEFAULT_ECONOMY } from '../lib/financeCalc';
 import {
+  applySettlementAdjustments,
   buildPayoutMoneySnapshot,
   buildLateRefundRecoveryPlan,
   assertPayoutProviderAuditFingerprint,
@@ -38,6 +39,7 @@ import {
   PayoutRecoveryError,
 } from '../lib/payoutRecovery';
 import {
+  reconcileRestaurantFundingOre,
   selectFinanceSummaryEconomicValues,
   sumFinanceSummaryRows,
 } from '../lib/financeSummary';
@@ -270,6 +272,29 @@ assert.deepEqual(settlement.economicSnapshot, {
   mollieFeeAmount: 0,
 });
 
+// Manual transfers are signed and exact to the öre. A paired transfer moves
+// the Burger King cost to Palmyra without changing the period total.
+assert.deepEqual(applySettlementAdjustments({
+  payoutAmount: 301_300,
+  owedAmount: 0,
+  manualAdjustmentAmount: 5_553,
+}), { payoutAmount: 295_747, owedAmount: 0 });
+assert.deepEqual(applySettlementAdjustments({
+  payoutAmount: 0,
+  owedAmount: 5_553,
+  manualAdjustmentAmount: -5_553,
+}), { payoutAmount: 0, owedAmount: 0 });
+assert.deepEqual(applySettlementAdjustments({
+  payoutAmount: 0,
+  owedAmount: 5_553,
+  manualAdjustmentAmount: -6_000,
+}), { payoutAmount: 447, owedAmount: 0 });
+assert.equal(
+  applySettlementAdjustments({ payoutAmount: 301_300, owedAmount: 0, manualAdjustmentAmount: 5_553 }).payoutAmount -
+    applySettlementAdjustments({ payoutAmount: 0, owedAmount: 5_553, manualAdjustmentAmount: -5_553 }).owedAmount,
+  295_747,
+);
+
 assert.equal(canTransitionPayout(null, 'PAID'), false);
 assert.equal(canTransitionPayout(null, 'APPROVED'), true);
 assert.equal(canTransitionPayout('DRAFT', 'PAID'), false);
@@ -467,6 +492,79 @@ assert.deepEqual(sumFinanceSummaryRows([
   payout: 7_650,
   owed: 0,
 });
+
+const pairedRestaurantFunding = reconcileRestaurantFundingOre({
+  periodGross: 312_900,
+  periodRefunds: 0,
+  periodFees: 16_165,
+  externalGross: 1_000,
+  externalRefunds: 0,
+  externalFees: 12,
+  rows: [
+    {
+      grossTotal: 311_900,
+      refunds: 0,
+      mollieFee: 10_600,
+      payout: 295_747,
+      owed: 0,
+      commission: 0,
+      subscription: 0,
+      feeVat: 0,
+      deliveryFee: 0,
+      tip: 0,
+      selfDelivery: true,
+      manualAdjustment: 5_553,
+    },
+    {
+      grossTotal: 0,
+      refunds: 0,
+      mollieFee: 5_553,
+      payout: 0,
+      owed: 0,
+      commission: 0,
+      subscription: 0,
+      feeVat: 0,
+      deliveryFee: 0,
+      tip: 0,
+      selfDelivery: true,
+      manualAdjustment: -5_553,
+    },
+  ],
+});
+assert.deepEqual(pairedRestaurantFunding, {
+  mollieRestaurantNet: 295_747,
+  calculatedRestaurantNet: 295_747,
+  difference: 0,
+  salesDifference: 0,
+  feeDifference: 0,
+  adjustmentNet: 0,
+  externalNet: 988,
+});
+
+const unpairedRestaurantFunding = reconcileRestaurantFundingOre({
+  periodGross: 312_900,
+  periodRefunds: 0,
+  periodFees: 16_165,
+  externalGross: 1_000,
+  externalRefunds: 0,
+  externalFees: 12,
+  rows: [{
+    grossTotal: 311_900,
+    refunds: 0,
+    mollieFee: 16_153,
+    payout: 295_747,
+    owed: 5_553,
+    commission: 0,
+    subscription: 0,
+    feeVat: 0,
+    deliveryFee: 0,
+    tip: 0,
+    selfDelivery: true,
+    manualAdjustment: 5_553,
+  }],
+});
+assert.equal(unpairedRestaurantFunding.difference, 5_553);
+assert.equal(unpairedRestaurantFunding.adjustmentNet, 5_553);
 
 const mollieFees = molliePaymentFeesFromTransactions([
   {

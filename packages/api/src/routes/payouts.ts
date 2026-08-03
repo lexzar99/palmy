@@ -248,6 +248,9 @@ router.post('/', async (req: AuthRequest, res) => {
 
     const normalizedReference = payoutReference ? String(payoutReference).trim() : null;
     const normalizedNotes = notes ? String(notes).trim() : null;
+    if (requestedAdjustmentOre !== 0 && !normalizedNotes) {
+      return res.status(400).json({ error: 'Ange en orsak till den manuella justeringen' });
+    }
     const restaurantKey = String(restaurantId);
     const refundWindowHours = payoutRefundWindowHours();
 

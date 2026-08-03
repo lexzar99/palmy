@@ -364,6 +364,41 @@ export type PayoutEconomicSnapshot = {
   mollieFeeAmount?: number | null | undefined;
 };
 
+export type SettlementAmounts = {
+  payoutAmount: number;
+  owedAmount: number;
+};
+
+/**
+ * Apply fees and signed adjustments to one restaurant's settlement position.
+ * Positive manual adjustments charge the restaurant; negative adjustments
+ * credit it. The result is always represented on exactly one side.
+ */
+export function applySettlementAdjustments({
+  payoutAmount,
+  owedAmount,
+  mollieFeeAmount = 0,
+  manualAdjustmentAmount = 0,
+  lateRefundAdjustmentAmount = 0,
+}: {
+  payoutAmount: number;
+  owedAmount: number;
+  mollieFeeAmount?: number;
+  manualAdjustmentAmount?: number;
+  lateRefundAdjustmentAmount?: number;
+}): SettlementAmounts {
+  const position =
+    Math.max(0, Math.round(Number(payoutAmount) || 0)) -
+    Math.max(0, Math.round(Number(owedAmount) || 0)) -
+    Math.max(0, Math.round(Number(mollieFeeAmount) || 0)) -
+    (Number.isFinite(manualAdjustmentAmount) ? Math.round(manualAdjustmentAmount) : 0) -
+    Math.max(0, Math.round(Number(lateRefundAdjustmentAmount) || 0));
+
+  return position >= 0
+    ? { payoutAmount: position, owedAmount: 0 }
+    : { payoutAmount: 0, owedAmount: -position };
+}
+
 export type RecoveryPlanSource = {
   sourcePayoutId: string;
   requiredRecoveryAmount: number;
@@ -427,6 +462,13 @@ export function buildPayoutMoneySnapshot(
     ? Math.max(0, Math.round(lateRefundAdjustmentAmount))
     : 0;
   const mollieFeeOre = Math.max(0, Math.round(Number(mollieFeeAmount) || 0));
+  const settlement = applySettlementAdjustments({
+    payoutAmount: breakdown.payoutOre,
+    owedAmount: breakdown.owedOre,
+    mollieFeeAmount: mollieFeeOre,
+    manualAdjustmentAmount: manualAdjustmentOre,
+    lateRefundAdjustmentAmount: lateRefundAdjustmentOre,
+  });
   return {
     breakdown,
     snapshot: {
@@ -436,9 +478,7 @@ export function buildPayoutMoneySnapshot(
       subscriptionAmount: breakdown.subscriptionOre,
       manualAdjustmentAmount: manualAdjustmentOre,
       lateRefundAdjustmentAmount: lateRefundAdjustmentOre,
-      payoutAmount: breakdown.owedOre > 0
-        ? 0
-        : Math.max(0, breakdown.payoutOre - manualAdjustmentOre - lateRefundAdjustmentOre - mollieFeeOre),
+      payoutAmount: settlement.payoutAmount,
       mollieFeeAmount: mollieFeeOre,
       foodVatAmount: breakdown.foodVatOre,
       platformTipAmount: breakdown.platformTipOre,
@@ -498,11 +538,19 @@ export function recomputePayoutFromEconomicSnapshot(
   );
   const grossSales = source.selfDeliverySnapshot ? grossTotal : foodBase;
   const mollieFeeAmount = nonNegativeOre(source.mollieFeeAmount);
-  const rawPayoutAmount = grossSales - commissionAmount - subscriptionAmount - feeVatAmount - mollieFeeAmount;
+  const commercialPosition = grossSales - commissionAmount - subscriptionAmount - feeVatAmount;
   const manualAdjustmentAmount = Number.isFinite(source.manualAdjustmentAmount)
     ? Math.round(source.manualAdjustmentAmount)
     : 0;
   const lateRefundAdjustmentAmount = nonNegativeOre(source.lateRefundAdjustmentAmount);
+
+  const settlement = applySettlementAdjustments({
+    payoutAmount: Math.max(0, commercialPosition),
+    owedAmount: Math.max(0, -commercialPosition),
+    mollieFeeAmount,
+    manualAdjustmentAmount,
+    lateRefundAdjustmentAmount,
+  });
 
   return {
     grossSales,
@@ -514,11 +562,7 @@ export function recomputePayoutFromEconomicSnapshot(
     mollieFeeAmount,
     foodVatAmount,
     platformTipAmount: source.selfDeliverySnapshot ? 0 : tipTotal,
-    // Preserve the existing fail-closed owed behaviour: a negative commercial
-    // net never turns a negative manual adjustment into a payout.
-    payoutAmount: rawPayoutAmount < 0
-      ? 0
-      : Math.max(0, rawPayoutAmount - manualAdjustmentAmount - lateRefundAdjustmentAmount),
+    payoutAmount: settlement.payoutAmount,
   };
 }
 

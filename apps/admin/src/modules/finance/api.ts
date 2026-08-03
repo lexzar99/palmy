@@ -48,6 +48,8 @@ export interface FinanceRow {
   foodVat: number;
   payout: number; // netto att betala ut (≥ 0)
   owed: number; // restaurangen är skyldig oss (faktureras) — > 0 ersätter payout
+  manualAdjustment: number; // positiv = extra avdrag, negativ = kreditering
+  adjustmentNote: string | null;
   refunds: number;
   usesFrozenSnapshot: boolean;
   status: string | null;
@@ -76,8 +78,25 @@ export interface FinanceSummary {
     platformTip: number;
     payout: number;
     owed: number;
+    manualAdjustment: number;
     refunds: number;
     orderCount: number;
+  };
+  fundingReconciliation: {
+    status: "exact" | "difference" | "unavailable";
+    mollieRestaurantNet: number | null;
+    calculatedRestaurantNet: number;
+    difference: number | null;
+    salesDifference: number | null;
+    feeDifference: number | null;
+    adjustmentNet: number;
+    externalPayments: {
+      count: number;
+      gross: number;
+      refunds: number;
+      fees: number | null;
+      net: number | null;
+    };
   };
   refundImpact: {
     refundCount: number;
@@ -255,6 +274,7 @@ export interface PayoutSpec {
     lateRefundAdjustmentAmount: number;
     mollieFeeAmount: number;
     payoutAmount: number;
+    owedAmount: number;
     foodVatAmount: number | null;
     platformTipAmount: number | null;
     commissionPctSnapshot: number | null;

@@ -122,7 +122,6 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
   const b = spec.data?.breakdown;
   const persisted = spec.data?.persisted;
   const usesFrozenSnapshot = persisted?.status === "APPROVED" || persisted?.status === "PAID";
-  const isOwed = !usesFrozenSnapshot && (b?.owed ?? 0) > 0;
   const automaticRecovery = spec.data?.persisted?.status === "APPROVED" || spec.data?.persisted?.status === "PAID"
     ? (spec.data.persisted.lateRefundAdjustmentAmount || 0)
     : (spec.data?.lateRefundRecovery.reserved || 0);
@@ -133,11 +132,11 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
   const serviceFeeTotal = usesFrozenSnapshot && persisted
     ? persisted.commissionAmount + persisted.subscriptionAmount + frozenFeeVat + (persisted.mollieFeeAmount || 0)
     : (b?.commission ?? 0) + (b?.subscription ?? 0) + (b?.feeVat ?? 0) + (b?.mollieFees ?? 0);
-  const net = usesFrozenSnapshot && persisted
-    ? persisted.payoutAmount
-    : isOwed
-      ? (b?.owed ?? 0)
-      : Math.max(0, (b?.payout ?? 0) - manualAdjustment - automaticRecovery);
+  const settlementPosition = usesFrozenSnapshot && persisted
+    ? persisted.payoutAmount - persisted.owedAmount
+    : (b?.payout ?? 0) - (b?.owed ?? 0) - manualAdjustment - automaticRecovery;
+  const isOwed = settlementPosition < 0;
+  const net = Math.abs(settlementPosition);
   const restaurantGross = usesFrozenSnapshot && persisted ? persisted.grossSales : (b?.restaurantGross ?? 0);
   const displayedOrderCount = usesFrozenSnapshot && persisted ? persisted.orderCount : (b?.orderCount ?? 0);
   const restaurantMollieFee = usesFrozenSnapshot && persisted
@@ -192,8 +191,9 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
       mode: printMode,
       showReferenceOrders,
       showPaymentState,
+      adjustmentNote: notes,
     }),
-    [printMode, showPaymentState, showReferenceOrders],
+    [notes, printMode, showPaymentState, showReferenceOrders],
   );
   const previewOrders = useMemo(
     () => payoutSpec ? payoutPrintOrders(payoutSpec, printOptions) : [],
@@ -268,7 +268,13 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
             <CalcRow label="Restaurangens försäljning" value={restaurantGross} />
             <CalcRow label="ViaEats inkl moms" value={viaEatsChargeInclVat} minus />
             <CalcRow label={`Mollie · ${mollieFeeIsFinal ? "exakt" : "beräknad från korttyp"}`} value={restaurantMollieFee} minus />
-            {manualAdjustment !== 0 ? <CalcRow label="Manuell justering" value={manualAdjustment} minus /> : null}
+            {manualAdjustment !== 0 ? (
+              <CalcRow
+                label={manualAdjustment > 0 ? "Extra avdrag · manuell justering" : "Kreditering · manuell justering"}
+                value={Math.abs(manualAdjustment)}
+                minus={manualAdjustment > 0}
+              />
+            ) : null}
             {automaticRecovery > 0 ? <CalcRow label="Sena återbetalningar" value={automaticRecovery} minus /> : null}
             <div className={`mt-3 flex items-center justify-between rounded-xl px-4 py-3 text-white ${isOwed ? "bg-[#B45309]" : "bg-[var(--brand-navy)]"}`}>
               <span className="font-bold">{isOwed ? "Att fakturera restaurangen" : "Att överföra till restaurangen"}</span>
@@ -282,6 +288,36 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
             <p className="mt-3 text-xs leading-5 text-[var(--text-secondary)]">
               Vid återbetalning ligger den ursprungliga betalavgiften kvar. Mollies eventuella refundavgift läggs till. Rapporten kan bara låsas när båda är bokförda och matchade mot payment-id.
             </p>
+            <div className="mt-4 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-page)] px-4 py-4">
+              <p className="text-sm font-extrabold text-[var(--text-primary)]">Manuell justering för denna restaurang</p>
+              <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
+                Positivt belopp dras från utbetalningen eller läggs på fakturan. Negativt belopp krediterar restaurangen. Vid flytt mellan restauranger använder du samma belopp med motsatt tecken på den andra restaurangen.
+              </p>
+              <div className="mt-3 grid gap-3 md:grid-cols-[180px_1fr]">
+                <Field label="Justering (kr)">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={manualAdjustment}
+                    disabled={usesFrozenSnapshot}
+                    onChange={(event) => setManualAdjustment(Number(event.target.value))}
+                  />
+                </Field>
+                <Field label="Orsak till justering">
+                  <Textarea
+                    value={notes}
+                    disabled={usesFrozenSnapshot}
+                    placeholder="Exempel: Flytt av Burger King-testavgifter"
+                    onChange={(event) => setNotes(event.target.value)}
+                  />
+                </Field>
+              </div>
+              {manualAdjustment !== 0 ? (
+                <p className="mt-3 text-xs font-bold text-[var(--brand-navy-ink)]">
+                  Resultat efter justering: {isOwed ? `${formatCurrency(net)} att fakturera` : `${formatCurrency(net)} att betala ut`}.
+                </p>
+              ) : null}
+            </div>
             <details className="mt-3 border-t border-[var(--border-subtle)] pt-3 text-xs text-[var(--text-secondary)]">
               <summary className="cursor-pointer font-bold">Visa moms och avgiftsunderlag</summary>
               <div className="mt-2">
@@ -358,10 +394,7 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
                   ))}
                 </Select>
               </Field>
-              <Field label="Manuell justering (kr)"><Input type="number" value={manualAdjustment} disabled={usesFrozenSnapshot} onChange={(e) => setManualAdjustment(Number(e.target.value))} /></Field>
               <Field label="Betalningsreferens"><Input value={payoutReference} onChange={(e) => setPayoutReference(e.target.value)} /></Field>
-              <div className="md:col-span-1" />
-              <div className="md:col-span-2"><Field label="Anteckning"><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} /></Field></div>
             </div>
             <div className="mt-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-page)] px-4 py-3 text-xs leading-5 text-[var(--text-secondary)]">
               {!refundWindowClosed ? (
@@ -587,7 +620,8 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
               variant="primary"
               disabled={
                 (status === "APPROVED" && (!refundWindowClosed || spec.data.lateRefundRecovery.blocked)) ||
-                (status === "PAID" && !payoutReference.trim())
+                (status === "PAID" && !payoutReference.trim()) ||
+                (manualAdjustment !== 0 && !notes.trim())
               }
               onClick={() => savePayout.mutate()}
             >
