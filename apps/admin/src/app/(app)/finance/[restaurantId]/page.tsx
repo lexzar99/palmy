@@ -5,9 +5,9 @@ export default async function PayoutRoutePage({
   searchParams,
 }: {
   params: Promise<{ restaurantId: string }>;
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; period?: string }>;
 }) {
   const { restaurantId } = await params;
-  const { from, to } = await searchParams;
-  return <FinancePayoutPage restaurantId={restaurantId} from={from} to={to} />;
+  const { from, to, period } = await searchParams;
+  return <FinancePayoutPage restaurantId={restaurantId} from={from} to={to} period={period} />;
 }

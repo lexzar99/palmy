@@ -25,7 +25,7 @@ import {
   type PayoutPrintMode,
 } from "@/modules/finance/spec-print";
 import { DeliveryModeBadge } from "@/shared/components/delivery-mode";
-import { Badge, Button, Field, Input, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
+import { Badge, Button, Field, Input, MoneyInput, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
 import { formatCurrencyExact as formatCurrency, formatDate, formatDateTime, orderStatusLabel, paymentStatusLabel } from "@/shared/utils/format";
 
 const mono = "ui-monospace, SFMono-Regular, Menlo, monospace";
@@ -67,23 +67,29 @@ function Kpi({ label, value, accent }: { label: string; value: React.ReactNode; 
   );
 }
 
-function CalcRow({ label, value, strong, sub, minus }: { label: string; value: number; strong?: boolean; sub?: boolean; minus?: boolean }) {
+function CalcRow({ label, value, strong, sub, sign }: { label: string; value: number; strong?: boolean; sub?: boolean; sign?: "−" | "+" }) {
   return (
     <div className={`flex items-center justify-between py-2 ${sub ? "pl-4 text-[var(--text-secondary)]" : ""} ${strong ? "border-t border-[var(--border-strong,rgba(0,0,0,0.15))] font-black" : "border-b border-[var(--border,rgba(0,0,0,0.06))]"}`}>
-      <span>{minus ? "− " : ""}{label}</span>
-      <span className="tabular-nums" style={{ fontFamily: mono }}>{formatCurrency(value)}</span>
+      <span>{label}</span>
+      <span className="tabular-nums" style={{ fontFamily: mono }}>{sign ? `${sign} ` : ""}{formatCurrency(value)}</span>
     </div>
   );
 }
 
-export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: string; from?: string; to?: string }) {
+type AdjustmentDirection = "deduction" | "addition";
+
+export function FinancePayoutPage({ restaurantId, from, to, period }: { restaurantId: string; from?: string; to?: string; period?: string }) {
   const now = new Date();
   const periodFrom = from || isoDate(new Date(now.getFullYear(), now.getMonth(), 1));
   const periodTo = to || isoDate(now);
+  const backParams = new URLSearchParams({ from: periodFrom, to: periodTo });
+  if (["month", "lastMonth", "7", "30"].includes(String(period || ""))) backParams.set("period", String(period));
+  const restaurantFinanceHref = `/finance/restauranger?${backParams.toString()}`;
 
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [manualAdjustment, setManualAdjustment] = useState(0);
+  const [manualAdjustmentAmount, setManualAdjustmentAmount] = useState("");
+  const [adjustmentDirection, setAdjustmentDirection] = useState<AdjustmentDirection>("deduction");
   const [status, setStatus] = useState("DRAFT");
   const [notes, setNotes] = useState("");
   const [payoutReference, setPayoutReference] = useState("");
@@ -105,7 +111,9 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const p = spec.data?.persisted;
-    setManualAdjustment(p?.manualAdjustmentAmount || 0);
+    const persistedAdjustment = Number(p?.manualAdjustmentAmount || 0);
+    setManualAdjustmentAmount(persistedAdjustment === 0 ? "" : String(Math.abs(persistedAdjustment)));
+    setAdjustmentDirection(persistedAdjustment < 0 ? "addition" : "deduction");
     setStatus(p?.status || "DRAFT");
     setNotes(p?.notes || "");
     setPayoutReference(p?.payoutReference || "");
@@ -121,6 +129,10 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
 
   const b = spec.data?.breakdown;
   const persisted = spec.data?.persisted;
+  const parsedAdjustmentAmount = Number(manualAdjustmentAmount.replace(",", "."));
+  const manualAdjustmentIsValid = manualAdjustmentAmount.trim() === "" || Number.isFinite(parsedAdjustmentAmount);
+  const adjustmentMagnitude = manualAdjustmentIsValid ? Math.abs(parsedAdjustmentAmount || 0) : 0;
+  const manualAdjustment = adjustmentDirection === "deduction" ? adjustmentMagnitude : -adjustmentMagnitude;
   const usesFrozenSnapshot = persisted?.status === "APPROVED" || persisted?.status === "PAID";
   const automaticRecovery = spec.data?.persisted?.status === "APPROVED" || spec.data?.persisted?.status === "PAID"
     ? (spec.data.persisted.lateRefundAdjustmentAmount || 0)
@@ -175,7 +187,7 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["finance"] });
-      router.push("/finance/restauranger");
+      router.push(restaurantFinanceHref);
     },
   });
   const payoutError = (savePayout.error as { response?: { data?: { error?: string } }; message?: string } | null)
@@ -222,12 +234,12 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
       <PageHeader
         breadcrumb={
           <>
-            <Link href="/finance/restauranger">Plattform / Restaurangekonomi</Link>
+            <Link href={restaurantFinanceHref}>Plattform / Restaurangekonomi</Link>
             {spec.data?.restaurant.name ? ` / ${spec.data.restaurant.name}` : ""}
           </>
         }
         title="Utbetalning"
-        onBack={() => router.push("/finance/restauranger")}
+        onBack={() => router.push(restaurantFinanceHref)}
         actions={
           <>
             <span className="inline-flex items-center rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-page)] px-3 py-2 text-[13px] font-semibold text-[var(--text-secondary)]">
@@ -266,16 +278,16 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
               </p>
             ) : null}
             <CalcRow label="Restaurangens försäljning" value={restaurantGross} />
-            <CalcRow label="ViaEats inkl moms" value={viaEatsChargeInclVat} minus />
-            <CalcRow label={`Mollie · ${mollieFeeIsFinal ? "exakt" : "beräknad från korttyp"}`} value={restaurantMollieFee} minus />
+            <CalcRow label="ViaEats inkl moms" value={viaEatsChargeInclVat} sign="−" />
+            <CalcRow label={`Mollie · ${mollieFeeIsFinal ? "exakt" : "beräknad från korttyp"}`} value={restaurantMollieFee} sign="−" />
             {manualAdjustment !== 0 ? (
               <CalcRow
-                label={manualAdjustment > 0 ? "Extra avdrag · manuell justering" : "Kreditering · manuell justering"}
+                label={manualAdjustment > 0 ? "Avdrag från utbetalning" : "Tillägg till utbetalning"}
                 value={Math.abs(manualAdjustment)}
-                minus={manualAdjustment > 0}
+                sign={manualAdjustment > 0 ? "−" : "+"}
               />
             ) : null}
-            {automaticRecovery > 0 ? <CalcRow label="Sena återbetalningar" value={automaticRecovery} minus /> : null}
+            {automaticRecovery > 0 ? <CalcRow label="Sena återbetalningar" value={automaticRecovery} sign="−" /> : null}
             <div className={`mt-3 flex items-center justify-between rounded-xl px-4 py-3 text-white ${isOwed ? "bg-[#B45309]" : "bg-[var(--brand-navy)]"}`}>
               <span className="font-bold">{isOwed ? "Att fakturera restaurangen" : "Att överföra till restaurangen"}</span>
               <span className="text-xl font-black tabular-nums">{mollieFeeIsFinal ? formatCurrency(net) : `≈ ${formatCurrency(net)}`}</span>
@@ -291,16 +303,27 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
             <div className="mt-4 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-page)] px-4 py-4">
               <p className="text-sm font-extrabold text-[var(--text-primary)]">Manuell justering för denna restaurang</p>
               <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
-                Positivt belopp dras från utbetalningen eller läggs på fakturan. Negativt belopp krediterar restaurangen. Vid flytt mellan restauranger använder du samma belopp med motsatt tecken på den andra restaurangen.
+                − minskar restaurangens saldo: utbetalningen minskar eller fakturan ökar. + ökar saldot: utbetalningen ökar eller fakturan minskar. Vid flytt mellan restauranger väljer du samma belopp med motsatt tecken.
               </p>
-              <div className="mt-3 grid gap-3 md:grid-cols-[180px_1fr]">
-                <Field label="Justering (kr)">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={manualAdjustment}
+              <div className="mt-3 grid gap-3 sm:grid-cols-[190px_130px_minmax(220px,1fr)]">
+                <Field label="Plus eller minus">
+                  <Select
+                    value={adjustmentDirection}
                     disabled={usesFrozenSnapshot}
-                    onChange={(event) => setManualAdjustment(Number(event.target.value))}
+                    onChange={(event) => setAdjustmentDirection(event.target.value as AdjustmentDirection)}
+                  >
+                    <option value="deduction">− Avdrag</option>
+                    <option value="addition">+ Tillägg</option>
+                  </Select>
+                </Field>
+                <Field label="Belopp">
+                  <MoneyInput
+                    step="0.01"
+                    min={0}
+                    value={manualAdjustmentAmount}
+                    disabled={usesFrozenSnapshot}
+                    placeholder="0,00"
+                    onValueChange={setManualAdjustmentAmount}
                   />
                 </Field>
                 <Field label="Orsak till justering">
@@ -314,7 +337,7 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
               </div>
               {manualAdjustment !== 0 ? (
                 <p className="mt-3 text-xs font-bold text-[var(--brand-navy-ink)]">
-                  Resultat efter justering: {isOwed ? `${formatCurrency(net)} att fakturera` : `${formatCurrency(net)} att betala ut`}.
+                  {manualAdjustment > 0 ? "− Avdrag" : "+ Tillägg"} {formatCurrency(Math.abs(manualAdjustment))}. Resultat: {isOwed ? `${formatCurrency(net)} att fakturera` : `${formatCurrency(net)} att betala ut`}.
                 </p>
               ) : null}
             </div>
@@ -613,7 +636,7 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
             <Button onClick={() => spec.data && printPayoutSpec(spec.data, manualAdjustment, automaticRecovery, printOptions)}>
               <Printer size={16} /> Skriv ut / PDF
             </Button>
-            <Link href="/finance/restauranger" className="inline-flex items-center rounded-xl border border-[var(--border-subtle)] px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+            <Link href={restaurantFinanceHref} className="inline-flex items-center rounded-xl border border-[var(--border-subtle)] px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
               Avbryt
             </Link>
             <Button
@@ -621,6 +644,7 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
               disabled={
                 (status === "APPROVED" && (!refundWindowClosed || spec.data.lateRefundRecovery.blocked)) ||
                 (status === "PAID" && !payoutReference.trim()) ||
+                !manualAdjustmentIsValid ||
                 (manualAdjustment !== 0 && !notes.trim())
               }
               onClick={() => savePayout.mutate()}

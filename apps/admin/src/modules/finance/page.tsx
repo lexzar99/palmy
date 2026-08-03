@@ -52,6 +52,10 @@ const MOLLIE_SETTLEMENT_STATUS: Record<string, string> = {
 const isoDate = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
+const isDateParam = (value: string | null): value is string => Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
+const isPresetKey = (value: string | null): value is PresetKey =>
+  value === "month" || value === "lastMonth" || value === "7" || value === "30";
+
 function presetRange(kind: PresetKey): { from: string; to: string } {
   const now = new Date();
   if (kind === "month") {
@@ -300,12 +304,20 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
   const tab: FinanceTab = tabParam === "tiers" || tabParam === "satser" ? tabParam : "utbetalningar";
-  const initialPeriod = presetRange("month");
+  const initialPresetParam = searchParams.get("period");
+  const initialPreset = isPresetKey(initialPresetParam) ? initialPresetParam : "month";
+  const presetPeriod = presetRange(initialPreset);
+  const initialPeriod = {
+    from: isDateParam(searchParams.get("from")) ? searchParams.get("from")! : presetPeriod.from,
+    to: isDateParam(searchParams.get("to")) ? searchParams.get("to")! : presetPeriod.to,
+  };
   const [from, setFrom] = useState(initialPeriod.from);
   const [to, setTo] = useState(initialPeriod.to);
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<ModeFilter>("all");
-  const [activePreset, setActivePreset] = useState<PresetKey | null>("month");
+  const [activePreset, setActivePreset] = useState<PresetKey | null>(
+    isPresetKey(initialPresetParam) ? initialPreset : null,
+  );
 
   const summary = useQuery({
     queryKey: financeSummaryQueryKey(from, to),
@@ -327,19 +339,38 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
       );
   }, [summary.data, query, mode]);
 
+  const replaceFinanceUrl = (nextFrom: string, nextTo: string, nextPreset: PresetKey | null) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("from", nextFrom);
+    params.set("to", nextTo);
+    if (nextPreset) params.set("period", nextPreset);
+    else params.delete("period");
+    const path = view === "overview" ? "/finance" : "/finance/restauranger";
+    router.replace(`${path}?${params.toString()}`, { scroll: false });
+  };
+
   const setPreset = (preset: PresetKey) => {
     const range = presetRange(preset);
     setFrom(range.from);
     setTo(range.to);
     setActivePreset(preset);
+    replaceFinanceUrl(range.from, range.to, preset);
   };
 
   const changeTab = (nextTab: FinanceTab) => {
-    router.replace(`/finance/restauranger?tab=${nextTab}`, { scroll: false });
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", nextTab);
+    params.set("from", from);
+    params.set("to", to);
+    if (activePreset) params.set("period", activePreset);
+    else params.delete("period");
+    router.replace(`/finance/restauranger?${params.toString()}`, { scroll: false });
   };
 
   const openPayout = (restaurantId: string) => {
-    router.push(`/finance/${restaurantId}?from=${from}&to=${to}`);
+    const params = new URLSearchParams({ from, to });
+    if (activePreset) params.set("period", activePreset);
+    router.push(`/finance/${restaurantId}?${params.toString()}`);
   };
 
   const totals = summary.data?.totals;
@@ -375,10 +406,12 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
       onFrom={(value) => {
         setFrom(value);
         setActivePreset(null);
+        replaceFinanceUrl(value, to, null);
       }}
       onTo={(value) => {
         setTo(value);
         setActivePreset(null);
+        replaceFinanceUrl(from, value, null);
       }}
     />
   );
