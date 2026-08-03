@@ -2,8 +2,9 @@
  * Read-only Mollie bookkeeping data.
  *
  * Exact processing fees live in the Balances API rather than the Payments API.
- * That API needs an organization access token with `balances.read`; a normal
- * live_/test_ profile key is still used for checkout and may not have access.
+ * That API needs an organization access token with `balances.read` and
+ * `balance-reports.read`; a normal live_/test_ profile key is still used for
+ * checkout and may not have access.
  */
 
 const MOLLIE_API_BASE = 'https://api.mollie.com/v2';
@@ -59,6 +60,46 @@ type MolliePayment = {
   method?: unknown;
   details?: Record<string, unknown> | null;
 };
+
+const EEA_COUNTRY_CODES = new Set([
+  'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR',
+  'GR', 'HU', 'IE', 'IS', 'IT', 'LI', 'LT', 'LU', 'LV', 'MT', 'NL', 'NO',
+  'PL', 'PT', 'RO', 'SE', 'SI', 'SK',
+]);
+
+const percentageFee = (amountOre: number, percentage: number, fixedOre: number) =>
+  Math.max(0, Math.round(amountOre * percentage / 100) + fixedOre);
+
+/**
+ * Swedish standard online pricing from mollie.com/se/pricing.
+ * This is only a provisional fallback; deductionDetails remains authoritative.
+ */
+export function estimateMollieFeeFromSwedishPricing(payment: MolliePayment): number | null {
+  const amountOre = exactOre(payment.amount);
+  if (amountOre == null || amountOre < 0) return null;
+  const method = String(payment.method || '').trim().toLowerCase();
+  const details = payment.details || {};
+
+  if (method === 'swish') return percentageFee(amountOre, 0.9, 300);
+  if (method === 'klarna') return percentageFee(amountOre, 2.99, 515);
+
+  const isCard = ['creditcard', 'applepay', 'googlepay'].includes(method) ||
+    Boolean(details.cardCountryCode || details.cardAudience || details.cardLabel);
+  if (!isCard) return null;
+
+  const label = String(details.cardLabel || '').trim().toLowerCase();
+  if (label.includes('american express') || label === 'amex') {
+    return percentageFee(amountOre, 2.9, 280);
+  }
+
+  const countryCode = String(details.cardCountryCode || '').trim().toUpperCase();
+  const audience = String(details.cardAudience || '').trim().toLowerCase();
+  if (!countryCode || (audience !== 'consumer' && audience !== 'business')) return null;
+  if (!EEA_COUNTRY_CODES.has(countryCode)) return percentageFee(amountOre, 3.25, 280);
+  if (audience === 'business') return percentageFee(amountOre, 2.9, 280);
+  if (countryCode === 'SE') return percentageFee(amountOre, 1.2, 280);
+  return percentageFee(amountOre, 1.8, 280);
+}
 
 export type MollieFeeStatus = 'available' | 'partial' | 'unavailable';
 export type MollieLedgerStatus = 'exact' | 'partial' | 'unavailable';
@@ -576,7 +617,7 @@ export async function getMollieFinanceReport(input: {
   const token = reportingToken(env);
   if (!token) {
     return unavailableReport(
-      'MOLLIE_REPORTING_ACCESS_TOKEN saknas (kräver balances.read)',
+      'MOLLIE_REPORTING_ACCESS_TOKEN saknas (kräver balances.read och balance-reports.read)',
       paymentIds.length,
     );
   }
@@ -674,12 +715,14 @@ export async function getMollieFinanceReport(input: {
       if (!payment || amountOre == null) continue;
       const bookedPaymentFee = paymentFeeByPaymentId.get(paymentId);
       const method = String(payment.method || '').toLowerCase();
-      const estimatedPaymentFee = bookedPaymentFee ?? estimateMollieFeeFromObservations(
-        amountOre,
-        observationsByFingerprint.get(paymentFingerprint(payment))
-          || observationsByMethod.get(method)
-          || [],
-      );
+      const estimatedPaymentFee = bookedPaymentFee ??
+        estimateMollieFeeFromSwedishPricing(payment) ??
+        estimateMollieFeeFromObservations(
+          amountOre,
+          observationsByFingerprint.get(paymentFingerprint(payment))
+            || observationsByMethod.get(method)
+            || [],
+        );
       if (estimatedPaymentFee == null) continue;
       const bookedRefundFee = refundFeeByPaymentId.get(paymentId);
       const estimatedRefundFee = refundedPaymentIds.has(paymentId)
@@ -747,13 +790,13 @@ export async function getMollieFinanceReport(input: {
     const periodDifference = (
       reportCoversRequestedPeriod &&
       reportOpeningBalance != null &&
-      totalBalance != null &&
+      reportClosingBalance != null &&
       periodGross != null &&
       periodRefunds != null &&
       exactPeriodFees != null &&
       reportOtherMovements != null
     )
-      ? totalBalance - (
+      ? reportClosingBalance - (
           reportOpeningBalance +
           periodGross -
           periodRefunds -
@@ -761,31 +804,12 @@ export async function getMollieFinanceReport(input: {
           reportOtherMovements
         )
       : null;
-    const exactRequestedFees = exactPeriodFees != null && unlinkedFees != null
-      ? Math.max(0, exactPeriodFees - unlinkedFees)
-      : null;
-    const preCalibrationTotal = [...displayFeeByPaymentId.values()]
-      .reduce((sum, fee) => sum + fee, 0);
-    let feeCalibrationOre: number | null = null;
-    if (
-      exactRequestedFees != null &&
-      estimatedFeeByPaymentId.size > 0 &&
-      paymentIds.every((paymentId) => displayFeeByPaymentId.has(paymentId))
-    ) {
-      const calibrated = allocateExactFeeTotal(
-        feeByPaymentId,
-        estimatedFeeByPaymentId,
-        exactRequestedFees,
-      );
-      for (const [paymentId, fee] of calibrated) {
-        displayFeeByPaymentId.set(paymentId, fee);
-        if (estimatedFeeByPaymentId.has(paymentId)) {
-          estimatedFeeByPaymentId.set(paymentId, fee);
-        }
-      }
-      feeCalibrationOre = [...displayFeeByPaymentId.values()]
-        .reduce((sum, fee) => sum + fee, 0) - preCalibrationTotal;
-    }
+    // The balance report is authoritative for the account total, but it can
+    // also contain failure fees, invoice rounding and other Mollie costs that
+    // do not belong to a restaurant payment. Never spread that account total
+    // over provisional payment estimates. A restaurant fee becomes final only
+    // when the balance transaction itself contains the payment ID.
+    const feeCalibrationOre: number | null = null;
     const transferFrequency = String(balance.transferFrequency || '').trim() || null;
     const nextSettlement = nextSettlementResult.value;
     const latestPayout = payoutsResult.value?._embedded?.payouts?.[0] || null;

@@ -578,7 +578,11 @@ router.get('/control-center', async (req, res) => {
           .map((order) => String(order.molliePaymentId || '').trim())
           .filter(Boolean),
       )];
-      const mollieFees = mollieReport.feeStatus === 'unavailable'
+      const restaurantFeesComplete = mollieReport.feeStatus !== 'unavailable' &&
+        currentPeriodMolliePaymentIds.every((paymentId) =>
+          mollieReport.displayFeeByPaymentId.has(paymentId)
+        );
+      const mollieFees = !restaurantFeesComplete
         ? null
         : currentPeriodMolliePaymentIds.reduce(
             (sum, paymentId) => sum + (mollieReport.displayFeeByPaymentId.get(paymentId) || 0),

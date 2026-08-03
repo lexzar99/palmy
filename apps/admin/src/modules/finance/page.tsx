@@ -6,7 +6,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   AlertCircle,
   ArrowRight,
-  CheckCircle2,
   ChevronDown,
   Loader2,
   RefreshCw,
@@ -157,6 +156,8 @@ function RestaurantFinanceCard({
   const active = row.orderCount > 0;
   const payoutLabel = row.owed > 0 ? "Att fakturera restaurangen" : "Att betala ut";
   const payoutValue = row.owed > 0 ? row.owed : row.payout;
+  const feeIsFinal = row.mollieFeeStatus === "available";
+  const viaEatsFeeInclVat = row.commission + row.subscription + row.feeVat;
 
   return (
     <article
@@ -181,22 +182,22 @@ function RestaurantFinanceCard({
         <ArrowRight size={16} className="mt-1 shrink-0 text-[var(--text-muted)] transition-transform group-hover:translate-x-0.5" />
       </button>
 
-      <div className="grid grid-cols-2 border-y border-[var(--border-subtle)] bg-[var(--bg-page)]">
+      <div className="grid grid-cols-1 border-y border-[var(--border-subtle)] bg-[var(--bg-page)] sm:grid-cols-3">
         <div className="min-w-0 px-5 py-4">
-          <p className="card-label">Netto</p>
+          <p className="card-label">Försäljning</p>
           <p className="mt-1 text-[18px] font-black tabular-nums text-[var(--text-primary)]">{money(row.netSales)}</p>
         </div>
-        <div className="min-w-0 border-l border-[var(--border-subtle)] px-5 py-4">
-          <p className="card-label">Mollieavgift</p>
-          <p className="mt-1 text-[18px] font-black tabular-nums text-[var(--text-primary)]">{money(row.restaurantMollieFee)}</p>
+        <div className="min-w-0 border-t border-[var(--border-subtle)] px-5 py-4 sm:border-l sm:border-t-0">
+          <p className="card-label">Mollieavgift {feeIsFinal ? "· exakt" : "· beräknad"}</p>
+          <p className="mt-1 text-[18px] font-black tabular-nums text-[var(--text-primary)]">
+            {feeIsFinal || row.restaurantMollieFee == null ? money(row.restaurantMollieFee) : `≈ ${money(row.restaurantMollieFee)}`}
+          </p>
         </div>
-        <div className="min-w-0 border-t border-[var(--border-subtle)] px-5 py-4">
-          <p className="card-label">Provision inkl moms</p>
-          <p className="mt-1 text-[18px] font-black tabular-nums text-[var(--text-primary)]">{money(row.commissionInclVat)}</p>
-        </div>
-        <div className="min-w-0 border-l border-t border-[var(--border-subtle)] px-5 py-4">
+        <div className="min-w-0 border-t border-[var(--border-subtle)] px-5 py-4 sm:border-l sm:border-t-0">
           <p className="card-label">{payoutLabel}</p>
-          <p className="mt-1 text-[18px] font-black tabular-nums text-[var(--text-primary)]">{money(payoutValue)}</p>
+          <p className="mt-1 text-[18px] font-black tabular-nums text-[var(--text-primary)]">
+            {feeIsFinal ? money(payoutValue) : `≈ ${money(payoutValue)}`}
+          </p>
         </div>
       </div>
 
@@ -205,20 +206,15 @@ function RestaurantFinanceCard({
           Visa ekonomiska detaljer
           <ChevronDown size={15} className="transition-transform group-open/details:rotate-180" />
         </summary>
-        <div className="grid grid-cols-2 gap-x-5 border-t border-[var(--border-subtle)] px-4 py-3 sm:grid-cols-3">
-          <MoneyLine label="Brutto" value={row.grossTotal} />
+        <div className="grid grid-cols-2 gap-x-5 border-t border-[var(--border-subtle)] px-4 py-3">
           <MoneyLine label="Återbetalt" value={row.refunds} negative />
-          <MoneyLine label="Mollie totalt · restaurang" value={row.mollieFees} />
-          <MoneyLine label="Dras från utbetalning" value={row.restaurantMollieFee} negative />
-          <MoneyLine label="På refundade köp" value={row.refundTransactionFees} />
-          <MoneyLine label="Refundavgift" value={row.refundProcessingFees} />
-          <MoneyLine label="Provision ex moms" value={row.commission} />
-          <MoneyLine label="Moms att reservera" value={row.commissionVat} />
-          <MoneyLine label="Provision inkl moms" value={row.commissionInclVat} />
+          <MoneyLine label="ViaEats inkl moms" value={viaEatsFeeInclVat} negative />
+          <MoneyLine label="Mollie" value={row.restaurantMollieFee} negative />
+          <MoneyLine label={payoutLabel} value={payoutValue} strong />
         </div>
         <div className="flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] bg-[var(--bg-panel-soft)] px-4 py-3">
           {row.mollieFeeStatus === "partial" ? (
-            <p className="mt-1 text-[10.5px] font-semibold text-[var(--warning)]">Mollie-avgift preliminär</p>
+            <p className="mt-1 text-[10.5px] font-semibold text-[var(--warning)]">Beräknad från korttyp enligt Mollies prislista</p>
           ) : <span />}
           <button type="button" onClick={onOpen} className="inline-flex items-center gap-1.5 text-[12px] font-extrabold text-[var(--brand-navy-ink)] hover:underline">
             Öppna rapport <ArrowRight size={13} />
@@ -278,32 +274,16 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
 
   const totals = summary.data?.totals;
   const mollie = summary.data?.mollie;
-  const refundImpact = summary.data?.refundImpact;
   const reconciliation = summary.data?.reconciliation;
   const activeRows = rows.filter((row) => row.orderCount > 0);
   const inactiveRows = rows.filter((row) => row.orderCount === 0);
   const periodLabel = activePreset
     ? PERIOD_PRESETS.find(([key]) => key === activePreset)?.[1] || ""
     : `${from} – ${to}`;
-  const paymentFees = totals?.mollieFees != null && totals.refundProcessingFees != null
-    ? totals.mollieFees - totals.refundProcessingFees
-    : null;
-  const balanceAfterRestaurantPayout = mollie?.totalBalance != null && totals?.payout != null
-    ? mollie.totalBalance - totals.payout
-    : null;
-  const mollieFeesDeductedFromPayouts = totals?.restaurantMollieFee == null
-    ? null
-    : Math.max(0, totals.restaurantMollieFee - Number(totals.owed || 0));
-  const cashAfterVatReserve = balanceAfterRestaurantPayout != null && totals?.feeVat != null
-    ? balanceAfterRestaurantPayout - totals.feeVat
-    : null;
-  const periodResultExVat = totals?.companyRevenueExVat ?? null;
-  const balanceOutsidePeriod = cashAfterVatReserve != null && periodResultExVat != null
-    ? cashAfterVatReserve - periodResultExVat
-    : null;
-  const availablePayoutShortfall = mollie?.availableBalance != null && totals?.payout != null
-    ? Math.max(0, totals.payout - mollie.availableBalance)
-    : null;
+  const feesAreFinal = (summary.data?.rows || [])
+    .filter((row) => row.orderCount > 0)
+    .every((row) => row.mollieFeeStatus === "available");
+  const payoutDisplay = totals?.payout;
   const ledgerDifference = mollie?.periodDifference == null
     ? null
     : Math.abs(mollie.periodDifference);
@@ -377,10 +357,10 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
               <section className="hero-card">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
-                    <p className="hero-stat-label">Mollie · {periodLabel}</p>
+                    <p className="hero-stat-label">Mollie-saldo</p>
                     <p className="hero-value mt-2">{money(mollie?.totalBalance)}</p>
                     <p className="mt-1.5 text-[12.5px] font-medium text-[var(--text-secondary)]">
-                      Totalt saldo · {ledgerIsExact && ledgerDifference === 0
+                      {money(mollie?.availableBalance)} tillgängligt · {money(mollie?.pendingBalance)} väntande · {ledgerIsExact && ledgerDifference === 0
                         ? "avstämt med 0 öre i differens"
                         : ledgerDifference == null
                           ? "inväntar komplett balansrapport"
@@ -390,110 +370,61 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                   <div className="w-full max-w-full sm:w-auto sm:min-w-[280px]">{heroPeriodBar}</div>
                 </div>
 
-                <div className="mt-6 grid gap-3 lg:grid-cols-[1.35fr_1fr]">
-                  <div className="grid grid-cols-2 items-center gap-x-7 gap-y-5 rounded-[13px] bg-[rgba(254,247,240,0.06)] px-5 py-5 sm:grid-cols-4">
-                    <div>
-                      <p className="hero-stat-label">Brutto</p>
-                      <p className="hero-stat-value">{money(mollie?.periodGross)}</p>
-                    </div>
-                    <div>
-                      <p className="hero-stat-label">Återbetalt</p>
-                      <p className="hero-stat-value">{negativeMoney(mollie?.periodRefunds)}</p>
-                    </div>
-                    <div>
-                      <p className="hero-stat-label">Mollieavgifter</p>
-                      <p className="hero-stat-value">{negativeMoney(mollie?.periodFees)}</p>
-                    </div>
-                    <div>
-                      <p className="hero-stat-label">Till restauranger</p>
-                      <p className="hero-stat-value">{money(totals?.payout)}</p>
-                    </div>
+                <div className="mt-6 grid grid-cols-2 gap-x-7 gap-y-5 rounded-[13px] bg-[rgba(254,247,240,0.07)] px-5 py-5 sm:grid-cols-4">
+                  <div>
+                    <p className="hero-stat-label">Försäljning · {periodLabel}</p>
+                    <p className="hero-stat-value">{money(mollie?.periodGross)}</p>
                   </div>
-                  <div className="rounded-[13px] border border-[rgba(254,247,240,0.14)] bg-[rgba(254,247,240,0.1)] px-5 py-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="hero-stat-label">Kvar exklusive moms</p>
-                        <p className="mt-1 text-[28px] font-black tracking-[-0.04em] text-white">{money(cashAfterVatReserve)}</p>
-                        <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
-                          Efter restauranger och {money(totals?.feeVat)} moms
-                        </p>
-                      </div>
-                      {reconciliation?.status !== "ok"
-                        ? <AlertCircle size={18} className="mt-1 shrink-0 text-[var(--warning)]" />
-                        : <CheckCircle2 size={18} className="mt-1 shrink-0 text-[var(--success)]" />}
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-x-5 border-t border-[rgba(254,247,240,0.12)] pt-3">
-                      <div>
-                        <p className="hero-stat-label">Provision ex moms</p>
-                        <p className="hero-stat-value">{money(totals?.commission)}</p>
-                      </div>
-                      <div>
-                        <p className="hero-stat-label">Avgift att fakturera</p>
-                        <p className="hero-stat-value">{money(totals?.owed)}</p>
-                      </div>
-                    </div>
+                  <div>
+                    <p className="hero-stat-label">Mollieavgifter · exakt</p>
+                    <p className="hero-stat-value">{negativeMoney(mollie?.periodFees)}</p>
+                  </div>
+                  <div>
+                    <p className="hero-stat-label">{feesAreFinal ? "Till restauranger" : "Beräknad utbetalning"}</p>
+                    <p className="hero-stat-value">{feesAreFinal ? money(payoutDisplay) : `≈ ${money(payoutDisplay)}`}</p>
+                  </div>
+                  <div>
+                    <p className="hero-stat-label">Att fakturera</p>
+                    <p className="hero-stat-value">{money(totals?.owed)}</p>
                   </div>
                 </div>
+                {!feesAreFinal ? (
+                  <p className="mt-3 text-[11.5px] font-semibold text-[var(--warning)]">
+                    Beräknad med Mollies pris för respektive korttyp. Slutbeloppet låses först när Mollie har bokfört avgiften.
+                  </p>
+                ) : null}
               </section>
 
               <Surface className="px-5 py-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="eyebrow">Automatisk avstämning</p>
-                    <h2 className="section-title mt-1">Så blir varje öre Mollie-saldo</h2>
+                    <p className="eyebrow">Vald period</p>
+                    <h2 className="section-title mt-1">Avstämt mot Mollie</h2>
                   </div>
                   <Badge tone={ledgerIsExact && ledgerDifference === 0 ? "success" : "warning"}>
                     {ledgerIsExact && ledgerDifference === 0 ? "0 öre i differens" : "Preliminär"}
                   </Badge>
                 </div>
-                <div className="mt-5 grid gap-2 md:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] md:items-center">
-                  {[
-                    ["Mollie brutto", mollie?.periodGross],
-                    ["Återbetalningar", mollie?.periodRefunds],
-                    ["Mollieavgifter", mollie?.periodFees],
-                    ["Slutsaldo", mollie?.periodClosingBalance ?? mollie?.totalBalance],
-                  ].map(([label, value], index) => (
-                    <div key={String(label)} className="contents">
-                      {index > 0 ? (
-                        <span className="hidden text-center text-xl font-black text-[var(--text-muted)] md:block">
-                          {index === 3 ? "=" : "−"}
-                        </span>
-                      ) : null}
-                      <div className="rounded-[12px] bg-[var(--bg-page)] px-4 py-4">
-                        <p className="card-label">{label}</p>
-                        <p className="mt-1 text-[20px] font-black tabular-nums text-[var(--text-primary)]">{money(value as number | null | undefined)}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-3 grid gap-2 rounded-[12px] border border-[var(--border-subtle)] bg-[var(--bg-page)] p-3 md:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] md:items-center">
-                  {[
-                    ["Mollie-saldo", mollie?.totalBalance],
-                    ["Till restauranger", totals?.payout],
-                    ["Reserverad moms", totals?.feeVat],
-                    ["Kvar ex moms", cashAfterVatReserve],
-                  ].map(([label, value], index) => (
-                    <div key={String(label)} className="contents">
-                      {index > 0 ? (
-                        <span className="hidden text-center text-xl font-black text-[var(--text-muted)] md:block">
-                          {index === 3 ? "=" : "−"}
-                        </span>
-                      ) : null}
-                      <div className="px-2 py-2">
-                        <p className="card-label">{label}</p>
-                        <p className="mt-1 text-[17px] font-black tabular-nums text-[var(--text-primary)]">{money(value as number | null | undefined)}</p>
-                      </div>
-                    </div>
-                  ))}
+                <div className="mt-4 rounded-[12px] bg-[var(--bg-page)] px-4 py-3">
+                  <MoneyLine label="Ingående saldo" value={mollie?.periodOpeningBalance} />
+                  <MoneyLine label="Betalningar" value={mollie?.periodGross} />
+                  <MoneyLine label="Återbetalningar" value={mollie?.periodRefunds} negative />
+                  <MoneyLine label="Mollieavgifter" value={mollie?.periodFees} negative />
+                  {Number(mollie?.periodOtherMovements || 0) !== 0 ? (
+                    <MoneyLine label="Övriga saldorörelser" value={mollie?.periodOtherMovements} />
+                  ) : null}
+                  <div className="mt-1 border-t border-[var(--border-subtle)] pt-1">
+                    <MoneyLine label="Utgående saldo" value={mollie?.periodClosingBalance ?? mollie?.totalBalance} strong />
+                  </div>
                 </div>
                 {mollie?.unlinkedPaymentCount ? (
                   <p className="mt-4 rounded-[10px] bg-[var(--brand-orange-soft)] px-4 py-3 text-[12px] font-semibold text-[var(--text-secondary)]">
-                    {formatNumber(mollie.unlinkedPaymentCount)} fristående terminalbetalningar: {money(mollie.unlinkedGross)} brutto
-                    {" · "}{money(mollie.unlinkedFees)} Mollieavgift
-                    {" · "}{money(mollie.unlinkedNet)} netto. De ligger separat och påverkar ingen restaurang.
+                    Egna Mollie-/NFC-test och andra betalningar utan ViaEats-order: {formatNumber(mollie.unlinkedPaymentCount)} betalningar
+                    {" · "}{money(mollie.unlinkedGross)} brutto · {money(mollie.unlinkedFees)} Mollieavgift
+                    {" · "}{money(mollie.unlinkedNet)} netto. De påverkar Mollie-saldot men aldrig en restaurangs utbetalning.
                   </p>
                 ) : null}
-                <p className="mt-3 text-[11px] text-[var(--text-muted)]">
+                <p className="mt-3 text-[11.5px] text-[var(--text-muted)]">
                   Nästa Mollie-utbetalning: {money(mollie?.nextSettlementAmount)}
                   {" · "}{mollie?.nextPayoutDate ? formatDate(mollie.nextPayoutDate) : "datum saknas"}
                   {mollie?.nextSettlementStatus ? ` · ${MOLLIE_SETTLEMENT_STATUS[mollie.nextSettlementStatus] || mollie.nextSettlementStatus}` : ""}
@@ -530,105 +461,10 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
               ) : null}
 
               {summary.data?.internalTestCosts?.orderCount ? (
-                <Surface className="border-l-[3px] border-l-[var(--warning)] px-5 py-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="eyebrow">Separat från restauranger</p>
-                      <h2 className="section-title mt-1">Interna testkostnader</h2>
-                      <p className="mt-1 text-[11.5px] text-[var(--text-muted)]">
-                        {formatNumber(summary.data.internalTestCosts.orderCount)} testordrar är exkluderade från restaurangernas avräkning.
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-3 gap-5 text-right">
-                      <div><p className="card-label">Brutto</p><p className="mt-1 font-black tabular-nums">{money(summary.data.internalTestCosts.gross)}</p></div>
-                      <div><p className="card-label">Mollie</p><p className="mt-1 font-black tabular-nums">{money(summary.data.internalTestCosts.mollieFees)}</p></div>
-                      <div><p className="card-label">Kostnad</p><p className="mt-1 font-black tabular-nums text-[var(--warning)]">{money(summary.data.internalTestCosts.netLoss)}</p></div>
-                    </div>
-                  </div>
-                </Surface>
+                <p className="text-[11.5px] text-[var(--text-muted)]">
+                  {formatNumber(summary.data.internalTestCosts.orderCount)} interna testordrar är exkluderade från restaurangernas ekonomi.
+                </p>
               ) : null}
-
-              <details className="surface group/report overflow-hidden">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 hover:bg-[var(--bg-hover)]">
-                  <span>
-                    <span className="block text-[14px] font-black text-[var(--text-primary)]">Visa fullständig ekonomirapport</span>
-                    <span className="mt-0.5 block text-[11.5px] text-[var(--text-muted)]">Brutto, moms, avgifter, återbetalningar och scenarier</span>
-                  </span>
-                  <ChevronDown size={18} className="shrink-0 text-[var(--text-muted)] transition-transform group-open/report:rotate-180" />
-                </summary>
-                <div className="border-t border-[var(--border-subtle)] p-4">
-                  <div className="grid gap-3 lg:grid-cols-3">
-                    <div className="rounded-[11px] bg-[var(--bg-page)] px-4 py-3">
-                      <p className="card-label mb-1">Försäljning</p>
-                      <MoneyLine label="Brutto" value={totals?.grossTotal} />
-                      <MoneyLine label="Återbetalningar" value={totals?.refunds} negative />
-                      <MoneyLine label="Netto" value={totals?.netSales} strong />
-                    </div>
-                    <div className="rounded-[11px] bg-[var(--bg-page)] px-4 py-3">
-                      <p className="card-label mb-1">Provision</p>
-                      <MoneyLine label="Intäkt ex moms" value={totals?.commission} />
-                      <MoneyLine label="Moms att reservera" value={totals?.commissionVat} />
-                      <MoneyLine label="Avdrag inkl moms" value={totals?.commissionInclVat} strong />
-                    </div>
-                    <div className="rounded-[11px] bg-[var(--bg-page)] px-4 py-3">
-                      <p className="card-label mb-1">Mollie och resultat</p>
-                      <MoneyLine label="Kortavgifter · restaurang" value={paymentFees} />
-                      <MoneyLine label="Återbetalningsavgifter" value={totals?.refundProcessingFees} />
-                      <MoneyLine label="Mollie totalt · restaurang" value={totals?.mollieFees} />
-                      <MoneyLine label="Dras från restaurangutbetalning" value={mollieFeesDeductedFromPayouts} negative />
-                      <MoneyLine label="Faktureras restaurang" value={totals?.owed} />
-                      <MoneyLine label="ViaEats intäkt ex moms" value={totals?.companyRevenueExVat} strong />
-                    </div>
-                  </div>
-
-                  <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                    <div className="rounded-[11px] border border-[var(--border-subtle)] px-4 py-3">
-                      <p className="card-label mb-1">Efter restaurangutbetalning</p>
-                      <MoneyLine label="Mollie-saldo" value={mollie?.totalBalance} />
-                      <MoneyLine label="Till restauranger" value={totals?.payout} negative />
-                      <MoneyLine label="Kvar efter utbetalning" value={balanceAfterRestaurantPayout} strong />
-                      <MoneyLine label="Reservera moms" value={totals?.feeVat} negative />
-                      <MoneyLine label="Kvar före bolagsskatt" value={cashAfterVatReserve} strong />
-                      <p className="mt-2 text-[11px] text-[var(--text-muted)]">
-                        {availablePayoutShortfall != null && availablePayoutShortfall > 0
-                          ? `${money(availablePayoutShortfall)} inväntar Mollies väntande saldo.`
-                          : "Utbetalningen ryms i tillgängligt saldo."}
-                        {balanceOutsidePeriod != null && Math.abs(balanceOutsidePeriod) >= 0.01
-                          ? ` ${money(Math.abs(balanceOutsidePeriod))} hör till annan period eller bokföringstidpunkt.`
-                          : ""}
-                      </p>
-                    </div>
-
-                    <div className="overflow-hidden rounded-[11px] border border-[var(--border-subtle)]">
-                      <div className="px-4 py-3">
-                        <p className="card-label">Återbetalningarnas effekt</p>
-                        <p className="mt-1 text-[11px] text-[var(--text-muted)]">{formatNumber(refundImpact?.refundCount || 0)} återbetalningar · {money(refundImpact?.refundedAmount)}</p>
-                      </div>
-                      <div className="grid grid-cols-3 divide-x divide-[var(--border-subtle)] border-y border-[var(--border-subtle)]">
-                        <div className="min-w-0 px-3 py-3">
-                          <p className="card-label">Nu</p>
-                          <p className="mt-1 truncate text-[15px] font-black">{money(totals?.companyRevenueExVat)}</p>
-                        </div>
-                        <div className="min-w-0 px-3 py-3">
-                          <p className="card-label">1 refund</p>
-                          <p className="mt-1 truncate text-[15px] font-black">{money(refundImpact?.withOneRefund.resultExVat)}</p>
-                        </div>
-                        <div className="min-w-0 px-3 py-3">
-                          <p className="card-label">Utan</p>
-                          <p className="mt-1 truncate text-[15px] font-black">{money(refundImpact?.withoutRefunds.resultExVat)}</p>
-                        </div>
-                      </div>
-                      <p className="px-4 py-3 text-[11px] text-[var(--text-muted)]">
-                        Refunds har påverkat Mollie-saldot med {money(refundImpact?.balanceImpact)}. Avgifter på refundade köp är {money(totals?.refundTransactionFees)} och dras från restaurangens utbetalning.
-                      </p>
-                    </div>
-                  </div>
-                  <p className="mt-3 text-[11px] text-[var(--text-muted)]">
-                    {formatNumber(reconciliation?.excludedPaymentCount || 0)} ej slutförda betalningar är exkluderade.
-                    {mollie?.feeStatus === "partial" ? ` ${formatNumber(mollie.estimatedPaymentCount)} avgifter är preliminära och uppdateras automatiskt.` : ""}
-                  </p>
-                </div>
-              </details>
             </>
           ) : (
             <>
@@ -636,7 +472,7 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
                     <p className="hero-stat-label">Restaurangutbetalningar · {periodLabel}</p>
-                    <p className="hero-value mt-2">{money(totals?.payout)}</p>
+                    <p className="hero-value mt-2">{feesAreFinal ? money(totals?.payout) : `≈ ${money(totals?.payout)}`}</p>
                     <p className="mt-1.5 text-[12.5px] font-medium text-[var(--text-secondary)]">
                       {formatNumber(rows.filter((row) => row.payout > 0).length)} ska få utbetalning
                       {Number(totals?.owed || 0) > 0 ? ` · ${money(totals?.owed)} faktureras separat` : ""}
@@ -644,36 +480,24 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                   </div>
                   <div className="w-full max-w-full sm:w-auto sm:min-w-[280px]">{heroPeriodBar}</div>
                 </div>
-                <div className="mt-6 grid grid-cols-2 gap-x-7 gap-y-5 rounded-[13px] bg-[rgba(254,247,240,0.06)] px-5 py-5 sm:grid-cols-3 lg:grid-cols-6">
+                <div className="mt-6 grid grid-cols-1 gap-x-7 gap-y-5 rounded-[13px] bg-[rgba(254,247,240,0.06)] px-5 py-5 sm:grid-cols-3">
                   <div>
-                    <p className="hero-stat-label">Netto</p>
+                    <p className="hero-stat-label">Försäljning</p>
                     <p className="hero-stat-value">{money(totals?.netSales)}</p>
                   </div>
                   <div>
-                    <p className="hero-stat-label">Mollieavgifter</p>
-                    <p className="hero-stat-value">{money(totals?.mollieFees)}</p>
+                    <p className="hero-stat-label">Mollieavgifter {feesAreFinal ? "· exakta" : "· beräknade"}</p>
+                    <p className="hero-stat-value">{feesAreFinal ? money(totals?.mollieFees) : `≈ ${money(totals?.mollieFees)}`}</p>
                   </div>
                   <div>
-                    <p className="hero-stat-label">Avdrag</p>
-                    <p className="hero-stat-value">{negativeMoney(mollieFeesDeductedFromPayouts)}</p>
-                  </div>
-                  <div>
-                    <p className="hero-stat-label">Faktureras</p>
+                    <p className="hero-stat-label">Att fakturera</p>
                     <p className="hero-stat-value">{money(totals?.owed)}</p>
                   </div>
-                  <div>
-                    <p className="hero-stat-label">Provision inkl moms</p>
-                    <p className="hero-stat-value">{money(totals?.commissionInclVat)}</p>
-                  </div>
-                  <div>
-                    <p className="hero-stat-label">Återbetalt</p>
-                    <p className="hero-stat-value">{money(totals?.refunds)}</p>
-                  </div>
                 </div>
-                <p className="mt-3 text-[11px] text-[var(--text-muted)]">
+                <p className="mt-3 text-[11.5px] text-[var(--text-muted)]">
                   {mollie?.feeStatus === "partial"
-                    ? `${formatNumber(mollie.estimatedPaymentCount)} avgifter är preliminära och uppdateras automatiskt när Mollie slutbokför dem.`
-                    : "Alla Mollieavgifter är slutbokförda."}
+                    ? `${formatNumber(mollie.estimatedPaymentCount)} avgifter är beräknade från korttyp och Mollies svenska prislista. Rapporten kan inte låsas förrän Mollie har bokfört exakta ören.`
+                    : "Alla Mollieavgifter är bokförda och matchade mot payment-id."}
                 </p>
               </section>
 
@@ -737,35 +561,6 @@ export function FinancePage({ view = "overview" }: FinancePageProps) {
                     </details>
                   ) : null}
 
-                  <details className="surface group/totals overflow-hidden">
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 hover:bg-[var(--bg-hover)]">
-                      <span>
-                        <span className="block text-[13.5px] font-black text-[var(--text-primary)]">Visa total ekonomisammanställning</span>
-                        <span className="mt-0.5 block text-[11px] text-[var(--text-muted)]">Brutto, återbetalningar, Mollie, provision och moms</span>
-                      </span>
-                      <ChevronDown size={17} className="shrink-0 text-[var(--text-muted)] transition-transform group-open/totals:rotate-180" />
-                    </summary>
-                    <div className="grid gap-3 border-t border-[var(--border-subtle)] p-4 lg:grid-cols-3">
-                      <div className="rounded-[11px] bg-[var(--bg-page)] px-4 py-3">
-                        <p className="card-label mb-1">Försäljning</p>
-                        <MoneyLine label="Brutto" value={totals?.grossTotal} />
-                        <MoneyLine label="Återbetalt" value={totals?.refunds} negative />
-                        <MoneyLine label="Netto" value={totals?.netSales} strong />
-                      </div>
-                      <div className="rounded-[11px] bg-[var(--bg-page)] px-4 py-3">
-                        <p className="card-label mb-1">Mollie</p>
-                        <MoneyLine label="Betalavgifter" value={paymentFees} />
-                        <MoneyLine label="Refundavgifter" value={totals?.refundProcessingFees} />
-                        <MoneyLine label="Totalt" value={totals?.mollieFees} strong />
-                      </div>
-                      <div className="rounded-[11px] bg-[var(--bg-page)] px-4 py-3">
-                        <p className="card-label mb-1">ViaEats</p>
-                        <MoneyLine label="Provision ex moms" value={totals?.commission} />
-                        <MoneyLine label="Moms" value={totals?.commissionVat} />
-                        <MoneyLine label="ViaEats intäkt ex moms" value={totals?.companyRevenueExVat} strong />
-                      </div>
-                    </div>
-                  </details>
                 </>
               )}
             </>

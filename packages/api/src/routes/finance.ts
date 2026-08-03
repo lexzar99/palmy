@@ -539,7 +539,11 @@ router.get('/summary', async (req, res) => {
       (sum, order) => sum + clampedRefundOre(order),
       0,
     );
-    const internalTestMollieFeesOre = excludedMollieReport.feeStatus === 'unavailable'
+    const excludedFeesComplete = excludedMollieReport.feeStatus !== 'unavailable' &&
+      excludedMollieOrders.every((order) =>
+        excludedMollieReport.displayFeeByPaymentId.has(String(order.molliePaymentId || '').trim())
+      );
+    const internalTestMollieFeesOre = !excludedFeesComplete
       ? null
       : excludedMollieOrders.reduce(
           (sum, order) => sum + (
@@ -834,13 +838,15 @@ router.get('/payout/:restaurantId', async (req, res) => {
         .map((order) => String(order.molliePaymentId || '').trim())
         .filter(Boolean),
     });
-    const detailMollieFeesOre = detailMollieReport.feeStatus === 'unavailable'
+    const detailFeesComplete = detailMollieReport.feeStatus !== 'unavailable' &&
+      molliePaymentIds.every((id) => detailMollieReport.displayFeeByPaymentId.has(id));
+    const detailMollieFeesOre = !detailFeesComplete
       ? null
       : molliePaymentIds.reduce((sum, id) => sum + (detailMollieReport.displayFeeByPaymentId.get(id) || 0), 0);
-    const detailPaymentFeesOre = detailMollieReport.feeStatus === 'unavailable'
+    const detailPaymentFeesOre = !detailFeesComplete
       ? null
       : molliePaymentIds.reduce((sum, id) => sum + (detailMollieReport.paymentFeeByPaymentId.get(id) || 0), 0);
-    const detailRefundProcessingFeesOre = detailMollieReport.feeStatus === 'unavailable'
+    const detailRefundProcessingFeesOre = !detailFeesComplete
       ? null
       : molliePaymentIds.reduce((sum, id) => sum + (detailMollieReport.refundFeeByPaymentId.get(id) || 0), 0);
     const lockedMollieFeesOre = persisted && ['APPROVED', 'PAID'].includes(String(persisted.status || '').toUpperCase())
@@ -959,6 +965,9 @@ router.get('/payout/:restaurantId', async (req, res) => {
         payout: fromOre(adjustedPayoutOre),
         owed: fromOre(adjustedOwedOre),
         mollieFees: lockedMollieFeesOre == null ? null : fromOre(lockedMollieFeesOre),
+        mollieFeeStatus: persisted && ['APPROVED', 'PAID'].includes(String(persisted.status || '').toUpperCase())
+          ? 'available'
+          : detailMollieReport.feeStatus,
         paymentFees: detailPaymentFeesOre == null ? null : fromOre(detailPaymentFeesOre),
         refundProcessingFees: detailRefundProcessingFeesOre == null ? null : fromOre(detailRefundProcessingFeesOre),
         foodVatPct: b.foodVatPct,

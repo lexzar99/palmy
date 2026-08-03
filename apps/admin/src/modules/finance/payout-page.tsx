@@ -143,6 +143,7 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
   const restaurantMollieFee = usesFrozenSnapshot && persisted
     ? (persisted.mollieFeeAmount || 0)
     : (b?.mollieFees || 0);
+  const mollieFeeIsFinal = usesFrozenSnapshot || b?.mollieFeeStatus === "available";
   const viaEatsChargeInclVat = Math.max(0, serviceFeeTotal - restaurantMollieFee);
   const persistedStatus = spec.data?.persisted?.status || "NEW";
   const refundWindowClosed = spec.data?.refundWindow.closed ?? false;
@@ -245,74 +246,60 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
         </Surface>
       ) : (
         <>
-          <div className="grid gap-[13px] sm:grid-cols-2 xl:grid-cols-4">
-            <Kpi label={`Netto från ${displayedOrderCount} order`} value={formatCurrency(restaurantGross)} />
-            <Kpi label="ViaEats inkl moms" value={formatCurrency(viaEatsChargeInclVat)} />
-            <Kpi label="Mollieavgift · restaurang" value={formatCurrency(restaurantMollieFee)} />
-            <Kpi label={isOwed ? "Att fakturera" : "Att överföra"} value={formatCurrency(net)} />
+          <div className="grid gap-[13px] sm:grid-cols-3">
+            <Kpi label={`Försäljning · ${displayedOrderCount} order`} value={formatCurrency(restaurantGross)} />
+            <Kpi label="Avgifter totalt" value={formatCurrency(serviceFeeTotal)} />
+            <Kpi
+              label={isOwed ? "Att fakturera" : mollieFeeIsFinal ? "Att överföra" : "Beräknad utbetalning"}
+              value={mollieFeeIsFinal ? formatCurrency(net) : `≈ ${formatCurrency(net)}`}
+            />
           </div>
           <p className="-mt-1 text-[11.5px] text-[var(--text-muted)]">
-            Kort- och refundavgifter betalas av restaurangen och dras direkt från beloppet som ska överföras.
+            ViaEats {formatCurrency(viaEatsChargeInclVat)} inkl moms · Mollie {mollieFeeIsFinal ? formatCurrency(restaurantMollieFee) : `≈ ${formatCurrency(restaurantMollieFee)}`}
+            {mollieFeeIsFinal ? " exakt bokfört" : " beräknat från korttyp"}.
           </p>
 
           <Surface className="px-6 py-6">
-            {usesFrozenSnapshot && persisted ? (
-              <>
-                <p className="mb-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-page)] px-4 py-3 text-xs font-semibold text-[var(--text-secondary)]">
-                  Låst ekonomisnapshot. Detta är det enda belopp som får överföras; dagens provision eller orderdata ändrar inte underlaget.
-                </p>
-                <CalcRow label={`Fryst restaurangintäkt (${persisted.orderCount} ordrar)`} value={persisted.grossSales} strong />
-                {persisted.foodVatAmount != null ? (
-                  <CalcRow label={`Fryst restaurangmoms (${vatLabel(persisted.foodVatPctSnapshot)})`} value={persisted.foodVatAmount} />
-                ) : null}
-                {frozenPlatformTip > 0 ? <CalcRow label="Fryst dricks till bud/plattform" value={frozenPlatformTip} /> : null}
-                <CalcRow label={`ViaEats provision (${persisted.commissionPctSnapshot ?? "—"}%)`} value={persisted.commissionAmount} minus />
-                <CalcRow label="Abonnemang" value={persisted.subscriptionAmount} minus />
-                <CalcRow label={`Moms på ViaEats ersättning (${persisted.feeVatPctSnapshot ?? "—"}%)`} value={frozenFeeVat} minus />
-                {persisted.mollieFeeAmount > 0 ? <CalcRow label="Kort- och refundavgifter · restaurang" value={persisted.mollieFeeAmount} minus /> : null}
-                <CalcRow label="Summa avdrag från restaurangen" value={serviceFeeTotal} strong />
-                {persisted.manualAdjustmentAmount !== 0 ? <CalcRow label="Manuell justering" value={persisted.manualAdjustmentAmount} minus /> : null}
-                {persisted.lateRefundAdjustmentAmount > 0 ? <CalcRow label="Automatisk recovery för sena refunds" value={persisted.lateRefundAdjustmentAmount} minus /> : null}
-              </>
-            ) : (
-              <>
-                <CalcRow label={`Bruttoförsäljning (${b.orderCount} utbetalningsbara ordrar)`} value={b.originalGrossTotal} />
-                {b.refunds > 0 ? <CalcRow label="Återbetalningar" value={b.refunds} minus /> : null}
-                <CalcRow label="Netto efter återbetalningar" value={b.grossTotal} strong />
-                <CalcRow label="varav matvärde (provisionsbas)" value={b.foodBase} sub />
-                <CalcRow label={spec.data.restaurant.selfDelivery ? "varav leveransavgift till restaurangen" : "varav leveransavgift till plattformen"} value={b.deliveryFee} sub />
-                <CalcRow label={spec.data.restaurant.selfDelivery ? "varav dricks till restaurangen" : "varav dricks till bud/plattform"} value={b.tip} sub />
-                <CalcRow label={`Restaurangmoms (${vatLabel(b.foodVatPct)})`} value={b.foodVat} sub />
-                <CalcRow label="Restaurangens intäkt före ViaEats avgifter" value={b.restaurantGross} strong />
-                <CalcRow label={`ViaEats provision (${b.commissionPct}%)`} value={b.commission} minus />
-                <CalcRow label={`Abonnemang (${b.tierLabel})`} value={b.subscription} minus />
-                <CalcRow label={`Moms på ViaEats ersättning (${b.feeVatPct}%)`} value={b.feeVat} minus />
-                {b.mollieFees != null ? <CalcRow label="Kort- och refundavgifter · restaurang" value={b.mollieFees} minus /> : null}
-                <CalcRow label="Summa avdrag från restaurangen" value={serviceFeeTotal} strong />
-                {manualAdjustment !== 0 ? <CalcRow label="Manuell justering" value={manualAdjustment} minus /> : null}
-                {automaticRecovery > 0 ? <CalcRow label="Automatisk recovery för sena refunds" value={automaticRecovery} minus /> : null}
-              </>
-            )}
+            {usesFrozenSnapshot ? (
+              <p className="mb-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-page)] px-4 py-3 text-xs font-semibold text-[var(--text-secondary)]">
+                Låst rapport · alla belopp och Mollieavgifter är frysta på exakta ören.
+              </p>
+            ) : null}
+            <CalcRow label="Restaurangens försäljning" value={restaurantGross} />
+            <CalcRow label="ViaEats inkl moms" value={viaEatsChargeInclVat} minus />
+            <CalcRow label={`Mollie · ${mollieFeeIsFinal ? "exakt" : "beräknad från korttyp"}`} value={restaurantMollieFee} minus />
+            {manualAdjustment !== 0 ? <CalcRow label="Manuell justering" value={manualAdjustment} minus /> : null}
+            {automaticRecovery > 0 ? <CalcRow label="Sena återbetalningar" value={automaticRecovery} minus /> : null}
             <div className={`mt-3 flex items-center justify-between rounded-xl px-4 py-3 text-white ${isOwed ? "bg-[#B45309]" : "bg-[var(--brand-navy)]"}`}>
               <span className="font-bold">{isOwed ? "Att fakturera restaurangen" : "Att överföra till restaurangen"}</span>
-              <span className="text-xl font-black tabular-nums">{formatCurrency(net)}</span>
+              <span className="text-xl font-black tabular-nums">{mollieFeeIsFinal ? formatCurrency(net) : `≈ ${formatCurrency(net)}`}</span>
             </div>
             {isOwed ? (
               <p className="mt-3 text-xs text-[var(--text-secondary)]">
                 Avgifterna översteg restaurangens intäkt denna period (typiskt abonnemang vid få ordrar) → ingen utbetalning, beloppet faktureras istället.
               </p>
             ) : null}
-            {!usesFrozenSnapshot ? <p className="mt-2 text-xs text-[var(--text-secondary)]">
-              Restaurangmoms ({vatLabel(b.foodVatPct)}) i försäljningen: {formatCurrency(b.foodVat)} — informativ, restaurangens egen redovisning.
-            </p> : null}
+            <p className="mt-3 text-xs leading-5 text-[var(--text-secondary)]">
+              Vid återbetalning ligger den ursprungliga betalavgiften kvar. Mollies eventuella refundavgift läggs till. Rapporten kan bara låsas när båda är bokförda och matchade mot payment-id.
+            </p>
+            <details className="mt-3 border-t border-[var(--border-subtle)] pt-3 text-xs text-[var(--text-secondary)]">
+              <summary className="cursor-pointer font-bold">Visa moms och avgiftsunderlag</summary>
+              <div className="mt-2">
+                <CalcRow label={`Provision (${usesFrozenSnapshot ? persisted?.commissionPctSnapshot ?? "—" : b.commissionPct}%)`} value={usesFrozenSnapshot ? persisted?.commissionAmount || 0 : b.commission} />
+                <CalcRow label="Abonnemang" value={usesFrozenSnapshot ? persisted?.subscriptionAmount || 0 : b.subscription} />
+                <CalcRow label={`Moms på ViaEats (${usesFrozenSnapshot ? persisted?.feeVatPctSnapshot ?? "—" : b.feeVatPct}%)`} value={usesFrozenSnapshot ? frozenFeeVat : b.feeVat} />
+                <CalcRow label={`Restaurangmoms (${vatLabel(usesFrozenSnapshot ? persisted?.foodVatPctSnapshot : b.foodVatPct)})`} value={usesFrozenSnapshot ? persisted?.foodVatAmount || 0 : b.foodVat} />
+                {frozenPlatformTip > 0 ? <CalcRow label="Dricks till bud/plattform" value={frozenPlatformTip} /> : null}
+              </div>
+            </details>
           </Surface>
 
-          <Surface className="px-6 py-6">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Leveransmodell & provision</p>
+          <details className="surface group/settings overflow-hidden">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-6 py-4 hover:bg-[var(--bg-hover)]">
+              <span className="font-extrabold text-[var(--text-primary)]">Inställningar för provision och abonnemang</span>
               <DeliveryModeBadge selfDelivery={selfDelivery} />
-            </div>
-            <div className="mt-3 grid gap-4 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
+            </summary>
+            <div className="grid gap-4 border-t border-[var(--border-subtle)] px-6 py-5 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
               <Field label="Modell">
                 <Select value={selfDelivery ? "self" : "platform"} onChange={(e) => setSelfDelivery(e.target.value === "self")}>
                   <option value="platform">Vi levererar</option>
@@ -329,7 +316,7 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
                 {saveDelivery.isPending ? <Loader2 size={16} className="animate-spin" /> : "Uppdatera ekonomi"}
               </Button>
             </div>
-            <div className="mt-4 grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 px-6 pb-6 md:grid-cols-3">
               <Field label="Guldpris">
                 <Input
                   type="number"
@@ -358,7 +345,7 @@ export function FinancePayoutPage({ restaurantId, from, to }: { restaurantId: st
                 />
               </Field>
             </div>
-          </Surface>
+          </details>
 
           <Surface className="px-6 py-6">
             <div className="grid gap-4 md:grid-cols-2">

@@ -235,6 +235,7 @@ export interface PayoutSpec {
     feeVatPct: number;
     feeVat: number;
     mollieFees: number | null;
+    mollieFeeStatus: "available" | "partial" | "unavailable";
     paymentFees: number | null;
     refundProcessingFees: number | null;
     restaurantGross: number;

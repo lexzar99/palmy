@@ -44,6 +44,7 @@ import {
 import {
   allocateExactFeeTotal,
   estimateMollieFeeFromObservations,
+  estimateMollieFeeFromSwedishPricing,
   estimateNextMolliePayoutDate,
   mollieFeeBreakdownFromTransactions,
   molliePaymentFeesFromTransactions,
@@ -531,6 +532,30 @@ assert.equal(
   ]),
   599,
 );
+assert.equal(estimateMollieFeeFromSwedishPricing({
+  amount: { currency: 'SEK', value: '500.00' },
+  method: 'creditcard',
+  details: { cardCountryCode: 'SE', cardAudience: 'consumer', cardLabel: 'Visa' },
+}), 880, 'Swedish consumer cards use 1.20% + 2.80 SEK');
+assert.equal(estimateMollieFeeFromSwedishPricing({
+  amount: { currency: 'SEK', value: '500.00' },
+  method: 'applepay',
+  details: { cardCountryCode: 'DE', cardAudience: 'consumer', cardLabel: 'Mastercard' },
+}), 1_180, 'Apple Pay follows the underlying EEA consumer card price');
+assert.equal(estimateMollieFeeFromSwedishPricing({
+  amount: { currency: 'SEK', value: '500.00' },
+  method: 'creditcard',
+  details: { cardCountryCode: 'SE', cardAudience: 'business', cardLabel: 'Visa' },
+}), 1_730, 'EEA commercial cards use 2.90% + 2.80 SEK');
+assert.equal(estimateMollieFeeFromSwedishPricing({
+  amount: { currency: 'SEK', value: '500.00' },
+  method: 'creditcard',
+  details: { cardCountryCode: 'US', cardAudience: 'consumer', cardLabel: 'Visa' },
+}), 1_905, 'non-EEA cards use 3.25% + 2.80 SEK');
+assert.equal(estimateMollieFeeFromSwedishPricing({
+  amount: { currency: 'SEK', value: '500.00' },
+  method: 'swish',
+}), 750, 'Swish uses 0.90% + 3.00 SEK');
 const calibratedFees = allocateExactFeeTotal(
   new Map([
     ['tr_booked_a', 7_179],
