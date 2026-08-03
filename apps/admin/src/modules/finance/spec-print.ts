@@ -112,8 +112,29 @@ export function printPayoutSpec(
     : b.commission + b.subscription;
   const platformFeeTotal = platformFeeBase + platformFeeVat;
   const mollieFeeTotal = frozen && persisted
-    ? Number(persisted.mollieFeeAmount || 0)
-    : Number((b as { mollieFees?: number | null }).mollieFees || 0);
+    ? persisted.mollieFeeAmount
+    : b.mollieFees;
+  const refundProcessingFee = frozen && persisted
+    ? (persisted.refundProcessingFeeAmount ?? 0)
+    : b.refundProcessingFees;
+  const paymentFee = mollieFeeTotal == null || refundProcessingFee == null
+    ? null
+    : Math.max(0, mollieFeeTotal - refundProcessingFee);
+  const orderSales = frozen && persisted
+    ? (persisted.originalGrossTotal ?? persisted.grossSales)
+    : b.originalGrossTotal;
+  const refunds = frozen && persisted ? (persisted.refunds ?? 0) : b.refunds;
+  const salesAfterRefunds = Math.max(0, orderSales - refunds);
+  const restaurantGross = frozen && persisted ? persisted.grossSales : b.restaurantGross;
+  const foodVat = frozen && persisted ? (persisted.foodVatAmount ?? 0) : b.foodVat;
+  const foodVatPct = frozen && persisted ? persisted.foodVatPctSnapshot : b.foodVatPct;
+  const salesExVat = Math.max(0, restaurantGross - foodVat);
+  const commission = frozen && persisted ? persisted.commissionAmount : b.commission;
+  const subscription = frozen && persisted ? persisted.subscriptionAmount : b.subscription;
+  const orderCount = frozen && persisted
+    ? (persisted.periodOrderCount ?? persisted.orderCount)
+    : (b.periodOrderCount ?? b.orderCount);
+  const orderExclusions = Math.max(0, salesAfterRefunds - restaurantGross);
   const modeLabel: Record<PayoutPrintMode, string> = {
     summary: "Totalt antal order och belopp",
     orders: "Varje order med ordernummer och belopp",
@@ -126,11 +147,12 @@ export function printPayoutSpec(
   }
 
   const section = (label: string) => `<tr class="section"><td colspan="2">${esc(label)}</td></tr>`;
-  const line = (label: string, value: string, opts: { strong?: boolean; sub?: boolean; minus?: boolean } = {}) =>
+  const line = (label: string, value: string, opts: { strong?: boolean; sub?: boolean; sign?: "−" | "+" } = {}) =>
     `<tr class="${opts.strong ? "strong" : ""} ${opts.sub ? "sub" : ""}">
-      <td>${opts.minus ? "- " : ""}${esc(label)}</td>
-      <td class="num">${esc(value)}</td>
+      <td>${esc(label)}</td>
+      <td class="num">${opts.sign ? `${opts.sign} ` : ""}${esc(value)}</td>
     </tr>`;
+  const mollieValue = (value: number | null) => value == null ? "Inväntar Mollie" : kr(value);
 
   const orderHeader = showPaymentState
     ? "<tr><th>Order</th><th>Datum</th><th>Typ</th><th>Status</th><th class=\"num\">Belopp</th></tr>"
@@ -299,7 +321,21 @@ export function printPayoutSpec(
   @media print {
     body { padding: 0; background: #fff; }
     .page { min-height: 0; border: 0; border-radius: 0; box-shadow: none; }
-    .hero { border-radius: 0; }
+    .hero { border-radius: 0; padding: 17px 24px; }
+    .brand { margin-bottom: 10px; }
+    .logo { width: 88px; padding: 6px 8px; }
+    h1 { font-size: 23px; }
+    .hero-card { padding: 12px; }
+    .hero-card .amount { font-size: 24px; }
+    .content { padding: 14px 24px 18px; }
+    .grid { gap: 7px 14px; margin-bottom: 10px; }
+    .info-block { padding: 8px 10px; }
+    .calc td { padding: 5px 10px; }
+    .calc tr.section td { padding-top: 7px; padding-bottom: 4px; }
+    .total { margin-top: 8px; padding: 10px 14px; }
+    .total .v { font-size: 21px; }
+    .note { margin-top: 8px; padding-top: 7px; }
+    .orders { break-before: page; page-break-before: always; }
     @page { margin: 14mm; }
   }
 </style></head>
@@ -357,50 +393,38 @@ export function printPayoutSpec(
       </div>
 
       <table class="calc">
-        ${frozen && persisted
-          ? [
-              section("Restaurangens underlag"),
-              line(`Fryst restaurangintäkt (${persisted.orderCount} order)`, kr(persisted.grossSales), { strong: true }),
-              persisted.foodVatAmount != null ? line(`Fryst restaurangmoms (${vatLabel(persisted.foodVatPctSnapshot)})`, kr(persisted.foodVatAmount), { sub: true }) : "",
-              (persisted.platformTipAmount || 0) > 0 ? line("Fryst dricks till bud/plattform", kr(persisted.platformTipAmount || 0), { sub: true }) : "",
-              section("ViaEats ersättning och avgiftsavdrag"),
-              line(`ViaEats provision (${persisted.commissionPctSnapshot ?? "-"}%)`, kr(persisted.commissionAmount), { minus: true }),
-              line("Abonnemang", kr(persisted.subscriptionAmount), { minus: true }),
-              line(`Moms på ViaEats ersättning (${persisted.feeVatPctSnapshot ?? "-"}%)`, kr(platformFeeVat), { minus: true }),
-              mollieFeeTotal > 0 ? line("Mollie-kort- och refundavgifter", kr(mollieFeeTotal), { minus: true }) : "",
-              line("Summa avgiftsavdrag inkl. moms", kr(platformFeeTotal + mollieFeeTotal), { strong: true }),
-              Math.abs(persisted.manualAdjustmentAmount) > 0
-                ? line(
-                    persisted.manualAdjustmentAmount > 0 ? "Extra avdrag - manuell justering" : "Kreditering - manuell justering",
-                    kr(Math.abs(persisted.manualAdjustmentAmount)),
-                    { minus: persisted.manualAdjustmentAmount > 0 },
-                  )
-                : "",
-              persisted.lateRefundAdjustmentAmount > 0 ? line("Automatisk recovery för sena refunds", kr(persisted.lateRefundAdjustmentAmount), { minus: true }) : "",
-            ].join("")
-          : [
-              section("Restaurangens underlag"),
-              line(`Betalda order (${b.orderCount} order)`, kr(b.grossTotal)),
-              line("varav matvärde", kr(b.foodBase), { sub: true }),
-              line(spec.restaurant.selfDelivery ? "varav leveransavgift till restaurangen" : "varav leveransavgift till ViaEats", kr(b.deliveryFee), { sub: true }),
-              line(spec.restaurant.selfDelivery ? "varav dricks till restaurangen" : "varav dricks till bud/plattform", kr(b.tip), { sub: true }),
-              line(`Restaurangmoms (${vatLabel(b.foodVatPct)})`, kr(b.foodVat), { sub: true }),
-              line("Restaurangens intäkt före ViaEats avgifter", kr(b.restaurantGross), { strong: true }),
-              section("ViaEats ersättning och avgiftsavdrag"),
-              line(`ViaEats provision (${b.commissionPct}%)`, kr(b.commission), { minus: true }),
-              line(`Abonnemang (${b.tierLabel})`, kr(b.subscription), { minus: true }),
-              line(`Moms på ViaEats ersättning (${b.feeVatPct}%)`, kr(b.feeVat), { minus: true }),
-              mollieFeeTotal > 0 ? line("Mollie-kort- och refundavgifter", kr(mollieFeeTotal), { minus: true }) : "",
-              line("Summa avgiftsavdrag inkl. moms", kr(platformFeeTotal + mollieFeeTotal), { strong: true }),
-              Math.abs(Number(manualAdjustment) || 0) > 0
-                ? line(
-                    Number(manualAdjustment) > 0 ? "Extra avdrag - manuell justering" : "Kreditering - manuell justering",
-                    kr(Math.abs(Number(manualAdjustment) || 0)),
-                    { minus: Number(manualAdjustment) > 0 },
-                  )
-                : "",
-              (Number(lateRefundRecovery) || 0) > 0 ? line("Automatisk recovery för sena refunds", kr(Number(lateRefundRecovery) || 0), { minus: true }) : "",
-            ].join("")}
+        ${[
+          section("Försäljning och order"),
+          line(`Försäljning inkl. moms (${orderCount} order)`, kr(orderSales)),
+          line("Återbetalningar", kr(refunds), { sign: "−" }),
+          line("Försäljning efter återbetalningar", kr(salesAfterRefunds), { strong: true }),
+          orderExclusions > 0 ? line("Leveransavgift och dricks till ViaEats/bud", kr(orderExclusions), { sign: "−" }) : "",
+          section("Mollieavgifter för order"),
+          line(`Transaktionsavgifter (${frozen || b.mollieFeeStatus === "available" ? "exakta" : "beräknade från korttyp"})`, mollieValue(paymentFee), { sign: paymentFee == null ? undefined : "−" }),
+          (refundProcessingFee ?? 0) > 0 ? line("Avgifter för återbetalningar", mollieValue(refundProcessingFee), { sign: "−" }) : "",
+          line("Mollieavgifter totalt", mollieValue(mollieFeeTotal), { strong: true }),
+          section("Moms och försäljning exklusive moms"),
+          line(`Moms i restaurangens försäljning (${vatLabel(foodVatPct)})`, kr(foodVat)),
+          line("Restaurangens försäljning exklusive moms", kr(salesExVat), { strong: true }),
+          section("ViaEats-avdrag"),
+          line(`Provision exkl. moms (${commissionPct ?? "-"}%)`, kr(commission), { sign: "−" }),
+          line(`Abonnemang exkl. moms (${b.tierLabel})`, kr(subscription), { sign: "−" }),
+          line(`Moms på ViaEats (${frozen ? persisted?.feeVatPctSnapshot ?? "-" : b.feeVatPct}%)`, kr(platformFeeVat), { sign: "−" }),
+          line("ViaEats-avdrag totalt inkl. moms", kr(platformFeeTotal), { strong: true }),
+          section("Manuell justering"),
+          Math.abs(frozen && persisted ? persisted.manualAdjustmentAmount : Number(manualAdjustment) || 0) > 0
+            ? line(
+                (frozen && persisted ? persisted.manualAdjustmentAmount : Number(manualAdjustment)) > 0
+                  ? "Avdrag från utbetalning"
+                  : "Tillägg till utbetalning",
+                kr(Math.abs(frozen && persisted ? persisted.manualAdjustmentAmount : Number(manualAdjustment) || 0)),
+                { sign: (frozen && persisted ? persisted.manualAdjustmentAmount : Number(manualAdjustment)) > 0 ? "−" : "+" },
+              )
+            : line("Ingen manuell justering", kr(0)),
+          (frozen && persisted ? persisted.lateRefundAdjustmentAmount : Number(lateRefundRecovery) || 0) > 0
+            ? line("Sena återbetalningar", kr(frozen && persisted ? persisted.lateRefundAdjustmentAmount : Number(lateRefundRecovery) || 0), { sign: "−" })
+            : "",
+        ].join("")}
       </table>
 
       <div class="total"><span>${esc(totalLabel)}</span><span class="v">${kr(net)}</span></div>

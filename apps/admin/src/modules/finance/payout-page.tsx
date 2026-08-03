@@ -25,7 +25,7 @@ import {
   type PayoutPrintMode,
 } from "@/modules/finance/spec-print";
 import { DeliveryModeBadge } from "@/shared/components/delivery-mode";
-import { Badge, Button, Field, Input, MoneyInput, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
+import { Badge, Button, Field, Input, MoneyInput, PageHeader, Select, Surface } from "@/shared/components/ui";
 import { formatCurrencyExact as formatCurrency, formatDate, formatDateTime, orderStatusLabel, paymentStatusLabel } from "@/shared/utils/format";
 
 const mono = "ui-monospace, SFMono-Regular, Menlo, monospace";
@@ -67,11 +67,13 @@ function Kpi({ label, value, accent }: { label: string; value: React.ReactNode; 
   );
 }
 
-function CalcRow({ label, value, strong, sub, sign }: { label: string; value: number; strong?: boolean; sub?: boolean; sign?: "−" | "+" }) {
+function CalcRow({ label, value, strong, sub, sign }: { label: string; value: number | null; strong?: boolean; sub?: boolean; sign?: "−" | "+" }) {
   return (
     <div className={`flex items-center justify-between py-2 ${sub ? "pl-4 text-[var(--text-secondary)]" : ""} ${strong ? "border-t border-[var(--border-strong,rgba(0,0,0,0.15))] font-black" : "border-b border-[var(--border,rgba(0,0,0,0.06))]"}`}>
       <span>{label}</span>
-      <span className="tabular-nums" style={{ fontFamily: mono }}>{sign ? `${sign} ` : ""}{formatCurrency(value)}</span>
+      <span className="tabular-nums" style={{ fontFamily: mono }}>
+        {value == null ? "Inväntar Mollie" : <>{sign ? `${sign} ` : ""}{formatCurrency(value)}</>}
+      </span>
     </div>
   );
 }
@@ -140,22 +142,39 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
   const frozenFeeVat = usesFrozenSnapshot && persisted
     ? ((persisted.commissionAmount + persisted.subscriptionAmount) * Number(persisted.feeVatPctSnapshot || 0)) / 100
     : 0;
-  const frozenPlatformTip = usesFrozenSnapshot && persisted ? (persisted.platformTipAmount || 0) : 0;
-  const serviceFeeTotal = usesFrozenSnapshot && persisted
-    ? persisted.commissionAmount + persisted.subscriptionAmount + frozenFeeVat + (persisted.mollieFeeAmount || 0)
-    : (b?.commission ?? 0) + (b?.subscription ?? 0) + (b?.feeVat ?? 0) + (b?.mollieFees ?? 0);
   const settlementPosition = usesFrozenSnapshot && persisted
     ? persisted.payoutAmount - persisted.owedAmount
     : (b?.payout ?? 0) - (b?.owed ?? 0) - manualAdjustment - automaticRecovery;
   const isOwed = settlementPosition < 0;
   const net = Math.abs(settlementPosition);
   const restaurantGross = usesFrozenSnapshot && persisted ? persisted.grossSales : (b?.restaurantGross ?? 0);
-  const displayedOrderCount = usesFrozenSnapshot && persisted ? persisted.orderCount : (b?.orderCount ?? 0);
+  const orderSales = usesFrozenSnapshot && persisted
+    ? (persisted.originalGrossTotal ?? persisted.grossSales)
+    : (b?.originalGrossTotal ?? 0);
+  const refunds = usesFrozenSnapshot && persisted ? (persisted.refunds ?? 0) : (b?.refunds ?? 0);
+  const salesAfterRefunds = Math.max(0, orderSales - refunds);
+  const displayedOrderCount = usesFrozenSnapshot && persisted
+    ? (persisted.periodOrderCount ?? persisted.orderCount)
+    : (b?.periodOrderCount ?? b?.orderCount ?? 0);
   const restaurantMollieFee = usesFrozenSnapshot && persisted
-    ? (persisted.mollieFeeAmount || 0)
-    : (b?.mollieFees || 0);
+    ? persisted.mollieFeeAmount
+    : (b?.mollieFees ?? null);
+  const refundProcessingFee = usesFrozenSnapshot && persisted
+    ? (persisted.refundProcessingFeeAmount ?? 0)
+    : (b?.refundProcessingFees ?? null);
+  const paymentFee = usesFrozenSnapshot && persisted
+    ? (persisted.paymentFeeAmount ?? Math.max(0, persisted.mollieFeeAmount - (persisted.refundProcessingFeeAmount ?? 0)))
+    : restaurantMollieFee == null || refundProcessingFee == null
+      ? null
+      : Math.max(0, restaurantMollieFee - refundProcessingFee);
   const mollieFeeIsFinal = usesFrozenSnapshot || b?.mollieFeeStatus === "available";
-  const viaEatsChargeInclVat = Math.max(0, serviceFeeTotal - restaurantMollieFee);
+  const commission = usesFrozenSnapshot && persisted ? persisted.commissionAmount : (b?.commission ?? 0);
+  const subscription = usesFrozenSnapshot && persisted ? persisted.subscriptionAmount : (b?.subscription ?? 0);
+  const viaEatsVat = usesFrozenSnapshot && persisted ? frozenFeeVat : (b?.feeVat ?? 0);
+  const viaEatsChargeInclVat = commission + subscription + viaEatsVat;
+  const orderDeductions = restaurantMollieFee == null ? null : refunds + restaurantMollieFee;
+  const foodVat = usesFrozenSnapshot && persisted ? (persisted.foodVatAmount || 0) : (b?.foodVat ?? 0);
+  const salesExVat = Math.max(0, restaurantGross - foodVat);
   const persistedStatus = spec.data?.persisted?.status || "NEW";
   const refundWindowClosed = spec.data?.refundWindow.closed ?? false;
   const allowedStatuses = persistedStatus === "PAID"
@@ -259,17 +278,10 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
       ) : (
         <>
           <div className="grid gap-[13px] sm:grid-cols-3">
-            <Kpi label={`Försäljning · ${displayedOrderCount} order`} value={formatCurrency(restaurantGross)} />
-            <Kpi label="Avgifter totalt" value={formatCurrency(serviceFeeTotal)} />
-            <Kpi
-              label={isOwed ? "Att fakturera" : mollieFeeIsFinal ? "Att överföra" : "Beräknad utbetalning"}
-              value={mollieFeeIsFinal ? formatCurrency(net) : `≈ ${formatCurrency(net)}`}
-            />
+            <Kpi label={`Försäljning · ${displayedOrderCount} order`} value={formatCurrency(orderSales)} />
+            <Kpi label="Orderavdrag" value={orderDeductions == null ? "Inväntar Mollie" : formatCurrency(orderDeductions)} />
+            <Kpi label="ViaEats-avdrag inkl moms" value={formatCurrency(viaEatsChargeInclVat)} />
           </div>
-          <p className="-mt-1 text-[11.5px] text-[var(--text-muted)]">
-            ViaEats {formatCurrency(viaEatsChargeInclVat)} inkl moms · Mollie {mollieFeeIsFinal ? formatCurrency(restaurantMollieFee) : `≈ ${formatCurrency(restaurantMollieFee)}`}
-            {mollieFeeIsFinal ? " exakt bokfört" : " beräknat från korttyp"}.
-          </p>
 
           <Surface className="px-6 py-6">
             {usesFrozenSnapshot ? (
@@ -277,16 +289,36 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
                 Låst rapport · alla belopp och Mollieavgifter är frysta på exakta ören.
               </p>
             ) : null}
-            <CalcRow label="Restaurangens försäljning" value={restaurantGross} />
-            <CalcRow label="ViaEats inkl moms" value={viaEatsChargeInclVat} sign="−" />
-            <CalcRow label={`Mollie · ${mollieFeeIsFinal ? "exakt" : "beräknad från korttyp"}`} value={restaurantMollieFee} sign="−" />
+            <p className="eyebrow mb-1 mt-1">Försäljning och order</p>
+            <CalcRow label={`Försäljning inkl moms · ${displayedOrderCount} order`} value={orderSales} />
+            <CalcRow label="Återbetalningar" value={refunds} sign="−" />
+            <CalcRow label="Försäljning efter återbetalningar" value={salesAfterRefunds} strong />
+            {!spec.data.restaurant.selfDelivery && b.deliveryFee > 0 ? <CalcRow label="Leveransavgift till ViaEats" value={b.deliveryFee} sign="−" /> : null}
+            {!spec.data.restaurant.selfDelivery && b.tip > 0 ? <CalcRow label="Dricks till bud/plattform" value={b.tip} sign="−" /> : null}
+
+            <p className="eyebrow mb-1 mt-5">Mollieavgifter för order</p>
+            <CalcRow label={`Transaktionsavgifter · ${mollieFeeIsFinal ? "exakta" : "beräknade från korttyp"}`} value={paymentFee} sign="−" />
+            {(refundProcessingFee ?? 0) > 0 ? <CalcRow label="Avgifter för återbetalningar" value={refundProcessingFee} sign="−" /> : null}
+            <CalcRow label="Mollieavgifter totalt" value={restaurantMollieFee} strong />
+
+            <p className="eyebrow mb-1 mt-5">Moms och försäljning exklusive moms</p>
+            <CalcRow label={`Moms i restaurangens försäljning (${vatLabel(usesFrozenSnapshot ? persisted?.foodVatPctSnapshot : b.foodVatPct)})`} value={foodVat} />
+            <CalcRow label="Restaurangens försäljning exklusive moms" value={salesExVat} strong />
+
+            <p className="eyebrow mb-1 mt-5">ViaEats-avdrag</p>
+            <CalcRow label={`Provision exkl moms (${usesFrozenSnapshot ? persisted?.commissionPctSnapshot ?? "—" : b.commissionPct}%)`} value={commission} sign="−" />
+            <CalcRow label={`Abonnemang exkl moms · ${b.tierLabel}`} value={subscription} sign="−" />
+            <CalcRow label={`Moms på ViaEats (${usesFrozenSnapshot ? persisted?.feeVatPctSnapshot ?? "—" : b.feeVatPct}%)`} value={viaEatsVat} sign="−" />
+            <CalcRow label="ViaEats-avdrag totalt inkl moms" value={viaEatsChargeInclVat} strong />
+
+            <p className="eyebrow mb-1 mt-5">Manuell justering</p>
             {manualAdjustment !== 0 ? (
               <CalcRow
                 label={manualAdjustment > 0 ? "Avdrag från utbetalning" : "Tillägg till utbetalning"}
                 value={Math.abs(manualAdjustment)}
                 sign={manualAdjustment > 0 ? "−" : "+"}
               />
-            ) : null}
+            ) : <CalcRow label="Ingen manuell justering" value={0} />}
             {automaticRecovery > 0 ? <CalcRow label="Sena återbetalningar" value={automaticRecovery} sign="−" /> : null}
             <div className={`mt-3 flex items-center justify-between rounded-xl px-4 py-3 text-white ${isOwed ? "bg-[#B45309]" : "bg-[var(--brand-navy)]"}`}>
               <span className="font-bold">{isOwed ? "Att fakturera restaurangen" : "Att överföra till restaurangen"}</span>
@@ -327,7 +359,7 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
                   />
                 </Field>
                 <Field label="Orsak till justering">
-                  <Textarea
+                  <Input
                     value={notes}
                     disabled={usesFrozenSnapshot}
                     placeholder="Exempel: Flytt av Burger King-testavgifter"
@@ -341,16 +373,6 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
                 </p>
               ) : null}
             </div>
-            <details className="mt-3 border-t border-[var(--border-subtle)] pt-3 text-xs text-[var(--text-secondary)]">
-              <summary className="cursor-pointer font-bold">Visa moms och avgiftsunderlag</summary>
-              <div className="mt-2">
-                <CalcRow label={`Provision (${usesFrozenSnapshot ? persisted?.commissionPctSnapshot ?? "—" : b.commissionPct}%)`} value={usesFrozenSnapshot ? persisted?.commissionAmount || 0 : b.commission} />
-                <CalcRow label="Abonnemang" value={usesFrozenSnapshot ? persisted?.subscriptionAmount || 0 : b.subscription} />
-                <CalcRow label={`Moms på ViaEats (${usesFrozenSnapshot ? persisted?.feeVatPctSnapshot ?? "—" : b.feeVatPct}%)`} value={usesFrozenSnapshot ? frozenFeeVat : b.feeVat} />
-                <CalcRow label={`Restaurangmoms (${vatLabel(usesFrozenSnapshot ? persisted?.foodVatPctSnapshot : b.foodVatPct)})`} value={usesFrozenSnapshot ? persisted?.foodVatAmount || 0 : b.foodVat} />
-                {frozenPlatformTip > 0 ? <CalcRow label="Dricks till bud/plattform" value={frozenPlatformTip} /> : null}
-              </div>
-            </details>
           </Surface>
 
           <details className="surface group/settings overflow-hidden">

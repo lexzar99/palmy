@@ -239,6 +239,7 @@ export interface PayoutSpec {
   };
   breakdown: {
     orderCount: number;
+    periodOrderCount: number;
     originalGrossTotal: number;
     refunds: number;
     grossTotal: number;
@@ -267,12 +268,17 @@ export interface PayoutSpec {
   persisted: {
     status: string;
     grossSales: number;
+    originalGrossTotal?: number;
+    refunds?: number;
     orderCount: number;
+    periodOrderCount?: number;
     commissionAmount: number;
     subscriptionAmount: number;
     manualAdjustmentAmount: number;
     lateRefundAdjustmentAmount: number;
     mollieFeeAmount: number;
+    paymentFeeAmount?: number;
+    refundProcessingFeeAmount?: number;
     payoutAmount: number;
     owedAmount: number;
     foodVatAmount: number | null;

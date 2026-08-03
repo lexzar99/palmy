@@ -49,6 +49,7 @@ import {
   estimateMollieFeeFromSwedishPricing,
   estimateNextMolliePayoutDate,
   mollieFeeBreakdownFromTransactions,
+  molliePaymentOrderReference,
   molliePaymentFeesFromTransactions,
 } from '../lib/mollieFinance';
 import { reconcileFinanceOrders } from '../lib/financeReconciliation';
@@ -598,6 +599,15 @@ const mollieFees = molliePaymentFeesFromTransactions([
 assert.equal(mollieFees.get('tr_a'), 325);
 assert.equal(mollieFees.get('tr_b'), 200);
 assert.equal(mollieFees.has('tr_c'), false);
+assert.deepEqual(molliePaymentOrderReference({
+  id: 'tr_metadata',
+  metadata: { orderId: 'order-1', orderNumber: 'VE-1001' },
+  description: 'Ignoreras när metadata finns',
+}), { orderId: 'order-1', orderNumber: 'VE-1001' });
+assert.deepEqual(molliePaymentOrderReference({
+  id: 'tr_description',
+  description: 'VE-1002 – Palmyra',
+}), { orderId: null, orderNumber: 'VE-1002' });
 const refundFeeBreakdown = mollieFeeBreakdownFromTransactions([
   {
     id: 'bst_payment_refunded',

@@ -19,7 +19,7 @@ import {
   selectFinanceSummaryEconomicValues,
   sumFinanceSummaryRows,
 } from '../lib/financeSummary';
-import { getMollieFinanceReport } from '../lib/mollieFinance';
+import { getMollieFinanceReport, type MollieFinanceReport } from '../lib/mollieFinance';
 import {
   reconcileFinanceOrders,
   type FinanceDeviation,
@@ -29,6 +29,34 @@ const router = Router();
 router.use(authenticate, requireSuperAdmin);
 
 const fromOre = (n?: number | null) => Number(n || 0) / 100;
+
+const isMollieCandidateOrder = (order: { paymentProvider?: string | null }) => {
+  const provider = String(order.paymentProvider || '').trim().toLowerCase();
+  return provider === '' || provider === 'mollie';
+};
+
+const resolvedMolliePaymentId = (
+  report: MollieFinanceReport,
+  order: { id?: string | null; orderNumber?: string | null; molliePaymentId?: string | null },
+) => String(order.molliePaymentId || '').trim() ||
+  (order.id ? report.paymentIdByOrderId.get(String(order.id)) : '') ||
+  (order.orderNumber ? report.paymentIdByOrderNumber.get(String(order.orderNumber)) : '') ||
+  '';
+
+const mollieOrderReferences = (orders: ReadonlyArray<{
+  id: string;
+  orderNumber: string;
+  paymentProvider?: string | null;
+  paymentStatus?: string | null;
+  refundAmount?: number | null;
+}>) => orders
+  .filter(isMollieCandidateOrder)
+  .map((order) => ({
+    id: order.id,
+    orderNumber: order.orderNumber,
+    refunded: Math.max(0, Number(order.refundAmount || 0)) > 0 ||
+      String(order.paymentStatus || '').toUpperCase() === 'REFUNDED',
+  }));
 
 const clampedRefundOre = (order: {
   total: number;
@@ -174,7 +202,7 @@ router.get('/summary', async (req, res) => {
     const persistedMap = new Map(persisted.map((p) => [p.restaurantId, p]));
     const reportOrders = orders.filter(isFinanceRealPaymentOrder);
     const reportMollieOrders = reportOrders
-      .filter((order) => String(order.paymentProvider || '').toLowerCase() === 'mollie');
+      .filter(isMollieCandidateOrder);
     const mollieReport = await getMollieFinanceReport({
       from: start,
       to: end,
@@ -185,9 +213,10 @@ router.get('/summary', async (req, res) => {
           String(order.paymentStatus || '').toUpperCase() === 'REFUNDED'
         )
         .map((order) => String(order.molliePaymentId || '')),
+      orderReferences: mollieOrderReferences(reportOrders),
     });
     const excludedMollieOrders = excludedOrders
-      .filter((order) => String(order.paymentProvider || '').toLowerCase() === 'mollie');
+      .filter(isMollieCandidateOrder);
     const excludedMollieReport = await getMollieFinanceReport({
       from: start,
       to: end,
@@ -198,6 +227,7 @@ router.get('/summary', async (req, res) => {
           String(order.paymentStatus || '').toUpperCase() === 'REFUNDED'
         )
         .map((order) => String(order.molliePaymentId || '')),
+      orderReferences: mollieOrderReferences(excludedOrders),
     });
     const frozenPayoutIds = persisted
       .filter((row) => ['APPROVED', 'PAID'].includes(String(row.status || '').toUpperCase()))
@@ -268,13 +298,16 @@ router.get('/summary', async (req, res) => {
           : liveRefundTotalOre;
         const rowMolliePaymentIds = [...new Set(
           restaurantReportOrders
-            .filter((order) => String(order.paymentProvider || '').toLowerCase() === 'mollie')
-            .map((order) => String(order.molliePaymentId || '').trim())
+            .filter(isMollieCandidateOrder)
+            .map((order) => resolvedMolliePaymentId(mollieReport, order))
             .filter(Boolean),
         )];
+        const rowMollieOrderCount = restaurantReportOrders.filter(isMollieCandidateOrder).length;
         const rowFeesComplete = mollieReport.feeStatus !== 'unavailable' &&
+          rowMolliePaymentIds.length === rowMollieOrderCount &&
           rowMolliePaymentIds.every((id) => mollieReport.feeByPaymentId.has(id));
         const rowFeesDisplayable = mollieReport.feeStatus !== 'unavailable' &&
+          rowMolliePaymentIds.length === rowMollieOrderCount &&
           rowMolliePaymentIds.every((id) => mollieReport.displayFeeByPaymentId.has(id));
         const liveMollieFeesOre = !rowFeesDisplayable
           ? null
@@ -288,7 +321,7 @@ router.get('/summary', async (req, res) => {
               Math.max(0, Number(order.refundAmount || 0)) > 0 ||
               String(order.paymentStatus || '').toUpperCase() === 'REFUNDED'
             )
-            .map((order) => String(order.molliePaymentId || '').trim())
+            .map((order) => resolvedMolliePaymentId(mollieReport, order))
             .filter(Boolean),
         );
         const observedRefundFees = [...mollieReport.refundFeeByPaymentId.values()]
@@ -579,14 +612,16 @@ router.get('/summary', async (req, res) => {
       0,
     );
     const excludedFeesComplete = excludedMollieReport.feeStatus !== 'unavailable' &&
-      excludedMollieOrders.every((order) =>
-        excludedMollieReport.displayFeeByPaymentId.has(String(order.molliePaymentId || '').trim())
-      );
+      excludedMollieOrders.length === excludedOrders.filter(isMollieCandidateOrder).length &&
+      excludedMollieOrders.every((order) => {
+        const paymentId = resolvedMolliePaymentId(excludedMollieReport, order);
+        return Boolean(paymentId) && excludedMollieReport.displayFeeByPaymentId.has(paymentId);
+      });
     const internalTestMollieFeesOre = !excludedFeesComplete
       ? null
       : excludedMollieOrders.reduce(
           (sum, order) => sum + (
-            excludedMollieReport.displayFeeByPaymentId.get(String(order.molliePaymentId || '').trim()) || 0
+            excludedMollieReport.displayFeeByPaymentId.get(resolvedMolliePaymentId(excludedMollieReport, order)) || 0
           ),
           0,
         );
@@ -801,6 +836,7 @@ router.get('/payout/:restaurantId', async (req, res) => {
           ...FINANCE_ACCOUNTING_ORDER_FILTER,
         },
         select: {
+          id: true,
           orderNumber: true,
           createdAt: true,
           status: true,
@@ -868,6 +904,15 @@ router.get('/payout/:restaurantId', async (req, res) => {
         return [];
       }
     });
+    const latestFrozenMetrics = [...revisionLogs].reverse().reduce<Record<string, any> | null>((value, log) => {
+      if (value) return value;
+      try {
+        const snapshot = JSON.parse(log.changes || '{}')?.snapshot;
+        return snapshot && typeof snapshot === 'object' ? snapshot : null;
+      } catch {
+        return null;
+      }
+    }, null);
 
     const economy = economyFromSettings(settingsRow);
     const eligibleOrders = orders.flatMap((order) => {
@@ -883,28 +928,33 @@ router.get('/payout/:restaurantId', async (req, res) => {
       restaurant,
       economy,
     );
-    const mollieOrders = orders.filter((order) => String(order.paymentProvider || '').toLowerCase() === 'mollie');
-    const molliePaymentIds = [...new Set(mollieOrders.map((order) => String(order.molliePaymentId || '').trim()).filter(Boolean))];
+    const mollieOrders = financialOrders.filter(isMollieCandidateOrder);
+    const storedMolliePaymentIds = [...new Set(mollieOrders.map((order) => String(order.molliePaymentId || '').trim()).filter(Boolean))];
     const detailMollieReport = await getMollieFinanceReport({
       from: start,
       to: end,
-      paymentIds: molliePaymentIds,
+      paymentIds: storedMolliePaymentIds,
       refundedPaymentIds: mollieOrders
         .filter((order) => Number(order.refundAmount || 0) > 0 || String(order.paymentStatus || '').toUpperCase() === 'REFUNDED')
         .map((order) => String(order.molliePaymentId || '').trim())
         .filter(Boolean),
+      orderReferences: mollieOrderReferences(mollieOrders),
     });
+    const molliePaymentIds = [...new Set(
+      mollieOrders.map((order) => resolvedMolliePaymentId(detailMollieReport, order)).filter(Boolean),
+    )];
     const detailFeesComplete = detailMollieReport.feeStatus !== 'unavailable' &&
+      molliePaymentIds.length === mollieOrders.length &&
       molliePaymentIds.every((id) => detailMollieReport.displayFeeByPaymentId.has(id));
     const detailMollieFeesOre = !detailFeesComplete
       ? null
       : molliePaymentIds.reduce((sum, id) => sum + (detailMollieReport.displayFeeByPaymentId.get(id) || 0), 0);
-    const detailPaymentFeesOre = !detailFeesComplete
-      ? null
-      : molliePaymentIds.reduce((sum, id) => sum + (detailMollieReport.paymentFeeByPaymentId.get(id) || 0), 0);
     const detailRefundProcessingFeesOre = !detailFeesComplete
       ? null
       : molliePaymentIds.reduce((sum, id) => sum + (detailMollieReport.refundFeeByPaymentId.get(id) || 0), 0);
+    const detailPaymentFeesOre = detailMollieFeesOre == null || detailRefundProcessingFeesOre == null
+      ? null
+      : Math.max(0, detailMollieFeesOre - detailRefundProcessingFeesOre);
     const lockedMollieFeesOre = persisted && ['APPROVED', 'PAID'].includes(String(persisted.status || '').toUpperCase())
       ? Math.max(0, Number(persisted.mollieFeeAmount || 0))
       : detailMollieFeesOre;
@@ -1030,6 +1080,7 @@ router.get('/payout/:restaurantId', async (req, res) => {
       lateRefundRecovery: recoveryPreview,
       breakdown: {
         orderCount: b.orderCount,
+        periodOrderCount: financialOrders.length,
         originalGrossTotal: fromOre(originalGrossTotal),
         refunds: fromOre(refundTotal),
         grossTotal: fromOre(b.grossTotal),
@@ -1076,12 +1127,29 @@ router.get('/payout/:restaurantId', async (req, res) => {
         ? {
             status: persisted.status,
             grossSales: fromOre(persisted.grossSales),
+            originalGrossTotal: latestFrozenMetrics?.grossTotal == null
+              ? fromOre(persisted.grossSales)
+              : fromOre(latestFrozenMetrics.grossTotal),
+            refunds: latestFrozenMetrics?.refunds == null ? 0 : fromOre(latestFrozenMetrics.refunds),
             orderCount: persisted.orderCount,
+            periodOrderCount: latestFrozenMetrics?.realPaymentCount == null
+              ? persisted.orderCount
+              : Math.max(0, Math.round(Number(latestFrozenMetrics.realPaymentCount))),
             commissionAmount: fromOre(persisted.commissionAmount),
             subscriptionAmount: fromOre(persisted.subscriptionAmount),
             manualAdjustmentAmount: fromOre(persisted.manualAdjustmentAmount),
             lateRefundAdjustmentAmount: fromOre(persisted.lateRefundAdjustmentAmount),
             mollieFeeAmount: fromOre(persisted.mollieFeeAmount),
+            paymentFeeAmount: latestFrozenMetrics?.mollieFees == null
+              ? fromOre(persisted.mollieFeeAmount)
+              : fromOre(Math.max(
+                  0,
+                  Number(latestFrozenMetrics.mollieFees || 0) -
+                    Number(latestFrozenMetrics.refundProcessingFees || 0),
+                )),
+            refundProcessingFeeAmount: latestFrozenMetrics?.refundProcessingFees == null
+              ? 0
+              : fromOre(latestFrozenMetrics.refundProcessingFees),
             payoutAmount: fromOre(persisted.payoutAmount),
             owedAmount: fromOre(persistedOwedAmount),
             foodVatAmount: persisted.foodVatAmount == null ? null : fromOre(persisted.foodVatAmount),

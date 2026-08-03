@@ -59,6 +59,14 @@ type MolliePayment = {
   status?: unknown;
   method?: unknown;
   details?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown> | null;
+  description?: unknown;
+};
+
+export type MollieOrderReference = {
+  id: string;
+  orderNumber: string;
+  refunded?: boolean;
 };
 
 const EEA_COUNTRY_CODES = new Set([
@@ -114,6 +122,8 @@ export type MollieFinanceReport = {
   estimatedFeeByPaymentId: Map<string, number>;
   paymentFeeByPaymentId: Map<string, number>;
   refundFeeByPaymentId: Map<string, number>;
+  paymentIdByOrderId: Map<string, string>;
+  paymentIdByOrderNumber: Map<string, string>;
   matchedPaymentCount: number;
   estimatedPaymentCount: number;
   requestedPaymentCount: number;
@@ -145,6 +155,20 @@ export type MollieFinanceReport = {
   unlinkedNetOre: number | null;
   feeCalibrationOre: number | null;
 };
+
+export function molliePaymentOrderReference(payment: MolliePayment): {
+  orderId: string | null;
+  orderNumber: string | null;
+} {
+  const metadata = payment.metadata || {};
+  const orderId = String(metadata.orderId || '').trim() || null;
+  const metadataOrderNumber = String(metadata.orderNumber || '').trim();
+  const descriptionOrderNumber = String(payment.description || '').trim().split(/\s+[–-]\s+/)[0]?.trim() || '';
+  return {
+    orderId,
+    orderNumber: metadataOrderNumber || descriptionOrderNumber || null,
+  };
+}
 
 type CachedReport = {
   expiresAt: number;
@@ -570,6 +594,8 @@ function unavailableReport(message: string, requestedPaymentCount: number): Moll
     estimatedFeeByPaymentId: new Map(),
     paymentFeeByPaymentId: new Map(),
     refundFeeByPaymentId: new Map(),
+    paymentIdByOrderId: new Map(),
+    paymentIdByOrderNumber: new Map(),
     matchedPaymentCount: 0,
     estimatedPaymentCount: 0,
     requestedPaymentCount,
@@ -607,26 +633,33 @@ export async function getMollieFinanceReport(input: {
   to?: Date;
   paymentIds: readonly string[];
   refundedPaymentIds?: readonly string[];
+  orderReferences?: readonly MollieOrderReference[];
   env?: NodeJS.ProcessEnv;
 }): Promise<MollieFinanceReport> {
-  const paymentIds = [...new Set(input.paymentIds.map((id) => String(id || '').trim()).filter(Boolean))].sort();
-  const refundedPaymentIds = new Set(
+  const explicitPaymentIds = [...new Set(input.paymentIds.map((id) => String(id || '').trim()).filter(Boolean))].sort();
+  const explicitRefundedPaymentIds = new Set(
     (input.refundedPaymentIds || []).map((id) => String(id || '').trim()).filter(Boolean),
   );
+  const orderReferences = (input.orderReferences || []).map((reference) => ({
+    id: String(reference.id || '').trim(),
+    orderNumber: String(reference.orderNumber || '').trim(),
+    refunded: Boolean(reference.refunded),
+  }));
   const env = input.env ?? process.env;
   const token = reportingToken(env);
   if (!token) {
     return unavailableReport(
       'MOLLIE_REPORTING_ACCESS_TOKEN saknas (kräver balances.read och balance-reports.read)',
-      paymentIds.length,
+      explicitPaymentIds.length,
     );
   }
 
   const cacheKey = [
     input.from.toISOString().slice(0, 10),
     (input.to || new Date()).toISOString().slice(0, 10),
-    paymentIds.join(','),
-    [...refundedPaymentIds].sort().join(','),
+    explicitPaymentIds.join(','),
+    [...explicitRefundedPaymentIds].sort().join(','),
+    orderReferences.map((reference) => `${reference.id}:${reference.orderNumber}:${reference.refunded ? 1 : 0}`).sort().join(','),
   ].join(':');
   const cached = reportCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.report;
@@ -671,6 +704,34 @@ export async function getMollieFinanceReport(input: {
         .then((value) => ({ value, error: null }))
         .catch((error: unknown) => ({ value: null, error })),
     ]);
+    const periodPayments = periodPaymentsResult.value;
+    const orderIds = new Set(orderReferences.map((reference) => reference.id).filter(Boolean));
+    const orderNumbers = new Set(orderReferences.map((reference) => reference.orderNumber).filter(Boolean));
+    const refundedOrderIds = new Set(orderReferences.filter((reference) => reference.refunded).map((reference) => reference.id));
+    const refundedOrderNumbers = new Set(orderReferences.filter((reference) => reference.refunded).map((reference) => reference.orderNumber));
+    const paymentIdByOrderId = new Map<string, string>();
+    const paymentIdByOrderNumber = new Map<string, string>();
+    const inferredPaymentIds: string[] = [];
+    const inferredRefundedPaymentIds: string[] = [];
+    for (const payment of periodPayments || []) {
+      const paymentId = String(payment.id || '').trim();
+      if (!paymentId) continue;
+      const reference = molliePaymentOrderReference(payment);
+      const matchesOrderId = Boolean(reference.orderId && orderIds.has(reference.orderId));
+      const matchesOrderNumber = Boolean(reference.orderNumber && orderNumbers.has(reference.orderNumber));
+      if (!matchesOrderId && !matchesOrderNumber) continue;
+      inferredPaymentIds.push(paymentId);
+      if (matchesOrderId && reference.orderId) paymentIdByOrderId.set(reference.orderId, paymentId);
+      if (matchesOrderNumber && reference.orderNumber) paymentIdByOrderNumber.set(reference.orderNumber, paymentId);
+      if (
+        (reference.orderId && refundedOrderIds.has(reference.orderId)) ||
+        (reference.orderNumber && refundedOrderNumbers.has(reference.orderNumber))
+      ) {
+        inferredRefundedPaymentIds.push(paymentId);
+      }
+    }
+    const paymentIds = [...new Set([...explicitPaymentIds, ...inferredPaymentIds])].sort();
+    const refundedPaymentIds = new Set([...explicitRefundedPaymentIds, ...inferredRefundedPaymentIds]);
     const allFees = mollieFeeBreakdownFromTransactions(transactions);
     // Recent booked payments are also training data, so a short date range can
     // still estimate today's paid-but-not-booked transactions.
@@ -760,7 +821,6 @@ export async function getMollieFinanceReport(input: {
       requestedToKey < todayKey ||
       (reportClosingBalance != null && totalBalance != null && reportClosingBalance === totalBalance)
     );
-    const periodPayments = periodPaymentsResult.value;
     const periodGross = periodPayments
       ? periodPayments.reduce((sum, payment) => sum + Math.max(0, exactOre(payment.amount) || 0), 0)
       : null;
@@ -881,6 +941,8 @@ export async function getMollieFinanceReport(input: {
       estimatedFeeByPaymentId,
       paymentFeeByPaymentId,
       refundFeeByPaymentId,
+      paymentIdByOrderId,
+      paymentIdByOrderNumber,
       matchedPaymentCount,
       estimatedPaymentCount,
       requestedPaymentCount: paymentIds.length,
@@ -921,7 +983,7 @@ export async function getMollieFinanceReport(input: {
     return report;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'MOLLIE_REPORTING_FAILED';
-    const report = unavailableReport(message, paymentIds.length);
+    const report = unavailableReport(message, explicitPaymentIds.length);
     reportCache.set(cacheKey, { expiresAt: Date.now() + ERROR_CACHE_TTL_MS, report });
     return report;
   }
