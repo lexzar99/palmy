@@ -179,10 +179,15 @@ export function reconcileRestaurantFundingOre(input: {
   const mollieRestaurantNet = input.periodGross == null || input.periodRefunds == null || input.periodFees == null || externalNet == null
     ? null
     : input.periodGross - input.periodRefunds - input.periodFees - externalNet;
-  const calculatedRestaurantNet = input.rows.reduce((sum, row) =>
+  const calculatedRestaurantNetBeforeAdjustments = input.rows.reduce((sum, row) =>
     sum + row.payout - row.owed + row.commission + row.subscription + row.feeVat +
       (row.selfDelivery ? 0 : row.deliveryFee + row.tip),
   0);
+  const adjustmentNet = input.rows.reduce((sum, row) => sum + row.manualAdjustment, 0);
+  // The payout/owed amounts already include the manual correction. Add the
+  // signed correction back for the funding control so the same transfer is
+  // not counted a second time as an unexplained Mollie difference.
+  const calculatedRestaurantNet = calculatedRestaurantNetBeforeAdjustments + adjustmentNet;
   const linkedMollieSales = input.periodGross == null || input.periodRefunds == null
     ? null
     : input.periodGross - input.externalGross - input.periodRefunds + input.externalRefunds;
@@ -199,7 +204,7 @@ export function reconcileRestaurantFundingOre(input: {
     feeDifference: input.periodFees == null || input.externalFees == null || restaurantFees == null
       ? null
       : input.periodFees - input.externalFees - restaurantFees,
-    adjustmentNet: input.rows.reduce((sum, row) => sum + row.manualAdjustment, 0),
+    adjustmentNet,
     externalNet,
   };
 }

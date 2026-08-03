@@ -590,7 +590,8 @@ const unpairedRestaurantFunding = reconcileRestaurantFundingOre({
     manualAdjustment: 5_553,
   }],
 });
-assert.equal(unpairedRestaurantFunding.difference, 5_553);
+assert.equal(unpairedRestaurantFunding.difference, 0);
+assert.equal(unpairedRestaurantFunding.calculatedRestaurantNet, 295_747);
 assert.equal(unpairedRestaurantFunding.adjustmentNet, 5_553);
 
 const mollieFees = molliePaymentFeesFromTransactions([
