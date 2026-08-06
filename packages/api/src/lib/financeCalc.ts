@@ -81,9 +81,18 @@ export interface RestaurantEcon {
   tierStandardFeeOverride?: number | null;
 }
 
-/** Effektiv provisionssats i %: override vinner, annars self/platform-default. */
+/**
+ * Effektiv provisionssats i %: en giltig positiv override vinner, annars
+ * används self/platform-default. Äldre adminflöden kunde spara 0 när fältet
+ * skulle rensas; det får inte stänga av provisionen i ekonomisammanställningen.
+ */
 export function resolveCommissionPct(r: RestaurantEcon, s: EconomySettings): number {
-  if (r.commissionPctOverride != null && Number.isFinite(r.commissionPctOverride)) {
+  if (
+    r.commissionPctOverride != null &&
+    Number.isFinite(r.commissionPctOverride) &&
+    r.commissionPctOverride > 0 &&
+    r.commissionPctOverride <= 100
+  ) {
     return r.commissionPctOverride;
   }
   return r.selfDelivery ? s.commissionSelfPct : s.commissionPlatformPct;

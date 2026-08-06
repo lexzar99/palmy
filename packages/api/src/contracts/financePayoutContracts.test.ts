@@ -229,6 +229,19 @@ assert.equal(selfDeliveryPayout.restaurantTipOre, 400);
 assert.equal(selfDeliveryPayout.platformTipOre, 0);
 assert.equal(selfDeliveryPayout.payoutOre, 7_150);
 
+// A legacy zero override means that the optional override was cleared. It
+// must fall back to the configured delivery-model rate instead of making the
+// dashboard and finance overview report zero commission.
+const legacyZeroOverridePayout = computePayout(
+  [partial!],
+  { selfDelivery: true, commissionPctOverride: 0, featuredClass: 3 },
+  DEFAULT_ECONOMY,
+);
+assert.equal(legacyZeroOverridePayout.commissionPct, DEFAULT_ECONOMY.commissionSelfPct);
+assert.equal(legacyZeroOverridePayout.commissionOre, 680);
+assert.equal(legacyZeroOverridePayout.feeVatOre, 170);
+assert.equal(legacyZeroOverridePayout.payoutOre, 7_150);
+
 const customTierPayout = computePayout(
   [],
   {
