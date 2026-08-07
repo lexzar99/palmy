@@ -28,6 +28,15 @@ import {
   type StatusLabel,
 } from "@/modules/finance/format";
 import { FinanceTabs } from "@/modules/finance/finance-tabs";
+import {
+  isWholeMonth,
+  PeriodPicker,
+  periodLabel,
+  periodQuery,
+  readPeriod,
+  RestaurantPicker,
+  type Period,
+} from "@/modules/finance/finance-pickers";
 import styles from "@/modules/finance/restaurant-economy.module.css";
 import { ErrorPanel, Surface } from "@/shared/components/ui";
 import { invalidateEconomyDomain } from "@/shared/api/invalidate-economy-domain";
@@ -46,6 +55,10 @@ const STATUS_TONE: Record<StatusLabel, Tone> = {
   Godkänd: "ok",
   Betald: "muted",
 };
+
+/** Samma förklaring på knapparna och i notisen — bara skriven en gång. */
+const NOT_A_MONTH =
+  "Perioden är inte en hel kalendermånad. Underlaget går att granska, men utbetalningen sparas bara per månad — välj en månad för att godkänna, betala eller justera.";
 
 const adjustTone = (value: number) =>
   value === 0 ? styles.adjustZero : value > 0 ? styles.adjustPlus : styles.adjustMinus;
@@ -88,6 +101,8 @@ type Check = {
   /** Visas när raderna bakom siffran inte finns i API:t ännu. */
   emptyNote?: string;
   fix?: { text: string; amount: number; note: string };
+  /** Vägen vidare när själva ändringen görs på en annan sida. */
+  link?: { href: string; label: string };
 };
 
 /**
@@ -98,7 +113,7 @@ function buildChecks(
   row: FinanceRow,
   summary: FinanceSummary,
   spec: PayoutSpec | undefined,
-  month: string,
+  periodText: string,
 ): Check[] {
   const s = row.settlement;
   // Avvikelselistan är information, inte underlag. Saknas den i svaret ska
@@ -211,10 +226,14 @@ function buildChecks(
         { label: "Provision", value: kr(s.commission), detail: "ex moms" },
         { label: "Moms", value: kr(s.commissionVat), detail: `${s.vatPct} %` },
       ],
+      link: {
+        href: `/finance/${row.restaurantId}/avtal`,
+        label: "Ändra provisionssats i avtalet →",
+      },
       columns: ["Period", "Sats", "Netto", "Provision", "Källa"],
       rows: [
         {
-          a: monthLabel(month),
+          a: periodText,
           b: `${s.commissionPct} %`,
           c: kr(s.netSales),
           d: kr(s.commission),
@@ -272,16 +291,11 @@ export function RestaurantEconomyPage({ restaurantId = null }: { restaurantId?: 
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
 
-  const requestedMonth = searchParams.get("month") || searchParams.get("from")?.slice(0, 7) || null;
-  const month = isMonthParam(requestedMonth) ? requestedMonth : monthId(new Date());
-  const { from, to } = monthRange(month);
-
-  const months = useMemo(() => {
-    const today = new Date();
-    return Array.from({ length: 3 }, (_, index) =>
-      monthId(new Date(today.getFullYear(), today.getMonth() - index, 1)),
-    );
-  }, []);
+  const period = useMemo(() => readPeriod(searchParams), [searchParams]);
+  const { from, to } = period;
+  // Utbetalningar sparas bara på hela kalendermånader — API:t avvisar allt
+  // annat. En egen period går att granska, men inte att spara på.
+  const canSave = isWholeMonth(period);
 
   const summary = useQuery({
     queryKey: financeSummaryQueryKey(from, to),
@@ -336,13 +350,15 @@ export function RestaurantEconomyPage({ restaurantId = null }: { restaurantId?: 
     },
   });
 
-  const goTo = (nextRestaurant: string, nextMonth: string) =>
-    router.push(`/finance/${nextRestaurant}?month=${nextMonth}&from=${monthRange(nextMonth).from}&to=${monthRange(nextMonth).to}`);
+  const goTo = (nextRestaurant: string, next: Period) =>
+    router.push(`/finance/${nextRestaurant}?${periodQuery(next)}`);
+  const changePeriod = (next: Period) =>
+    router.replace(`/finance/${resolvedId ?? ""}?${periodQuery(next)}`, { scroll: false });
 
   if (summary.isError) {
     return (
       <div className={styles.page}>
-        <FinanceTabs month={month} />
+        <FinanceTabs month={period.month ?? undefined} />
         <ErrorPanel
           title="Restaurangens ekonomi kunde inte laddas"
           description="Inga reservbelopp visas. Försök hämta det riktiga underlaget igen."
@@ -355,7 +371,7 @@ export function RestaurantEconomyPage({ restaurantId = null }: { restaurantId?: 
   if (!summary.data || !row || !s) {
     return (
       <div className={styles.page}>
-        <FinanceTabs month={month} />
+        <FinanceTabs month={period.month ?? undefined} />
         <Surface className="flex items-center gap-2 px-6 py-14 text-sm text-[var(--text-secondary)]">
           <Loader2 size={16} className="animate-spin" />
           {summary.data ? "Restaurangen har ingen aktivitet i perioden." : "Hämtar periodens ekonomi…"}
@@ -365,12 +381,12 @@ export function RestaurantEconomyPage({ restaurantId = null }: { restaurantId?: 
   }
 
   const status = statusLabel(row.status);
-  const checks = buildChecks(row, summary.data, spec.data, month);
+  const checks = buildChecks(row, summary.data, spec.data, periodLabel(period));
   const active = checks.find((check) => check.key === activeCheck) || null;
   const attention = checks.filter((check) => check.tone === "warn").length;
   const restaurant = spec.data?.restaurant;
   const revisions = spec.data?.persisted?.revisions || [];
-  const reference = row.payoutReference || `VE-${month.slice(2).replace("-", "")}-${String(resolvedId).slice(0, 3).toUpperCase()}`;
+  const reference = row.payoutReference || `VE-${(period.month ?? from.slice(0, 7)).slice(2).replace("-", "")}-${String(resolvedId).slice(0, 3).toUpperCase()}`;
   const legalName = restaurant?.legalName || row.name;
 
   const draftValue = parseAmount(draftAdjustment);
@@ -395,14 +411,14 @@ export function RestaurantEconomyPage({ restaurantId = null }: { restaurantId?: 
 
   return (
     <div className={styles.page}>
-      <FinanceTabs month={month} />
+      <FinanceTabs month={period.month ?? undefined} />
       <div className={styles.header}>
         <div>
           <p className={styles.crumbs}>
-            <Link className={styles.crumbLink} href={`/finance?month=${month}&from=${from}&to=${to}`}>
+            <Link className={styles.crumbLink} href={`/finance?${periodQuery(period)}`}>
               Ekonomi
             </Link>{" "}
-            ▸ {row.name} ▸ {monthLabel(month)}
+            ▸ {row.name} ▸ {periodLabel(period)}
           </p>
           <div className={styles.titleRow}>
             <h1 className={styles.title}>{row.name}</h1>
@@ -413,23 +429,22 @@ export function RestaurantEconomyPage({ restaurantId = null }: { restaurantId?: 
           </p>
         </div>
         <div className={styles.headerActions}>
-          <div className={styles.segment}>
-            {months.map((value) => (
-              <button
-                type="button"
-                key={value}
-                className={`${styles.segmentButton} ${value === month ? styles.segmentButtonActive : ""}`}
-                onClick={() => goTo(String(resolvedId), value)}
-              >
-                {monthLabel(value)}
-              </button>
-            ))}
-          </div>
+          <RestaurantPicker
+            restaurants={summary.data.rows.map((item) => ({
+              id: item.restaurantId,
+              name: item.name,
+              amount: item.settlement.payout,
+            }))}
+            selectedId={resolvedId}
+            onSelect={(id) => goTo(id, period)}
+          />
+          <PeriodPicker period={period} onChange={changePeriod} />
           {statusActions.map((action) => (
             <button
               type="button"
               key={action.next}
-              disabled={save.isPending}
+              disabled={save.isPending || !canSave}
+              title={canSave ? undefined : NOT_A_MONTH}
               className={`${styles.actionButton} ${action.primary ? styles.actionButtonPrimary : ""}`}
               onClick={() => save.mutate({ status: action.next, adjustment: s.adjustment, note: row.adjustmentNote || "" })}
             >
@@ -439,19 +454,7 @@ export function RestaurantEconomyPage({ restaurantId = null }: { restaurantId?: 
         </div>
       </div>
 
-      <div className={styles.picker}>
-        {summary.data.rows.map((item) => (
-          <button
-            type="button"
-            key={item.restaurantId}
-            title={item.name}
-            className={`${styles.pickerButton} ${item.restaurantId === resolvedId ? styles.pickerButtonActive : ""}`}
-            onClick={() => goTo(item.restaurantId, month)}
-          >
-            {item.name}
-          </button>
-        ))}
-      </div>
+      {canSave ? null : <p className={styles.notice}>{NOT_A_MONTH}</p>}
 
       <div className={styles.kpis}>
         <article className={styles.kpi}>
@@ -525,6 +528,12 @@ export function RestaurantEconomyPage({ restaurantId = null }: { restaurantId?: 
               ) : (
                 <p className={styles.checkEmpty}>{active.emptyNote}</p>
               )}
+
+              {active.link ? (
+                <Link className={styles.checkLink} href={active.link.href}>
+                  {active.link.label}
+                </Link>
+              ) : null}
 
               {active.fix ? (
                 <div className={styles.checkFix}>
@@ -639,7 +648,7 @@ export function RestaurantEconomyPage({ restaurantId = null }: { restaurantId?: 
                 <button
                   type="button"
                   className={styles.payoutFootButton}
-                  onClick={() => router.push(`/finance/payouts?month=${month}&post=${resolvedId}`)}
+                  onClick={() => router.push(`/finance/payouts?month=${period.month ?? from.slice(0, 7)}&post=${resolvedId}`)}
                 >
                   Visa i utbetalningar →
                 </button>
@@ -720,7 +729,7 @@ export function RestaurantEconomyPage({ restaurantId = null }: { restaurantId?: 
               type="button"
               className={styles.saveButton}
               // En justering utan orsak avvisas av API:t.
-              disabled={save.isPending || !dirty || (draftValue !== 0 && !note.trim())}
+              disabled={save.isPending || !canSave || !dirty || (draftValue !== 0 && !note.trim())}
               onClick={() => save.mutate({ status, adjustment: draftValue, note: note.trim() })}
             >
               {save.isPending ? "Sparar…" : "Spara justering"}

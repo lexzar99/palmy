@@ -24,6 +24,14 @@ import {
   type StatusLabel,
 } from "@/modules/finance/format";
 import { FinanceTabs } from "@/modules/finance/finance-tabs";
+import {
+  isDateParam,
+  PeriodPicker,
+  periodLabel,
+  periodQuery,
+  readPeriod,
+  type Period,
+} from "@/modules/finance/finance-pickers";
 import styles from "@/modules/finance/ekonomi.module.css";
 import { Button, EmptyState, ErrorPanel, Surface } from "@/shared/components/ui";
 
@@ -35,82 +43,6 @@ const STATUS_STYLE: Record<StatusLabel, string> = {
   Godkänd: styles.statusApproved,
   Betald: styles.statusPaid,
 };
-
-/* ── Periodväljaren ─────────────────────────────────────────────────────── */
-
-type Period = { from: string; to: string; month: string | null };
-
-const isDateParam = (value: string | null): value is string =>
-  Boolean(value && /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(value));
-
-/** De sex senaste kalendermånaderna, senaste först. */
-function monthPresets(today: Date) {
-  return Array.from({ length: 6 }, (_, index) => {
-    const month = monthId(new Date(today.getFullYear(), today.getMonth() - index, 1));
-    const range = monthRange(month);
-    return { month, label: monthLabel(month), ...range };
-  });
-}
-
-function PeriodPicker({ period, onChange }: { period: Period; onChange: (next: Period) => void }) {
-  const [open, setOpen] = useState(false);
-  const [from, setFrom] = useState(period.from);
-  const [to, setTo] = useState(period.to);
-  const presets = useMemo(() => monthPresets(new Date()), []);
-
-  const label = period.month
-    ? monthLabel(period.month)
-    : `${shortDate(period.from)} – ${shortDate(period.to)}`;
-
-  return (
-    <>
-      <button type="button" className={styles.chip} onClick={() => setOpen((value) => !value)} aria-expanded={open}>
-        {label} ▾
-      </button>
-      {open ? (
-        <div className={styles.periodMenu}>
-          {presets.map((preset) => (
-            <button
-              type="button"
-              key={preset.month}
-              className={styles.periodPreset}
-              onClick={() => {
-                onChange({ from: preset.from, to: preset.to, month: preset.month });
-                setFrom(preset.from);
-                setTo(preset.to);
-                setOpen(false);
-              }}
-            >
-              <span>{preset.label}</span>
-              <span className={styles.periodPresetRange}>
-                {shortDate(preset.from)}–{shortDate(preset.to)}
-              </span>
-            </button>
-          ))}
-          <div className={styles.periodCustom}>
-            <p className={styles.periodCustomLabel}>Egen period</p>
-            <div className={styles.periodRange}>
-              <input type="date" className={styles.periodDate} value={from} onChange={(event) => setFrom(event.target.value)} aria-label="Från" />
-              <span className={styles.periodArrow}>→</span>
-              <input type="date" className={styles.periodDate} value={to} onChange={(event) => setTo(event.target.value)} aria-label="Till" />
-            </div>
-            <button
-              type="button"
-              className={styles.periodApply}
-              disabled={!isDateParam(from) || !isDateParam(to) || from > to}
-              onClick={() => {
-                onChange({ from, to, month: null });
-                setOpen(false);
-              }}
-            >
-              Använd period
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </>
-  );
-}
 
 /* ── De tre kolumnerna ──────────────────────────────────────────────────── */
 
@@ -316,21 +248,7 @@ export function FinancePage() {
   const searchParams = useSearchParams();
 
   // Perioden lever i URL:en, så en delad länk öppnar samma underlag.
-  const period = useMemo<Period>(() => {
-    const from = searchParams.get("from");
-    const to = searchParams.get("to");
-    const month = searchParams.get("month");
-    if (isDateParam(from) && isDateParam(to) && from <= to) {
-      const monthMatch = isMonthParam(month) && monthRange(month).from === from && monthRange(month).to === to
-        ? month
-        : from.slice(0, 7) === to.slice(0, 7) && monthRange(from.slice(0, 7)).from === from && monthRange(from.slice(0, 7)).to === to
-          ? from.slice(0, 7)
-          : null;
-      return { from, to, month: monthMatch };
-    }
-    const fallback = isMonthParam(month) ? month : monthId(new Date());
-    return { ...monthRange(fallback), month: fallback };
-  }, [searchParams]);
+  const period = useMemo(() => readPeriod(searchParams), [searchParams]);
 
   const summary = useQuery({
     queryKey: financeSummaryQueryKey(period.from, period.to),
@@ -338,25 +256,18 @@ export function FinancePage() {
   });
 
   const changePeriod = (next: Period) => {
-    const query = new URLSearchParams({ from: next.from, to: next.to });
-    if (next.month) query.set("month", next.month);
-    router.replace(`/finance?${query.toString()}`, { scroll: false });
+    router.replace(`/finance?${periodQuery(next)}`, { scroll: false });
   };
 
   const openPayout = (row: FinanceRow) => {
-    const query = new URLSearchParams({ from: period.from, to: period.to });
-    if (period.month) query.set("month", period.month);
-    router.push(`/finance/${row.restaurantId}?${query.toString()}`);
+    router.push(`/finance/${row.restaurantId}?${periodQuery(period)}`);
   };
 
   const data = summary.data;
-  const periodLabel = period.month
-    ? monthLabel(period.month)
-    : `${shortDate(period.from)} – ${shortDate(period.to)}`;
   const restaurantCount = data?.rows.length ?? 0;
   const meta = data
-    ? `${periodLabel} · ${count(data.totals.orderCount)} ordrar · ${count(restaurantCount)} ${restaurantCount === 1 ? "restaurang" : "restauranger"}`
-    : periodLabel;
+    ? `${periodLabel(period)} · ${count(data.totals.orderCount)} ordrar · ${count(restaurantCount)} ${restaurantCount === 1 ? "restaurang" : "restauranger"}`
+    : periodLabel(period);
 
   return (
     <div className={styles.page}>
