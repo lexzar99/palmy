@@ -214,9 +214,17 @@ export function assertRuntimeCriticalConfiguration(
   if (env.NODE_ENV === 'production' && provider !== 'mollie') {
     throw new Error('Mollie måste vara aktiv PAYMENT_PROVIDER i produktion');
   }
+  // Bara det som gör checkout farlig eller omöjlig får stoppa starten.
+  //
+  // MOLLIE_REPORTING_ACCESS_TOKEN och MOLLIE_PROFILE_ID driver
+  // ekonomirapporterna, inte betalningen. Saknas de går det fortfarande att
+  // ta betalt — kortavgiften blir bara okänd och visas som "hämtas" i
+  // ekonomin. Som startkrav satte de i stället API:t i en restart-loop, vilket
+  // är precis vad den här funktionen ska undvika. De rapporteras som fel på
+  // /ready i stället, se getLaunchConfigIssues.
   const required =
     provider === 'mollie'
-      ? ['MOLLIE_API_KEY', 'MOLLIE_REPORTING_ACCESS_TOKEN', 'MOLLIE_PROFILE_ID']
+      ? ['MOLLIE_API_KEY']
       : provider === 'stripe'
         ? ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET']
         : ['ADYEN_API_KEY', 'ADYEN_MERCHANT_ACCOUNT', 'ADYEN_HMAC_KEY'];

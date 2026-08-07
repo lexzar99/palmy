@@ -88,22 +88,31 @@ const missingPayment = { ...healthy, MOLLIE_API_KEY: '' };
 assert(getLaunchConfigIssues(missingPayment).some((issue) => issue.key === 'mollie_key' && issue.severity === 'error'));
 assert.throws(() => assertRuntimeCriticalConfiguration(missingPayment), /MOLLIE_API_KEY/);
 
+// Rapportvariablerna driver ekonomirapporterna, inte betalningen. De
+// rapporteras som fel på /ready men får ALDRIG stoppa starten — som startkrav
+// satte de API:t i en restart-loop i produktion utan att checkout var trasig.
 const missingMollieReportingToken = { ...healthy, MOLLIE_REPORTING_ACCESS_TOKEN: '' };
 assert(getLaunchConfigIssues(missingMollieReportingToken).some(
   (issue) => issue.key === 'mollie_reporting_token' && issue.severity === 'error',
 ));
-assert.throws(
+assert.doesNotThrow(
   () => assertRuntimeCriticalConfiguration(missingMollieReportingToken),
-  /MOLLIE_REPORTING_ACCESS_TOKEN/,
+  'saknad rapport-token får inte hindra API:t från att starta',
 );
 
 const missingMollieProfile = { ...healthy, MOLLIE_PROFILE_ID: '' };
 assert(getLaunchConfigIssues(missingMollieProfile).some(
   (issue) => issue.key === 'mollie_profile_id' && issue.severity === 'error',
 ));
-assert.throws(
+assert.doesNotThrow(
   () => assertRuntimeCriticalConfiguration(missingMollieProfile),
-  /MOLLIE_PROFILE_ID/,
+  'saknat profil-id får inte hindra API:t från att starta',
+);
+
+// Nyckeln som faktiskt tar betalt stoppar fortfarande starten.
+assert.throws(
+  () => assertRuntimeCriticalConfiguration({ ...healthy, MOLLIE_API_KEY: '' }),
+  /MOLLIE_API_KEY/,
 );
 
 const testMollieInProduction = { ...healthy, MOLLIE_API_KEY: 'test_example' };
