@@ -35,6 +35,11 @@ import {
   selectFinanceSummaryEconomicValues,
   sumFinanceSummaryRows,
 } from '../lib/financeSummary';
+import {
+  computeSettlement,
+  sumSettlements,
+  type Settlement,
+} from '../lib/settlementModel';
 import { getMollieFinanceReport, type MollieFinanceReport } from '../lib/mollieFinance';
 import {
   reconcileFinanceOrders,
@@ -691,7 +696,39 @@ router.get('/summary', async (req, res) => {
         const realPaymentCount = frozenMetrics && Number.isFinite(Number(frozenMetrics.realPaymentCount))
           ? Math.max(0, Math.round(Number(frozenMetrics.realPaymentCount)))
           : restaurantReportOrders.length;
+
+        // Avräkningsmodellen — den enda beräkningen ekonomisidorna läser.
+        // Fronten räknar inget själv.
+        //
+        // Kortavgiften är en enda post: mollieFees är redan hela
+        // leverantörskostnaden för raden — betalavgiften på varje order plus
+        // återbetalningsavgiften på de återbetalda. Den ska varken adderas med
+        // refund-fälten (då räknas avgiften på återbetalda ordrar två gånger)
+        // eller delas upp, eftersom hela beloppet ändå belastar restaurangen.
+        const settlementOre = computeSettlement({
+          grossTotal: grossTotalOre,
+          refunds: refundTotalOre,
+          commissionPct: economic.commissionPct,
+          cardFees: mollieFeesOre,
+          // Nya modellens tecken: positivt betyder att restaurangen får extra.
+          // Det lagrade fältet har motsatt tecken och lämnas orört.
+          adjustment: -manualAdjustmentOre,
+          vatPct: commissionVatPct,
+        });
+        const settlement: Settlement = {
+          ...settlementOre,
+          netSales: fromOre(settlementOre.netSales),
+          commission: fromOre(settlementOre.commission),
+          commissionVat: fromOre(settlementOre.commissionVat),
+          commissionInclVat: fromOre(settlementOre.commissionInclVat),
+          cardFees: settlementOre.cardFees == null ? null : fromOre(settlementOre.cardFees),
+          adjustment: fromOre(settlementOre.adjustment),
+          payout: fromOre(settlementOre.payout),
+          ourRevenue: fromOre(settlementOre.ourRevenue),
+        };
+
         return {
+          settlement,
           restaurantId: r.id,
           name: r.name,
           slug: r.slug,
@@ -1115,6 +1152,13 @@ router.get('/summary', async (req, res) => {
         commissionAfterMollieFees: nullableSum('commissionAfterMollieFees'),
         manualAdjustment: rows.reduce((sum, row) => sum + row.manualAdjustment, 0),
         platformFundedDiscount: rows.reduce((sum, row) => sum + row.platformFundedDiscount, 0),
+      },
+      // Periodens avräkning. Summan av de avrundade raderna — aldrig en
+      // omräkning på totalen — så den stämmer mot vad som faktiskt betalas ut.
+      settlement: {
+        ...sumSettlements(rows.map((row) => row.settlement)),
+        refundCount: refundedOrders.length,
+        orderCount: rows.reduce((sum, row) => sum + row.orderCount, 0),
       },
       fundingReconciliation: {
         status: fundingReconciliation.difference === 0 ? 'exact' : fundingReconciliation.difference == null ? 'unavailable' : 'difference',

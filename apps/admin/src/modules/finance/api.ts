@@ -12,7 +12,38 @@ export interface EconomyRates {
   tierStandardFee: number; // kr/mån
 }
 
+/**
+ * Avräkningen enligt den nya modellen, räknad i backend. Fronten räknar inget
+ * själv — den formaterar bara de här värdena.
+ *
+ *   netto      = brutto − återbetalningar
+ *   provision  = round(netto × sats)
+ *   moms       = round(provision × 25 %)
+ *   kortavgift = allt betalleverantören tagit på restaurangens ordrar
+ *   payout     = netto − provision − moms − kortavgift + justering
+ *   ourRevenue = provision − justering
+ */
+export interface Settlement {
+  netSales: number;
+  commission: number;
+  commissionVat: number;
+  commissionInclVat: number;
+  /**
+   * Hela kortavgiften på periodens ordrar, återbetalningsavgifterna inräknade.
+   * null = ännu inte hämtad från betalleverantören.
+   */
+  cardFees: number | null;
+  /** Positivt = restaurangen får extra. Negativt = vi drar av. */
+  adjustment: number;
+  payout: number;
+  ourRevenue: number;
+  marginPct: number;
+  commissionPct: number;
+  vatPct: number;
+}
+
 export interface FinanceRow {
+  settlement: Settlement;
   restaurantId: string;
   name: string;
   slug: string;
@@ -72,6 +103,8 @@ export interface FinanceRow {
 export interface FinanceSummary {
   period: { from: string; to: string };
   economy: EconomyRates;
+  /** Periodens avräkning: summan av de avrundade raderna, aldrig en omräkning. */
+  settlement: Settlement & { refundCount: number; orderCount: number };
   totals: {
     grossSales: number;
     grossTotal: number;

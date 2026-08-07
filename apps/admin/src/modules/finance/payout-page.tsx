@@ -232,7 +232,7 @@ export function FinancePayoutPage({
   const periodTo = range.to;
   const backParams = new URLSearchParams(financeQuery(month));
   if (period) backParams.set("period", period);
-  const restaurantFinanceHref = `/finance/restauranger?${backParams.toString()}`;
+  const restaurantFinanceHref = `/finance?${backParams.toString()}`;
   const viewPath = view === "settlement"
     ? `/finance/${restaurantId}`
     : view === "orders"

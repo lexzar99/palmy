@@ -495,12 +495,24 @@ export type RecoveryPlanAllocation = {
   amount: number;
 };
 
+/**
+ * Alla övergångar är tillåtna i båda riktningarna. Det finns inget
+ * ångerfönster, ingen tidslåsning och inget läge som fryser beloppet —
+ * underlaget får ändras även efter att posten markerats som betald, och en
+ * felaktig status ska gå att rulla tillbaka utan att skapa en ny post.
+ *
+ * Spärren ligger i stället på behörighet: bara superadmin når rutten alls, och
+ * varje ändring skriver en revision som aldrig raderas. En avvikelse är
+ * information, inte en blockerare.
+ */
+const PAYOUT_RECORD_STATUSES = ['DRAFT', 'HOLD', 'APPROVED', 'PAID'] as const;
+
 const PAYOUT_RECORD_TRANSITIONS: Record<string, readonly string[]> = {
-  NEW: ['DRAFT', 'HOLD', 'APPROVED'],
-  DRAFT: ['DRAFT', 'HOLD', 'APPROVED'],
-  HOLD: ['HOLD', 'DRAFT', 'APPROVED'],
-  APPROVED: ['APPROVED', 'HOLD', 'PAID'],
-  PAID: ['PAID'],
+  NEW: PAYOUT_RECORD_STATUSES,
+  DRAFT: PAYOUT_RECORD_STATUSES,
+  HOLD: PAYOUT_RECORD_STATUSES,
+  APPROVED: PAYOUT_RECORD_STATUSES,
+  PAID: PAYOUT_RECORD_STATUSES,
 };
 
 export function canTransitionPayout(current: string | null | undefined, next: string): boolean {

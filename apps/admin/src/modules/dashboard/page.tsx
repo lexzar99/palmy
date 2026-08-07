@@ -1,335 +1,401 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
+import { getDashboardOverview, overviewQueryKey } from "@/modules/dashboard/api";
 import {
-  AlertTriangle,
-  ArrowRight,
-  CheckCircle2,
-  ClipboardList,
-  Gift,
-  RefreshCw,
-  Store,
-} from "lucide-react";
-import {
-  getDashboardOverview,
-  overviewQueryKey,
-  type DashboardOverviewAction,
-} from "@/modules/dashboard/api";
-import { Badge, Button, ErrorPanel, MetricCard, PageHeader, Surface } from "@/shared/components/ui";
-import {
-  formatCurrencyExact as formatCurrency,
-  formatNumber,
-  orderStatusLabel,
-} from "@/shared/utils/format";
+  financeSummaryQueryKey,
+  getFinanceSummary,
+  type FinanceRow,
+} from "@/modules/finance/api";
+import { monthId, monthLabel, monthRange } from "@/modules/finance/finance-workspace";
+import { kr, negativeFee, num, signed, statusLabel } from "@/modules/finance/format";
+import { useAdminSession } from "@/shared/hooks/use-admin-session";
+import { ErrorPanel, Surface } from "@/shared/components/ui";
+import styles from "@/modules/dashboard/oversikt.module.css";
 
-const QUICK_ACTIONS = [
-  { href: "/orders", label: "Liveordrar", icon: ClipboardList },
-  { href: "/restaurants/new", label: "Ny restaurang", icon: Store },
-  { href: "/deals/kampanj/new", label: "Ny kampanj", icon: Gift },
-] as const;
+/** "Lördag 8 augusti" med versal begynnelsebokstav. */
+const longDate = (date: Date) => {
+  const text = new Intl.DateTimeFormat("sv-SE", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(date);
+  return text.charAt(0).toUpperCase() + text.slice(1);
+};
 
-const LIVE_STATUS_ORDER = ["PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERING"];
+const clockTime = (value: string | undefined) => {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("sv-SE", { hour: "2-digit", minute: "2-digit" }).format(date);
+};
 
-function actionTone(severity: DashboardOverviewAction["severity"]): "danger" | "warning" | "info" {
-  if (severity === "high") return "danger";
-  if (severity === "medium") return "warning";
-  return "info";
-}
+const greeting = (date: Date) => {
+  const hour = date.getHours();
+  if (hour < 10) return "God morgon";
+  if (hour < 17) return "Hej";
+  return "God kväll";
+};
 
-function actionLabel(severity: DashboardOverviewAction["severity"]) {
-  if (severity === "high") return "Nu";
-  if (severity === "medium") return "Se över";
-  return "Info";
-}
-
-function updatedTime(iso: string) {
-  return new Intl.DateTimeFormat("sv-SE", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(iso));
-}
+/** Förnamnet räcker i en hälsningsfras. */
+const firstName = (name: string | null | undefined, email: string | null | undefined) => {
+  const trimmed = String(name || "").trim();
+  if (trimmed) return trimmed.split(/\s+/)[0];
+  const local = String(email || "").split("@")[0];
+  return local ? local.charAt(0).toUpperCase() + local.slice(1) : "";
+};
 
 export function DashboardPage() {
   const router = useRouter();
-  const [restaurantScope, setRestaurantScope] = useState<string | null>(null);
-  const overview = useQuery({
-    queryKey: overviewQueryKey({ restaurantId: restaurantScope }),
-    queryFn: () => getDashboardOverview({ restaurantId: restaurantScope }),
-    refetchInterval: 30_000,
-    refetchOnWindowFocus: true,
+  const session = useAdminSession();
+  const [more, setMore] = useState(false);
+
+  const months = useMemo(() => {
+    const today = new Date();
+    return Array.from({ length: 2 }, (_, index) =>
+      monthId(new Date(today.getFullYear(), today.getMonth() - index, 1)),
+    );
+  }, []);
+  const [month, setMonth] = useState(months[0]);
+  const { from, to } = monthRange(month);
+
+  const overview = useQuery({ queryKey: overviewQueryKey(), queryFn: () => getDashboardOverview() });
+  const finance = useQuery({
+    queryKey: financeSummaryQueryKey(from, to),
+    queryFn: () => getFinanceSummary(from, to),
   });
 
-  if (overview.isLoading) {
-    return (
-      <div className="page-stack">
-        <PageHeader title="Översikt" breadcrumb="Drift just nu" />
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="metric-card min-h-[126px] animate-pulse" />
-          ))}
-        </div>
-        <div className="grid gap-4 xl:grid-cols-2">
-          <div className="surface min-h-[280px] animate-pulse" />
-          <div className="surface min-h-[280px] animate-pulse" />
-        </div>
-      </div>
-    );
-  }
+  const now = new Date();
+  const data = overview.data;
+  const summary = finance.data;
 
-  if (overview.isError || !overview.data) {
+  if (overview.isError || finance.isError) {
     return (
-      <div className="page-stack">
-        <PageHeader title="Översikt" />
+      <div className={styles.page}>
         <ErrorPanel
-          title="Kunde inte ladda översikten"
+          title="Översikten kunde inte laddas"
+          description="Inga reservbelopp visas. Försök hämta det riktiga underlaget igen."
           action={
-            <Button variant="primary" onClick={() => void overview.refetch()}>
-              <RefreshCw size={14} /> Försök igen
-            </Button>
+            <button
+              type="button"
+              className={styles.moreToggle}
+              onClick={() => {
+                void overview.refetch();
+                void finance.refetch();
+              }}
+            >
+              Försök igen
+            </button>
           }
         />
       </div>
     );
   }
 
-  const data = overview.data;
-  const maxTrendSales = Math.max(1, ...data.trend7d.map((point) => point.netSales));
-  const trendSales = data.trend7d.reduce((sum, point) => sum + point.netSales, 0);
-  const trendOrders = data.trend7d.reduce((sum, point) => sum + point.orders, 0);
-  const liveEntries = Object.entries(data.liveStatusCounts)
-    .filter(([, count]) => count > 0)
-    .sort(([left], [right]) => {
-      const leftIndex = LIVE_STATUS_ORDER.indexOf(left);
-      const rightIndex = LIVE_STATUS_ORDER.indexOf(right);
-      return (leftIndex < 0 ? 99 : leftIndex) - (rightIndex < 0 ? 99 : rightIndex);
-    });
+  if (!data || !summary) {
+    return (
+      <div className={styles.page}>
+        <Surface className="flex items-center gap-2 px-6 py-14 text-sm text-[var(--text-secondary)]">
+          <Loader2 size={16} className="animate-spin" /> Hämtar dagens läge…
+        </Surface>
+      </div>
+    );
+  }
+
+  const s = summary.settlement;
+  const rows = summary.rows.map((row) => ({ row, status: statusLabel(row.status) }));
+  const group = (status: string) => rows.filter((item) => item.status === status);
+  const sum = (list: typeof rows) => list.reduce((total, item) => total + item.row.settlement.payout, 0);
+  const drafts = group("Utkast");
+  const approved = group("Godkänd");
+  const paid = group("Betald");
+
+  // Fördelningsstapeln speglar beloppen, inte antalet poster.
+  const totalPayout = Math.max(1, sum(drafts) + sum(approved) + sum(paid));
+  const share = (value: number) => `${Math.max(0, (value / totalPayout) * 100)}%`;
+
+  const trend = data.trend7d;
+  const peak = Math.max(1, ...trend.map((point) => point.netSales));
+  const reference = trend.length > 1 ? trend[0] : null;
+  const delta =
+    reference && reference.netSales > 0
+      ? ((data.today.netSales - reference.netSales) / reference.netSales) * 100
+      : null;
+
+  const openPayout = (row: FinanceRow) =>
+    router.push(`/finance/${row.restaurantId}?month=${month}&from=${from}&to=${to}`);
 
   return (
-    <div className="page-stack">
-      <PageHeader
-        title="Översikt"
-        breadcrumb={`Uppdaterad ${updatedTime(data.generatedAt)}`}
-        actions={
-          <>
-            <select
-              value={restaurantScope ?? ""}
-              onChange={(event) => setRestaurantScope(event.target.value || null)}
-              className="h-[40px] max-w-[220px] rounded-[11px] border border-[var(--border-subtle)] bg-[var(--bg-panel)] px-3 text-[13px] font-semibold text-[var(--text-secondary)] outline-none transition-colors hover:border-[var(--border-strong)]"
-              aria-label="Filtrera på restaurang"
-            >
-              <option value="">Alla restauranger</option>
-              {data.restaurantRefs.map((restaurant) => (
-                <option key={restaurant.id} value={restaurant.id}>{restaurant.name}</option>
-              ))}
-            </select>
-            <Button
-              aria-label="Uppdatera översikten"
-              title="Uppdatera"
-              loading={overview.isFetching}
-              onClick={() => void overview.refetch()}
-            >
-              {!overview.isFetching ? <RefreshCw size={14} /> : null}
-              Uppdatera
-            </Button>
-          </>
-        }
-      />
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          label="Försäljning idag"
-          value={formatCurrency(data.today.netSales)}
-          detail="Betalt, efter återbetalningar"
-        />
-        <MetricCard
-          label="Ordrar idag"
-          value={formatNumber(data.today.orders)}
-          detail={`${formatNumber(data.today.liveOrders)} live just nu`}
-        />
-        <MetricCard
-          label="Väntar på svar"
-          value={formatNumber(data.today.pendingOrders)}
-          detail={data.today.pendingOrders > 0 ? "Öppna liveordrar" : "Ingen kö"}
-        />
-        <MetricCard
-          label="Öppna restauranger"
-          value={`${formatNumber(data.restaurants.open)}/${formatNumber(data.restaurants.total)}`}
-          detail={restaurantScope ? "Vald restaurang" : "Publicerade restauranger"}
-        />
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-12">
-        <Surface className="px-5 py-5 xl:col-span-7">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="eyebrow">Prioriterat</p>
-              <h2 className="section-title mt-1">Behöver åtgärd</h2>
-            </div>
-            {data.actions.length > 0 ? <Badge tone="warning">{data.actions.length}</Badge> : null}
-          </div>
-
-          {data.actions.length === 0 ? (
-            <div className="mt-5 flex min-h-[180px] flex-col items-center justify-center rounded-[14px] bg-[var(--bg-page)] px-5 text-center">
-              <span className="grid h-11 w-11 place-items-center rounded-full bg-[var(--success-soft)] text-[var(--success-text)]">
-                <CheckCircle2 size={21} />
-              </span>
-              <p className="mt-3 text-[14px] font-extrabold text-[var(--text-primary)]">Allt under kontroll</p>
-              <p className="mt-1 text-[12px] text-[var(--text-muted)]">Inget kräver åtgärd just nu.</p>
-            </div>
-          ) : (
-            <div className="mt-4 grid gap-2">
-              {data.actions.map((action) => (
-                <button
-                  key={action.id}
-                  type="button"
-                  onClick={() => router.push(action.href)}
-                  className="flex w-full items-center gap-3 rounded-[12px] border border-[var(--border-subtle)] px-3.5 py-3 text-left transition-colors hover:bg-[var(--bg-hover)]"
-                >
-                  <span className="grid h-9 w-9 flex-none place-items-center rounded-[10px] bg-[var(--brand-orange-soft)] text-[var(--brand-orange-ink)]">
-                    <AlertTriangle size={16} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex flex-wrap items-center gap-2">
-                      <span className="truncate text-[13px] font-extrabold text-[var(--text-primary)]">{action.title}</span>
-                      <Badge tone={actionTone(action.severity)}>{actionLabel(action.severity)}</Badge>
-                    </span>
-                    <span className="mt-0.5 block text-[12px] text-[var(--text-secondary)]">{action.detail}</span>
-                  </span>
-                  <ArrowRight size={14} className="flex-none text-[var(--text-muted)]" />
-                </button>
-              ))}
-            </div>
-          )}
-        </Surface>
-
-        <Surface className="px-5 py-5 xl:col-span-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="eyebrow">Just nu</p>
-              <h2 className="section-title mt-1">Liveordrar</h2>
-            </div>
-            <p className="text-3xl font-black tracking-tight text-[var(--text-primary)]">{formatNumber(data.today.liveOrders)}</p>
-          </div>
-
-          {liveEntries.length === 0 ? (
-            <div className="mt-5 flex min-h-[180px] items-center justify-center rounded-[14px] bg-[var(--bg-page)] text-[13px] font-semibold text-[var(--text-muted)]">
-              Inga aktiva ordrar
-            </div>
-          ) : (
-            <div className="mt-5 grid gap-2">
-              {liveEntries.map(([status, count]) => (
-                <div key={status} className="flex items-center justify-between rounded-[11px] bg-[var(--bg-page)] px-3.5 py-3">
-                  <span className="text-[13px] font-semibold text-[var(--text-secondary)]">{orderStatusLabel(status)}</span>
-                  <span className="text-[14px] font-black text-[var(--text-primary)]">{formatNumber(count)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={() => router.push("/orders")}
-            className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-bold text-[var(--brand-navy-ink)] hover:underline"
-          >
-            Öppna liveordrar <ArrowRight size={13} />
-          </button>
-        </Surface>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-12">
-        <Surface className="px-5 py-5 xl:col-span-7">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="eyebrow">Senaste 7 dagarna</p>
-              <h2 className="section-title mt-1">Försäljning</h2>
-            </div>
-            <div className="text-right">
-              <p className="text-[17px] font-black text-[var(--text-primary)]">{formatCurrency(trendSales)}</p>
-              <p className="text-[11px] font-semibold text-[var(--text-muted)]">{formatNumber(trendOrders)} ordrar</p>
-            </div>
-          </div>
-          <div className="mt-6 flex h-[190px] items-end gap-2 sm:gap-3" role="img" aria-label="Försäljning de senaste sju dagarna">
-            {data.trend7d.map((point, index) => {
-              const height = point.netSales > 0 ? Math.max(8, (point.netSales / maxTrendSales) * 100) : 3;
-              const isToday = index === data.trend7d.length - 1;
-              return (
-                <div key={point.date} className="flex h-full min-w-0 flex-1 flex-col justify-end">
-                  <div className="mb-2 text-center text-[10px] font-bold text-[var(--text-muted)]">
-                    {point.orders > 0 ? formatNumber(point.orders) : ""}
-                  </div>
-                  <div className="flex h-[145px] items-end rounded-[9px] bg-[var(--bg-page)] p-1">
-                    <div
-                      className="w-full rounded-[6px] transition-[height] duration-500"
-                      style={{
-                        height: `${height}%`,
-                        background: isToday ? "var(--brand-orange)" : "var(--brand-navy-bar)",
-                      }}
-                      title={`${point.label}: ${formatCurrency(point.netSales)} · ${formatNumber(point.orders)} ordrar`}
-                    />
-                  </div>
-                  <span className={`mt-2 text-center text-[11px] font-bold ${isToday ? "text-[var(--brand-orange-ink)]" : "text-[var(--text-muted)]"}`}>
-                    {point.label}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </Surface>
-
-        <Surface className="px-5 py-5 xl:col-span-5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="eyebrow">Drift</p>
-              <h2 className="section-title mt-1">Restauranger</h2>
-            </div>
-            <button type="button" onClick={() => router.push("/restaurants")} className="text-[12.5px] font-bold text-[var(--brand-navy-ink)] hover:underline">
-              Visa alla
-            </button>
-          </div>
-          <div className="mt-4 grid gap-1.5">
-            {data.restaurantStatus.slice(0, 6).map((restaurant) => (
+    <div className={styles.page}>
+      <div className={styles.header}>
+        <div>
+          <p className={styles.eyebrow}>
+            {longDate(now)} · uppdaterad {clockTime(data.generatedAt)}
+          </p>
+          <h1 className={styles.greeting}>
+            {greeting(now)}
+            {firstName(session.data?.name, session.data?.email)
+              ? `, ${firstName(session.data?.name, session.data?.email)}`
+              : ""}
+          </h1>
+        </div>
+        <div className={styles.headerActions}>
+          <span className={styles.openChip}>
+            <span
+              className={`${styles.openDot} ${data.restaurants.open < data.restaurants.total ? styles.openDotClosed : ""}`}
+            />
+            <span>
+              {data.restaurants.open} av {data.restaurants.total} öppna nu
+            </span>
+          </span>
+          <div className={styles.segment}>
+            {months.map((value) => (
               <button
-                key={restaurant.id}
                 type="button"
-                onClick={() => router.push(`/restaurants/${restaurant.id}`)}
-                className="flex items-center gap-3 rounded-[11px] px-2.5 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
+                key={value}
+                className={`${styles.segmentButton} ${value === month ? styles.segmentButtonActive : ""}`}
+                onClick={() => setMonth(value)}
               >
-                <span className={`h-2.5 w-2.5 flex-none rounded-full ${restaurant.isOpen ? "bg-[var(--success)]" : "bg-[var(--text-muted)]"}`} />
-                <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-[var(--text-primary)]">{restaurant.name}</span>
-                {restaurant.pendingOrders > 0 ? (
-                  <Badge tone="warning">{restaurant.pendingOrders} väntar</Badge>
-                ) : restaurant.liveOrders > 0 ? (
-                  <Badge tone="info">{restaurant.liveOrders} live</Badge>
-                ) : (
-                  <span className="text-[11px] font-semibold text-[var(--text-muted)]">{restaurant.isOpen ? "Öppen" : "Stängd"}</span>
-                )}
-                <ArrowRight size={13} className="flex-none text-[var(--text-muted)]" />
+                {monthLabel(value)}
               </button>
             ))}
-            {data.restaurantStatus.length === 0 ? (
-              <p className="py-12 text-center text-[13px] text-[var(--text-muted)]">Inga restauranger i urvalet.</p>
-            ) : null}
           </div>
-        </Surface>
+        </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        {QUICK_ACTIONS.map((action) => (
-          <button
-            key={action.href}
-            type="button"
-            onClick={() => router.push(action.href)}
-            className="surface group flex items-center gap-3 px-4 py-4 text-left transition-transform hover:-translate-y-0.5"
-          >
-            <span className="grid h-10 w-10 flex-none place-items-center rounded-[11px] bg-[var(--brand-navy-soft)] text-[var(--brand-navy-ink)]">
-              <action.icon size={18} />
-            </span>
-            <span className="min-w-0 flex-1 text-[13px] font-extrabold text-[var(--text-primary)]">{action.label}</span>
-            <ArrowRight size={14} className="flex-none text-[var(--text-muted)] transition-transform group-hover:translate-x-0.5" />
-          </button>
-        ))}
+      <div className={styles.topRow}>
+        <section className={styles.hero}>
+          <div className={styles.heroTop}>
+            <p className={styles.eyebrow}>{monthLabel(month)}</p>
+            <Link className={styles.heroLink} href={`/finance?month=${month}&from=${from}&to=${to}`}>
+              Ekonomi →
+            </Link>
+          </div>
+
+          <div className={styles.heroBlock}>
+            <p className={styles.heroLabel}>Försäljning totalt</p>
+            <p className={styles.heroValue}>{kr(summary.totals.grossTotal)}</p>
+          </div>
+
+          <div className={styles.heroSplit}>
+            <div>
+              <p className={styles.heroLabel}>Netto till restaurangerna</p>
+              <p className={styles.heroSubValue}>{kr(s.payout)}</p>
+              <div className={styles.heroLines}>
+                <span className={styles.heroLine}>
+                  <span className={styles.heroLineLabel}>Återbetalningar</span>
+                  <span className={styles.heroLineValue}>{num(-summary.totals.refunds)}</span>
+                </span>
+                <span className={styles.heroLine}>
+                  <span className={styles.heroLineLabel}>Kortavgifter</span>
+                  <span className={styles.heroLineValue}>{negativeFee(s.cardFees)}</span>
+                </span>
+                <span className={styles.heroLine}>
+                  <span className={styles.heroLineLabel}>Provision inkl moms</span>
+                  <span className={styles.heroLineValue}>{num(-s.commissionInclVat)}</span>
+                </span>
+              </div>
+            </div>
+            <div>
+              <p className={styles.heroLabel}>Vår provision ex moms</p>
+              <p className={styles.heroSubValue}>{kr(s.ourRevenue)}</p>
+              <div className={styles.heroLines}>
+                <span className={styles.heroLine}>
+                  <span className={styles.heroLineLabel}>Inkl moms</span>
+                  <span className={styles.heroLineValue}>{num(s.commissionInclVat)}</span>
+                </span>
+                <span className={styles.heroLine}>
+                  <span className={styles.heroLineLabel}>Moms att redovisa</span>
+                  <span className={styles.heroLineValue}>{num(s.commissionVat)}</span>
+                </span>
+                <span className={styles.heroLine}>
+                  <span className={styles.heroLineLabel}>Justeringar</span>
+                  <span className={styles.heroLineValue}>{signed(s.adjustment)}</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className={styles.trend}>
+            {trend.map((point, index) => (
+              <span className={styles.trendDay} key={point.date}>
+                <span className={styles.trendValue}>{Math.round(point.netSales / 1000)}k</span>
+                <span className={styles.trendTrack}>
+                  <span
+                    className={`${styles.trendBar} ${index === trend.length - 1 ? styles.trendBarToday : ""}`}
+                    style={{ height: `${Math.max(10, Math.round((point.netSales / peak) * 100))}%` }}
+                  />
+                </span>
+                <span className={styles.trendLabel}>{point.label}</span>
+              </span>
+            ))}
+          </div>
+        </section>
+
+        <div className={styles.sideColumn}>
+          <Link className={`${styles.card} ${styles.cardLink}`} href={`/finance/payouts?month=${month}`}>
+            <div className={styles.cardHead}>
+              <p className={styles.cardLabel}>Att betala ut</p>
+              <span className={styles.cardOpen}>Öppna →</span>
+            </div>
+            <p className={styles.cardValue}>{kr(s.payout)}</p>
+            <div className={styles.shareBar}>
+              <span className={styles.shareDraft} style={{ width: share(sum(drafts)) }} />
+              <span className={styles.shareApproved} style={{ width: share(sum(approved)) }} />
+              <span className={styles.sharePaid} style={{ width: share(sum(paid)) }} />
+            </div>
+            <div className={styles.shareLegend}>
+              <span className={styles.shareItem}>
+                <span className={styles.shareCount}>{drafts.length} utkast</span>
+                <span className={styles.shareValue}>{num(sum(drafts))}</span>
+              </span>
+              <span className={`${styles.shareItem} ${styles.shareItemCenter}`}>
+                <span className={styles.shareCount}>{approved.length} godkända</span>
+                <span className={styles.shareValue}>{num(sum(approved))}</span>
+              </span>
+              <span className={`${styles.shareItem} ${styles.shareItemRight}`}>
+                <span className={styles.shareCount}>{paid.length} betalda</span>
+                <span className={styles.shareValue}>{num(sum(paid))}</span>
+              </span>
+            </div>
+          </Link>
+
+          <section className={`${styles.card} ${styles.todayCard}`}>
+            <p className={styles.cardLabel}>Idag</p>
+            <p className={styles.cardValue}>{kr(data.today.netSales)}</p>
+            {delta == null ? (
+              <p className={styles.cardDelta} style={{ color: "var(--text-muted)" }}>
+                Ingen jämförelseperiod
+              </p>
+            ) : (
+              <p className={`${styles.cardDelta} ${delta < 0 ? styles.cardDeltaDown : ""}`}>
+                {delta >= 0 ? "+" : "−"}
+                {Math.abs(delta).toFixed(1).replace(".", ",")} % mot {reference?.label}
+              </p>
+            )}
+            <div className={styles.todayFoot}>
+              <span className={styles.todayStat}>
+                <span className={styles.todayStatLabel}>Ordrar</span>
+                <span className={styles.todayStatValue}>{num(data.today.orders)}</span>
+              </span>
+              <span className={styles.todayStat}>
+                <span className={styles.todayStatLabel}>Live</span>
+                <span className={`${styles.todayStatValue} ${styles.todayStatLive}`}>
+                  {num(data.today.liveOrders)}
+                </span>
+              </span>
+              <span className={styles.todayStat}>
+                <span className={styles.todayStatLabel}>Öppna</span>
+                <span className={styles.todayStatValue}>
+                  {data.restaurants.open}/{data.restaurants.total}
+                </span>
+              </span>
+            </div>
+          </section>
+        </div>
       </div>
+
+      <div className={styles.bottomRow}>
+        <section className={styles.panel}>
+          <div className={styles.panelHead}>
+            <h2 className={styles.panelTitle}>Restauranger</h2>
+            <Link className={styles.panelLink} href={`/finance?month=${month}&from=${from}&to=${to}`}>
+              Visa alla
+            </Link>
+          </div>
+          <div className={`${styles.grid} ${styles.columnHeaders}`}>
+            <span className={styles.columnHeader}>Restaurang</span>
+            <span className={`${styles.columnHeader} ${styles.numeric}`}>Netto</span>
+            <span className={`${styles.columnHeader} ${styles.numeric} ${styles.hideNarrow}`}>Provision</span>
+            <span className={`${styles.columnHeader} ${styles.numeric}`}>Utbetalning</span>
+            <span className={`${styles.columnHeader} ${styles.numeric} ${styles.hideNarrow}`}>Status</span>
+          </div>
+          {rows.map(({ row, status }) => (
+            <button
+              type="button"
+              key={row.restaurantId}
+              className={`${styles.grid} ${styles.row}`}
+              onClick={() => openPayout(row)}
+            >
+              <span className={styles.rowName}>{row.name}</span>
+              <span className={`${styles.numeric} ${styles.cellSoft}`}>{num(row.settlement.netSales)}</span>
+              <span className={`${styles.numeric} ${styles.cellSoft} ${styles.hideNarrow}`}>
+                {num(row.settlement.commission)}
+              </span>
+              <span className={`${styles.numeric} ${styles.cellPayout}`}>{num(row.settlement.payout)}</span>
+              <span className={`${styles.numeric} ${styles.cellStatus} ${styles.hideNarrow}`}>{status}</span>
+            </button>
+          ))}
+        </section>
+
+        <section className={styles.panel}>
+          <div className={styles.panelHead}>
+            <h2 className={styles.panelTitle}>Behöver åtgärd</h2>
+            <span className={styles.panelCount}>
+              {data.actions.length + drafts.length} att göra
+            </span>
+          </div>
+          {drafts.length > 0 ? (
+            <button
+              type="button"
+              className={styles.actionRow}
+              onClick={() => router.push(`/finance/payouts?month=${month}`)}
+            >
+              <span className={styles.actionTitle}>
+                {drafts.length} utbetalning{drafts.length === 1 ? "" : "ar"} väntar på godkännande
+              </span>
+              <span className={styles.actionValue}>{num(sum(drafts))}</span>
+            </button>
+          ) : null}
+          {data.actions.map((action) => (
+            <button
+              type="button"
+              key={action.id}
+              className={styles.actionRow}
+              onClick={() => router.push(action.href)}
+            >
+              <span className={styles.actionTitle}>{action.title}</span>
+              <span className={styles.actionValue}>{action.detail}</span>
+            </button>
+          ))}
+          {data.actions.length === 0 && drafts.length === 0 ? (
+            <p className={styles.actionEmpty}>Inget kräver åtgärd just nu.</p>
+          ) : null}
+          <span className={styles.actionSpacer} />
+        </section>
+      </div>
+
+      {more ? (
+        <div className={styles.moreGrid}>
+          <article className={styles.moreCard}>
+            <p className={styles.moreLabel}>Live-ordrar</p>
+            <p className={styles.moreValue}>{num(data.today.liveOrders)}</p>
+          </article>
+          <article className={styles.moreCard}>
+            <p className={styles.moreLabel}>Väntar på svar</p>
+            <p className={styles.moreValue}>{num(data.today.pendingOrders)}</p>
+          </article>
+          <article className={styles.moreCard}>
+            <p className={styles.moreLabel}>Återbetalningar</p>
+            <p className={styles.moreValue}>{kr(summary.totals.refunds)}</p>
+          </article>
+          <article className={styles.moreCard}>
+            <p className={styles.moreLabel}>Snittorder</p>
+            <p className={styles.moreValue}>
+              {summary.totals.orderCount > 0
+                ? kr(summary.totals.grossTotal / summary.totals.orderCount)
+                : "—"}
+            </p>
+          </article>
+        </div>
+      ) : null}
+
+      <button type="button" className={styles.moreToggle} onClick={() => setMore((value) => !value)}>
+        {more ? "Dölj" : "Fler åtgärder"}
+      </button>
     </div>
   );
 }

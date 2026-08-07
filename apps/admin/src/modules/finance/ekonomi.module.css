@@ -1,0 +1,570 @@
+/* Ekonomi — exakt kopia av designens layout, byggd på panelens egna tokens
+   så sidan följer mörkt läge. Måtten kommer ur Ekonomi.dc.html. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 30px 34px;
+}
+
+/* ── Sidhuvud ───────────────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.title {
+  margin: 6px 0 0;
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+}
+
+.headerActions {
+  display: flex;
+  gap: 8px;
+  position: relative;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-panel);
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.chip:hover {
+  border-color: var(--border-strong, var(--border-subtle));
+}
+
+.chipStatic {
+  cursor: default;
+}
+
+.chipPrimary {
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--text-primary);
+  color: var(--bg-panel);
+  font-size: 12.5px;
+  font-weight: 900;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+/* ── Periodväljaren ─────────────────────────────────────────────────────── */
+
+.periodMenu {
+  position: absolute;
+  top: 48px;
+  left: 0;
+  z-index: 20;
+  width: 310px;
+  padding: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  background: var(--bg-panel);
+  box-shadow: 0 18px 40px -20px rgba(10, 35, 64, 0.35);
+}
+
+.periodPreset {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.periodPreset:hover {
+  background: var(--bg-panel-muted);
+}
+
+.periodPresetRange {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.periodCustom {
+  margin-top: 6px;
+  padding: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.periodCustomLabel {
+  margin: 0 0 8px;
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.periodRange {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.periodDate {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--bg-panel);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.periodArrow {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-muted);
+}
+
+.periodApply {
+  width: 100%;
+  height: 40px;
+  margin-top: 10px;
+  border: 0;
+  border-radius: 11px;
+  background: var(--text-primary);
+  color: var(--bg-panel);
+  font-size: 12.5px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+/* ── De tre kolumnerna som följer pengarna ──────────────────────────────── */
+
+.columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 14px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 18px;
+  background: var(--bg-panel);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.step {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--text-secondary);
+}
+
+.cardLabel {
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.cardValue {
+  margin: 14px 0 0;
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: -0.035em;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.cardCaption {
+  margin: 5px 0 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.lines {
+  display: flex;
+  flex-direction: column;
+  margin-top: 18px;
+}
+
+.line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 0;
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+  background: none;
+  text-align: left;
+}
+
+
+.lineLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+/* Beloppet bryter aldrig — etiketten får krympa i stället. */
+.lineValue {
+  flex: none;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.lineRefund {
+  color: var(--danger-text);
+}
+
+
+
+
+
+
+
+.cardFoot {
+  margin-top: auto;
+  padding-top: 18px;
+}
+
+.cardTotal {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 13px;
+  background: var(--bg-panel-muted);
+  white-space: nowrap;
+}
+
+.cardTotalLabel {
+  font-size: 12.5px;
+  font-weight: 900;
+  color: var(--text-primary);
+}
+
+.cardTotalValue {
+  font-size: 17px;
+  font-weight: 900;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Navy-kortet är navy i båda lägena. Samma token-override-trick som
+   .hero-card, så allt nästlat skinnar om sig själv i stället för att varje
+   rad bär en egen färg. */
+.cardNavy {
+  border: 0;
+  background: var(--brand-navy);
+
+  --text-primary: #ffffff;
+  --text-secondary: rgba(254, 247, 240, 0.7);
+  --text-muted: rgba(254, 247, 240, 0.55);
+  --border-subtle: rgba(254, 247, 240, 0.13);
+  --bg-panel-muted: rgba(254, 247, 240, 0.1);
+}
+
+.cardNavy .step {
+  background: rgba(254, 247, 240, 0.14);
+  color: var(--brand-cream);
+}
+
+.cardNavy .cardCaption {
+  color: #ffa24d;
+}
+
+.cardNavy .cardTotal {
+  border-color: transparent;
+}
+
+.lineDim {
+  color: rgba(254, 247, 240, 0.45);
+}
+
+/* ── Tabellen per restaurang ────────────────────────────────────────────── */
+
+.table {
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: 18px;
+  background: var(--bg-panel);
+}
+
+.tableHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.tableTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--text-primary);
+}
+
+.tableSubtitle {
+  margin: 3px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.counts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.count {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 99px;
+  font-size: 11.5px;
+  font-weight: 900;
+}
+
+.countDraft {
+  background: var(--brand-orange-soft);
+  color: var(--brand-orange-ink);
+}
+
+.countApproved {
+  background: var(--success-soft);
+  color: var(--success-text);
+}
+
+/* Betald är den stumma tonen. --info-soft i stället för --bg-panel-muted, som
+   är för svag för att synas som en pill i mörkt läge. */
+.countPaid {
+  background: var(--info-soft);
+  color: var(--info-text);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.7fr 0.8fr 0.9fr 0.9fr 0.9fr 0.9fr 1fr 0.8fr;
+  align-items: center;
+}
+
+.columnHeaders {
+  padding: 12px 24px;
+  background: var(--bg-panel-muted);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.columnHeader {
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.row {
+  width: 100%;
+  padding: 15px 24px;
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-panel);
+  cursor: pointer;
+  text-align: left;
+}
+
+.row:hover {
+  background: var(--bg-panel-muted);
+}
+
+.rowName {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.rowMeta {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.cellSoft {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.cellStrong {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.cellPayout {
+  font-size: 13.5px;
+  font-weight: 900;
+  color: var(--text-primary);
+}
+
+.cellAdjust {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.status {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.statusDraft {
+  background: var(--brand-orange-soft);
+  color: var(--brand-orange-ink);
+}
+
+.statusApproved {
+  background: var(--success-soft);
+  color: var(--success-text);
+}
+
+.statusPaid {
+  background: var(--info-soft);
+  color: var(--info-text);
+}
+
+.totalsRow {
+  padding: 16px 24px;
+  background: var(--bg-panel-muted);
+}
+
+.totalsCell {
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--text-primary);
+}
+
+.totalsPayout {
+  font-size: 13.5px;
+  font-weight: 900;
+  color: var(--text-primary);
+}
+
+/* Justeringens ton: plus åt restaurangen, minus åt oss, noll är stumt. */
+.adjustPlus {
+  color: var(--success-text);
+}
+
+.adjustMinus {
+  color: var(--brand-orange-ink);
+}
+
+.adjustZero {
+  color: color-mix(in srgb, var(--text-muted) 62%, transparent);
+}
+
+.empty {
+  padding: 40px 24px;
+}
+
+/* ── Smalare skärmar ────────────────────────────────────────────────────── */
+
+@media (max-width: 1180px) {
+  .columns {
+    grid-template-columns: 1fr;
+  }
+
+  .table {
+    overflow-x: auto;
+  }
+
+  .grid {
+    min-width: 940px;
+  }
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding: 20px 16px;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .headerActions {
+    flex-wrap: wrap;
+  }
+}

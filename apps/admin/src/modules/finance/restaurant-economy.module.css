@@ -1,0 +1,946 @@
+/* Restaurangekonomi — utbetalningsspecifikationen för en restaurang.
+   Exakt kopia av designens layout, byggd på panelens egna tokens.
+   Måtten kommer ur Restaurangekonomi.dc.html. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 30px 34px;
+}
+
+/* ── Sidhuvud ───────────────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.crumbs {
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.crumbLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.crumbLink:hover {
+  color: var(--brand-orange);
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.title {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+}
+
+.subtitle {
+  margin: 5px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.segment {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-panel);
+}
+
+.segmentButton {
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.segmentButton:hover {
+  color: var(--text-primary);
+}
+
+.segmentButtonActive,
+.segmentButtonActive:hover {
+  background: var(--text-primary);
+  color: var(--bg-panel);
+}
+
+.actionButton {
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  font-size: 12.5px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.actionButtonPrimary {
+  border: 0;
+  background: var(--brand-orange);
+  color: #ffffff;
+}
+
+.actionButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ── Restaurangväljaren ─────────────────────────────────────────────────── */
+
+.picker {
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  background: var(--bg-panel);
+  overflow-x: auto;
+}
+
+.pickerButton {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pickerButton:hover {
+  color: var(--text-primary);
+}
+
+.pickerButtonActive,
+.pickerButtonActive:hover {
+  background: var(--text-primary);
+  color: var(--bg-panel);
+}
+
+/* ── Nyckeltalen ────────────────────────────────────────────────────────── */
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.kpi {
+  padding: 18px 20px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  background: var(--bg-panel);
+}
+
+.kpiLabel {
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.kpiValue {
+  margin: 8px 0 0;
+  font-size: 24px;
+  font-weight: 900;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.kpiMeta {
+  margin: 3px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.kpiNavy {
+  border: 0;
+  background: var(--brand-navy);
+
+  --text-primary: #ffffff;
+  --text-muted: rgba(254, 247, 240, 0.55);
+}
+
+/* ── Tvåspaltiga kroppen ────────────────────────────────────────────────── */
+
+.columns {
+  display: grid;
+  grid-template-columns: 1.45fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.mainColumn {
+  display: flex;
+  flex-direction: column;
+}
+
+.sideColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 26px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 18px;
+  background: var(--bg-panel);
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--text-primary);
+}
+
+/* Specifikationen */
+
+.specGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 26px;
+  margin-top: 14px;
+}
+
+.specColumn {
+  display: flex;
+  flex-direction: column;
+}
+
+.specLabel {
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.specBody {
+  margin-top: 10px;
+}
+
+.line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 0;
+  border: 0;
+  background: none;
+  text-align: left;
+}
+
+
+.lineTop {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.lineUnderlined {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.lineName {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.lineValue {
+  flex: none;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.lineRefund {
+  color: var(--danger-text);
+}
+
+.lineDim {
+  color: var(--text-muted);
+}
+
+
+.totalLine {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.totalName {
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--text-primary);
+}
+
+.totalValue {
+  flex: none;
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+
+
+
+
+
+/* Historiken i högra spec-kolumnen */
+
+.historyBlock {
+  margin-top: auto;
+  padding-top: 14px;
+}
+
+.historyLabel {
+  margin: 0 0 8px;
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.historyRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.historyTitle {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.historyMeta {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.historyAmount {
+  flex: none;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Navy-foten */
+
+.payoutFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: auto;
+  padding: 20px 22px;
+  border-radius: 16px;
+  background: var(--brand-navy);
+}
+
+.payoutFootLabel {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: rgba(254, 247, 240, 0.6);
+}
+
+.payoutFootValue {
+  display: block;
+  margin-top: 4px;
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+
+.payoutFootMeta {
+  display: block;
+  margin-top: 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: rgba(254, 247, 240, 0.45);
+}
+
+.payoutFootButton {
+  height: 44px;
+  padding: 0 20px;
+  border: 1px solid rgba(254, 247, 240, 0.25);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--brand-cream);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.payoutFootButton:hover {
+  border-color: rgba(254, 247, 240, 0.5);
+}
+
+/* ── Kontrollvyn ────────────────────────────────────────────────────────── */
+
+.checkBack {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.checkBack:hover {
+  color: var(--brand-orange);
+}
+
+.checkHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 14px;
+}
+
+.checkTitle {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.checkBody {
+  margin: 6px 0 0;
+  max-width: 520px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.checkStats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.checkStat {
+  padding: 15px 17px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+}
+
+.checkStatLabel {
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.checkStatValue {
+  margin: 7px 0 0;
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.checkStatDetail {
+  margin: 3px 0 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.checkTable {
+  margin-top: 18px;
+}
+
+.checkGrid {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr 1fr 1fr 0.9fr;
+  align-items: center;
+}
+
+.checkColumns {
+  padding: 0 0 10px;
+}
+
+.checkColumn {
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.checkRow {
+  padding: 12px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.checkCellStrong {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.checkCell {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.checkEmpty {
+  margin: 18px 0 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+.checkFix {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: auto;
+  padding: 16px 18px;
+  border: 1px solid color-mix(in srgb, var(--brand-orange) 25%, transparent);
+  border-radius: 14px;
+  background: var(--brand-orange-soft);
+}
+
+.checkFixText {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--brand-orange-ink);
+}
+
+.checkFixActions {
+  display: flex;
+  gap: 8px;
+}
+
+.smallButton {
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 11px;
+  background: var(--bg-panel);
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.smallButtonPrimary {
+  border: 0;
+  padding: 0 16px;
+  background: var(--brand-orange);
+  color: #ffffff;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+/* ── Kontrollistan ──────────────────────────────────────────────────────── */
+
+.sidePanel {
+  padding: 20px 22px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 18px;
+  background: var(--bg-panel);
+}
+
+.sidePanelGrow {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.sideHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sideTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--text-primary);
+}
+
+.sideSummary {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-muted);
+}
+
+.checkList {
+  display: grid;
+  gap: 2px;
+  margin-top: 10px;
+}
+
+.checkItem {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 11px;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.checkItem:hover {
+  background: var(--bg-panel-muted);
+}
+
+.checkItemActive {
+  background: var(--bg-panel-muted);
+}
+
+.checkMark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.checkItemBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.checkItemTitle {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.checkItemSummary {
+  display: block;
+  margin-top: 1px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.chevron {
+  font-size: 12px;
+  font-weight: 900;
+  color: color-mix(in srgb, var(--text-muted) 62%, transparent);
+}
+
+/* ── Justeringsrutan ────────────────────────────────────────────────────── */
+
+.adjustNote {
+  margin: 5px 0 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.adjustRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.stepButton {
+  width: 38px;
+  height: 40px;
+  flex: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: 11px;
+  background: var(--bg-panel);
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.adjustInput {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 11px;
+  background: var(--bg-panel);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--text-primary);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+}
+
+.noteInput {
+  width: 100%;
+  height: 40px;
+  margin-top: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 11px;
+  background: var(--bg-panel);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 13px 15px;
+  border-radius: 12px;
+  background: var(--bg-panel-muted);
+}
+
+.previewLabel {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--text-secondary);
+}
+
+.previewValue {
+  font-size: 17px;
+  font-weight: 900;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.saveButton {
+  width: 100%;
+  height: 42px;
+  margin-top: 10px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--text-primary);
+  color: var(--bg-panel);
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.saveButton:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.recipient {
+  margin-top: auto;
+  padding-top: 16px;
+}
+
+.recipientLabel {
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.recipientName {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.recipientLine {
+  margin: 3px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+/* ── Status och toner ───────────────────────────────────────────────────── */
+
+.status {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 99px;
+  font-size: 11.5px;
+  font-weight: 900;
+}
+
+.badge {
+  display: inline-block;
+  flex: none;
+  padding: 6px 12px;
+  border-radius: 99px;
+  font-size: 11.5px;
+  font-weight: 900;
+}
+
+.pill {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.toneOk {
+  background: var(--success-soft);
+  color: var(--success-text);
+}
+
+.toneWarn {
+  background: var(--brand-orange-soft);
+  color: var(--brand-orange-ink);
+}
+
+.toneMuted {
+  background: var(--info-soft);
+  color: var(--info-text);
+}
+
+.adjustPlus {
+  color: var(--success-text);
+}
+
+.adjustMinus {
+  color: var(--brand-orange-ink);
+}
+
+.adjustZero {
+  color: color-mix(in srgb, var(--text-muted) 62%, transparent);
+}
+
+.error {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--danger-text);
+}
+
+/* ── Smalare skärmar ────────────────────────────────────────────────────── */
+
+@media (max-width: 1240px) {
+  .kpis {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .columns {
+    grid-template-columns: 1fr;
+  }
+
+  .specGrid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding: 20px 16px;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .checkStats {
+    grid-template-columns: 1fr;
+  }
+
+  .checkGrid {
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 12px;
+  }
+}

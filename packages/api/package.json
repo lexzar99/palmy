@@ -14,6 +14,8 @@
     "test:referrals": "ts-node --transpile-only src/contracts/referralContracts.test.ts",
     "test:refunds": "ts-node --transpile-only src/contracts/refundContracts.test.ts",
     "test:finance-payouts": "ts-node --transpile-only src/contracts/financePayoutContracts.test.ts",
+    "test:settlement-model": "ts-node --transpile-only src/contracts/settlementModel.test.ts",
+    "verify:settlement": "ts-node --transpile-only scripts/verify-settlement-model.ts",
     "test:hermes": "ts-node --transpile-only src/contracts/hermesAlerts.test.ts",
     "test:customer-notifier": "ts-node --transpile-only src/contracts/customerOrderNotifier.test.ts",
     "test:notification-access": "ts-node --transpile-only src/contracts/customerNotificationAccess.test.ts",

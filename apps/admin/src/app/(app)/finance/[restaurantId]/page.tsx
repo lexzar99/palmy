@@ -1,22 +1,10 @@
-import { FinancePayoutPage } from "@/modules/finance/payout-page";
+import { RestaurantEconomyPage } from "@/modules/finance/restaurant-economy-page";
 
-export default async function PayoutRoutePage({
+export default async function RestaurantEconomyRoute({
   params,
-  searchParams,
 }: {
   params: Promise<{ restaurantId: string }>;
-  searchParams: Promise<{ from?: string; to?: string; month?: string; period?: string }>;
 }) {
   const { restaurantId } = await params;
-  const { from, to, month, period } = await searchParams;
-  return (
-    <FinancePayoutPage
-      restaurantId={restaurantId}
-      from={from}
-      to={to}
-      month={month}
-      period={period}
-      view="settlement"
-    />
-  );
+  return <RestaurantEconomyPage restaurantId={restaurantId} />;
 }

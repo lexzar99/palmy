@@ -5,9 +5,11 @@ import { usePathname } from "next/navigation";
 import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import styles from "@/modules/finance/finance-workspace.module.css";
 
+// Restaurangreskontran är borta — Ekonomisidans egen tabell per restaurang
+// ersätter den.
 const NAV_ITEMS = [
-  { href: "/finance", label: "Översikt" },
-  { href: "/finance/restauranger", label: "Restauranger" },
+  { href: "/finance", label: "Ekonomi" },
+  { href: "/finance/payouts", label: "Utbetalningar" },
   { href: "/finance/avstamning", label: "Avstämning" },
   { href: "/finance/installningar", label: "Provision" },
   { href: "/finance/installningar/abonnemang", label: "Abonnemang" },
@@ -71,8 +73,9 @@ export function FinanceWorkspace({
   const currentMonth = monthId(new Date());
   const navQuery = month ? `?${financeQuery(month)}` : "";
   const financeSegment = pathname.split("/")[2] || "";
+  // En restaurangs utbetalningsspec hör hem under Ekonomi i navigationen.
   const onRestaurantDetail = Boolean(
-    financeSegment && !["restauranger", "avstamning", "installningar"].includes(financeSegment),
+    financeSegment && !["payouts", "avstamning", "installningar"].includes(financeSegment),
   );
 
   return (
@@ -114,10 +117,10 @@ export function FinanceWorkspace({
         </div>
         <nav className={styles.nav} aria-label="Ekonomi">
           {NAV_ITEMS.map((item) => {
-            const active = item.href === "/finance" || item.href === "/finance/installningar"
-              ? pathname === item.href
-              : item.href === "/finance/restauranger"
-                ? pathname.startsWith(item.href) || onRestaurantDetail
+            const active = item.href === "/finance"
+              ? pathname === item.href || onRestaurantDetail
+              : item.href === "/finance/installningar"
+                ? pathname === item.href
                 : pathname.startsWith(item.href);
             return (
               <Link

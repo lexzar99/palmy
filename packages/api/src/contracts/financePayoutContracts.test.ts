@@ -582,12 +582,18 @@ assert.equal(
   295_747,
 );
 
-assert.equal(canTransitionPayout(null, 'PAID'), false);
+// Inga låsningar: status får sättas i valfri ordning, även bakåt, och
+// underlaget får ändras efter Betald. Behörighet och revisionshistorik är
+// spärren — inte en tillståndsmaskin.
+assert.equal(canTransitionPayout(null, 'PAID'), true);
 assert.equal(canTransitionPayout(null, 'APPROVED'), true);
-assert.equal(canTransitionPayout('DRAFT', 'PAID'), false);
+assert.equal(canTransitionPayout('DRAFT', 'PAID'), true);
 assert.equal(canTransitionPayout('APPROVED', 'PAID'), true);
-assert.equal(canTransitionPayout('PAID', 'DRAFT'), false);
+assert.equal(canTransitionPayout('APPROVED', 'DRAFT'), true);
+assert.equal(canTransitionPayout('PAID', 'DRAFT'), true);
+assert.equal(canTransitionPayout('PAID', 'APPROVED'), true);
 assert.equal(canTransitionPayout('PAID', 'PAID'), true);
+assert.equal(canTransitionPayout('PAID', 'NONSENSE'), false);
 assert.equal(samePayoutMoneySnapshot(settlement.snapshot, { ...settlement.snapshot }), true);
 assert.equal(
   samePayoutMoneySnapshot(settlement.snapshot, { ...settlement.snapshot, payoutAmount: 5_001 }),
@@ -1688,10 +1694,18 @@ async function runPayoutSourceAuditContracts() {
     join(__dirname, '..', '..', '..', '..', 'apps', 'admin', 'src', 'modules', 'finance', 'page.tsx'),
     'utf8',
   );
+  // Beräkningen bor i backend. Ekonomisidan läser row.settlement och
+  // formaterar — den får aldrig räkna fram provision, moms eller utbetalning
+  // själv, för då kan två sidor visa olika belopp för samma period.
   assert.match(
     financePageSource,
-    /hasDeviation \|\| row\.recoveryRequiresAction/,
-    'the finance UI must not treat a saved recovery amount alone as a new action',
+    /row\.settlement\.payout/,
+    'the Ekonomi page reads the payout from the API settlement, it does not derive it',
+  );
+  assert.doesNotMatch(
+    financePageSource,
+    /netSales\s*[-*]|commission\s*\*|\*\s*0\.25|commissionPct\s*\/\s*100/,
+    'the Ekonomi page must not recompute any part of the settlement in the client',
   );
 
   async function expectStaleWhenSweepChangesPayableSet(
