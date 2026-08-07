@@ -16,6 +16,7 @@ import {
 } from "@/modules/finance/api";
 import { isMonthParam, monthId, monthLabel, monthRange } from "@/modules/finance/finance-workspace";
 import {
+  count,
   kr,
   negativeFeeKr,
   num,
@@ -24,6 +25,7 @@ import {
   statusLabel,
   type StatusLabel,
 } from "@/modules/finance/format";
+import { FinanceTabs } from "@/modules/finance/finance-tabs";
 import styles from "@/modules/finance/payouts.module.css";
 import { EmptyState, ErrorPanel, Surface } from "@/shared/components/ui";
 import { invalidateEconomyDomain } from "@/shared/api/invalidate-economy-domain";
@@ -288,7 +290,7 @@ function PayoutDetail({
             </div>
             <h1 className={styles.detailName}>{row.name}</h1>
             <p className={styles.detailMeta}>
-              {monthLabel(month)} · {num(row.orderCount)} ordrar · {s.commissionPct} % provision
+              {monthLabel(month)} · {count(row.orderCount)} ordrar · {s.commissionPct} % provision
             </p>
           </div>
           <div style={{ textAlign: "right" }}>
@@ -318,7 +320,7 @@ function PayoutDetail({
             <h2 className={styles.blockTitle}>Specifikation</h2>
             <div className={styles.spec}>
               <div className={styles.specRow}>
-                <span className={styles.specLabel}>Kundbetalningar brutto · {num(row.orderCount)} ordrar</span>
+                <span className={styles.specLabel}>Kundbetalningar brutto · {count(row.orderCount)} ordrar</span>
                 <span className={styles.specValue}>{kr(row.grossTotal)}</span>
               </div>
               <div className={`${styles.specRow} ${styles.specRowUnderlined}`}>
@@ -574,6 +576,7 @@ export function PayoutsPage() {
 
   return (
     <div className={styles.page}>
+      <FinanceTabs month={month} />
       {summary.isError ? (
         <ErrorPanel
           title="Utbetalningarna kunde inte laddas"

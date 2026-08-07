@@ -12,7 +12,7 @@ import {
   type FinanceRow,
 } from "@/modules/finance/api";
 import { monthId, monthLabel, monthRange } from "@/modules/finance/finance-workspace";
-import { kr, negativeFee, num, signed, statusLabel } from "@/modules/finance/format";
+import { count, krCompact, negativeFee, num, signed, statusLabel } from "@/modules/finance/format";
 import { useAdminSession } from "@/shared/hooks/use-admin-session";
 import { ErrorPanel, Surface } from "@/shared/components/ui";
 import styles from "@/modules/dashboard/oversikt.module.css";
@@ -177,13 +177,13 @@ export function DashboardPage() {
 
           <div className={styles.heroBlock}>
             <p className={styles.heroLabel}>Försäljning totalt</p>
-            <p className={styles.heroValue}>{kr(summary.totals.grossTotal)}</p>
+            <p className={styles.heroValue}>{krCompact(summary.totals.grossTotal)}</p>
           </div>
 
           <div className={styles.heroSplit}>
             <div>
               <p className={styles.heroLabel}>Netto till restaurangerna</p>
-              <p className={styles.heroSubValue}>{kr(s.payout)}</p>
+              <p className={styles.heroSubValue}>{krCompact(s.payout)}</p>
               <div className={styles.heroLines}>
                 <span className={styles.heroLine}>
                   <span className={styles.heroLineLabel}>Återbetalningar</span>
@@ -201,7 +201,7 @@ export function DashboardPage() {
             </div>
             <div>
               <p className={styles.heroLabel}>Vår provision ex moms</p>
-              <p className={styles.heroSubValue}>{kr(s.ourRevenue)}</p>
+              <p className={styles.heroSubValue}>{krCompact(s.ourRevenue)}</p>
               <div className={styles.heroLines}>
                 <span className={styles.heroLine}>
                   <span className={styles.heroLineLabel}>Inkl moms</span>
@@ -241,7 +241,7 @@ export function DashboardPage() {
               <p className={styles.cardLabel}>Att betala ut</p>
               <span className={styles.cardOpen}>Öppna →</span>
             </div>
-            <p className={styles.cardValue}>{kr(s.payout)}</p>
+            <p className={styles.cardValue}>{krCompact(s.payout)}</p>
             <div className={styles.shareBar}>
               <span className={styles.shareDraft} style={{ width: share(sum(drafts)) }} />
               <span className={styles.shareApproved} style={{ width: share(sum(approved)) }} />
@@ -265,7 +265,7 @@ export function DashboardPage() {
 
           <section className={`${styles.card} ${styles.todayCard}`}>
             <p className={styles.cardLabel}>Idag</p>
-            <p className={styles.cardValue}>{kr(data.today.netSales)}</p>
+            <p className={styles.cardValue}>{krCompact(data.today.netSales)}</p>
             {delta == null ? (
               <p className={styles.cardDelta} style={{ color: "var(--text-muted)" }}>
                 Ingen jämförelseperiod
@@ -279,12 +279,12 @@ export function DashboardPage() {
             <div className={styles.todayFoot}>
               <span className={styles.todayStat}>
                 <span className={styles.todayStatLabel}>Ordrar</span>
-                <span className={styles.todayStatValue}>{num(data.today.orders)}</span>
+                <span className={styles.todayStatValue}>{count(data.today.orders)}</span>
               </span>
               <span className={styles.todayStat}>
                 <span className={styles.todayStatLabel}>Live</span>
                 <span className={`${styles.todayStatValue} ${styles.todayStatLive}`}>
-                  {num(data.today.liveOrders)}
+                  {count(data.today.liveOrders)}
                 </span>
               </span>
               <span className={styles.todayStat}>
@@ -372,21 +372,21 @@ export function DashboardPage() {
         <div className={styles.moreGrid}>
           <article className={styles.moreCard}>
             <p className={styles.moreLabel}>Live-ordrar</p>
-            <p className={styles.moreValue}>{num(data.today.liveOrders)}</p>
+            <p className={styles.moreValue}>{count(data.today.liveOrders)}</p>
           </article>
           <article className={styles.moreCard}>
             <p className={styles.moreLabel}>Väntar på svar</p>
-            <p className={styles.moreValue}>{num(data.today.pendingOrders)}</p>
+            <p className={styles.moreValue}>{count(data.today.pendingOrders)}</p>
           </article>
           <article className={styles.moreCard}>
             <p className={styles.moreLabel}>Återbetalningar</p>
-            <p className={styles.moreValue}>{kr(summary.totals.refunds)}</p>
+            <p className={styles.moreValue}>{krCompact(summary.totals.refunds)}</p>
           </article>
           <article className={styles.moreCard}>
             <p className={styles.moreLabel}>Snittorder</p>
             <p className={styles.moreValue}>
               {summary.totals.orderCount > 0
-                ? kr(summary.totals.grossTotal / summary.totals.orderCount)
+                ? krCompact(summary.totals.grossTotal / summary.totals.orderCount)
                 : "—"}
             </p>
           </article>

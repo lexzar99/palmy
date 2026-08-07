@@ -13,6 +13,7 @@ import {
 } from "@/modules/finance/api";
 import { isMonthParam, monthId, monthLabel, monthRange } from "@/modules/finance/finance-workspace";
 import {
+  count,
   fee,
   kr,
   negativeFee,
@@ -22,6 +23,7 @@ import {
   statusLabel,
   type StatusLabel,
 } from "@/modules/finance/format";
+import { FinanceTabs } from "@/modules/finance/finance-tabs";
 import styles from "@/modules/finance/ekonomi.module.css";
 import { Button, EmptyState, ErrorPanel, Surface } from "@/shared/components/ui";
 
@@ -130,7 +132,7 @@ function MoneyFlow({ summary }: { summary: FinanceSummary }) {
         <div className={styles.lines}>
           <div className={styles.line}>
             <span className={styles.lineLabel}>Ordrar</span>
-            <span className={styles.lineValue}>{num(orders)}</span>
+            <span className={styles.lineValue}>{count(orders)}</span>
           </div>
           <div className={styles.line}>
             <span className={styles.lineLabel}>Snittorder</span>
@@ -140,7 +142,7 @@ function MoneyFlow({ summary }: { summary: FinanceSummary }) {
           </div>
           <div className={styles.line}>
             <span className={`${styles.lineLabel} ${styles.lineRefund}`}>
-              Återbetalt · {num(s.refundCount)} st
+              Återbetalt · {count(s.refundCount)} st
             </span>
             <span className={`${styles.lineValue} ${styles.lineRefund}`}>{num(-summary.totals.refunds)}</span>
           </div>
@@ -234,7 +236,7 @@ const COLUMNS = ["Restaurang", "Ordrar", "Netto", "Provision", "Kortavg.", "Just
 function RestaurantTable({ summary, onOpen }: { summary: FinanceSummary; onOpen: (row: FinanceRow) => void }) {
   const rows = summary.rows;
   const statuses = rows.map((row) => statusLabel(row.status));
-  const count = (label: StatusLabel) => statuses.filter((value) => value === label).length;
+  const withStatus = (label: StatusLabel) => statuses.filter((value) => value === label).length;
   const s = summary.settlement;
 
   return (
@@ -245,9 +247,9 @@ function RestaurantTable({ summary, onOpen }: { summary: FinanceSummary; onOpen:
           <p className={styles.tableSubtitle}>Klicka på en rad för utbetalningsspecifikationen</p>
         </div>
         <div className={styles.counts}>
-          <span className={`${styles.count} ${styles.countDraft}`}>{count("Utkast")} utkast</span>
-          <span className={`${styles.count} ${styles.countApproved}`}>{count("Godkänd")} godkända</span>
-          <span className={`${styles.count} ${styles.countPaid}`}>{count("Betald")} betalda</span>
+          <span className={`${styles.count} ${styles.countDraft}`}>{withStatus("Utkast")} utkast</span>
+          <span className={`${styles.count} ${styles.countApproved}`}>{withStatus("Godkänd")} godkända</span>
+          <span className={`${styles.count} ${styles.countPaid}`}>{withStatus("Betald")} betalda</span>
         </div>
       </div>
 
@@ -277,7 +279,7 @@ function RestaurantTable({ summary, onOpen }: { summary: FinanceSummary; onOpen:
                   {row.settlement.commissionPct} % provision · {row.tierLabel}
                 </span>
               </span>
-              <span className={`${styles.numeric} ${styles.cellSoft}`}>{num(row.orderCount)}</span>
+              <span className={`${styles.numeric} ${styles.cellSoft}`}>{count(row.orderCount)}</span>
               <span className={`${styles.numeric} ${styles.cellStrong}`}>{num(row.settlement.netSales)}</span>
               <span className={`${styles.numeric} ${styles.cellSoft}`}>{num(row.settlement.commission)}</span>
               <span className={`${styles.numeric} ${styles.cellSoft}`}>{fee(row.settlement.cardFees)}</span>
@@ -295,7 +297,7 @@ function RestaurantTable({ summary, onOpen }: { summary: FinanceSummary; onOpen:
 
       <div className={`${styles.grid} ${styles.totalsRow}`}>
         <span className={styles.totalsCell}>Totalt</span>
-        <span className={`${styles.numeric} ${styles.totalsCell}`}>{num(summary.totals.orderCount)}</span>
+        <span className={`${styles.numeric} ${styles.totalsCell}`}>{count(summary.totals.orderCount)}</span>
         <span className={`${styles.numeric} ${styles.totalsCell}`}>{num(s.netSales)}</span>
         <span className={`${styles.numeric} ${styles.totalsCell}`}>{num(s.commission)}</span>
         <span className={`${styles.numeric} ${styles.totalsCell}`}>{fee(s.cardFees)}</span>
@@ -353,11 +355,12 @@ export function FinancePage() {
     : `${shortDate(period.from)} – ${shortDate(period.to)}`;
   const restaurantCount = data?.rows.length ?? 0;
   const meta = data
-    ? `${periodLabel} · ${num(data.totals.orderCount)} ordrar · ${num(restaurantCount)} ${restaurantCount === 1 ? "restaurang" : "restauranger"}`
+    ? `${periodLabel} · ${count(data.totals.orderCount)} ordrar · ${count(restaurantCount)} ${restaurantCount === 1 ? "restaurang" : "restauranger"}`
     : periodLabel;
 
   return (
     <div className={styles.page}>
+      <FinanceTabs month={period.month || period.from.slice(0, 7)} />
       <div className={styles.header}>
         <div>
           <p className={styles.eyebrow}>{meta}</p>

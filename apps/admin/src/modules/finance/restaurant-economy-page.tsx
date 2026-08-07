@@ -17,6 +17,7 @@ import {
 } from "@/modules/finance/api";
 import { isMonthParam, monthId, monthLabel, monthRange } from "@/modules/finance/finance-workspace";
 import {
+  count,
   feeKr,
   kr,
   negativeFee,
@@ -26,6 +27,7 @@ import {
   statusLabel,
   type StatusLabel,
 } from "@/modules/finance/format";
+import { FinanceTabs } from "@/modules/finance/finance-tabs";
 import styles from "@/modules/finance/restaurant-economy.module.css";
 import { ErrorPanel, Surface } from "@/shared/components/ui";
 import { invalidateEconomyDomain } from "@/shared/api/invalidate-economy-domain";
@@ -121,10 +123,10 @@ function buildChecks(
       body:
         "Varje levererad order ska ha en betalning som gått igenom. Ordrar utan matchad betalning ingår inte i utbetalningsunderlaget.",
       stats: [
-        { label: "Matchade", value: num(matched), detail: `av ${num(row.orderCount)} ordrar` },
+        { label: "Matchade", value: count(matched), detail: `av ${count(row.orderCount)} ordrar` },
         {
           label: "Saknar betalning",
-          value: num(unmatchedOrders),
+          value: count(unmatchedOrders),
           detail: unmatchedOrders ? "granskas manuellt" : "inget att göra",
         },
         { label: "Belopp i fråga", value: kr(unmatchedAmount), detail: "ingår ej i underlaget" },
@@ -163,7 +165,7 @@ function buildChecks(
           value: s.cardFees == null ? "—" : percent(s.cardFees, row.grossTotal, 2),
           detail: "belastar restaurangen",
         },
-        { label: "Betalningar", value: num(row.orderCount), detail: `varav ${num(refundedOrders.length)} återbetalda` },
+        { label: "Betalningar", value: count(row.orderCount), detail: `varav ${count(refundedOrders.length)} återbetalda` },
       ],
       columns: [],
       rows: [],
@@ -173,7 +175,7 @@ function buildChecks(
     {
       key: "refunds",
       title: "Återbetalningar",
-      summary: `${num(refundedOrders.length)} st · ${kr(row.refunds)}`,
+      summary: `${count(refundedOrders.length)} st · ${kr(row.refunds)}`,
       badge: "Belastar restaurangen",
       tone: "muted",
       mark: "i",
@@ -181,7 +183,7 @@ function buildChecks(
         "Återbetalda ordrar dras från nettoförsäljningen. Kortavgiften på dessa ordrar var redan dragen när pengarna gick tillbaka och kommer inte tillbaka — den ingår i periodens kortavgift.",
       stats: [
         { label: "Återbetalt", value: kr(row.refunds), detail: `${percent(row.refunds, row.grossTotal, 1)} av brutto` },
-        { label: "Antal", value: num(refundedOrders.length), detail: "hela och delvisa" },
+        { label: "Antal", value: count(refundedOrders.length), detail: "hela och delvisa" },
         { label: "Andel av brutto", value: percent(row.refunds, row.grossTotal, 2), detail: "belastar restaurangen" },
       ],
       columns: ["Order", "Datum", "Original", "Återbetalt", "Typ"],
@@ -242,7 +244,7 @@ function buildChecks(
           detail: s.adjustment > 0 ? "extra till restaurangen" : s.adjustment < 0 ? "avdrag" : "ingen",
         },
         { label: "Effekt på oss", value: `${signed(-s.adjustment)} kr`, detail: "på vår provision" },
-        { label: "Versioner", value: num(revisions.length), detail: "sparade ändringar" },
+        { label: "Versioner", value: count(revisions.length), detail: "sparade ändringar" },
       ],
       columns: ["Version", "Händelse", "Belopp", "Av", "Status"],
       rows: revisions.map((revision) => ({
@@ -260,7 +262,12 @@ function buildChecks(
 
 /* ── Sidan ──────────────────────────────────────────────────────────────── */
 
-export function RestaurantEconomyPage({ restaurantId }: { restaurantId: string }) {
+/**
+ * `restaurantId` är valfritt: landningssidan /finance/restaurangekonomi har
+ * ingen restaurang i adressen och visar då den första i perioden. Väljaren
+ * högst upp byter restaurang och skriver in id:t i adressen.
+ */
+export function RestaurantEconomyPage({ restaurantId = null }: { restaurantId?: string | null }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -280,9 +287,13 @@ export function RestaurantEconomyPage({ restaurantId }: { restaurantId: string }
     queryKey: financeSummaryQueryKey(from, to),
     queryFn: () => getFinanceSummary(from, to),
   });
+  // Utan id i adressen faller vi tillbaka på periodens första restaurang.
+  const resolvedId = restaurantId || summary.data?.rows[0]?.restaurantId || null;
+
   const spec = useQuery({
-    queryKey: payoutSpecQueryKey(restaurantId, from, to),
-    queryFn: () => getPayoutSpec(restaurantId, from, to),
+    queryKey: payoutSpecQueryKey(resolvedId, from, to),
+    queryFn: () => getPayoutSpec(String(resolvedId), from, to),
+    enabled: Boolean(resolvedId),
   });
 
   const [activeCheck, setActiveCheck] = useState<string | null>(null);
@@ -290,12 +301,12 @@ export function RestaurantEconomyPage({ restaurantId }: { restaurantId: string }
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const row = summary.data?.rows.find((item) => item.restaurantId === restaurantId) || null;
+  const row = summary.data?.rows.find((item) => item.restaurantId === resolvedId) || null;
   const s = row?.settlement;
 
   // Servern äger värdet. Justeras under render så fältet aldrig visar ett
   // gammalt belopp efter att en version sparats.
-  const serverState = `${restaurantId}:${s?.adjustment ?? 0}:${row?.adjustmentNote || ""}`;
+  const serverState = `${resolvedId}:${s?.adjustment ?? 0}:${row?.adjustmentNote || ""}`;
   const [lastServerState, setLastServerState] = useState(serverState);
   if (lastServerState !== serverState) {
     setLastServerState(serverState);
@@ -306,7 +317,7 @@ export function RestaurantEconomyPage({ restaurantId }: { restaurantId: string }
   const save = useMutation({
     mutationFn: (input: { status: StatusLabel; adjustment: number; note: string }) =>
       upsertPayout({
-        restaurantId,
+        restaurantId: String(resolvedId),
         periodStart: from,
         periodEnd: to,
         manualAdjustmentAmount: toStoredAdjustment(input.adjustment),
@@ -317,7 +328,7 @@ export function RestaurantEconomyPage({ restaurantId }: { restaurantId: string }
     onSuccess: async () => {
       await invalidateEconomyDomain(queryClient);
       await queryClient.refetchQueries({ queryKey: financeSummaryQueryKey(from, to) });
-      await queryClient.refetchQueries({ queryKey: payoutSpecQueryKey(restaurantId, from, to) });
+      await queryClient.refetchQueries({ queryKey: payoutSpecQueryKey(resolvedId, from, to) });
     },
     onError: (mutationError: unknown) => {
       const response = (mutationError as { response?: { data?: { error?: string } } })?.response;
@@ -331,6 +342,7 @@ export function RestaurantEconomyPage({ restaurantId }: { restaurantId: string }
   if (summary.isError) {
     return (
       <div className={styles.page}>
+        <FinanceTabs month={month} />
         <ErrorPanel
           title="Restaurangens ekonomi kunde inte laddas"
           description="Inga reservbelopp visas. Försök hämta det riktiga underlaget igen."
@@ -343,6 +355,7 @@ export function RestaurantEconomyPage({ restaurantId }: { restaurantId: string }
   if (!summary.data || !row || !s) {
     return (
       <div className={styles.page}>
+        <FinanceTabs month={month} />
         <Surface className="flex items-center gap-2 px-6 py-14 text-sm text-[var(--text-secondary)]">
           <Loader2 size={16} className="animate-spin" />
           {summary.data ? "Restaurangen har ingen aktivitet i perioden." : "Hämtar periodens ekonomi…"}
@@ -357,7 +370,7 @@ export function RestaurantEconomyPage({ restaurantId }: { restaurantId: string }
   const attention = checks.filter((check) => check.tone === "warn").length;
   const restaurant = spec.data?.restaurant;
   const revisions = spec.data?.persisted?.revisions || [];
-  const reference = row.payoutReference || `VE-${month.slice(2).replace("-", "")}-${restaurantId.slice(0, 3).toUpperCase()}`;
+  const reference = row.payoutReference || `VE-${month.slice(2).replace("-", "")}-${String(resolvedId).slice(0, 3).toUpperCase()}`;
   const legalName = restaurant?.legalName || row.name;
 
   const draftValue = parseAmount(draftAdjustment);
@@ -382,6 +395,7 @@ export function RestaurantEconomyPage({ restaurantId }: { restaurantId: string }
 
   return (
     <div className={styles.page}>
+      <FinanceTabs month={month} />
       <div className={styles.header}>
         <div>
           <p className={styles.crumbs}>
@@ -395,7 +409,7 @@ export function RestaurantEconomyPage({ restaurantId }: { restaurantId: string }
             <span className={`${styles.status} ${TONE_STYLE[STATUS_TONE[status]]}`}>{status}</span>
           </div>
           <p className={styles.subtitle}>
-            {row.tierLabel} · {s.commissionPct} % provision · {num(row.orderCount)} ordrar · {row.city || "Stad saknas"}
+            {row.tierLabel} · {s.commissionPct} % provision · {count(row.orderCount)} ordrar · {row.city || "Stad saknas"}
           </p>
         </div>
         <div className={styles.headerActions}>
@@ -405,7 +419,7 @@ export function RestaurantEconomyPage({ restaurantId }: { restaurantId: string }
                 type="button"
                 key={value}
                 className={`${styles.segmentButton} ${value === month ? styles.segmentButtonActive : ""}`}
-                onClick={() => goTo(restaurantId, value)}
+                onClick={() => goTo(String(resolvedId), value)}
               >
                 {monthLabel(value)}
               </button>
@@ -431,7 +445,7 @@ export function RestaurantEconomyPage({ restaurantId }: { restaurantId: string }
             type="button"
             key={item.restaurantId}
             title={item.name}
-            className={`${styles.pickerButton} ${item.restaurantId === restaurantId ? styles.pickerButtonActive : ""}`}
+            className={`${styles.pickerButton} ${item.restaurantId === resolvedId ? styles.pickerButtonActive : ""}`}
             onClick={() => goTo(item.restaurantId, month)}
           >
             {item.name}
@@ -443,7 +457,7 @@ export function RestaurantEconomyPage({ restaurantId }: { restaurantId: string }
         <article className={styles.kpi}>
           <p className={styles.kpiLabel}>Brutto</p>
           <p className={styles.kpiValue}>{kr(row.grossTotal)}</p>
-          <p className={styles.kpiMeta}>{num(row.orderCount)} ordrar</p>
+          <p className={styles.kpiMeta}>{count(row.orderCount)} ordrar</p>
         </article>
         <article className={styles.kpi}>
           <p className={styles.kpiLabel}>Nettoförsäljning</p>
@@ -625,7 +639,7 @@ export function RestaurantEconomyPage({ restaurantId }: { restaurantId: string }
                 <button
                   type="button"
                   className={styles.payoutFootButton}
-                  onClick={() => router.push(`/finance/payouts?month=${month}&post=${restaurantId}`)}
+                  onClick={() => router.push(`/finance/payouts?month=${month}&post=${resolvedId}`)}
                 >
                   Visa i utbetalningar →
                 </button>

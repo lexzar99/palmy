@@ -57,7 +57,16 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   const profileName = displayName(session.data?.name);
 
   const isRouteActive = (id: string, href: string) => {
-    if (id === "finance") return pathname === "/finance" || pathname.startsWith("/finance/");
+    // Ekonomidelen har tre systersidor under /finance. Bara en i taget får
+    // lysa, och en restaurangs spec hör till Restaurangekonomi — inte till
+    // Ekonomi, som annars skulle matcha hela prefixet.
+    if (id === "finance") return pathname === "/finance";
+    if (id === "finance-payouts") return pathname.startsWith("/finance/payouts");
+    if (id === "finance-restaurant") {
+      if (pathname.startsWith("/finance/restaurangekonomi")) return true;
+      const segment = pathname.split("/")[2] || "";
+      return Boolean(segment) && !["payouts", "avstamning", "installningar"].includes(segment);
+    }
     if (!isActiveAdminHref(pathname, href)) return false;
     if (id === "tiers") return searchParams.get("tab") === "tiers";
     return true;

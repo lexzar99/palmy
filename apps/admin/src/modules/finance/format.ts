@@ -3,23 +3,50 @@
  * sidor aldrig visar samma belopp på två sätt.
  *
  * Här räknas ingenting. Beloppen kommer färdiga ur avräkningen i backend.
+ *
+ * Pengar visas med två decimaler. Underlaget ligger i öre, och en avrundning
+ * till hela kronor per rad gör att kolumnen inte summerar till totalen —
+ * på en sida som ska stämma mot banken är det inte acceptabelt.
  */
 
-/** Tusenavgränsat heltal med typografiskt minustecken. */
+/** Tusenavgränsare som mellanslag, inte hårt blanksteg — bryter inte i tabeller. */
+const group = (formatted: string) => formatted.replace(/ /g, " ");
+
+/** Antal, aldrig decimaler. Ordrar, restauranger, versioner. */
+export const count = (value: number | null | undefined) =>
+  group(Math.round(Number(value || 0)).toLocaleString("sv-SE"));
+
+/** Belopp med två decimaler och typografiskt minustecken. */
 export const num = (value: number | null | undefined) => {
   const numeric = Number(value || 0);
-  return `${numeric < 0 ? "−" : ""}${Math.abs(Math.round(numeric))
-    .toLocaleString("sv-SE")
-    .replace(/ /g, " ")}`;
+  const formatted = group(
+    Math.abs(numeric).toLocaleString("sv-SE", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }),
+  );
+  // −0,00 är förvirrande. Ett belopp som avrundas till noll är noll.
+  return formatted === "0,00" ? formatted : `${numeric < 0 ? "−" : ""}${formatted}`;
 };
 
 export const kr = (value: number | null | undefined) => `${num(value)} kr`;
 
+/**
+ * Avrundat belopp för översiktens stora tal, där hela kronor läser bättre än
+ * öre. Används aldrig i en kolumn som ska summera.
+ */
+export const krCompact = (value: number | null | undefined) => {
+  const numeric = Number(value || 0);
+  const formatted = group(Math.abs(Math.round(numeric)).toLocaleString("sv-SE"));
+  return `${numeric < 0 ? "−" : ""}${formatted} kr`;
+};
+
 /** Justeringar visas alltid med tecken, så riktningen syns direkt. */
 export const signed = (value: number | null | undefined) => {
-  const numeric = Math.round(Number(value || 0));
-  if (numeric === 0) return "0";
-  return `${numeric > 0 ? "+" : "−"}${num(Math.abs(numeric))}`;
+  const numeric = Number(value || 0);
+  const formatted = num(numeric);
+  if (formatted === "0,00") return formatted;
+  return numeric > 0 ? `+${formatted}` : formatted;
 };
 
 /** En avgift som ännu inte hämtats är okänd, inte noll. */

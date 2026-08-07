@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  Banknote,
   BarChart3,
   BellRing,
   Bike,
@@ -82,7 +83,11 @@ export const ADMIN_ROUTES: AdminRouteDefinition[] = [
   route({ id: "launch-campaign", href: "/launch-campaign", label: "Launch-kampanj", shortLabel: "Launch", icon: BarChart3, section: "growth", keywords: "launch intresse leads rabatt kampanj statistik funnel" }),
   route({ id: "push", href: "/push", label: "Push-notiser", shortLabel: "Push", icon: BellRing, section: "growth", keywords: "notification meddelande" }),
 
-  route({ id: "finance", href: "/finance", label: "Ekonomi", shortLabel: "Ekonomi", icon: CircleDollarSign, section: "finance", keywords: "finance payout intäkt reconciliation utbetalningar tiers provision moms" }),
+  // Ekonomidelen är tre systersidor som hänger ihop: perioden i stort,
+  // arkivet över utbetalningar, och specifikationen för en restaurang.
+  route({ id: "finance", href: "/finance", label: "Ekonomi", shortLabel: "Ekonomi", icon: CircleDollarSign, section: "finance", keywords: "finance ekonomi period provision moms netto kortavgift intäkt" }),
+  route({ id: "finance-payouts", href: "/finance/payouts", label: "Utbetalningar", shortLabel: "Utbetalningar", icon: Banknote, section: "finance", keywords: "utbetalning payout godkänn betald utkast arkiv bankgiro belopp" }),
+  route({ id: "finance-restaurant", href: "/finance/restaurangekonomi", label: "Restaurangekonomi", shortLabel: "Restaurang", icon: ReceiptText, section: "finance", keywords: "restaurangekonomi spec underlag justering kontroller avstämning per restaurang" }),
 
   route({ id: "users", href: "/users", label: "Personal", icon: Users, section: "system", keywords: "admin användare säkerhet personal team konton" }),
   route({ id: "api-health", href: "/api-health", label: "API-status", icon: Gauge, section: "system", keywords: "uptime hälsa status" }),
