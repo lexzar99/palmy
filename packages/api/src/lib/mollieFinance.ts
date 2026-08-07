@@ -164,6 +164,35 @@ export type MollieFinanceReport = {
   feeCalibrationOre: number | null;
 };
 
+/**
+ * The restaurant owns both provider costs in the commission model: the
+ * original payment fee and, for refunded payments, Mollie's separate refund
+ * processing fee. A locked report is exact only when both components exist.
+ */
+export function exactMollieFeeSnapshot(input: {
+  paymentIds: readonly string[];
+  refundedPaymentIds: readonly string[];
+  paymentFeeByPaymentId: ReadonlyMap<string, number>;
+  refundFeeByPaymentId: ReadonlyMap<string, number>;
+}): { paymentFees: number; refundProcessingFees: number; totalFees: number } | null {
+  const paymentIds = [...new Set(input.paymentIds.map((id) => String(id || '').trim()).filter(Boolean))];
+  const refundedPaymentIds = [...new Set(
+    input.refundedPaymentIds.map((id) => String(id || '').trim()).filter(Boolean),
+  )];
+  if (!paymentIds.every((id) => input.paymentFeeByPaymentId.has(id))) return null;
+  if (!refundedPaymentIds.every((id) => input.refundFeeByPaymentId.has(id))) return null;
+
+  const paymentFees = paymentIds.reduce(
+    (sum, id) => sum + Math.max(0, Math.round(Number(input.paymentFeeByPaymentId.get(id)) || 0)),
+    0,
+  );
+  const refundProcessingFees = refundedPaymentIds.reduce(
+    (sum, id) => sum + Math.max(0, Math.round(Number(input.refundFeeByPaymentId.get(id)) || 0)),
+    0,
+  );
+  return { paymentFees, refundProcessingFees, totalFees: paymentFees + refundProcessingFees };
+}
+
 export function molliePaymentOrderReference(payment: MolliePayment): {
   orderId: string | null;
   orderNumber: string | null;
@@ -643,9 +672,14 @@ export async function getMollieFinanceReport(input: {
   paymentIds: readonly string[];
   refundedPaymentIds?: readonly string[];
   orderReferences?: readonly MollieOrderReference[];
+  /** Exact payout locking must not reuse a report fetched before a later refund. */
+  bypassCache?: boolean;
   env?: NodeJS.ProcessEnv;
 }): Promise<MollieFinanceReport> {
   const explicitPaymentIds = [...new Set(input.paymentIds.map((id) => String(id || '').trim()).filter(Boolean))].sort();
+  const explicitRefundedPaymentIds = [...new Set(
+    (input.refundedPaymentIds || []).map((id) => String(id || '').trim()).filter(Boolean),
+  )].sort();
   const orderReferences = (input.orderReferences || []).map((reference) => ({
     id: String(reference.id || '').trim(),
     orderNumber: String(reference.orderNumber || '').trim(),
@@ -664,10 +698,11 @@ export async function getMollieFinanceReport(input: {
     input.from.toISOString().slice(0, 10),
     (input.to || new Date()).toISOString().slice(0, 10),
     explicitPaymentIds.join(','),
+    explicitRefundedPaymentIds.join(','),
     orderReferences.map((reference) => `${reference.id}:${reference.orderNumber}:${reference.refunded ? 1 : 0}`).sort().join(','),
   ].join(':');
   const cached = reportCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.report;
+  if (!input.bypassCache && cached && cached.expiresAt > Date.now()) return cached.report;
 
   try {
     // Card/Klarna movements can become available after the order date.
@@ -721,6 +756,17 @@ export async function getMollieFinanceReport(input: {
       if (matchesOrderNumber && reference.orderNumber) paymentIdByOrderNumber.set(reference.orderNumber, paymentId);
     }
     const paymentIds = [...new Set([...explicitPaymentIds, ...inferredPaymentIds])].sort();
+    const refundedPaymentIds = new Set([
+      ...explicitRefundedPaymentIds,
+      ...orderReferences
+        .filter((reference) => reference.refunded)
+        .map((reference) =>
+          paymentIdByOrderId.get(reference.id) ||
+          paymentIdByOrderNumber.get(reference.orderNumber) ||
+          '',
+        )
+        .filter(Boolean),
+    ]);
     const allFees = mollieFeeBreakdownFromTransactions(transactions);
     // Recent booked payments are also training data, so a short date range can
     // still estimate today's paid-but-not-booked transactions.
@@ -765,15 +811,23 @@ export async function getMollieFinanceReport(input: {
       const bookedPaymentFee = paymentFeeByPaymentId.get(paymentId);
       const method = String(payment.method || '').toLowerCase();
       const bookedRefundFee = refundFeeByPaymentId.get(paymentId);
-      const displayRefundFee = mollieRefundFeeForDisplay({
-        bookedFeeOre: bookedRefundFee,
-      });
-      displayRefundFeeByPaymentId.set(paymentId, displayRefundFee);
+      const isRefunded = refundedPaymentIds.has(paymentId);
+      const displayRefundFee = mollieRefundFeeForDisplay({ bookedFeeOre: bookedRefundFee });
+      if (isRefunded && bookedRefundFee != null) {
+        displayRefundFeeByPaymentId.set(paymentId, displayRefundFee);
+      }
 
       if (bookedPaymentFee != null) {
-        const exactFee = bookedPaymentFee + (bookedRefundFee || 0);
-        feeByPaymentId.set(paymentId, exactFee);
-        displayFeeByPaymentId.set(paymentId, exactFee);
+        const displayTotal = bookedPaymentFee + displayRefundFee;
+        displayFeeByPaymentId.set(paymentId, displayTotal);
+        // A refund creates a second provider cost. The payment fee alone is
+        // therefore not an exact settlement amount for a refunded payment.
+        // Keep the report provisional until Mollie has booked that refund fee.
+        if (!isRefunded || bookedRefundFee != null) {
+          feeByPaymentId.set(paymentId, displayTotal);
+        } else {
+          estimatedFeeByPaymentId.set(paymentId, displayTotal);
+        }
         continue;
       }
       const estimatedPaymentFee = bookedPaymentFee ??

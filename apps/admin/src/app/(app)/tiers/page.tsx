@@ -1,6 +1,5 @@
-import { redirect } from "next/navigation";
+import { TiersPage } from "@/modules/tiers/page";
 
-// Tiers bor numera som flik under Ekonomi.
 export default function RouteTiersPage() {
-  redirect("/finance/restauranger?tab=tiers");
+  return <TiersPage />;
 }

@@ -1,39 +1,60 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Printer } from "lucide-react";
+import { ChevronDown, Loader2, Printer, RefreshCw } from "lucide-react";
 import {
   economyQueryKey,
-  financeSummaryQueryKey,
   getEconomy,
   getPayoutSpec,
   payoutSpecQueryKey,
   setRestaurantDelivery,
   upsertPayout,
+  type PayoutSpec,
 } from "@/modules/finance/api";
 import {
-  payoutPrintDailyRows,
-  payoutPrintOrderStateLabel,
-  payoutPrintOrderTypeLabel,
   payoutPrintOrders,
-  payoutPrintSettlementAmount,
   payoutPrintSummary,
   printPayoutSpec,
   type PayoutPrintMode,
 } from "@/modules/finance/spec-print";
+import { invalidateEconomyDomain } from "@/shared/api/invalidate-economy-domain";
 import { DeliveryModeBadge } from "@/shared/components/delivery-mode";
-import { Badge, Button, Field, Input, MoneyInput, PageHeader, Select, Surface } from "@/shared/components/ui";
+import { Badge, Button, ErrorPanel, Field, Input, MoneyInput, PageHeader, Select, Surface } from "@/shared/components/ui";
 import { formatCurrencyExact as formatCurrency, formatDate, formatDateTime, orderStatusLabel, paymentStatusLabel } from "@/shared/utils/format";
 
 const mono = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
-const isoDate = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const isoDate = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+const isoParts = (value: string | undefined) => {
+  const match = value?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return { year, month: month - 1, day };
+};
+
+function calendarMonthRange(from?: string, to?: string) {
+  const requested = isoParts(from) || isoParts(to);
+  const now = new Date();
+  const year = requested?.year ?? now.getFullYear();
+  const month = requested?.month ?? now.getMonth();
+  return {
+    from: isoDate(new Date(year, month, 1)),
+    to: isoDate(new Date(year, month + 1, 0)),
+    label: new Intl.DateTimeFormat("sv-SE", { month: "long", year: "numeric" }).format(new Date(year, month, 1)),
+  };
+}
+
 const vatLabel = (value: number | null | undefined) =>
   value == null ? "blandad moms" : `${Number(value).toLocaleString("sv-SE")}%`;
+
 const financeOrderStatusLabel = (order: { type?: string | null; status?: string | null }) => {
   const type = String(order.type || "").toUpperCase();
   const status = String(order.status || "").toUpperCase();
@@ -43,49 +64,69 @@ const financeOrderStatusLabel = (order: { type?: string | null; status?: string 
   return orderStatusLabel(order.status);
 };
 
-/** KPI card matching the design handoff. `accent` tints the last (Bonus) card orange. */
-function Kpi({ label, value, accent }: { label: string; value: React.ReactNode; accent?: boolean }) {
+const mutationError = (error: unknown) => {
+  const value = error as { response?: { data?: { error?: string } }; message?: string } | null;
+  return value?.response?.data?.error || value?.message || null;
+};
+
+const parseInputNumber = (value: string) => Number(value.trim().replace(",", "."));
+
+function Metric({ label, value, emphasis = false }: { label: string; value: React.ReactNode; emphasis?: boolean }) {
   return (
-    <article
-      className="rounded-[14px] border p-[15px]"
-      style={
-        accent
-          ? { background: "var(--brand-navy-soft)", borderColor: "color-mix(in srgb, var(--brand-navy-bar) 30%, transparent)" }
-          : { background: "var(--bg-panel, #fff)", borderColor: "var(--border-subtle)" }
-      }
-    >
-      <p className="text-[12px] font-semibold" style={{ color: accent ? "var(--brand-navy-ink)" : "var(--text-secondary)" }}>
-        {label}
-      </p>
-      <p
-        className="mt-[7px] text-[24px] font-extrabold tracking-[-0.7px] tabular-nums"
-        style={{ color: accent ? "var(--brand-navy-ink)" : "var(--text-primary)" }}
-      >
-        {value}
-      </p>
-    </article>
+    <div className={`rounded-xl px-4 py-3 ${emphasis ? "bg-[var(--brand-navy)] text-white" : "bg-[var(--bg-page)]"}`}>
+      <p className={`text-[11px] font-bold ${emphasis ? "text-white/70" : "text-[var(--text-muted)]"}`}>{label}</p>
+      <p className={`mt-1 text-lg font-black tabular-nums ${emphasis ? "text-white" : "text-[var(--text-primary)]"}`}>{value}</p>
+    </div>
   );
 }
 
-function CalcRow({ label, value, strong, sub, sign }: { label: string; value: number | null; strong?: boolean; sub?: boolean; sign?: "−" | "+" }) {
+function MoneyRow({
+  label,
+  value,
+  sign,
+  strong = false,
+}: {
+  label: string;
+  value: number | null;
+  sign?: "−" | "+";
+  strong?: boolean;
+}) {
   return (
-    <div className={`flex items-center justify-between py-2 ${sub ? "pl-4 text-[var(--text-secondary)]" : ""} ${strong ? "border-t border-[var(--border-strong,rgba(0,0,0,0.15))] font-black" : "border-b border-[var(--border,rgba(0,0,0,0.06))]"}`}>
-      <span>{label}</span>
-      <span className="tabular-nums" style={{ fontFamily: mono }}>
+    <div className={`flex items-center justify-between gap-4 py-2 text-sm ${strong ? "border-t border-[var(--border-strong)] font-black" : "border-b border-[var(--border-subtle)]"}`}>
+      <span className="text-[var(--text-secondary)]">{label}</span>
+      <span className="shrink-0 tabular-nums text-[var(--text-primary)]" style={{ fontFamily: mono }}>
         {value == null ? "Inväntar Mollie" : <>{sign ? `${sign} ` : ""}{formatCurrency(value)}</>}
       </span>
     </div>
   );
 }
 
+function AdvancedSection({ title, meta, children }: { title: string; meta?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <details className="surface group/details overflow-hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 hover:bg-[var(--bg-hover)]">
+        <span className="min-w-0">
+          <span className="block text-sm font-black text-[var(--text-primary)]">{title}</span>
+          {meta ? <span className="mt-0.5 block text-xs text-[var(--text-muted)]">{meta}</span> : null}
+        </span>
+        <ChevronDown size={16} className="shrink-0 text-[var(--text-muted)] transition-transform group-open/details:rotate-180" />
+      </summary>
+      <div className="border-t border-[var(--border-subtle)]">{children}</div>
+    </details>
+  );
+}
+
 type AdjustmentDirection = "deduction" | "addition";
+type CommissionMode = "global" | "custom";
+type PrintVersion = "saved" | "live";
 
 export function FinancePayoutPage({ restaurantId, from, to, period }: { restaurantId: string; from?: string; to?: string; period?: string }) {
-  const now = new Date();
-  const periodFrom = from || isoDate(new Date(now.getFullYear(), now.getMonth(), 1));
-  const periodTo = to || isoDate(now);
+  const month = calendarMonthRange(from, to);
+  const periodFrom = month.from;
+  const periodTo = month.to;
+  const rangeWasNormalized = Boolean((from && from !== periodFrom) || (to && to !== periodTo));
   const backParams = new URLSearchParams({ from: periodFrom, to: periodTo });
-  if (["month", "lastMonth", "7", "30"].includes(String(period || ""))) backParams.set("period", String(period));
+  if (period === "month" || period === "lastMonth") backParams.set("period", period);
   const restaurantFinanceHref = `/finance/restauranger?${backParams.toString()}`;
 
   const router = useRouter();
@@ -95,13 +136,19 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
   const [notes, setNotes] = useState("");
   const [payoutReference, setPayoutReference] = useState("");
   const [selfDelivery, setSelfDelivery] = useState(false);
-  const [override, setOverride] = useState<string>("");
+  const [commissionMode, setCommissionMode] = useState<CommissionMode>("global");
+  const [customCommission, setCustomCommission] = useState("");
   const [goldPrice, setGoldPrice] = useState("");
   const [silverPrice, setSilverPrice] = useState("");
   const [standardPrice, setStandardPrice] = useState("");
+  const [printVersion, setPrintVersion] = useState<PrintVersion>("live");
   const [printMode, setPrintMode] = useState<PayoutPrintMode>("orders");
   const [showReferenceOrders, setShowReferenceOrders] = useState(false);
   const [showPaymentState, setShowPaymentState] = useState(true);
+  const [payoutFormDirty, setPayoutFormDirty] = useState(false);
+  const [agreementFormDirty, setAgreementFormDirty] = useState(false);
+  const initializedFormPeriod = useRef<string | null>(null);
+  const initializedPrintPeriod = useRef<string | null>(null);
 
   const spec = useQuery({
     queryKey: payoutSpecQueryKey(restaurantId, periodFrom, periodTo),
@@ -111,363 +158,487 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    const p = spec.data?.persisted;
-    const persistedAdjustment = Number(p?.manualAdjustmentAmount || 0);
-    setManualAdjustmentAmount(persistedAdjustment === 0 ? "" : String(Math.abs(persistedAdjustment)));
-    setAdjustmentDirection(persistedAdjustment < 0 ? "addition" : "deduction");
-    setNotes(p?.notes || "");
-    setPayoutReference(p?.payoutReference || "");
-    if (spec.data?.restaurant) {
-      setSelfDelivery(spec.data.restaurant.selfDelivery);
-      setOverride(spec.data.restaurant.commissionPctOverride == null ? "" : String(spec.data.restaurant.commissionPctOverride));
-      setGoldPrice(spec.data.restaurant.tierGoldFeeOverride == null ? "" : String(spec.data.restaurant.tierGoldFeeOverride));
-      setSilverPrice(spec.data.restaurant.tierSilverFeeOverride == null ? "" : String(spec.data.restaurant.tierSilverFeeOverride));
-      setStandardPrice(spec.data.restaurant.tierStandardFeeOverride == null ? "" : String(spec.data.restaurant.tierStandardFeeOverride));
+    const data = spec.data;
+    if (!data) return;
+    const formPeriodKey = `${restaurantId}:${periodFrom}:${periodTo}`;
+    const periodChanged = initializedFormPeriod.current !== formPeriodKey;
+    if (periodChanged) initializedFormPeriod.current = formPeriodKey;
+    if (periodChanged || !payoutFormDirty) {
+      const persistedAdjustment = Number(data.persisted?.manualAdjustmentAmount || 0);
+      setManualAdjustmentAmount(persistedAdjustment === 0 ? "" : String(Math.abs(persistedAdjustment)));
+      setAdjustmentDirection(persistedAdjustment < 0 ? "addition" : "deduction");
+      setNotes(data.persisted?.notes || "");
+      setPayoutReference(data.persisted?.payoutReference || "");
     }
-  }, [spec.data]);
+    if (periodChanged || !agreementFormDirty) {
+      setSelfDelivery(data.restaurant.selfDelivery);
+      const override = Number(data.restaurant.commissionPctOverride || 0);
+      setCommissionMode(override > 0 ? "custom" : "global");
+      setCustomCommission(override > 0 ? String(override) : "");
+      setGoldPrice(data.restaurant.tierGoldFeeOverride == null ? "" : String(data.restaurant.tierGoldFeeOverride));
+      setSilverPrice(data.restaurant.tierSilverFeeOverride == null ? "" : String(data.restaurant.tierSilverFeeOverride));
+      setStandardPrice(data.restaurant.tierStandardFeeOverride == null ? "" : String(data.restaurant.tierStandardFeeOverride));
+    }
+    if (periodChanged) {
+      setPayoutFormDirty(false);
+      setAgreementFormDirty(false);
+    }
+    if (initializedPrintPeriod.current !== formPeriodKey) {
+      initializedPrintPeriod.current = formPeriodKey;
+      setPrintVersion(["APPROVED", "HOLD", "PAID"].includes(String(data.persisted?.status || "")) ? "saved" : "live");
+    }
+  }, [agreementFormDirty, payoutFormDirty, periodFrom, periodTo, restaurantId, spec.data]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const b = spec.data?.breakdown;
-  const persisted = spec.data?.persisted;
-  const parsedAdjustmentAmount = Number(manualAdjustmentAmount.replace(",", "."));
-  const manualAdjustmentIsValid = manualAdjustmentAmount.trim() === "" || Number.isFinite(parsedAdjustmentAmount);
+  const data = spec.data;
+  const b = data?.breakdown;
+  const persisted = data?.persisted;
+  const persistedStatus = String(persisted?.status || "NEW").toUpperCase();
+  const hasSavedReport = Boolean(persisted && ["APPROVED", "HOLD", "PAID"].includes(persistedStatus));
+  const isPaid = persistedStatus === "PAID";
+  const waitingForMollie = persistedStatus === "HOLD" && persisted?.mollieFeeStatus !== "available";
+
+  const parsedAdjustmentAmount = parseInputNumber(manualAdjustmentAmount);
+  const manualAdjustmentIsValid = manualAdjustmentAmount.trim() === "" || (
+    Number.isFinite(parsedAdjustmentAmount) && parsedAdjustmentAmount >= 0
+  );
   const adjustmentMagnitude = manualAdjustmentIsValid ? Math.abs(parsedAdjustmentAmount || 0) : 0;
   const manualAdjustment = adjustmentDirection === "deduction" ? adjustmentMagnitude : -adjustmentMagnitude;
-  const usesFrozenSnapshot = persisted?.status === "PAID";
-  const automaticRecovery = spec.data?.persisted?.status === "APPROVED" || spec.data?.persisted?.status === "PAID"
-    ? (spec.data.persisted.lateRefundAdjustmentAmount || 0)
-    : (spec.data?.lateRefundRecovery.reserved || 0);
-  const frozenFeeVat = usesFrozenSnapshot && persisted
+  const liveRecovery = isPaid ? 0 : Number(data?.lateRefundRecovery.reserved || 0);
+  const liveSettlementPosition = (b?.payout ?? 0) - (b?.owed ?? 0) - manualAdjustment - liveRecovery;
+  const liveIsOwed = liveSettlementPosition < 0;
+  const liveNet = Math.abs(liveSettlementPosition);
+  const liveOrderSales = b?.originalGrossTotal ?? 0;
+  const liveRefunds = b?.refunds ?? 0;
+  const liveSalesAfterRefunds = Math.max(0, liveOrderSales - liveRefunds);
+  const liveMollieFee = b?.mollieFees ?? null;
+  const liveMollieFeeFinal = b?.mollieFeeStatus === "available";
+  const liveRefundFee = b?.refundProcessingFees ?? null;
+  const liveCardFee = b?.paymentFees ?? (
+    liveMollieFee == null || liveRefundFee == null ? null : Math.max(0, liveMollieFee - liveRefundFee)
+  );
+  const liveViaEats = (b?.commission ?? 0) + (b?.subscription ?? 0) + (b?.feeVat ?? 0);
+
+  const savedFeeVat = persisted
     ? ((persisted.commissionAmount + persisted.subscriptionAmount) * Number(persisted.feeVatPctSnapshot || 0)) / 100
     : 0;
-  const settlementPosition = usesFrozenSnapshot && persisted
-    ? persisted.payoutAmount - persisted.owedAmount
-    : (b?.payout ?? 0) - (b?.owed ?? 0) - manualAdjustment - automaticRecovery;
-  const isOwed = settlementPosition < 0;
-  const net = Math.abs(settlementPosition);
-  const restaurantGross = usesFrozenSnapshot && persisted ? persisted.grossSales : (b?.restaurantGross ?? 0);
-  const orderSales = usesFrozenSnapshot && persisted
-    ? (persisted.originalGrossTotal ?? persisted.grossSales)
-    : (b?.originalGrossTotal ?? 0);
-  const refunds = usesFrozenSnapshot && persisted ? (persisted.refunds ?? 0) : (b?.refunds ?? 0);
-  const salesAfterRefunds = Math.max(0, orderSales - refunds);
-  const displayedOrderCount = usesFrozenSnapshot && persisted
-    ? (persisted.periodOrderCount ?? persisted.orderCount)
-    : (b?.periodOrderCount ?? b?.orderCount ?? 0);
-  const restaurantMollieFee = usesFrozenSnapshot && persisted
-    ? persisted.mollieFeeAmount
-    : (b?.mollieFees ?? null);
-  const mollieFeeIsFinal = usesFrozenSnapshot || b?.mollieFeeStatus === "available";
-  const commission = usesFrozenSnapshot && persisted ? persisted.commissionAmount : (b?.commission ?? 0);
-  const subscription = usesFrozenSnapshot && persisted ? persisted.subscriptionAmount : (b?.subscription ?? 0);
-  const viaEatsVat = usesFrozenSnapshot && persisted ? frozenFeeVat : (b?.feeVat ?? 0);
-  const viaEatsChargeInclVat = commission + subscription + viaEatsVat;
-  const orderDeductions = restaurantMollieFee == null ? null : refunds + restaurantMollieFee;
-  const foodVat = usesFrozenSnapshot && persisted ? (persisted.foodVatAmount || 0) : (b?.foodVat ?? 0);
-  const salesExVat = Math.max(0, restaurantGross - foodVat);
-  const persistedStatus = spec.data?.persisted?.status || "NEW";
-  const waitingForMollie = persistedStatus === "HOLD" && persisted?.mollieFeeStatus !== "available";
-  const refundWindowClosed = spec.data?.refundWindow.closed ?? false;
-  const payoutStatusLabel: Record<string, string> = {
-    DRAFT: "Upplåst utkast",
-    APPROVED: "Låst rapport",
-    PAID: "Betald",
-    HOLD: "Upplåst för ändring",
-  };
+  const savedViaEats = persisted ? persisted.commissionAmount + persisted.subscriptionAmount + savedFeeVat : 0;
+  const savedOrderSales = persisted ? (persisted.originalGrossTotal ?? persisted.grossSales) : 0;
+  const savedRefunds = persisted?.refunds ?? 0;
+  const savedSalesAfterRefunds = Math.max(0, savedOrderSales - savedRefunds);
+  const savedRefundFee = persisted?.refundProcessingFeeAmount ?? 0;
+  const savedCardFee = persisted?.paymentFeeAmount ?? Math.max(0, Number(persisted?.mollieFeeAmount || 0) - savedRefundFee);
+  const savedSettlementPosition = persisted ? persisted.payoutAmount - persisted.owedAmount : 0;
+  const savedIsOwed = savedSettlementPosition < 0;
+  const savedNet = Math.abs(savedSettlementPosition);
+  const liveDifference = hasSavedReport ? liveSettlementPosition - savedSettlementPosition : 0;
+
+  const payoutInputError = !manualAdjustmentIsValid
+    ? "Justeringen måste vara ett giltigt positivt belopp."
+    : manualAdjustment !== 0 && !notes.trim()
+      ? "Ange en orsak till justeringen."
+      : null;
+
+  const globalCommission = economy.data
+    ? (selfDelivery ? economy.data.commissionSelfPct : economy.data.commissionPlatformPct)
+    : null;
+  const customCommissionNumber = parseInputNumber(customCommission);
+  const customCommissionError = commissionMode === "custom" && (
+    customCommission.trim() === "" ||
+    !Number.isFinite(customCommissionNumber) ||
+    customCommissionNumber < 0 ||
+    customCommissionNumber > 100
+  )
+    ? "Egen provision måste vara 0–100 %. 0 återgår till global sats."
+    : null;
+  const tierInputError = [
+    [goldPrice, "Guld"],
+    [silverPrice, "Silver"],
+    [standardPrice, "Standard"],
+  ].find(([value]) => value.trim() !== "" && (!Number.isFinite(parseInputNumber(value)) || parseInputNumber(value) < 0));
+  const agreementInputError = customCommissionError || (tierInputError ? `${tierInputError[1]} måste vara 0 kr eller mer.` : null);
+
+  const optionalTierPrice = (value: string) => value.trim() === "" ? null : parseInputNumber(value);
+  const commissionOverride = commissionMode === "global" || customCommissionNumber <= 0 ? null : customCommissionNumber;
 
   const savePayout = useMutation({
     mutationFn: async (saveMode: "DRAFT" | "OVERRIDE" | "PAID") => {
-      if (!spec.data) return;
-      await upsertPayout({
+      if (!data) throw new Error("Utbetalningsunderlaget har inte laddats.");
+      if (payoutInputError) throw new Error(payoutInputError);
+      return upsertPayout({
         restaurantId,
-        periodStart: spec.data.period.from,
-        periodEnd: spec.data.period.to,
+        periodStart: data.period.from,
+        periodEnd: data.period.to,
         manualAdjustmentAmount: manualAdjustment,
         saveMode,
-        notes: notes || null,
-        payoutReference: payoutReference || null,
+        notes: notes.trim() || null,
+        payoutReference: payoutReference.trim() || null,
       });
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["finance"] });
+    onSuccess: () => {
+      void invalidateEconomyDomain(queryClient);
       router.push(restaurantFinanceHref);
     },
   });
-  const payoutError = (savePayout.error as { response?: { data?: { error?: string } }; message?: string } | null)
-    ?.response?.data?.error || (savePayout.error as Error | null)?.message;
-  const nullableNonNegativeNumber = (value: string) => {
-    const trimmed = value.trim();
-    const parsed = Number(trimmed);
-    return trimmed === "" || !Number.isFinite(parsed) ? null : Math.max(0, parsed);
-  };
-  const payoutSpec = spec.data;
+
+  const saveAgreement = useMutation({
+    mutationFn: async () => {
+      if (!economy.data) throw new Error("De globala satserna måste laddas innan avtalet kan sparas.");
+      if (agreementInputError) throw new Error(agreementInputError);
+      return setRestaurantDelivery(restaurantId, {
+        selfDelivery,
+        commissionPctOverride: commissionOverride,
+        tierGoldFeeOverride: optionalTierPrice(goldPrice),
+        tierSilverFeeOverride: optionalTierPrice(silverPrice),
+        tierStandardFeeOverride: optionalTierPrice(standardPrice),
+      });
+    },
+    onSuccess: async () => {
+      await invalidateEconomyDomain(queryClient);
+      setAgreementFormDirty(false);
+    },
+  });
+
+  const printableSpec = useMemo<PayoutSpec | null>(() => {
+    if (!data) return null;
+    if (printVersion === "live") return { ...data, persisted: null };
+    if (hasSavedReport && data.persisted) return data;
+    return data;
+  }, [data, hasSavedReport, printVersion]);
   const printOptions = useMemo(
     () => ({
       mode: printMode,
       showReferenceOrders,
       showPaymentState,
-      adjustmentNote: notes,
+      adjustmentNote: printVersion === "saved" ? persisted?.notes || "" : notes,
     }),
-    [notes, printMode, showPaymentState, showReferenceOrders],
+    [notes, persisted?.notes, printMode, printVersion, showPaymentState, showReferenceOrders],
   );
   const previewOrders = useMemo(
-    () => payoutSpec ? payoutPrintOrders(payoutSpec, printOptions) : [],
-    [payoutSpec, printOptions],
+    () => printableSpec ? payoutPrintOrders(printableSpec, printOptions) : [],
+    [printableSpec, printOptions],
   );
-  const previewSummary = useMemo(() => payoutPrintSummary(previewOrders), [previewOrders]);
-  const previewDailyRows = useMemo(() => payoutPrintDailyRows(previewOrders), [previewOrders]);
+  const currentPreviewSummary = useMemo(() => payoutPrintSummary(previewOrders), [previewOrders]);
+  const previewSummary = printVersion === "saved" && persisted
+    ? {
+        ...currentPreviewSummary,
+        paidOrderCount: persisted.periodOrderCount ?? persisted.orderCount,
+        paidTotal: persisted.originalGrossTotal ?? persisted.grossSales,
+      }
+    : currentPreviewSummary;
+  const printRecovery = printVersion === "saved" ? Number(persisted?.lateRefundAdjustmentAmount || 0) : liveRecovery;
+  const openPrint = () => {
+    if (printableSpec) printPayoutSpec(printableSpec, manualAdjustment, printRecovery, printOptions);
+  };
 
-  const saveDelivery = useMutation({
-    mutationFn: () =>
-      setRestaurantDelivery(restaurantId, {
-        selfDelivery,
-        commissionPctOverride: nullableNonNegativeNumber(override),
-        tierGoldFeeOverride: nullableNonNegativeNumber(goldPrice),
-        tierSilverFeeOverride: nullableNonNegativeNumber(silverPrice),
-        tierStandardFeeOverride: nullableNonNegativeNumber(standardPrice),
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: financeSummaryQueryKey(periodFrom, periodTo) });
-      await queryClient.invalidateQueries({ queryKey: payoutSpecQueryKey(restaurantId, periodFrom, periodTo) });
-    },
-  });
+  const payoutStatusLabel: Record<string, string> = {
+    NEW: "Inte sparad",
+    DRAFT: "Utkast",
+    APPROVED: "Låst",
+    HOLD: "Sparad · ej låst",
+    PAID: "Betald",
+  };
+  const statusTone = persistedStatus === "PAID" ? "success" : persistedStatus === "HOLD" ? "warning" : persistedStatus === "APPROVED" ? "info" : "neutral";
+  const payoutError = mutationError(savePayout.error);
+  const agreementError = mutationError(saveAgreement.error);
 
   return (
     <div className="page-stack">
       <PageHeader
-        breadcrumb={
-          <>
-            <Link href={restaurantFinanceHref}>Plattform / Restaurangekonomi</Link>
-            {spec.data?.restaurant.name ? ` / ${spec.data.restaurant.name}` : ""}
-          </>
-        }
-        title="Utbetalning"
+        breadcrumb={<Link href={restaurantFinanceHref}>Restaurangekonomi</Link>}
+        title={data?.restaurant.name || "Utbetalning"}
         onBack={() => router.push(restaurantFinanceHref)}
         actions={
           <>
-            <span className="inline-flex items-center rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-page)] px-3 py-2 text-[13px] font-semibold text-[var(--text-secondary)]">
-              {formatDate(periodFrom)} – {formatDate(periodTo)}
+            <span className="inline-flex items-center rounded-[10px] border border-[var(--border-subtle)] bg-[var(--bg-page)] px-3 py-2 text-[13px] font-semibold capitalize text-[var(--text-secondary)]">
+              {month.label}
             </span>
-            <Button onClick={() => spec.data && printPayoutSpec(spec.data, manualAdjustment, automaticRecovery, printOptions)}>
-              <Printer size={15} /> Exportera
+            <Button onClick={() => void spec.refetch()} disabled={spec.isFetching} aria-label="Uppdatera underlag">
+              <RefreshCw size={14} className={spec.isFetching ? "animate-spin" : undefined} /> Uppdatera
+            </Button>
+            <Button onClick={openPrint} disabled={!printableSpec}>
+              <Printer size={15} /> PDF
             </Button>
           </>
         }
       />
 
-      {spec.isLoading || !spec.data || !b ? (
+      {rangeWasNormalized ? (
+        <p className="rounded-xl bg-[var(--brand-navy-soft)] px-4 py-3 text-xs font-semibold text-[var(--brand-navy-ink)]">
+          Utbetalningar görs per kalendermånad. Perioden har därför satts till {formatDate(periodFrom)}–{formatDate(periodTo)}.
+        </p>
+      ) : null}
+
+      {spec.isError ? (
+        <ErrorPanel
+          title="Utbetalningen kunde inte laddas"
+          description="Inga belopp visas förrän det riktiga underlaget har hämtats."
+          action={<Button onClick={() => void spec.refetch()}><RefreshCw size={15} /> Försök igen</Button>}
+        />
+      ) : spec.isLoading || !data || !b ? (
         <Surface className="flex items-center gap-2 px-6 py-12 text-sm text-[var(--text-secondary)]">
-          <Loader2 size={16} className="animate-spin" /> Beräknar specen…
+          <Loader2 size={16} className="animate-spin" /> Beräknar månaden…
         </Surface>
       ) : (
         <>
-          <div className="grid gap-[13px] sm:grid-cols-3">
-            <Kpi label={`Försäljning · ${displayedOrderCount} order`} value={formatCurrency(orderSales)} />
-            <Kpi label="Orderavdrag" value={orderDeductions == null ? "Inväntar Mollie" : formatCurrency(orderDeductions)} />
-            <Kpi label="ViaEats-avdrag inkl moms" value={formatCurrency(viaEatsChargeInclVat)} />
-          </div>
+          {hasSavedReport && persisted ? (
+            <Surface className="overflow-hidden border-t-[3px] border-t-[var(--brand-navy)] p-0">
+              <div className="flex flex-wrap items-start justify-between gap-3 px-5 py-5">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-[var(--text-muted)]">Sparad rapport</p>
+                    <Badge tone={statusTone}>{payoutStatusLabel[persistedStatus]}</Badge>
+                  </div>
+                  <p className="mt-2 text-sm font-semibold text-[var(--text-secondary)]">
+                    Beloppen kommer från den sparade versionen. Nya villkor syns bara i liveversionen.
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs font-bold text-[var(--text-muted)]">{savedIsOwed ? "Att fakturera" : "Att betala ut"}</p>
+                  <p className="mt-1 text-3xl font-black tabular-nums text-[var(--text-primary)]">{formatCurrency(savedNet)}</p>
+                </div>
+              </div>
+              <div className="grid gap-2 border-t border-[var(--border-subtle)] px-5 py-4 sm:grid-cols-3">
+                <Metric label="Efter återbetalningar" value={formatCurrency(savedSalesAfterRefunds)} />
+                <Metric label="ViaEats inkl. moms" value={`− ${formatCurrency(savedViaEats)}`} />
+                <Metric label="Kort- och återbetalningsavgifter" value={`− ${formatCurrency(persisted.mollieFeeAmount)}`} />
+              </div>
+              <details className="group/saved border-t border-[var(--border-subtle)]">
+                <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-3 text-xs font-black text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]">
+                  Visa sparad beräkning
+                  <ChevronDown size={15} className="transition-transform group-open/saved:rotate-180" />
+                </summary>
+                <div className="border-t border-[var(--border-subtle)] px-5 py-4">
+                  <MoneyRow label={`Orderförsäljning · ${persisted.periodOrderCount ?? persisted.orderCount} order`} value={savedOrderSales} />
+                  <MoneyRow label="Återbetalningar" value={savedRefunds} sign="−" />
+                  <MoneyRow label="Restaurangens utbetalningsgrund" value={persisted.grossSales} />
+                  <MoneyRow label={`Provision exkl. moms (${persisted.commissionPctSnapshot ?? "—"}%)`} value={persisted.commissionAmount} sign="−" />
+                  <MoneyRow label="Abonnemang exkl. moms" value={persisted.subscriptionAmount} sign="−" />
+                  <MoneyRow label={`Moms på ViaEats (${persisted.feeVatPctSnapshot ?? "—"}%)`} value={savedFeeVat} sign="−" />
+                  <MoneyRow label="Korttransaktionsavgifter" value={savedCardFee} sign="−" />
+                  <MoneyRow label="Avgifter för återbetalningar" value={savedRefundFee} sign="−" />
+                  {persisted.manualAdjustmentAmount !== 0 ? <MoneyRow label="Manuell justering" value={Math.abs(persisted.manualAdjustmentAmount)} sign={persisted.manualAdjustmentAmount > 0 ? "−" : "+"} /> : null}
+                  {persisted.lateRefundAdjustmentAmount > 0 ? <MoneyRow label="Sena återbetalningar och avgifter" value={persisted.lateRefundAdjustmentAmount} sign="−" /> : null}
+                  <MoneyRow label={savedIsOwed ? "Att fakturera" : "Att betala ut"} value={savedNet} strong />
+                </div>
+              </details>
+            </Surface>
+          ) : null}
 
-          <Surface className="px-6 py-6">
-            {usesFrozenSnapshot ? (
-              <p className="mb-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-page)] px-4 py-3 text-xs font-semibold text-[var(--text-secondary)]">
-                Låst rapport · alla belopp och Mollieavgifter är frysta på exakta ören.
-              </p>
-            ) : null}
-            <p className="eyebrow mb-1 mt-1">Försäljning och order</p>
-            <CalcRow label={`Försäljning inkl moms · ${displayedOrderCount} order`} value={orderSales} />
-            <CalcRow label="Återbetalningar" value={refunds} sign="−" />
-            <CalcRow label="Försäljning efter återbetalningar" value={salesAfterRefunds} strong />
-            {!spec.data.restaurant.selfDelivery && b.deliveryFee > 0 ? <CalcRow label="Leveransavgift till ViaEats" value={b.deliveryFee} sign="−" /> : null}
-            {!spec.data.restaurant.selfDelivery && b.tip > 0 ? <CalcRow label="Dricks till bud/plattform" value={b.tip} sign="−" /> : null}
-
-            <p className="eyebrow mb-1 mt-5">Avgift för alla order</p>
-            <CalcRow label={`Transaktionsavgift · ${mollieFeeIsFinal ? "exakt" : "beräknad från korttyp"}`} value={restaurantMollieFee} sign="−" strong />
-
-            <p className="eyebrow mb-1 mt-5">Moms och försäljning exklusive moms</p>
-            <CalcRow label={`Moms i restaurangens försäljning (${vatLabel(usesFrozenSnapshot ? persisted?.foodVatPctSnapshot : b.foodVatPct)})`} value={foodVat} />
-            <CalcRow label="Restaurangens försäljning exklusive moms" value={salesExVat} strong />
-
-            <p className="eyebrow mb-1 mt-5">ViaEats-avdrag</p>
-            <CalcRow label={`Provision exkl moms (${usesFrozenSnapshot ? persisted?.commissionPctSnapshot ?? "—" : b.commissionPct}%)`} value={commission} sign="−" />
-            <CalcRow label={`Abonnemang exkl moms · ${b.tierLabel}`} value={subscription} sign="−" />
-            <CalcRow label={`Moms på ViaEats (${usesFrozenSnapshot ? persisted?.feeVatPctSnapshot ?? "—" : b.feeVatPct}%)`} value={viaEatsVat} sign="−" />
-            <CalcRow label="ViaEats-avdrag totalt inkl moms" value={viaEatsChargeInclVat} strong />
-
-            <p className="eyebrow mb-1 mt-5">Manuell justering</p>
-            {manualAdjustment !== 0 ? (
-              <CalcRow
-                label={manualAdjustment > 0 ? "Avdrag från utbetalning" : "Tillägg till utbetalning"}
-                value={Math.abs(manualAdjustment)}
-                sign={manualAdjustment > 0 ? "−" : "+"}
-              />
-            ) : <CalcRow label="Ingen manuell justering" value={0} />}
-            {automaticRecovery > 0 ? <CalcRow label="Sena återbetalningar" value={automaticRecovery} sign="−" /> : null}
-            <div className={`mt-3 flex items-center justify-between rounded-xl px-4 py-3 text-white ${isOwed ? "bg-[#B45309]" : "bg-[var(--brand-navy)]"}`}>
-              <span className="font-bold">{isOwed ? "Att fakturera restaurangen" : "Att överföra till restaurangen"}</span>
-              <span className="text-xl font-black tabular-nums">{mollieFeeIsFinal ? formatCurrency(net) : `≈ ${formatCurrency(net)}`}</span>
+          <Surface className={`overflow-hidden p-0 ${hasSavedReport ? "border-t-[3px] border-t-[var(--brand-orange)]" : "border-t-[3px] border-t-[var(--brand-navy)]"}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3 px-5 py-5">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                    {hasSavedReport ? "Nästa version · live" : persistedStatus === "DRAFT" ? "Sparat utkast · live" : "Aktuellt underlag"}
+                  </p>
+                  {!hasSavedReport ? <Badge tone={statusTone}>{payoutStatusLabel[persistedStatus]}</Badge> : null}
+                </div>
+                <p className="mt-2 text-sm font-semibold text-[var(--text-secondary)]">
+                  {hasSavedReport
+                    ? "Visar dagens orderunderlag och avtal. Sparas först när du skapar en ny version."
+                    : "Beloppen räknas från månadens aktuella order och avtal."}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs font-bold text-[var(--text-muted)]">{liveIsOwed ? "Att fakturera" : "Att betala ut"}</p>
+                <p className="mt-1 text-3xl font-black tabular-nums text-[var(--text-primary)]">
+                  {liveMollieFeeFinal ? formatCurrency(liveNet) : `≈ ${formatCurrency(liveNet)}`}
+                </p>
+                {hasSavedReport && liveDifference !== 0 ? (
+                  <p className={`mt-1 text-xs font-black ${liveDifference > 0 ? "text-[var(--success)]" : "text-[var(--warning)]"}`}>
+                    {liveDifference > 0 ? "+" : "−"}{formatCurrency(Math.abs(liveDifference))} mot sparad rapport
+                  </p>
+                ) : null}
+              </div>
             </div>
-            {isOwed ? (
-              <p className="mt-3 text-xs text-[var(--text-secondary)]">
-                Avgifterna översteg restaurangens intäkt denna period (typiskt abonnemang vid få ordrar) → ingen utbetalning, beloppet faktureras istället.
-              </p>
+
+            <div className="grid gap-2 border-t border-[var(--border-subtle)] px-5 py-4 sm:grid-cols-3">
+              <Metric label="Efter återbetalningar" value={formatCurrency(liveSalesAfterRefunds)} />
+              <Metric label="ViaEats inkl. moms" value={`− ${formatCurrency(liveViaEats)}`} />
+              <Metric label={liveMollieFeeFinal ? "Betalavgifter · exakta" : "Betalavgifter · preliminära"} value={liveMollieFee == null ? "Inväntar" : `− ${formatCurrency(liveMollieFee)}`} />
+            </div>
+
+            {!isPaid ? (
+              <div className="border-t border-[var(--border-subtle)] px-5 py-5">
+                <p className="text-sm font-black text-[var(--text-primary)]">Justering</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-[170px_140px_minmax(220px,1fr)]">
+                  <Field label="Typ">
+                    <Select value={adjustmentDirection} onChange={(event) => {
+                      setPayoutFormDirty(true);
+                      setAdjustmentDirection(event.target.value as AdjustmentDirection);
+                    }}>
+                      <option value="deduction">Avdrag</option>
+                      <option value="addition">Tillägg</option>
+                    </Select>
+                  </Field>
+                  <Field label="Belopp">
+                    <MoneyInput min={0} step="0.01" value={manualAdjustmentAmount} placeholder="0,00" onValueChange={(value) => {
+                      setPayoutFormDirty(true);
+                      setManualAdjustmentAmount(value);
+                    }} />
+                  </Field>
+                  <Field label="Orsak / notering">
+                    <Input value={notes} placeholder="Krävs vid justering" onChange={(event) => {
+                      setPayoutFormDirty(true);
+                      setNotes(event.target.value);
+                    }} />
+                  </Field>
+                </div>
+                {payoutInputError ? <p className="mt-2 text-xs font-semibold text-[var(--danger)]">{payoutInputError}</p> : null}
+              </div>
             ) : null}
-            <p className="mt-3 text-xs leading-5 text-[var(--text-secondary)]">
-              Vid återbetalning ligger den ursprungliga betalavgiften kvar. Mollies eventuella refundavgift läggs till. Rapporten kan bara låsas när båda är bokförda och matchade mot payment-id.
-            </p>
-            <div className="mt-4 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-page)] px-4 py-4">
-              <p className="text-sm font-extrabold text-[var(--text-primary)]">Manuell justering för denna restaurang</p>
-              <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
-                − minskar restaurangens saldo: utbetalningen minskar eller fakturan ökar. + ökar saldot: utbetalningen ökar eller fakturan minskar. Vid flytt mellan restauranger väljer du samma belopp med motsatt tecken.
-              </p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-[190px_130px_minmax(220px,1fr)]">
-                <Field label="Plus eller minus">
-                  <Select
-                    value={adjustmentDirection}
-                    disabled={usesFrozenSnapshot}
-                    onChange={(event) => setAdjustmentDirection(event.target.value as AdjustmentDirection)}
-                  >
-                    <option value="deduction">− Avdrag</option>
-                    <option value="addition">+ Tillägg</option>
+
+            <details className="group/live border-t border-[var(--border-subtle)]">
+              <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-3 text-xs font-black text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]">
+                Visa full liveberäkning
+                <ChevronDown size={15} className="transition-transform group-open/live:rotate-180" />
+              </summary>
+              <div className="border-t border-[var(--border-subtle)] px-5 py-4">
+                <MoneyRow label={`Orderförsäljning · ${b.periodOrderCount ?? b.orderCount} order`} value={liveOrderSales} />
+                <MoneyRow label="Återbetalningar" value={liveRefunds} sign="−" />
+                {!data.restaurant.selfDelivery && b.deliveryFee > 0 ? <MoneyRow label="Leveransavgift till ViaEats" value={b.deliveryFee} sign="−" /> : null}
+                {!data.restaurant.selfDelivery && b.tip > 0 ? <MoneyRow label="Dricks till bud/plattform" value={b.tip} sign="−" /> : null}
+                <MoneyRow label={`Moms i restaurangens försäljning (${vatLabel(b.foodVatPct)})`} value={b.foodVat} />
+                <MoneyRow label="Restaurangens utbetalningsgrund" value={b.restaurantGross} />
+                <MoneyRow label={`Provision exkl. moms (${b.commissionPct}%)`} value={b.commission} sign="−" />
+                <MoneyRow label={`Abonnemang exkl. moms · ${b.tierLabel}`} value={b.subscription} sign="−" />
+                <MoneyRow label={`Moms på ViaEats (${b.feeVatPct}%)`} value={b.feeVat} sign="−" />
+                <MoneyRow label="Korttransaktionsavgifter" value={liveCardFee} sign="−" />
+                <MoneyRow label="Avgifter för återbetalningar" value={liveRefundFee} sign="−" />
+                {manualAdjustment !== 0 ? <MoneyRow label="Manuell justering" value={Math.abs(manualAdjustment)} sign={manualAdjustment > 0 ? "−" : "+"} /> : null}
+                {liveRecovery > 0 ? <MoneyRow label="Sena återbetalningar och avgifter" value={liveRecovery} sign="−" /> : null}
+                <MoneyRow label={liveIsOwed ? "Att fakturera" : "Att betala ut"} value={liveNet} strong />
+              </div>
+            </details>
+          </Surface>
+
+          <AdvancedSection
+            title="Avtal för nästa version"
+            meta={<span className="inline-flex items-center gap-2"><DeliveryModeBadge selfDelivery={data.restaurant.selfDelivery} /> {b.commissionPct}% provision · {b.tierLabel}</span>}
+          >
+            <div className="px-5 py-5">
+              <p className="mb-4 text-xs font-semibold text-[var(--text-muted)]">Ändringar påverkar liveberäkningen efter sparning. Den sparade rapporten ovan ändras aldrig.</p>
+              {economy.isError ? (
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[var(--warning-soft)] px-4 py-3 text-xs font-semibold text-[var(--text-secondary)]">
+                  Globala satser kunde inte laddas. Avtalet kan inte sparas förrän de har hämtats.
+                  <Button onClick={() => void economy.refetch()} disabled={economy.isFetching}>Försök igen</Button>
+                </div>
+              ) : null}
+              <div className="grid gap-4 md:grid-cols-3">
+                <Field label="Leverans">
+                  <Select value={selfDelivery ? "self" : "platform"} onChange={(event) => {
+                    setAgreementFormDirty(true);
+                    setSelfDelivery(event.target.value === "self");
+                  }}>
+                    <option value="platform">ViaEats levererar</option>
+                    <option value="self">Restaurangen levererar</option>
                   </Select>
                 </Field>
-                <Field label="Belopp">
-                  <MoneyInput
-                    step="0.01"
-                    min={0}
-                    value={manualAdjustmentAmount}
-                    disabled={usesFrozenSnapshot}
-                    placeholder="0,00"
-                    onValueChange={setManualAdjustmentAmount}
-                  />
+                <Field label="Provision">
+                  <Select value={commissionMode} onChange={(event) => {
+                    setAgreementFormDirty(true);
+                    setCommissionMode(event.target.value as CommissionMode);
+                  }}>
+                    <option value="global">Global sats{globalCommission == null ? "" : ` · ${globalCommission}%`}</option>
+                    <option value="custom">Egen sats</option>
+                  </Select>
                 </Field>
-                <Field label="Orsak till justering">
+                <Field label="Egen provision">
                   <Input
-                    value={notes}
-                    disabled={usesFrozenSnapshot}
-                    placeholder="Exempel: Flytt av Burger King-testavgifter"
-                    onChange={(event) => setNotes(event.target.value)}
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={1}
+                    disabled={commissionMode === "global"}
+                    value={commissionMode === "global" ? "" : customCommission}
+                    placeholder={commissionMode === "global" ? "Använder global" : "0 = global"}
+                    onChange={(event) => {
+                      setAgreementFormDirty(true);
+                      setCustomCommission(event.target.value);
+                    }}
                   />
                 </Field>
               </div>
-              {manualAdjustment !== 0 ? (
-                <p className="mt-3 text-xs font-bold text-[var(--brand-navy-ink)]">
-                  {manualAdjustment > 0 ? "− Avdrag" : "+ Tillägg"} {formatCurrency(Math.abs(manualAdjustment))}. Resultat: {isOwed ? `${formatCurrency(net)} att fakturera` : `${formatCurrency(net)} att betala ut`}.
+              <div className="mt-4 grid gap-4 md:grid-cols-3">
+                <Field label="Guld · kr/mån">
+                  <Input type="number" min={0} step="0.01" value={goldPrice} placeholder={economy.data ? `Globalt ${formatCurrency(economy.data.tierGoldFee)}` : ""} onChange={(event) => {
+                    setAgreementFormDirty(true);
+                    setGoldPrice(event.target.value);
+                  }} />
+                </Field>
+                <Field label="Silver · kr/mån">
+                  <Input type="number" min={0} step="0.01" value={silverPrice} placeholder={economy.data ? `Globalt ${formatCurrency(economy.data.tierSilverFee)}` : ""} onChange={(event) => {
+                    setAgreementFormDirty(true);
+                    setSilverPrice(event.target.value);
+                  }} />
+                </Field>
+                <Field label="Standard · kr/mån">
+                  <Input type="number" min={0} step="0.01" value={standardPrice} placeholder={economy.data ? `Globalt ${formatCurrency(economy.data.tierStandardFee)}` : ""} onChange={(event) => {
+                    setAgreementFormDirty(true);
+                    setStandardPrice(event.target.value);
+                  }} />
+                </Field>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <p className={`text-xs font-semibold ${agreementInputError || agreementError ? "text-[var(--danger)]" : "text-[var(--text-muted)]"}`}>
+                  {agreementInputError || agreementError || "Tomt pris använder global nivå. Egen provision 0 normaliseras till global sats."}
                 </p>
-              ) : null}
+                <Button
+                  variant="primary"
+                  disabled={Boolean(agreementInputError) || !economy.data || economy.isError || saveAgreement.isPending}
+                  onClick={() => saveAgreement.mutate()}
+                >
+                  {saveAgreement.isPending ? <Loader2 size={15} className="animate-spin" /> : null}
+                  Spara avtal
+                </Button>
+              </div>
             </div>
-          </Surface>
+          </AdvancedSection>
 
-          <details className="surface group/settings overflow-hidden">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-6 py-4 hover:bg-[var(--bg-hover)]">
-              <span className="font-extrabold text-[var(--text-primary)]">Inställningar för provision och abonnemang</span>
-              <DeliveryModeBadge selfDelivery={selfDelivery} />
-            </summary>
-            <div className="grid gap-4 border-t border-[var(--border-subtle)] px-6 py-5 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
-              <Field label="Modell">
-                <Select value={selfDelivery ? "self" : "platform"} onChange={(e) => setSelfDelivery(e.target.value === "self")}>
-                  <option value="platform">Vi levererar</option>
-                  <option value="self">Levererar själv</option>
-                </Select>
-              </Field>
-              <Field label="Provisions-override (%, tomt = global)">
-                <Input type="number" value={override} placeholder="–" onChange={(e) => setOverride(e.target.value)} />
-              </Field>
-              <Field label="Restaurangmoms">
-                <Input value={vatLabel(spec.data.restaurant.vatPercent ?? b.foodVatPct)} disabled />
-              </Field>
-              <Button onClick={() => saveDelivery.mutate()}>
-                {saveDelivery.isPending ? <Loader2 size={16} className="animate-spin" /> : "Uppdatera ekonomi"}
-              </Button>
-            </div>
-            <div className="grid gap-4 px-6 pb-6 md:grid-cols-3">
-              <Field label="Guldpris">
-                <Input
-                  type="number"
-                  min={0}
-                  value={goldPrice}
-                  placeholder={economy.data ? `Globalt ${formatCurrency(economy.data.tierGoldFee)}` : "Globalt"}
-                  onChange={(e) => setGoldPrice(e.target.value)}
-                />
-              </Field>
-              <Field label="Silverpris">
-                <Input
-                  type="number"
-                  min={0}
-                  value={silverPrice}
-                  placeholder={economy.data ? `Globalt ${formatCurrency(economy.data.tierSilverFee)}` : "Globalt"}
-                  onChange={(e) => setSilverPrice(e.target.value)}
-                />
-              </Field>
-              <Field label="Standardpris">
-                <Input
-                  type="number"
-                  min={0}
-                  value={standardPrice}
-                  placeholder={economy.data ? `Globalt ${formatCurrency(economy.data.tierStandardFee)}` : "Globalt"}
-                  onChange={(e) => setStandardPrice(e.target.value)}
-                />
-              </Field>
-            </div>
-          </details>
-
-          <Surface className="px-6 py-6">
-            <div className="grid gap-4 md:grid-cols-2">
+          <Surface className="px-5 py-5">
+            <div className="grid gap-4 md:grid-cols-[180px_1fr] md:items-end">
               <Field label="Status">
                 <div className="flex min-h-11 items-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-page)] px-3">
-                  <Badge tone={persistedStatus === "PAID" ? "success" : persistedStatus === "APPROVED" ? "info" : "neutral"}>
-                    {waitingForMollie ? "Aktivt original · väntar på Mollie" : payoutStatusLabel[persistedStatus] || "Inte sparad"}
-                  </Badge>
+                  <Badge tone={statusTone}>{payoutStatusLabel[persistedStatus]}</Badge>
                 </div>
               </Field>
-              <Field label="Betalningsreferens"><Input value={payoutReference} onChange={(e) => setPayoutReference(e.target.value)} /></Field>
+              <Field label="Betalningsreferens">
+                <Input value={payoutReference} disabled={isPaid} placeholder="Krävs när rapporten markeras betald" onChange={(event) => {
+                  setPayoutFormDirty(true);
+                  setPayoutReference(event.target.value);
+                }} />
+              </Field>
             </div>
-            <div className="mt-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-page)] px-4 py-3 text-xs leading-5 text-[var(--text-secondary)]">
-              {!refundWindowClosed ? (
-                <p>
-                  Du kan ersätta originalet preliminärt nu. Perioden blir permanent tidigast {formatDateTime(spec.data.refundWindow.closesAt)} efter refundfönstret på {spec.data.refundWindow.hours} timmar.
-                </p>
-              ) : (
-                <p>Refundfönstret är stängt och rapporten kan låsas.</p>
-              )}
-              <p>Spara utkast för ett redigerbart underlag. Spara och ersätt original skriver den nya månadsberäkningen som aktiv version, medan den tidigare versionen ligger kvar i revisionshistoriken.</p>
-              {waitingForMollie ? <p className="font-semibold text-[var(--warning)]">Den aktiva versionen använder beräknade avgifter och kan inte betalas förrän Mollie har bekräftat perioden.</p> : null}
-              <p>Efter låsning måste en annan superadmin logga in, ange betalningsreferens och markera utbetalningen som betald.</p>
-              {spec.data.lateRefundRecovery.blocked ? (
-                <p className="font-semibold text-[var(--danger-text)]">{spec.data.lateRefundRecovery.error}</p>
-              ) : automaticRecovery > 0 || spec.data.lateRefundRecovery.remaining > 0 ? (
-                <p>
-                  Automatisk sen-refund recovery: {formatCurrency(automaticRecovery)} i denna payout
-                  {spec.data.lateRefundRecovery.remaining > 0
-                    ? ` · ${formatCurrency(spec.data.lateRefundRecovery.remaining)} bärs vidare till nästa payout`
-                    : ""}.
-                </p>
-              ) : (
-                <p>Ingen obetald recovery från sena refunds.</p>
-              )}
-              {spec.data.persisted?.approvedAt ? (
-                <p>Godkänd {formatDateTime(spec.data.persisted.approvedAt)} · godkännare {spec.data.persisted.approvedBy || "saknas"}</p>
+            <div className="mt-4 rounded-xl bg-[var(--bg-page)] px-4 py-3 text-xs font-semibold leading-5 text-[var(--text-secondary)]">
+              {waitingForMollie
+                ? "Den sparade versionen väntar på exakta Mollieavgifter. Kontrollera liveversionen och spara en ny version när avgifterna är klara."
+                : isPaid
+                  ? "Rapporten är betald och kan inte ändras. Nya villkor påverkar bara kommande versioner."
+                  : persistedStatus === "APPROVED"
+                    ? "Rapporten är låst. En annan superadmin måste markera den som betald."
+                    : !data.refundWindow.closed
+                      ? `Månaden kan låsas permanent efter ${formatDateTime(data.refundWindow.closesAt)}.`
+                      : "Underlaget kan nu låsas. En annan superadmin måste markera den låsta rapporten som betald."}
+              {data.lateRefundRecovery.blocked ? <p className="mt-1 text-[var(--danger)]">{data.lateRefundRecovery.error}</p> : null}
+              {!data.lateRefundRecovery.blocked && (data.lateRefundRecovery.reserved > 0 || data.lateRefundRecovery.remaining > 0) ? (
+                <p className="mt-1">Sen återbetalning: {formatCurrency(data.lateRefundRecovery.reserved)} i denna månad{data.lateRefundRecovery.remaining > 0 ? ` · ${formatCurrency(data.lateRefundRecovery.remaining)} förs vidare` : ""}.</p>
               ) : null}
+              {persisted?.approvedAt ? <p className="mt-1">Godkänd {formatDateTime(persisted.approvedAt)} · {persisted.approvedBy || "okänd admin"}</p> : null}
             </div>
-            {payoutError ? (
-              <p className="mt-3 rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] px-4 py-3 text-sm font-semibold text-[var(--danger-text)]">
-                {payoutError}
-              </p>
-            ) : null}
+            {payoutError ? <p className="mt-3 rounded-xl bg-[var(--danger-soft)] px-4 py-3 text-sm font-semibold text-[var(--danger-text)]">{payoutError}</p> : null}
           </Surface>
 
           {persisted?.revisions?.length ? (
-            <Surface className="overflow-hidden p-0">
-              <div className="border-b border-[var(--row-divider)] px-[18px] py-[13px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]">
-                Låsta snapshots
-              </div>
+            <AdvancedSection title="Versionshistorik" meta={`${persisted.revisions.length} sparade versioner`}>
               <div className="overflow-x-auto">
-                <table className="data-table min-w-[760px]">
+                <table className="data-table min-w-[720px]">
                   <thead>
                     <tr>
                       <th>Version</th>
-                      <th>Låst</th>
+                      <th>Sparad</th>
                       <th>Provision</th>
-                      <th className="text-right">Provision ex moms</th>
+                      <th className="text-right">ViaEats exkl. moms</th>
                       <th className="text-right">Moms</th>
                       <th className="text-right">Utbetalning</th>
                     </tr>
@@ -476,16 +647,13 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
                     {persisted.revisions.map((revision) => (
                       <tr key={revision.id}>
                         <td className="font-bold">
-                          <span className="mr-2">Version {revision.revision}</span>
+                          Version {revision.revision}{" "}
                           {revision.original ? <Badge tone="info">Original</Badge> : null}
-                          {revision.reason === "OVERRIDE" ? <Badge tone="warning">Ersatte original</Badge> : null}
+                          {revision.reason === "OVERRIDE" ? <Badge tone="warning">Ersatte</Badge> : null}
                         </td>
-                        <td>
-                          {formatDateTime(revision.createdAt)}
-                          {revision.createdBy ? <span className="block text-[11px] text-[var(--text-muted)]">{revision.createdBy}</span> : null}
-                        </td>
+                        <td>{formatDateTime(revision.createdAt)}{revision.createdBy ? <span className="block text-[11px] text-[var(--text-muted)]">{revision.createdBy}</span> : null}</td>
                         <td>{revision.commissionPct == null ? "—" : `${revision.commissionPct}%`}</td>
-                        <td className="text-right font-semibold tabular-nums">{formatCurrency(revision.commissionExVat)}</td>
+                        <td className="text-right font-semibold tabular-nums">{formatCurrency(revision.viaEatsExVat ?? revision.commissionExVat)}</td>
                         <td className="text-right font-semibold tabular-nums">{formatCurrency(revision.vat)}</td>
                         <td className="text-right font-black tabular-nums">{formatCurrency(revision.payout)}</td>
                       </tr>
@@ -493,16 +661,12 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
                   </tbody>
                 </table>
               </div>
-            </Surface>
+            </AdvancedSection>
           ) : null}
 
-          <Surface className="overflow-hidden p-0">
-            <div className="border-b border-[var(--row-divider)] px-[18px] py-[13px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]">
-              Ordrar i perioden
-            </div>
-            {usesFrozenSnapshot ? <p className="border-b border-[var(--row-divider)] bg-[var(--bg-page)] px-[18px] py-2 text-xs text-[var(--text-secondary)]">Listan är aktuell referensdata. Betalningen ovan använder den frysta snapshoten.</p> : null}
-            {spec.data?.orders.length ? (
-              <div className="max-h-80 overflow-auto">
+          <AdvancedSection title="Orderunderlag" meta={`${data.orders.length} order i kalendermånaden`}>
+            {data.orders.length ? (
+              <div className="max-h-[440px] overflow-auto">
                 <table className="data-table">
                   <thead>
                     <tr>
@@ -510,52 +674,55 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
                       <th>Datum</th>
                       <th>Typ</th>
                       <th>Status</th>
-                      <th>Betalning</th>
                       <th>Ekonomi</th>
-                      <th className="text-right">Summa</th>
+                      <th className="text-right">Original</th>
+                      <th className="text-right">Återbetalt</th>
+                      <th className="text-right">Netto</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {spec.data.orders.map((o) => (
-                      <tr key={o.orderNumber}>
-                        <td className="font-semibold">#{o.orderNumber}</td>
-                        <td>{formatDate(o.createdAt)}</td>
-                        <td>
-                          <Badge tone={o.type === "PICKUP" ? "neutral" : "info"}>
-                            {o.type === "PICKUP" ? "Avhämtning" : "Leverans"}
-                          </Badge>
-                        </td>
-                        <td>{financeOrderStatusLabel(o)}</td>
-                        <td>{paymentStatusLabel(o.paymentStatus)}</td>
-                        <td>
-                          <Badge tone={o.includedInPayout ? "success" : "neutral"}>
-                            {o.includedInPayout ? "Betald order" : "Referens"}
-                          </Badge>
-                        </td>
-                        <td className="text-right font-semibold tabular-nums" style={{ fontFamily: mono }}>
-                          {formatCurrency(o.total)}
-                        </td>
-                      </tr>
-                    ))}
+                    {data.orders.map((order) => {
+                      const original = Math.max(0, Number(order.originalTotal || 0));
+                      const refunded = Math.min(original, Math.max(0, Number(order.refundAmount || 0)));
+                      const net = order.includedInPayout ? Math.max(0, Number(order.total || 0)) : Math.max(0, original - refunded);
+                      return (
+                        <tr key={order.orderNumber}>
+                          <td className="font-semibold">#{order.orderNumber}</td>
+                          <td>{formatDate(order.createdAt)}</td>
+                          <td>{String(order.type).toUpperCase() === "PICKUP" ? "Avhämtning" : "Leverans"}</td>
+                          <td>
+                            <span className="block">{financeOrderStatusLabel(order)}</span>
+                            <span className="mt-0.5 block text-[11px] text-[var(--text-muted)]">{paymentStatusLabel(order.paymentStatus)}</span>
+                          </td>
+                          <td><Badge tone={order.includedInPayout ? "success" : "neutral"}>{order.includedInPayout ? "Ingår" : "Referens"}</Badge></td>
+                          <td className="text-right font-semibold tabular-nums" style={{ fontFamily: mono }}>{formatCurrency(original)}</td>
+                          <td className="text-right font-semibold tabular-nums" style={{ fontFamily: mono }}>{refunded > 0 ? `− ${formatCurrency(refunded)}` : formatCurrency(0)}</td>
+                          <td className="text-right font-black tabular-nums" style={{ fontFamily: mono }}>{formatCurrency(net)}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
-            ) : (
-              <p className="px-[18px] py-6 text-sm text-[var(--text-secondary)]">Inga ordrar i perioden.</p>
-            )}
-          </Surface>
+            ) : <p className="px-5 py-6 text-sm text-[var(--text-secondary)]">Inga order i månaden.</p>}
+          </AdvancedSection>
 
-          <Surface className="overflow-hidden p-0">
-            <div className="border-b border-[var(--row-divider)] px-[18px] py-[13px] text-[10.5px] font-extrabold uppercase tracking-[0.06em] text-[var(--text-muted)]">
-              PDF-förhandsgranskning
-            </div>
-            <div className="grid gap-4 px-5 py-5 lg:grid-cols-[280px_1fr]">
+          <AdvancedSection title="PDF och export" meta="Välj sparad rapport eller liveversion och hur order ska grupperas">
+            <div className="grid gap-5 px-5 py-5 lg:grid-cols-[minmax(260px,420px)_1fr]">
               <div className="space-y-3">
-                <Field label="PDF-innehåll">
+                {hasSavedReport ? (
+                  <Field label="Version">
+                    <Select value={printVersion} onChange={(event) => setPrintVersion(event.target.value as PrintVersion)}>
+                      <option value="saved">Sparad rapport</option>
+                      <option value="live">Nästa version · live</option>
+                    </Select>
+                  </Field>
+                ) : null}
+                <Field label="Innehåll">
                   <Select value={printMode} onChange={(event) => setPrintMode(event.target.value as PayoutPrintMode)}>
-                    <option value="summary">Totalt antal order och belopp</option>
-                    <option value="orders">Varje order med ordernummer och belopp</option>
-                    <option value="daily">Per dag med antal order och belopp</option>
+                    <option value="summary">Summering</option>
+                    <option value="orders">Varje order</option>
+                    <option value="daily">Per dag</option>
                   </Select>
                 </Field>
                 <label className="flex items-center gap-2 rounded-xl border border-[var(--border-subtle)] px-3 py-2 text-sm font-semibold text-[var(--text-secondary)]">
@@ -564,124 +731,58 @@ export function FinancePayoutPage({ restaurantId, from, to, period }: { restaura
                 </label>
                 <label className="flex items-center gap-2 rounded-xl border border-[var(--border-subtle)] px-3 py-2 text-sm font-semibold text-[var(--text-secondary)]">
                   <input type="checkbox" checked={showReferenceOrders} onChange={(event) => setShowReferenceOrders(event.target.checked)} />
-                  Visa avbrutna/återbetalda referensorder
+                  Ta med övriga avbrutna order
                 </label>
+                {printVersion === "saved" ? (
+                  <p className="text-xs font-semibold leading-5 text-[var(--text-muted)]">
+                    Beloppen hämtas från den sparade rapporten. Orderlistan är aktuell referensdata och kan ha ändrats efter att rapporten sparades.
+                  </p>
+                ) : null}
               </div>
-              <div className="min-w-0">
-                <div className="mb-3 grid gap-3 sm:grid-cols-3">
-                  <Kpi label="Betalda order" value={previewSummary.paidOrderCount} />
-                  <Kpi label="Belopp" value={formatCurrency(previewSummary.paidTotal)} accent />
-                  <Kpi label="Referensorder" value={previewSummary.referenceOrderCount} />
+              <div className="grid content-start gap-3 sm:grid-cols-3">
+                <Metric label="Order som ingår" value={previewSummary.paidOrderCount} />
+                <Metric label="Netto i orderlistan" value={formatCurrency(previewSummary.paidTotal)} emphasis />
+                <Metric label="Återbetalda / referens" value={previewSummary.referenceOrderCount} />
+                <div className="sm:col-span-3 sm:justify-self-end">
+                  <Button variant="primary" onClick={openPrint}><Printer size={15} /> Öppna PDF</Button>
                 </div>
-                {printMode === "summary" ? (
-                  <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-page)] px-4 py-4 text-sm font-semibold text-[var(--text-secondary)]">
-                    Kompakt summering
-                  </div>
-                ) : printMode === "daily" ? (
-                  <div className="max-h-72 overflow-auto rounded-xl border border-[var(--border-subtle)]">
-                    <table className="data-table">
-                      <thead>
-                        <tr>
-                          <th>Datum</th>
-                          <th className="text-right">Betalda order</th>
-                          <th className="text-right">Belopp</th>
-                          {showReferenceOrders ? <th className="text-right">Referensorder</th> : null}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {previewDailyRows.length ? previewDailyRows.map((row) => (
-                          <tr key={row.key}>
-                            <td>{formatDate(row.key)}</td>
-                            <td className="text-right tabular-nums" style={{ fontFamily: mono }}>{row.paidCount}</td>
-                            <td className="text-right font-semibold tabular-nums" style={{ fontFamily: mono }}>{formatCurrency(row.paidTotal)}</td>
-                            {showReferenceOrders ? <td className="text-right tabular-nums" style={{ fontFamily: mono }}>{row.referenceCount}</td> : null}
-                          </tr>
-                        )) : (
-                          <tr><td colSpan={showReferenceOrders ? 4 : 3} className="text-[var(--text-secondary)]">Inga order matchar PDF-valet.</td></tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="max-h-72 overflow-auto rounded-xl border border-[var(--border-subtle)]">
-                    <table className="data-table">
-                      <thead>
-                        <tr>
-                          <th>Order</th>
-                          <th>Datum</th>
-                          <th>Typ</th>
-                          {showPaymentState ? <th>Status</th> : null}
-                          <th className="text-right">Belopp</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {previewOrders.length ? previewOrders.map((order) => (
-                          <tr key={order.orderNumber}>
-                            <td className="font-semibold">#{order.orderNumber}</td>
-                            <td>{formatDate(order.createdAt)}</td>
-                            <td>{payoutPrintOrderTypeLabel(order)}</td>
-                            {showPaymentState ? <td>{payoutPrintOrderStateLabel(order)}</td> : null}
-                            <td className="text-right font-semibold tabular-nums" style={{ fontFamily: mono }}>
-                              {formatCurrency(payoutPrintSettlementAmount(order))}
-                            </td>
-                          </tr>
-                        )) : (
-                          <tr><td colSpan={showPaymentState ? 5 : 4} className="text-[var(--text-secondary)]">Inga order matchar PDF-valet.</td></tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
               </div>
             </div>
-          </Surface>
+          </AdvancedSection>
 
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button onClick={() => spec.data && printPayoutSpec(spec.data, manualAdjustment, automaticRecovery, printOptions)}>
-              <Printer size={16} /> Skriv ut / PDF
-            </Button>
+          <Surface className="sticky bottom-3 z-10 flex flex-wrap items-center justify-end gap-2 border-[var(--border-strong)] px-4 py-3 shadow-lg">
             <Link href={restaurantFinanceHref} className="inline-flex items-center rounded-xl border border-[var(--border-subtle)] px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
-              Avbryt
+              Tillbaka
             </Link>
-            <Button
-              disabled={
-                persistedStatus === "PAID" ||
-                savePayout.isPending ||
-                !manualAdjustmentIsValid ||
-                (manualAdjustment !== 0 && !notes.trim())
-              }
-              onClick={() => savePayout.mutate("DRAFT")}
-            >
-              {savePayout.isPending && savePayout.variables === "DRAFT"
-                ? <Loader2 size={16} className="animate-spin" />
-                : "Spara utkast"}
-            </Button>
-            <Button
-              variant="primary"
-              disabled={
-                persistedStatus === "PAID" ||
-                savePayout.isPending ||
-                spec.data.lateRefundRecovery.blocked ||
-                !manualAdjustmentIsValid ||
-                (manualAdjustment !== 0 && !notes.trim())
-              }
-              onClick={() => savePayout.mutate("OVERRIDE")}
-            >
-              {savePayout.isPending && savePayout.variables === "OVERRIDE"
-                ? <Loader2 size={16} className="animate-spin" />
-                : "Spara och ersätt original"}
-            </Button>
+            {!isPaid && !hasSavedReport ? (
+              <Button
+                disabled={savePayout.isPending || Boolean(payoutInputError)}
+                onClick={() => savePayout.mutate("DRAFT")}
+              >
+                {savePayout.isPending && savePayout.variables === "DRAFT" ? <Loader2 size={15} className="animate-spin" /> : null}
+                Spara utkast
+              </Button>
+            ) : null}
+            {!isPaid ? (
+              <Button
+                variant="primary"
+                disabled={savePayout.isPending || Boolean(payoutInputError) || data.lateRefundRecovery.blocked}
+                onClick={() => savePayout.mutate("OVERRIDE")}
+              >
+                {savePayout.isPending && savePayout.variables === "OVERRIDE" ? <Loader2 size={15} className="animate-spin" /> : null}
+                {hasSavedReport ? "Spara ny version" : data.refundWindow.closed ? "Lås rapport" : "Spara version"}
+              </Button>
+            ) : null}
             {persistedStatus === "APPROVED" ? (
               <Button
                 disabled={savePayout.isPending || !payoutReference.trim()}
                 onClick={() => savePayout.mutate("PAID")}
               >
-                {savePayout.isPending && savePayout.variables === "PAID"
-                  ? <Loader2 size={16} className="animate-spin" />
-                  : "Markera som betald"}
+                {savePayout.isPending && savePayout.variables === "PAID" ? <Loader2 size={15} className="animate-spin" /> : null}
+                Markera sparad rapport betald
               </Button>
             ) : null}
-          </div>
+          </Surface>
         </>
       )}
     </div>

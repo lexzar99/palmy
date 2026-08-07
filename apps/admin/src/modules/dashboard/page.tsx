@@ -4,162 +4,89 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import {
-  AlertCircle,
+  AlertTriangle,
   ArrowRight,
-  Bell,
-  BellRing,
-  ChevronDown,
-  ChevronUp,
+  CheckCircle2,
   ClipboardList,
   Gift,
   RefreshCw,
-  Search,
-  Star,
   Store,
-  TicketPercent,
 } from "lucide-react";
 import {
-  dashboardQueryKey,
-  type DashboardPeriodKey,
-  customerOverviewQueryKey,
-  getControlCenter,
-  getCustomerOverview,
-  getRestaurantRefs,
-  getSystemHealth,
-  healthQueryKey,
-  restaurantRefsQueryKey,
+  getDashboardOverview,
+  overviewQueryKey,
+  type DashboardOverviewAction,
 } from "@/modules/dashboard/api";
-import { TrendChart } from "@/modules/dashboard/TrendChart";
-import { StatusDonut } from "@/modules/dashboard/StatusDonut";
-import { DeliveryTimingSection } from "@/modules/dashboard/DeliveryTimingSection";
 import { Badge, Button, ErrorPanel, MetricCard, PageHeader, Surface } from "@/shared/components/ui";
-import { useAdminSession } from "@/shared/hooks/use-admin-session";
-import { useUiStore } from "@/shared/store/ui-store";
 import {
   formatCurrencyExact as formatCurrency,
-  formatDate,
   formatNumber,
-  shortText,
+  orderStatusLabel,
 } from "@/shared/utils/format";
 
-function useLocalBool(key: string, defaultValue: boolean) {
-  const [value, setValue] = useState(() => {
-    try {
-      const stored = localStorage.getItem(key);
-      return stored !== null ? stored === "true" : defaultValue;
-    } catch {
-      return defaultValue;
-    }
-  });
-  const toggle = () =>
-    setValue((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(key, String(next));
-      } catch {}
-      return next;
-    });
-  return [value, toggle] as const;
-}
-
-const PERIOD_OPTIONS: Array<{ key: DashboardPeriodKey; label: string }> = [
-  { key: "today", label: "Idag" },
-  { key: "thisWeek", label: "Vecka" },
-  { key: "thisMonth", label: "Månad" },
-  { key: "lastMonth", label: "Förra mån" },
-];
-
 const QUICK_ACTIONS = [
-  { href: "/restaurants/new", label: "Ny restaurang", icon: Store, primary: false },
-  { href: "/deals/kampanj/new", label: "Ny kampanj", icon: Gift, primary: true },
-  { href: "/coupons", label: "Kuponger", icon: TicketPercent, primary: false },
-  { href: "/push", label: "Push-notis", icon: BellRing, primary: false },
-  { href: "/orders", label: "Liveordrar", icon: ClipboardList, primary: false },
-];
+  { href: "/orders", label: "Liveordrar", icon: ClipboardList },
+  { href: "/restaurants/new", label: "Ny restaurang", icon: Store },
+  { href: "/deals/kampanj/new", label: "Ny kampanj", icon: Gift },
+] as const;
 
-function greetingForHour(hour: number) {
-  if (hour >= 5 && hour < 10) return "God morgon";
-  if (hour >= 10 && hour < 18) return "God dag";
-  return "God kväll";
+const LIVE_STATUS_ORDER = ["PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERING"];
+
+function actionTone(severity: DashboardOverviewAction["severity"]): "danger" | "warning" | "info" {
+  if (severity === "high") return "danger";
+  if (severity === "medium") return "warning";
+  return "info";
 }
 
-function displayName(sessionName?: string | null) {
-  const name = (sessionName ?? "").trim();
-  if (!name || /^admin$/i.test(name)) return "Jarir Alshaher";
-  return name;
+function actionLabel(severity: DashboardOverviewAction["severity"]) {
+  if (severity === "high") return "Nu";
+  if (severity === "medium") return "Se över";
+  return "Info";
 }
 
-function timeAgo(iso: string) {
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const minutes = Math.floor(diffMs / 60_000);
-  if (minutes < 1) return "nyss";
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} tim`;
-  const days = Math.floor(hours / 24);
-  return days === 1 ? "igår" : `${days} d`;
-}
-
-function initials(name: string) {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("") || "?";
+function updatedTime(iso: string) {
+  return new Intl.DateTimeFormat("sv-SE", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
 }
 
 export function DashboardPage() {
   const router = useRouter();
-  const session = useAdminSession();
-  const openPalette = useUiStore((s) => s.setPaletteOpen);
-  const [showMore, toggleMore] = useLocalBool("dashboard:show-more", false);
-  const [notifOpen, setNotifOpen] = useState(false);
-  // Scope: hela dashboarden kan filtreras per restaurang (backend stödjer det
-  // redan via ?restaurantId). Periodfiltret styr bara statistik och grafer.
   const [restaurantScope, setRestaurantScope] = useState<string | null>(null);
-  const [period, setPeriod] = useState<DashboardPeriodKey>("thisMonth");
+  const overview = useQuery({
+    queryKey: overviewQueryKey({ restaurantId: restaurantScope }),
+    queryFn: () => getDashboardOverview({ restaurantId: restaurantScope }),
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  });
 
-  const controlCenter = useQuery({
-    queryKey: dashboardQueryKey({ restaurantId: restaurantScope, period }),
-    queryFn: () => getControlCenter({ restaurantId: restaurantScope, period }),
-    placeholderData: (prev) => prev,
-  });
-  const restaurantRefs = useQuery({ queryKey: restaurantRefsQueryKey, queryFn: getRestaurantRefs });
-  const health = useQuery({
-    queryKey: healthQueryKey,
-    queryFn: getSystemHealth,
-    // Översikt, inte live-orderskärm — 60 s räcker och halverar egressen.
-    refetchInterval: 60_000,
-  });
-  const customerOverview = useQuery({
-    queryKey: customerOverviewQueryKey,
-    queryFn: getCustomerOverview,
-    refetchInterval: 60_000,
-  });
-  if (controlCenter.isLoading || health.isLoading) {
+  if (overview.isLoading) {
     return (
       <div className="page-stack">
-        <PageHeader title="Översikt" />
-        <div className="grid gap-4 sm:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="metric-card animate-pulse" style={{ minHeight: 140 }} />
+        <PageHeader title="Översikt" breadcrumb="Drift just nu" />
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="metric-card min-h-[126px] animate-pulse" />
           ))}
+        </div>
+        <div className="grid gap-4 xl:grid-cols-2">
+          <div className="surface min-h-[280px] animate-pulse" />
+          <div className="surface min-h-[280px] animate-pulse" />
         </div>
       </div>
     );
   }
 
-  if (controlCenter.isError || health.isError || !controlCenter.data || !health.data) {
+  if (overview.isError || !overview.data) {
     return (
       <div className="page-stack">
         <PageHeader title="Översikt" />
         <ErrorPanel
-          title="Kunde inte ladda översikt"
+          title="Kunde inte ladda översikten"
           action={
-            <Button
-              variant="primary"
-              onClick={() => {
-                void controlCenter.refetch();
-                void health.refetch();
-              }}
-            >
-              <RefreshCw size={13} /> Försök igen
+            <Button variant="primary" onClick={() => void overview.refetch()}>
+              <RefreshCw size={14} /> Försök igen
             </Button>
           }
         />
@@ -167,464 +94,242 @@ export function DashboardPage() {
     );
   }
 
-  const data = controlCenter.data;
-  const healthData = health.data;
-
-  const criticalAlerts = data.alerts.filter((a) => a.severity === "high" || a.severity === "medium");
-  const pendingLiveOrders = data.liveStatusCounts.PENDING || 0;
-
-  // Notiser per restaurang — en rad per restaurang med alla skäl samlade.
-  // "Stängd under öppettid" = schemat säger öppet men restaurangen är stängd.
-  const restaurantNotices = data.restaurantSnapshots
-    .map((r) => {
-      const reasons: string[] = [];
-      if (r.pendingOrders > 0) reasons.push(`${r.pendingOrders} väntande ordrar`);
-      if (r.scheduledOpenNow && !r.isOpen) reasons.push("Stängd under öppettid");
-      if (!r.hasHours) reasons.push("Saknar öppettider");
-      if (r.reviewScore < 4.2) reasons.push(`${r.reviewScore.toFixed(1)} ★`);
-      return { restaurant: r, reasons };
-    })
-    .filter((notice) => notice.reasons.length > 0);
-  const totalAttention = criticalAlerts.length + restaurantNotices.length + (pendingLiveOrders > 0 ? 1 : 0);
-
-  const profileName = displayName(session.data?.name);
-  const greeting = greetingForHour(new Date().getHours());
-  const todayLabel = new Intl.DateTimeFormat("sv-SE", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
-
-  const topRestaurants = [...data.restaurantSnapshots]
-    .map((r) => ({ ...r, scopedRevenue: r.periodRevenue ?? r.monthRevenue }))
-    .sort((a, b) => b.scopedRevenue - a.scopedRevenue)
-    .slice(0, 5);
-  const topRevenueMax = Math.max(1, ...topRestaurants.map((r) => r.scopedRevenue));
-  const balanceAfterRestaurantPayouts = data.mollie.totalBalance == null
-    ? null
-    : data.mollie.totalBalance - data.summary.periodPayoutExposure;
-  const balanceExVat = balanceAfterRestaurantPayouts == null
-    ? null
-    : balanceAfterRestaurantPayouts - data.summary.periodFeeVat;
+  const data = overview.data;
+  const maxTrendSales = Math.max(1, ...data.trend7d.map((point) => point.netSales));
+  const trendSales = data.trend7d.reduce((sum, point) => sum + point.netSales, 0);
+  const trendOrders = data.trend7d.reduce((sum, point) => sum + point.orders, 0);
+  const liveEntries = Object.entries(data.liveStatusCounts)
+    .filter(([, count]) => count > 0)
+    .sort(([left], [right]) => {
+      const leftIndex = LIVE_STATUS_ORDER.indexOf(left);
+      const rightIndex = LIVE_STATUS_ORDER.indexOf(right);
+      return (leftIndex < 0 ? 99 : leftIndex) - (rightIndex < 0 ? 99 : rightIndex);
+    });
 
   return (
     <div className="page-stack">
-      {/* ── Topbar: hälsning · sök · notiser · profil ── */}
-      <div className="dash-greeting">
-        <div className="min-w-0">
-          <h1 className="dash-greeting-title">{greeting}, {profileName.split(" ")[0]}! 👋</h1>
-          <p className="dash-greeting-sub">{todayLabel}</p>
-        </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <button type="button" className="dash-search" onClick={() => openPalette(true)}>
-            <Search size={14} />
-            Sök…
-            <kbd>⌘K</kbd>
-          </button>
-          <select
-            value={restaurantScope ?? ""}
-            onChange={(e) => setRestaurantScope(e.target.value || null)}
-            className="h-[40px] max-w-[180px] rounded-[11px] border border-[var(--border-subtle)] bg-[var(--bg-panel)] px-3 text-[13px] font-semibold text-[var(--text-secondary)] outline-none transition-colors hover:border-[var(--border-strong)]"
-            aria-label="Filtrera på restaurang"
-          >
-            <option value="">Alla restauranger</option>
-            {(restaurantRefs.data || []).map((r) => (
-              <option key={r.id} value={r.id}>{r.name}</option>
-            ))}
-          </select>
-          <button
-            type="button"
-            className="dash-bell"
-            aria-label="Uppdatera"
-            title="Uppdatera"
-            onClick={() => {
-              void controlCenter.refetch();
-              void health.refetch();
-            }}
-          >
-            <RefreshCw size={16} className={controlCenter.isFetching ? "animate-spin" : undefined} />
-          </button>
-
-          {/* Kräver åtgärd — klocka med dropdown */}
-          <div className="notif-wrap">
-            <button
-              type="button"
-              className="dash-bell"
-              onClick={() => setNotifOpen((v) => !v)}
-              aria-label={`Notiser (${totalAttention})`}
-              aria-expanded={notifOpen}
+      <PageHeader
+        title="Översikt"
+        breadcrumb={`Uppdaterad ${updatedTime(data.generatedAt)}`}
+        actions={
+          <>
+            <select
+              value={restaurantScope ?? ""}
+              onChange={(event) => setRestaurantScope(event.target.value || null)}
+              className="h-[40px] max-w-[220px] rounded-[11px] border border-[var(--border-subtle)] bg-[var(--bg-panel)] px-3 text-[13px] font-semibold text-[var(--text-secondary)] outline-none transition-colors hover:border-[var(--border-strong)]"
+              aria-label="Filtrera på restaurang"
             >
-              <Bell size={16} />
-              {totalAttention > 0 && <span className="dash-bell-badge">{totalAttention}</span>}
-            </button>
-            {notifOpen && (
-              <>
-                <button type="button" className="fixed inset-0 z-50 cursor-default" aria-label="Stäng notiser" onClick={() => setNotifOpen(false)} />
-                <div className="notif-panel">
-                  <p className="px-3 pb-1 pt-2 text-[11px] font-extrabold uppercase tracking-[0.09em] text-[var(--text-muted)]">
-                    Kräver åtgärd
-                  </p>
-                  {totalAttention === 0 ? (
-                    <p className="px-3 py-6 text-center text-[13px] text-[var(--text-muted)]">Allt under kontroll ✨</p>
-                  ) : (
-                    <div className="grid gap-1">
-                      {pendingLiveOrders > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setNotifOpen(false);
-                            router.push("/orders");
-                          }}
-                          className="flex items-center gap-2.5 rounded-[10px] bg-[var(--brand-orange-soft)] px-3 py-2.5 text-left"
-                        >
-                          <ClipboardList size={15} className="shrink-0 text-[var(--brand-orange)]" />
-                          <span className="min-w-0 flex-1">
-                            <span className="block text-[13px] font-bold text-[var(--text-primary)]">
-                              {formatNumber(pendingLiveOrders)} {pendingLiveOrders === 1 ? "ny order väntar" : "nya ordrar väntar"}
-                            </span>
-                            <span className="block text-[12px] text-[var(--text-secondary)]">Öppna liveordrar</span>
-                          </span>
-                          <ArrowRight size={13} className="shrink-0 text-[var(--text-muted)]" />
-                        </button>
-                      )}
-                      {criticalAlerts.map((alert) => (
-                        <div key={alert.id} className="flex items-start gap-2.5 rounded-[10px] px-3 py-2.5">
-                          <AlertCircle size={15} className="mt-0.5 shrink-0" style={{ color: alert.severity === "high" ? "var(--danger)" : "var(--warning)" }} />
-                          <div className="min-w-0">
-                            <p className="text-[13px] font-bold text-[var(--text-primary)]">{alert.title}</p>
-                            <p className="text-[12px] text-[var(--text-secondary)]">{shortText(alert.description, 70)}</p>
-                          </div>
-                        </div>
-                      ))}
-                      {restaurantNotices.map(({ restaurant, reasons }) => (
-                        <button
-                          key={restaurant.id}
-                          type="button"
-                          onClick={() => {
-                            setNotifOpen(false);
-                            router.push(`/restaurants/${restaurant.id}`);
-                          }}
-                          className="flex items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left hover:bg-[var(--bg-hover)]"
-                        >
-                          <AlertCircle size={15} className="shrink-0 text-[var(--warning)]" />
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[13px] font-bold text-[var(--text-primary)]">{restaurant.name}</span>
-                            <span className="block truncate text-[12px] text-[var(--text-secondary)]">{reasons.join(" · ")}</span>
-                          </span>
-                          <ArrowRight size={13} className="shrink-0 text-[var(--text-muted)]" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
+              <option value="">Alla restauranger</option>
+              {data.restaurantRefs.map((restaurant) => (
+                <option key={restaurant.id} value={restaurant.id}>{restaurant.name}</option>
+              ))}
+            </select>
+            <Button
+              aria-label="Uppdatera översikten"
+              title="Uppdatera"
+              loading={overview.isFetching}
+              onClick={() => void overview.refetch()}
+            >
+              {!overview.isFetching ? <RefreshCw size={14} /> : null}
+              Uppdatera
+            </Button>
+          </>
+        }
+      />
 
-          <button type="button" className="dash-avatar" onClick={() => router.push("/users")} aria-label="Min profil" title={profileName}>
-            {session.data?.avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={session.data.avatarUrl} alt="" className="h-full w-full object-cover" />
-            ) : (
-              initials(profileName)
-            )}
-          </button>
-        </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label="Försäljning idag"
+          value={formatCurrency(data.today.netSales)}
+          detail="Betalt, efter återbetalningar"
+        />
+        <MetricCard
+          label="Ordrar idag"
+          value={formatNumber(data.today.orders)}
+          detail={`${formatNumber(data.today.liveOrders)} live just nu`}
+        />
+        <MetricCard
+          label="Väntar på svar"
+          value={formatNumber(data.today.pendingOrders)}
+          detail={data.today.pendingOrders > 0 ? "Öppna liveordrar" : "Ingen kö"}
+        />
+        <MetricCard
+          label="Öppna restauranger"
+          value={`${formatNumber(data.restaurants.open)}/${formatNumber(data.restaurants.total)}`}
+          detail={restaurantScope ? "Vald restaurang" : "Publicerade restauranger"}
+        />
       </div>
 
-      {/* ── Rad 1: navy hero · kampanj · live ── */}
       <div className="grid gap-4 xl:grid-cols-12">
-        <section className="hero-card xl:col-span-6">
-          <div className="flex flex-wrap items-start justify-between gap-3">
+        <Surface className="px-5 py-5 xl:col-span-7">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="hero-stat-label">Intäkt · {data.period.label}</p>
-              <p className="hero-value mt-2">{formatCurrency(data.summary.periodRevenue)}</p>
-              <p className="mt-1.5 text-[12.5px] font-medium text-[rgba(254,247,240,0.65)]">
-                {formatNumber(data.summary.periodOrders)} ordrar · snitt {formatCurrency(data.summary.avgTicket)}
-              </p>
+              <p className="eyebrow">Prioriterat</p>
+              <h2 className="section-title mt-1">Behöver åtgärd</h2>
             </div>
-            <div className="segmented">
-              {PERIOD_OPTIONS.map((option) => (
+            {data.actions.length > 0 ? <Badge tone="warning">{data.actions.length}</Badge> : null}
+          </div>
+
+          {data.actions.length === 0 ? (
+            <div className="mt-5 flex min-h-[180px] flex-col items-center justify-center rounded-[14px] bg-[var(--bg-page)] px-5 text-center">
+              <span className="grid h-11 w-11 place-items-center rounded-full bg-[var(--success-soft)] text-[var(--success-text)]">
+                <CheckCircle2 size={21} />
+              </span>
+              <p className="mt-3 text-[14px] font-extrabold text-[var(--text-primary)]">Allt under kontroll</p>
+              <p className="mt-1 text-[12px] text-[var(--text-muted)]">Inget kräver åtgärd just nu.</p>
+            </div>
+          ) : (
+            <div className="mt-4 grid gap-2">
+              {data.actions.map((action) => (
                 <button
-                  key={option.key}
+                  key={action.id}
                   type="button"
-                  onClick={() => setPeriod(option.key)}
-                  className={period === option.key ? "is-active" : ""}
+                  onClick={() => router.push(action.href)}
+                  className="flex w-full items-center gap-3 rounded-[12px] border border-[var(--border-subtle)] px-3.5 py-3 text-left transition-colors hover:bg-[var(--bg-hover)]"
                 >
-                  {option.label}
+                  <span className="grid h-9 w-9 flex-none place-items-center rounded-[10px] bg-[var(--brand-orange-soft)] text-[var(--brand-orange-ink)]">
+                    <AlertTriangle size={16} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="truncate text-[13px] font-extrabold text-[var(--text-primary)]">{action.title}</span>
+                      <Badge tone={actionTone(action.severity)}>{actionLabel(action.severity)}</Badge>
+                    </span>
+                    <span className="mt-0.5 block text-[12px] text-[var(--text-secondary)]">{action.detail}</span>
+                  </span>
+                  <ArrowRight size={14} className="flex-none text-[var(--text-muted)]" />
                 </button>
               ))}
             </div>
-          </div>
-
-          <div className="mt-4">
-            <TrendChart points={data.trend} />
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-end justify-between gap-4 border-t border-[rgba(254,247,240,0.14)] pt-4">
-            <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-3">
-              <div>
-                <p className="hero-stat-label">Provision ex moms</p>
-                <p className="hero-stat-value">{formatCurrency(data.summary.periodCommission)}</p>
-              </div>
-              <div>
-                <p className="hero-stat-label">Moms på provision</p>
-                <p className="hero-stat-value">{formatCurrency(data.summary.periodCommissionVat)}</p>
-              </div>
-              <div>
-                <p className="hero-stat-label">Provision inkl moms</p>
-                <p className="hero-stat-value">{formatCurrency(data.summary.periodCommissionInclVat)}</p>
-              </div>
-              <div>
-                <p className="hero-stat-label">Mollieavgifter · restauranger</p>
-                <p className="hero-stat-value">
-                  {formatCurrency(data.summary.mollieFeesChargedToRestaurants ?? 0)}
-                </p>
-                <p className="mt-1 text-[10.5px] font-semibold text-[rgba(254,247,240,0.58)]">
-                  {formatCurrency(data.summary.mollieFeesDeductedFromPayouts)} avdrag
-                  {Number(data.summary.mollieFeesToInvoice || 0) > 0
-                    ? ` · ${formatCurrency(data.summary.mollieFeesToInvoice)} faktureras`
-                    : ""}
-                </p>
-              </div>
-              <div>
-                <p className="hero-stat-label">Att betala ut</p>
-                <p className="hero-stat-value">{formatCurrency(data.summary.periodPayoutExposure)}</p>
-              </div>
-              <div>
-                <p className="hero-stat-label">Återbetalt</p>
-                <p className="hero-stat-value">{formatCurrency(data.summary.periodRefundAmount)}</p>
-              </div>
-            </div>
-            <Button variant="primary" onClick={() => router.push("/finance")}>
-              Rapport <ArrowRight size={14} />
-            </Button>
-          </div>
-        </section>
-
-        {/* Idag — dagens puls oavsett vald rapportperiod */}
-        <Surface className="flex flex-col px-5 py-5 xl:col-span-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="eyebrow">Just idag</p>
-              <h2 className="section-title mt-1">Dagens puls</h2>
-            </div>
-            <span className="flex h-[38px] w-[38px] flex-none items-center justify-center rounded-[11px] bg-[var(--brand-navy-soft)] text-[var(--brand-navy-ink)]">
-              <ClipboardList size={17} />
-            </span>
-          </div>
-          <div className="mt-4 grid flex-1 content-start gap-3">
-            <div className="flex items-center justify-between text-[13px]">
-              <span className="font-semibold text-[var(--text-secondary)]">Intäkt</span>
-              <span className="font-extrabold text-[var(--text-primary)]">{formatCurrency(data.summary.todayRevenue)}</span>
-            </div>
-            <div className="flex items-center justify-between text-[13px]">
-              <span className="font-semibold text-[var(--text-secondary)]">Ordrar</span>
-              <span className="font-extrabold text-[var(--text-primary)]">{formatNumber(data.summary.todayOrders)}</span>
-            </div>
-            <div className="flex items-center justify-between text-[13px]">
-              <span className="font-semibold text-[var(--text-secondary)]">Aktiva kunder</span>
-              <span className="font-extrabold text-[var(--text-primary)]">{formatNumber(data.summary.activeCustomers)}</span>
-            </div>
-            <div className="flex items-center justify-between text-[13px]">
-              <span className="font-semibold text-[var(--text-secondary)]">Snittbetyg</span>
-              <span className="font-extrabold text-[var(--text-primary)]">
-                {data.summary.avgRating > 0 ? data.summary.avgRating.toFixed(1) : "–"} <Star size={11} className="-mt-0.5 inline" aria-hidden />
-              </span>
-            </div>
-            <div className="border-t border-[var(--border-subtle)] pt-3">
-              <div className="flex items-center justify-between gap-3 text-[13px]">
-                <span className="font-semibold text-[var(--text-secondary)]">Totalt Mollie-saldo</span>
-                <span className="font-extrabold text-[var(--text-primary)]">
-                  {data.mollie.totalBalance == null ? "—" : formatCurrency(data.mollie.totalBalance)}
-                </span>
-              </div>
-              {data.mollie.totalBalance != null ? (
-                <p className="mt-1 text-right text-[11px] text-[var(--text-muted)]">
-                  {formatCurrency(data.mollie.availableBalance)} tillgängligt · {formatCurrency(data.mollie.pendingBalance)} väntande
-                </p>
-              ) : null}
-            </div>
-            <div className="rounded-[10px] bg-[var(--brand-orange-soft)] px-3 py-3">
-              <div className="flex items-center justify-between gap-3 text-[13px]">
-                <span className="font-bold text-[var(--text-secondary)]">Kvar ex moms</span>
-                <span className="font-black text-[var(--text-primary)]">
-                  {balanceExVat == null ? "—" : formatCurrency(balanceExVat)}
-                </span>
-              </div>
-              <p className="mt-1 text-right text-[11px] text-[var(--text-muted)]">
-                Efter restaurangutbetalningar och {formatCurrency(data.summary.periodFeeVat)} moms
-              </p>
-            </div>
-            <div className="flex items-center justify-between text-[13px]">
-              <span className="font-semibold text-[var(--text-secondary)]">Nästa Mollie-utbetalning</span>
-              <span className="font-extrabold text-[var(--text-primary)]">
-                {data.mollie.nextPayoutDate ? formatDate(data.mollie.nextPayoutDate) : "—"}
-              </span>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => router.push("/order-history")}
-            className="mt-4 inline-flex items-center gap-1.5 self-start text-[13px] font-bold text-[var(--brand-navy-ink)] hover:underline"
-          >
-            Historik <ArrowRight size={13} />
-          </button>
+          )}
         </Surface>
 
-        {/* Live just nu — navy som Veloras tasks-kort */}
-        <section className="hero-card flex flex-col xl:col-span-3" style={{ padding: "20px" }}>
-          <h2 className="text-[15px] font-extrabold text-white">Live just nu</h2>
-          <div className="mt-4 flex-1">
-            <StatusDonut counts={data.liveStatusCounts} compact />
+        <Surface className="px-5 py-5 xl:col-span-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="eyebrow">Just nu</p>
+              <h2 className="section-title mt-1">Liveordrar</h2>
+            </div>
+            <p className="text-3xl font-black tracking-tight text-[var(--text-primary)]">{formatNumber(data.today.liveOrders)}</p>
           </div>
-          <p className="mt-4 border-t border-[rgba(254,247,240,0.14)] pt-3 text-[12px] font-semibold text-[rgba(254,247,240,0.65)]">
-            {formatNumber(data.summary.openRestaurants)}/{formatNumber(data.summary.totalRestaurants)} öppna
-            {pendingLiveOrders > 0 ? <span className="text-[var(--brand-orange-ink)]"> · {formatNumber(pendingLiveOrders)} väntar accept</span> : null}
-          </p>
-        </section>
+
+          {liveEntries.length === 0 ? (
+            <div className="mt-5 flex min-h-[180px] items-center justify-center rounded-[14px] bg-[var(--bg-page)] text-[13px] font-semibold text-[var(--text-muted)]">
+              Inga aktiva ordrar
+            </div>
+          ) : (
+            <div className="mt-5 grid gap-2">
+              {liveEntries.map(([status, count]) => (
+                <div key={status} className="flex items-center justify-between rounded-[11px] bg-[var(--bg-page)] px-3.5 py-3">
+                  <span className="text-[13px] font-semibold text-[var(--text-secondary)]">{orderStatusLabel(status)}</span>
+                  <span className="text-[14px] font-black text-[var(--text-primary)]">{formatNumber(count)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => router.push("/orders")}
+            className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-bold text-[var(--brand-navy-ink)] hover:underline"
+          >
+            Öppna liveordrar <ArrowRight size={13} />
+          </button>
+        </Surface>
       </div>
 
-      {/* ── Snabbåtgärder ── */}
-      <div className="quick-actions">
+      <div className="grid gap-4 xl:grid-cols-12">
+        <Surface className="px-5 py-5 xl:col-span-7">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="eyebrow">Senaste 7 dagarna</p>
+              <h2 className="section-title mt-1">Försäljning</h2>
+            </div>
+            <div className="text-right">
+              <p className="text-[17px] font-black text-[var(--text-primary)]">{formatCurrency(trendSales)}</p>
+              <p className="text-[11px] font-semibold text-[var(--text-muted)]">{formatNumber(trendOrders)} ordrar</p>
+            </div>
+          </div>
+          <div className="mt-6 flex h-[190px] items-end gap-2 sm:gap-3" role="img" aria-label="Försäljning de senaste sju dagarna">
+            {data.trend7d.map((point, index) => {
+              const height = point.netSales > 0 ? Math.max(8, (point.netSales / maxTrendSales) * 100) : 3;
+              const isToday = index === data.trend7d.length - 1;
+              return (
+                <div key={point.date} className="flex h-full min-w-0 flex-1 flex-col justify-end">
+                  <div className="mb-2 text-center text-[10px] font-bold text-[var(--text-muted)]">
+                    {point.orders > 0 ? formatNumber(point.orders) : ""}
+                  </div>
+                  <div className="flex h-[145px] items-end rounded-[9px] bg-[var(--bg-page)] p-1">
+                    <div
+                      className="w-full rounded-[6px] transition-[height] duration-500"
+                      style={{
+                        height: `${height}%`,
+                        background: isToday ? "var(--brand-orange)" : "var(--brand-navy-bar)",
+                      }}
+                      title={`${point.label}: ${formatCurrency(point.netSales)} · ${formatNumber(point.orders)} ordrar`}
+                    />
+                  </div>
+                  <span className={`mt-2 text-center text-[11px] font-bold ${isToday ? "text-[var(--brand-orange-ink)]" : "text-[var(--text-muted)]"}`}>
+                    {point.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </Surface>
+
+        <Surface className="px-5 py-5 xl:col-span-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="eyebrow">Drift</p>
+              <h2 className="section-title mt-1">Restauranger</h2>
+            </div>
+            <button type="button" onClick={() => router.push("/restaurants")} className="text-[12.5px] font-bold text-[var(--brand-navy-ink)] hover:underline">
+              Visa alla
+            </button>
+          </div>
+          <div className="mt-4 grid gap-1.5">
+            {data.restaurantStatus.slice(0, 6).map((restaurant) => (
+              <button
+                key={restaurant.id}
+                type="button"
+                onClick={() => router.push(`/restaurants/${restaurant.id}`)}
+                className="flex items-center gap-3 rounded-[11px] px-2.5 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
+              >
+                <span className={`h-2.5 w-2.5 flex-none rounded-full ${restaurant.isOpen ? "bg-[var(--success)]" : "bg-[var(--text-muted)]"}`} />
+                <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-[var(--text-primary)]">{restaurant.name}</span>
+                {restaurant.pendingOrders > 0 ? (
+                  <Badge tone="warning">{restaurant.pendingOrders} väntar</Badge>
+                ) : restaurant.liveOrders > 0 ? (
+                  <Badge tone="info">{restaurant.liveOrders} live</Badge>
+                ) : (
+                  <span className="text-[11px] font-semibold text-[var(--text-muted)]">{restaurant.isOpen ? "Öppen" : "Stängd"}</span>
+                )}
+                <ArrowRight size={13} className="flex-none text-[var(--text-muted)]" />
+              </button>
+            ))}
+            {data.restaurantStatus.length === 0 ? (
+              <p className="py-12 text-center text-[13px] text-[var(--text-muted)]">Inga restauranger i urvalet.</p>
+            ) : null}
+          </div>
+        </Surface>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
         {QUICK_ACTIONS.map((action) => (
           <button
             key={action.href}
             type="button"
             onClick={() => router.push(action.href)}
-            className={`quick-action${action.primary ? " is-primary" : ""}`}
+            className="surface group flex items-center gap-3 px-4 py-4 text-left transition-transform hover:-translate-y-0.5"
           >
-            <span className="quick-action-icon">
-              <action.icon size={19} />
+            <span className="grid h-10 w-10 flex-none place-items-center rounded-[11px] bg-[var(--brand-navy-soft)] text-[var(--brand-navy-ink)]">
+              <action.icon size={18} />
             </span>
-            {action.label}
+            <span className="min-w-0 flex-1 text-[13px] font-extrabold text-[var(--text-primary)]">{action.label}</span>
+            <ArrowRight size={14} className="flex-none text-[var(--text-muted)] transition-transform group-hover:translate-x-0.5" />
           </button>
         ))}
       </div>
-
-      {/* ── Rad 2: topprestauranger · topprodukter · händelser ── */}
-      <div className="grid gap-4 xl:grid-cols-12">
-        <Surface className="px-5 py-5 xl:col-span-4">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="section-title">Topprestauranger</h2>
-            <button type="button" onClick={() => router.push("/restaurants")} className="text-[12.5px] font-bold text-[var(--brand-navy-ink)] hover:underline">
-              Alla
-            </button>
-          </div>
-          {topRestaurants.length === 0 ? (
-            <p className="section-subtitle">Ingen försäljning ännu.</p>
-          ) : (
-            <div className="grid gap-3.5">
-              {topRestaurants.map((r, i) => (
-                <button key={r.id} type="button" onClick={() => router.push(`/restaurants/${r.id}`)} className="group text-left">
-                  <div className="mb-1.5 flex items-baseline justify-between gap-3">
-                    <span className="min-w-0 truncate text-[13px] font-bold text-[var(--text-primary)] group-hover:underline">{r.name}</span>
-                    <span className="flex-none text-[12px] font-bold text-[var(--text-secondary)]">{formatCurrency(r.scopedRevenue)}</span>
-                  </div>
-                  <div className="progress-track">
-                    <div
-                      className={`progress-fill${i === 0 ? " is-leader" : ""}`}
-                      style={{ width: `${Math.max(3, (r.scopedRevenue / topRevenueMax) * 100)}%` }}
-                    />
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </Surface>
-
-        <Surface className="px-5 py-5 xl:col-span-4">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="section-title">Topprodukter</h2>
-            <span className="sidebar-section-count">{data.topProducts.length}</span>
-          </div>
-          {data.topProducts.length === 0 ? (
-            <p className="section-subtitle">Inget sålt ännu.</p>
-          ) : (
-            <div className="grid gap-1">
-              {data.topProducts.slice(0, 5).map((p, i) => (
-                <div key={`${p.name}-${i}`} className="flex items-center gap-3 rounded-[10px] px-2 py-2">
-                  <span className="flex h-[26px] w-[26px] flex-none items-center justify-center rounded-[8px] bg-[var(--brand-navy-soft)] text-[11px] font-extrabold text-[var(--brand-navy-ink)]">
-                    {i + 1}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-[var(--text-primary)]">{p.name}</span>
-                  <span className="flex-none text-[12px] text-[var(--text-muted)]">{formatNumber(p.count)}×</span>
-                  <span className="flex-none text-[12.5px] font-bold text-[var(--text-secondary)]">{formatCurrency(p.revenue)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </Surface>
-
-        <Surface className="px-5 py-5 xl:col-span-4">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <h2 className="section-title">Händelser</h2>
-            <button type="button" onClick={() => router.push("/reviews")} className="text-[12.5px] font-bold text-[var(--brand-navy-ink)] hover:underline">
-              Alla
-            </button>
-          </div>
-          {data.recentReviews.length === 0 ? (
-            <p className="section-subtitle">Inga recensioner ännu.</p>
-          ) : (
-            <div>
-              {data.recentReviews.slice(0, 4).map((review) => (
-                <div key={review.id} className="activity-row">
-                  <span className="activity-avatar">{initials(review.customerName)}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[13px] leading-snug">
-                      <span className="font-bold text-[var(--text-primary)]">{review.customerName}</span>{" "}
-                      <span className="text-[var(--text-secondary)]">
-                        {review.rating} <Star size={11} className="-mt-0.5 inline" aria-hidden />
-                        {review.restaurantName ? ` · ${review.restaurantName}` : ""}
-                      </span>
-                    </p>
-                    {review.review ? <p className="mt-0.5 text-[12px] text-[var(--text-muted)]">{shortText(review.review, 60)}</p> : null}
-                  </div>
-                  <span className="flex-none text-[11px] font-semibold text-[var(--text-muted)]">{timeAgo(review.reviewedAt)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </Surface>
-      </div>
-
-      <DeliveryTimingSection />
-
-      {customerOverview.data ? (
-        <Surface className="px-5 py-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <h2 className="section-title">Kunder</h2>
-            <button type="button" onClick={() => router.push("/customers")} className="text-[12.5px] font-bold text-[var(--brand-navy-ink)] hover:underline">
-              Alla
-            </button>
-          </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="surface-muted px-4 py-4"><p className="card-label">Gäster</p><p className="mt-2 text-2xl font-black">{formatNumber(customerOverview.data.guests)}</p><p className="mt-1 text-xs text-[var(--text-secondary)]">{formatNumber(customerOverview.data.repeatGuests)} beställer om</p></div>
-            <div className="surface-muted px-4 py-4"><p className="card-label">Gäst → kund</p><p className="mt-2 text-2xl font-black">{(customerOverview.data.guestConversionRate * 100).toFixed(1)} %</p><p className="mt-1 text-xs text-[var(--text-secondary)]">{formatNumber(customerOverview.data.convertedFromGuest)} konverterade</p></div>
-            <div className="surface-muted px-4 py-4"><p className="card-label">Registrerade</p><p className="mt-2 text-2xl font-black">{formatNumber(customerOverview.data.registered)}</p><p className="mt-1 text-xs text-[var(--text-secondary)]">{formatNumber(customerOverview.data.newThisWeek)} nya i veckan</p></div>
-            <div className="surface-muted px-4 py-4"><p className="card-label">Återkommande</p><p className="mt-2 text-2xl font-black">{formatNumber(customerOverview.data.repeatRegistered)}</p><p className="mt-1 text-xs text-[var(--text-secondary)]">minst två order</p></div>
-          </div>
-        </Surface>
-      ) : null}
-
-      {/* ── Reveal: systemdetaljer ── */}
-      <button type="button" onClick={toggleMore} className="reveal-more">
-        {showMore ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-        {showMore ? "Dölj system" : "System"}
-      </button>
-
-      {showMore && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <MetricCard label="DB-latens" value={`${healthData.dbPingMs} ms`} detail={healthData.status} />
-          <Surface className="px-5 py-5">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="section-title">Tjänster</h2>
-              <Badge tone={healthData.status === "ONLINE" ? "success" : "danger"}>{healthData.status}</Badge>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge tone={healthData.services.auth ? "success" : "danger"}>Auth</Badge>
-              <Badge tone={healthData.services.realtime ? "success" : "danger"}>Realtime</Badge>
-              <Badge tone={healthData.services.uploads ? "success" : "warning"}>Uploads</Badge>
-            </div>
-          </Surface>
-        </div>
-      )}
     </div>
   );
 }

@@ -21,6 +21,7 @@ export interface FinanceRow {
   tierLabel: string;
   selfDelivery: boolean;
   commissionPct: number;
+  rateSource: "global-self" | "global-platform" | "override" | "snapshot";
   foodVatPct: number | null;
   orderCount: number;
   payoutOrderCount: number;
@@ -307,6 +308,8 @@ export interface PayoutSpec {
       createdBy: string | null;
       commissionPct: number | null;
       commissionExVat: number;
+      subscriptionExVat: number;
+      viaEatsExVat: number;
       vat: number;
       payout: number;
       manualAdjustment: number;

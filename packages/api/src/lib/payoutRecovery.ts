@@ -1,12 +1,13 @@
 import {
   buildLateRefundRecoveryPlan,
+  buildPayoutFinanceFingerprint,
   assertPayoutProviderAuditFingerprint,
   buildPayoutProviderAuditFingerprint,
+  FINANCE_REAL_PAYMENT_STATUSES,
   hasCompletePayoutEconomicSnapshot,
-  PAYOUT_NON_PAYABLE_FINAL_PAYMENT_STATUSES,
   PAYOUT_NON_TEST_ORDER_FILTER,
-  recomputePayoutFromEconomicSnapshot,
-  requiredLateRefundRecoveryAmount,
+  recomputePayoutSettlementFromEconomicSnapshot,
+  requiredLateRefundRecoverySettlementAmount,
   type RecoveryPlanAllocation,
   type RecoveryPlanSource,
 } from './payoutPolicy';
@@ -16,7 +17,8 @@ export class PayoutRecoveryError extends Error {
     public readonly code:
       | 'LEGACY_PAID_PAYOUT_SNAPSHOT_MISSING'
       | 'INVALID_RECOVERY_ALLOCATION_STATE'
-      | 'PAYOUT_SOURCE_REFUND_AUDIT_STALE',
+      | 'PAYOUT_SOURCE_REFUND_AUDIT_STALE'
+      | 'PAYOUT_SOURCE_FEE_AUDIT_FAILED',
     message: string,
   ) {
     super(message);
@@ -57,7 +59,13 @@ export async function calculateLateRefundRecoveryPlan(
     auditedSourcePayouts?: readonly {
       payoutId: string;
       fingerprint: readonly string[];
+      financeFingerprint?: string;
+      mollieFeeAmount?: number;
     }[];
+    resolveSourceMollieFeeAmount?: (input: {
+      source: any;
+      orders: any[];
+    }) => Promise<number>;
   },
 ): Promise<LateRefundRecoveryPlan> {
   const paidSources = await db.restaurantPayout.findMany({
@@ -76,7 +84,7 @@ export async function calculateLateRefundRecoveryPlan(
   });
 
   const auditedSources = input.auditedSourcePayouts
-    ? new Map(input.auditedSourcePayouts.map((source) => [source.payoutId, source.fingerprint]))
+    ? new Map(input.auditedSourcePayouts.map((source) => [source.payoutId, source]))
     : null;
   if (auditedSources) {
     const unaudited = paidSources.find((source: any) => !auditedSources.has(source.id));
@@ -100,7 +108,7 @@ export async function calculateLateRefundRecoveryPlan(
     const orders = await db.order.findMany({
       where: {
         restaurantId: input.restaurantId,
-        paymentStatus: { notIn: [...PAYOUT_NON_PAYABLE_FINAL_PAYMENT_STATUSES] },
+        paymentStatus: { in: [...FINANCE_REAL_PAYMENT_STATUSES] },
         createdAt: { gte: source.periodStart, lte: source.periodEnd },
         ...PAYOUT_NON_TEST_ORDER_FILTER,
       },
@@ -119,21 +127,49 @@ export async function calculateLateRefundRecoveryPlan(
       },
     });
     if (auditedSources) {
+      const auditedSource = auditedSources.get(source.id)!;
       assertPayoutProviderAuditFingerprint(
         orders,
-        auditedSources.get(source.id)!,
+        auditedSource.fingerprint,
         `betald källperiod ${source.id}`,
       );
+      if (
+        auditedSource.financeFingerprint != null &&
+        buildPayoutFinanceFingerprint(orders) !== auditedSource.financeFingerprint
+      ) {
+        throw new PayoutRecoveryError(
+          'PAYOUT_SOURCE_REFUND_AUDIT_STALE',
+          `Order- eller avgiftsunderlaget i betald källperiod ${source.id} ändrades efter PSP-revisionen. Försök igen.`,
+        );
+      }
     } else {
       // Read-only previews still fail closed for unaudited legacy/unknown
       // provider rows even when no PSP preflight proof was supplied.
       buildPayoutProviderAuditFingerprint(orders);
     }
-    const recomputed = recomputePayoutFromEconomicSnapshot(orders, source);
+    const auditedMollieFeeAmount = auditedSources?.get(source.id)?.mollieFeeAmount;
+    let currentMollieFeeAmount = auditedMollieFeeAmount;
+    if (currentMollieFeeAmount == null && input.resolveSourceMollieFeeAmount) {
+      try {
+        currentMollieFeeAmount = await input.resolveSourceMollieFeeAmount({ source, orders });
+      } catch (error) {
+        throw new PayoutRecoveryError(
+          'PAYOUT_SOURCE_FEE_AUDIT_FAILED',
+          error instanceof Error ? error.message : 'Källperiodens Mollie-avgifter kunde inte stämmas av.',
+        );
+      }
+    }
+    const recomputed = recomputePayoutSettlementFromEconomicSnapshot(orders, {
+      ...source,
+      mollieFeeAmount: currentMollieFeeAmount == null
+        ? source.mollieFeeAmount
+        : currentMollieFeeAmount,
+    });
     const paidAmount = Math.max(0, Math.round(Number(source.payoutAmount) || 0));
-    const requiredRecoveryAmount = requiredLateRefundRecoveryAmount(
+    const requiredRecoveryAmount = requiredLateRefundRecoverySettlementAmount(
       paidAmount,
-      recomputed.payoutAmount,
+      recomputed.snapshot.payoutAmount,
+      recomputed.owedAmount,
     );
     const appliedAmount = source.recoveryAsSource
       .filter((allocation: any) => allocation.status === 'APPLIED')
@@ -152,7 +188,7 @@ export async function calculateLateRefundRecoveryPlan(
       periodStart: source.periodStart,
       periodEnd: source.periodEnd,
       paidAmount,
-      recomputedAmount: recomputed.payoutAmount,
+      recomputedAmount: recomputed.snapshot.payoutAmount,
     });
   }
 

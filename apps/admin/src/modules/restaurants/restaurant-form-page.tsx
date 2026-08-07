@@ -75,6 +75,7 @@ import { AcceptingOrdersModeToggle, RestaurantAvailabilitySummary } from "@/shar
 import { useToast } from "@/shared/components/toast";
 import { acceptingOrdersModeLabel } from "@/shared/contracts/restaurants";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, restaurantTierLabel } from "@/shared/utils/format";
+import { invalidateEconomyDomain } from "@/shared/api/invalidate-economy-domain";
 
 type RestaurantTab = "info" | "menu" | "orders" | "hours" | "settings";
 
@@ -532,10 +533,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
       setForm(mapped);
       setSavedForm(mapped);
       showToast({ type: "success", message: "Restaurang sparad" });
-      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      queryClient.invalidateQueries({ queryKey: restaurantsQueryKey });
-      queryClient.invalidateQueries({ queryKey: ["tiers"] });
-      queryClient.invalidateQueries({ queryKey: detailQueryKey(restaurantId!) });
+      void invalidateEconomyDomain(queryClient);
     },
     onError: (e: any) => {
       const msg = e?.response?.data?.error || e?.message || "Kunde inte spara.";

@@ -5,6 +5,7 @@ import { computePayout, DEFAULT_ECONOMY } from '../lib/financeCalc';
 import {
   applySettlementAdjustments,
   buildPayoutMoneySnapshot,
+  buildPayoutFinanceFingerprint,
   buildLateRefundRecoveryPlan,
   assertPayoutProviderAuditFingerprint,
   buildPayoutProviderAuditFingerprint,
@@ -29,7 +30,9 @@ import {
   PayoutProviderAuditBlockedError,
   PayoutProviderAuditStaleError,
   recomputePayoutFromEconomicSnapshot,
+  recomputePayoutSettlementFromEconomicSnapshot,
   requiredLateRefundRecoveryAmount,
+  requiredLateRefundRecoverySettlementAmount,
   sameRecoveryAllocations,
   samePayoutMoneySnapshot,
   type PayoutOrder,
@@ -46,6 +49,7 @@ import {
 } from '../lib/financeSummary';
 import {
   allocateExactFeeTotal,
+  exactMollieFeeSnapshot,
   estimateMollieFeeFromObservations,
   estimateMollieFeeFromSwedishPricing,
   estimateNextMolliePayoutDate,
@@ -325,7 +329,7 @@ assert.equal(
 );
 
 // A source payout is always recomputed with its frozen terms, not today's
-// restaurant settings. The recovery is capped by what was actually paid.
+// restaurant settings.
 const lateRefundSource = {
   ...settlement.economicSnapshot,
   subscriptionAmount: 0,
@@ -348,6 +352,23 @@ assert.deepEqual(
     payoutAmount: 3_725,
     mollieFeeAmount: 0,
   },
+);
+
+// A full late refund has no remaining payout, but the restaurant still owns
+// both the original payment fee and Mollie's separately booked refund fee.
+const fullyRefundedSettlement = recomputePayoutSettlementFromEconomicSnapshot([
+  { ...paidDelivered, paymentStatus: 'REFUNDED', refundAmount: paidDelivered.total },
+], {
+  ...lateRefundSource,
+  manualAdjustmentAmount: 0,
+  mollieFeeAmount: 500,
+});
+assert.equal(fullyRefundedSettlement.snapshot.payoutAmount, 0);
+assert.equal(fullyRefundedSettlement.owedAmount, 500);
+assert.equal(
+  requiredLateRefundRecoverySettlementAmount(6_075, 0, fullyRefundedSettlement.owedAmount),
+  6_575,
+  'late recovery retains the provider-fee debt beyond the old paid amount',
 );
 
 const recoveryPlan = buildLateRefundRecoveryPlan([
@@ -700,6 +721,18 @@ const refundFeeBreakdown = mollieFeeBreakdownFromTransactions([
 assert.equal(refundFeeBreakdown.paymentByPaymentId.get('tr_refunded'), 292);
 assert.equal(refundFeeBreakdown.refundByPaymentId.get('tr_refunded'), 270);
 assert.equal(refundFeeBreakdown.totalByPaymentId.get('tr_refunded'), 562);
+assert.equal(exactMollieFeeSnapshot({
+  paymentIds: ['tr_refunded'],
+  refundedPaymentIds: ['tr_refunded'],
+  paymentFeeByPaymentId: refundFeeBreakdown.paymentByPaymentId,
+  refundFeeByPaymentId: new Map(),
+}), null, 'a payment fee alone must never lock a refunded transaction');
+assert.deepEqual(exactMollieFeeSnapshot({
+  paymentIds: ['tr_refunded'],
+  refundedPaymentIds: ['tr_refunded'],
+  paymentFeeByPaymentId: refundFeeBreakdown.paymentByPaymentId,
+  refundFeeByPaymentId: refundFeeBreakdown.refundByPaymentId,
+}), { paymentFees: 292, refundProcessingFees: 270, totalFees: 562 });
 assert.equal(
   estimateMollieFeeFromObservations(35_500, [
     { amountOre: 15_000, feeOre: 435 },
@@ -1094,6 +1127,62 @@ async function runPayoutSourceAuditContracts() {
     (error: any) => error instanceof PayoutProviderAuditStaleError &&
       error.code === 'PAYOUT_PROVIDER_AUDIT_STALE',
   );
+
+  const fullyRefundedSourceOrder = {
+    ...sourceOrder,
+    paymentStatus: 'REFUNDED',
+    refundAmount: sourceOrder.total,
+    updatedAt: new Date('2026-08-02T12:00:00.000Z'),
+  };
+  const exactLateFeePlan = await calculateLateRefundRecoveryPlan({
+    restaurantPayout: {
+      findMany: async () => [{
+        ...sourceSnapshot,
+        payoutAmount: 6_075,
+        mollieFeeAmount: 300,
+      }],
+    },
+    order: { findMany: async () => [fullyRefundedSourceOrder] },
+    payoutRecoveryAllocation: {},
+  }, {
+    restaurantId: 'restaurant-a',
+    targetPeriodStart: targetStart,
+    targetCapacityAmount: 10_000,
+    auditedSourcePayouts: [{
+      payoutId: sourceSnapshot.id,
+      fingerprint: buildPayoutProviderAuditFingerprint([fullyRefundedSourceOrder]),
+      financeFingerprint: buildPayoutFinanceFingerprint([fullyRefundedSourceOrder]),
+      mollieFeeAmount: 500,
+    }],
+  });
+  assert.equal(exactLateFeePlan.sources[0].requiredRecoveryAmount, 6_575);
+  assert.equal(exactLateFeePlan.totalAmount, 6_575);
+
+  let previewFeeResolverCalls = 0;
+  const previewLateFeePlan = await calculateLateRefundRecoveryPlan({
+    restaurantPayout: {
+      findMany: async () => [{
+        ...sourceSnapshot,
+        payoutAmount: 6_075,
+        mollieFeeAmount: 300,
+      }],
+    },
+    order: { findMany: async () => [fullyRefundedSourceOrder] },
+    payoutRecoveryAllocation: {},
+  }, {
+    restaurantId: 'restaurant-a',
+    targetPeriodStart: targetStart,
+    targetCapacityAmount: 10_000,
+    resolveSourceMollieFeeAmount: async ({ source, orders }) => {
+      previewFeeResolverCalls += 1;
+      assert.equal(source.id, sourceSnapshot.id);
+      assert.deepEqual(orders, [fullyRefundedSourceOrder]);
+      return 500;
+    },
+  });
+  assert.equal(previewFeeResolverCalls, 1);
+  assert.equal(previewLateFeePlan.sources[0].requiredRecoveryAmount, 6_575);
+  assert.equal(previewLateFeePlan.totalAmount, 6_575);
 }
 
 void runPayoutSourceAuditContracts()

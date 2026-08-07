@@ -6,6 +6,7 @@ import { audit } from '../lib/auditLog';
 import { economyFromSettings } from '../lib/financeCalc';
 import {
   buildPayoutMoneySnapshot,
+  buildPayoutFinanceFingerprint,
   assertPayoutProviderAuditFingerprint,
   canAdminMarkPayoutPaid,
   canTransitionPayout,
@@ -14,6 +15,7 @@ import {
   isPayoutSettlementBlockingOrder,
   PAYOUT_NON_PAYABLE_FINAL_PAYMENT_STATUSES,
   PAYOUT_NON_TEST_ORDER_FILTER,
+  FINANCE_REAL_PAYMENT_STATUSES,
   PAYOUT_ORDER_STATUSES,
   payoutRefundWindowClosesAt,
   payoutRefundWindowHours,
@@ -32,7 +34,11 @@ import {
   syncRecoveryReservations,
 } from '../lib/payoutRecovery';
 import { reconcileMollieRefundsForPayout } from '../lib/payments/reconcile';
-import { getMollieFinanceReport } from '../lib/mollieFinance';
+import { exactMollieFeeSnapshot, getMollieFinanceReport } from '../lib/mollieFinance';
+import {
+  PayoutSourceFeeError,
+  resolveCurrentPayoutSourceMollieFeeAmount,
+} from '../lib/payoutSourceFees';
 
 const router = Router();
 router.use(authenticate, requireSuperAdmin);
@@ -172,6 +178,70 @@ const serializePayout = (payout: any) => ({
   updatedAt: payout.updatedAt,
 });
 
+async function attachExactLateRefundFees(
+  restaurantId: string,
+  sources: readonly { payoutId: string; fingerprint: string[] }[],
+) {
+  if (sources.length === 0) return [...sources];
+  const sourceRows = await prisma.restaurantPayout.findMany({
+    where: { restaurantId, id: { in: sources.map((source) => source.payoutId) }, status: 'PAID' },
+    select: {
+      id: true,
+      periodStart: true,
+      periodEnd: true,
+      paidAt: true,
+      mollieFeeAmount: true,
+    },
+  });
+  const sourceById = new Map(sourceRows.map((source) => [source.id, source]));
+
+  const enriched = [];
+  for (const proof of sources) {
+    const source = sourceById.get(proof.payoutId);
+    if (!source) {
+      throw new PayoutRequestError(
+        409,
+        'PAYOUT_SOURCE_REFUND_AUDIT_STALE',
+        `Betald källperiod ${proof.payoutId} ändrades efter PSP-revisionen. Försök igen.`,
+      );
+    }
+    const orders = await prisma.order.findMany({
+      where: {
+        restaurantId,
+        createdAt: { gte: source.periodStart, lte: source.periodEnd },
+        paymentStatus: { in: [...FINANCE_REAL_PAYMENT_STATUSES] },
+        ...PAYOUT_NON_TEST_ORDER_FILTER,
+      },
+      select: {
+        id: true,
+        orderNumber: true,
+        status: true,
+        paymentStatus: true,
+        paymentProvider: true,
+        molliePaymentId: true,
+        total: true,
+        refundAmount: true,
+        updatedAt: true,
+      },
+    });
+    const financeFingerprint = buildPayoutFinanceFingerprint(orders);
+    try {
+      const mollieFeeAmount = await resolveCurrentPayoutSourceMollieFeeAmount({
+        source,
+        orders,
+        bypassCache: true,
+      });
+      enriched.push({ ...proof, financeFingerprint, mollieFeeAmount });
+    } catch (error) {
+      if (error instanceof PayoutSourceFeeError) {
+        throw new PayoutRequestError(409, error.code, error.message);
+      }
+      throw error;
+    }
+  }
+  return enriched;
+}
+
 router.get('/', async (req, res) => {
   try {
     const { restaurantId } = req.query;
@@ -287,7 +357,12 @@ router.post('/', async (req: AuthRequest, res) => {
           targetPeriodStart: start,
           targetPeriodEnd: end,
         });
+        payoutAudit.sources = await attachExactLateRefundFees(
+          restaurantKey,
+          payoutAudit.sources,
+        );
       } catch (error: any) {
+        if (error instanceof PayoutRequestError) throw error;
         if (error instanceof PayoutProviderAuditBlockedError) {
           throw new PayoutRequestError(409, error.code, error.message);
         }
@@ -328,6 +403,13 @@ router.post('/', async (req: AuthRequest, res) => {
         from: start,
         to: end,
         paymentIds: [...new Set(storedPaymentIds)],
+        bypassCache: true,
+        refundedPaymentIds: mollieOrders
+          .filter((order) =>
+            Number(order.refundAmount || 0) > 0 ||
+            String(order.paymentStatus || '').toUpperCase() === 'REFUNDED')
+          .map((order) => String(order.molliePaymentId || '').trim())
+          .filter(Boolean),
         orderReferences: mollieOrders.map((order) => ({
           id: String(order.id || ''),
           orderNumber: String(order.orderNumber || ''),
@@ -368,9 +450,15 @@ router.post('/', async (req: AuthRequest, res) => {
           '',
         )
         .filter(Boolean));
+      const exactFeeSnapshot = exactMollieFeeSnapshot({
+        paymentIds,
+        refundedPaymentIds: [...refundedIds],
+        paymentFeeByPaymentId: mollieFinance.paymentFeeByPaymentId,
+        refundFeeByPaymentId: mollieFinance.refundFeeByPaymentId,
+      });
       const exactFeesComplete = paymentIds.length === 0 || (
         mollieFinance.feeStatus !== 'unavailable' &&
-        paymentIds.every((id) => mollieFinance.feeByPaymentId.has(id))
+        exactFeeSnapshot != null
       );
       const displayFeesComplete = paymentIds.length === 0 || (
         mollieFinance.feeStatus !== 'unavailable' &&
@@ -400,27 +488,31 @@ router.post('/', async (req: AuthRequest, res) => {
         ), 0),
         realPaymentCount: financialOrders.length,
         mollieFees: feesCompleteForSave
-          ? paymentIds.reduce(
-              (sum, id) => sum + (
-                overrideOriginal
-                  ? mollieFinance.displayFeeByPaymentId.get(id) || 0
-                  : mollieFinance.feeByPaymentId.get(id) || 0
-              ),
-              0,
-            )
+          ? overrideOriginal
+            ? paymentIds.reduce(
+                (sum, id) => sum + (mollieFinance.displayFeeByPaymentId.get(id) || 0),
+                0,
+              )
+            : exactFeeSnapshot?.totalFees ?? 0
           : null,
         refundTransactionFees: feesCompleteForSave
-          ? [...refundedIds].reduce(
-              (sum, id) => sum + (
-                overrideOriginal
-                  ? mollieFinance.displayFeeByPaymentId.get(id) || 0
-                  : mollieFinance.feeByPaymentId.get(id) || 0
-              ),
-              0,
-            )
+          ? [...refundedIds].reduce((sum, id) => sum + (
+              overrideOriginal
+                ? Math.max(
+                    0,
+                    (mollieFinance.displayFeeByPaymentId.get(id) || 0) -
+                      (mollieFinance.displayRefundFeeByPaymentId.get(id) || 0),
+                  )
+                : mollieFinance.paymentFeeByPaymentId.get(id) || 0
+            ), 0)
           : null,
         refundProcessingFees: feesCompleteForSave
-          ? [...refundedIds].reduce((sum, id) => sum + (mollieFinance.refundFeeByPaymentId.get(id) || 0), 0)
+          ? overrideOriginal
+            ? [...refundedIds].reduce(
+                (sum, id) => sum + (mollieFinance.displayRefundFeeByPaymentId.get(id) || 0),
+                0,
+              )
+            : exactFeeSnapshot?.refundProcessingFees ?? 0
           : null,
         mollieFeeStatus: exactFeesComplete ? 'available' : mollieFinance.feeStatus,
       };

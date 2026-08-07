@@ -1,6 +1,5 @@
-import { redirect } from "next/navigation";
+import { FinanceSettingsPage } from "@/modules/finance/settings-page";
 
-// Satserna bor numera som flik under Ekonomi.
 export default function FinanceSettingsRoutePage() {
-  redirect("/finance/restauranger?tab=satser");
+  return <FinanceSettingsPage />;
 }

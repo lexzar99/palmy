@@ -13,6 +13,7 @@ import {
   DEFAULT_DELIVERY_RADIUS,
 } from '../lib/restaurantSettings';
 import { moneyDto, parseOre, sekToOre } from '../utils/money';
+import { parseFinancePercentage, parseFinancePriceOre } from '../lib/financeSettingsInput';
 
 const router = Router();
 
@@ -226,16 +227,15 @@ router.patch('/', authenticate, async (req, res) => {
     if (heroCtaLabel !== undefined) data.heroCtaLabel = validateString(heroCtaLabel, 80, 'Hero-CTA-etikett');
     if (heroCtaUrl !== undefined) data.heroCtaUrl = validateString(heroCtaUrl, 1000, 'Hero-CTA-URL');
 
-    // --- Plattform-ekonomi. Procent clampas 0–100, abonnemang kr → öre. ---
-    const pct = (v: unknown) => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
-    const krToOre = (v: unknown) => Math.max(0, Math.round((Number(v) || 0) * 100));
-    if (commissionSelfPct !== undefined) data.commissionSelfPct = pct(commissionSelfPct);
-    if (commissionPlatformPct !== undefined) data.commissionPlatformPct = pct(commissionPlatformPct);
-    if (vatCustomerPct !== undefined) data.vatCustomerPct = pct(vatCustomerPct);
-    if (vatPlatformFeePct !== undefined) data.vatPlatformFeePct = pct(vatPlatformFeePct);
-    if (tierGoldFee !== undefined) data.tierGoldFee = krToOre(tierGoldFee);
-    if (tierSilverFee !== undefined) data.tierSilverFee = krToOre(tierSilverFee);
-    if (tierStandardFee !== undefined) data.tierStandardFee = krToOre(tierStandardFee);
+    // --- Plattformsekonomi. Avvisa trasiga formulärvärden i stället för att
+    // tyst göra om dem till 0 och skriva över fungerande satser/priser. ---
+    if (commissionSelfPct !== undefined) data.commissionSelfPct = parseFinancePercentage(commissionSelfPct, 'Provision för egen leverans');
+    if (commissionPlatformPct !== undefined) data.commissionPlatformPct = parseFinancePercentage(commissionPlatformPct, 'Provision för ViaEats-leverans');
+    if (vatCustomerPct !== undefined) data.vatCustomerPct = parseFinancePercentage(vatCustomerPct, 'Matmoms');
+    if (vatPlatformFeePct !== undefined) data.vatPlatformFeePct = parseFinancePercentage(vatPlatformFeePct, 'Moms på ViaEats-avgifter');
+    if (tierGoldFee !== undefined) data.tierGoldFee = parseFinancePriceOre(tierGoldFee, 'Guldpris');
+    if (tierSilverFee !== undefined) data.tierSilverFee = parseFinancePriceOre(tierSilverFee, 'Silverpris');
+    if (tierStandardFee !== undefined) data.tierStandardFee = parseFinancePriceOre(tierStandardFee, 'Standardpris');
 
     const settings = await prisma.restaurantSettings.upsert({
       where: { id: 'settings' },

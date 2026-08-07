@@ -25,6 +25,9 @@ import {
   reconcileFinanceOrders,
   type FinanceDeviation,
 } from '../lib/financeReconciliation';
+import { FinancePeriodError, resolveFinancePeriod } from '../lib/financePeriod';
+import { financeRevisionAmounts } from '../lib/financeRevision';
+import { resolveCurrentPayoutSourceMollieFeeAmount } from '../lib/payoutSourceFees';
 
 const router = Router();
 router.use(authenticate, requireSuperAdmin);
@@ -92,25 +95,10 @@ const orderAtAmount = (order: {
   };
 };
 
-const parseDate = (value: unknown): Date | null => {
-  const d = value ? new Date(String(value)) : null;
-  return d && Number.isFinite(d.getTime()) ? d : null;
-};
-
-/** Periodgränser: default = innevarande månad → nu. Slut görs inklusive (dygnsslut). */
-function resolvePeriod(fromRaw: unknown, toRaw: unknown) {
-  const now = new Date();
-  const start = parseDate(fromRaw) ?? new Date(now.getFullYear(), now.getMonth(), 1);
-  const end = parseDate(toRaw) ?? now;
-  start.setHours(0, 0, 0, 0);
-  end.setHours(23, 59, 59, 999);
-  return { start, end };
-}
-
 // GET /api/admin/finance/summary?from=&to= — utbetalningskö för perioden (nya modellen)
 router.get('/summary', async (req, res) => {
   try {
-    const { start, end } = resolvePeriod(req.query.from, req.query.to);
+    const { start, end } = resolveFinancePeriod(req.query.from, req.query.to);
 
     const [settingsRow, restaurants, orders, excludedOrders, persisted] = await Promise.all([
       prisma.restaurantSettings.findUnique({ where: { id: 'settings' } }),
@@ -353,7 +341,11 @@ router.get('/summary', async (req, res) => {
         const liveRefundTransactionFeesOre = !refundFeesDisplayable
           ? null
           : [...refundedPaymentIds].reduce(
-              (sum, id) => sum + (mollieReport.displayFeeByPaymentId.get(id) || 0),
+              (sum, id) => sum + Math.max(
+                0,
+                (mollieReport.displayFeeByPaymentId.get(id) || 0) -
+                  (mollieReport.displayRefundFeeByPaymentId.get(id) || 0),
+              ),
               0,
             );
         const mollieFeesOre = frozenMetrics && Object.prototype.hasOwnProperty.call(frozenMetrics, 'mollieFees')
@@ -415,6 +407,13 @@ router.get('/summary', async (req, res) => {
           tierLabel: b.tierLabel,
           selfDelivery: economic.selfDelivery,
           commissionPct: economic.commissionPct,
+          rateSource: economic.usesFrozenSnapshot
+            ? 'snapshot'
+            : r.commissionPctOverride != null && Number(r.commissionPctOverride) > 0
+              ? 'override'
+              : r.selfDelivery
+                ? 'global-self'
+                : 'global-platform',
           grossTotal: fromOre(grossTotalOre),
           netSales: fromOre(Math.max(0, grossTotalOre - refundTotalOre)),
           orderCount: realPaymentCount,
@@ -544,7 +543,7 @@ router.get('/summary', async (req, res) => {
         orderNumber: null,
         paymentId: null,
         title: 'Mollies balansbok har en oförklarad differens',
-        detail: `${Math.abs(mollieReport.periodDifferenceOre)} öre återstår efter öppningssaldo, betalningar, refunds, avgifter och övriga balansrörelser.`,
+        detail: `${Math.abs(mollieReport.periodDifferenceOre)} öre återstår efter öppningssaldo, betalningar, återbetalningar, avgifter och övriga balansrörelser.`,
         amountOre: Math.abs(mollieReport.periodDifferenceOre),
         affectedOrderCount: 0,
         confirmedLoss: false,
@@ -804,6 +803,10 @@ router.get('/summary', async (req, res) => {
       rows,
     });
   } catch (error) {
+    if (error instanceof FinancePeriodError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     console.error('Finance summary error:', error);
     res.status(500).json({ error: 'Kunde inte beräkna ekonomi-översikten' });
   }
@@ -813,7 +816,7 @@ router.get('/summary', async (req, res) => {
 router.get('/payout/:restaurantId', async (req, res) => {
   try {
     const { restaurantId } = req.params;
-    const { start, end } = resolvePeriod(req.query.from, req.query.to);
+    const { start, end } = resolveFinancePeriod(req.query.from, req.query.to);
 
     const [settingsRow, restaurant, orders, persisted] = await Promise.all([
       prisma.restaurantSettings.findUnique({ where: { id: 'settings' } }),
@@ -890,6 +893,7 @@ router.get('/payout/:restaurantId', async (req, res) => {
       try {
         const parsed = JSON.parse(log.changes || '{}');
         const snapshot = parsed.snapshot || {};
+        const revisionAmounts = financeRevisionAmounts(snapshot);
         return [{
           id: log.id,
           revision: Number(parsed.revision || 0),
@@ -900,10 +904,10 @@ router.get('/payout/:restaurantId', async (req, res) => {
           commissionPct: snapshot.commissionPctSnapshot == null
             ? null
             : Number(snapshot.commissionPctSnapshot),
-          commissionExVat: fromOre(snapshot.commissionAmount),
-          vat: fromOre(Math.round(
-            (Number(snapshot.commissionAmount || 0) * Number(snapshot.feeVatPctSnapshot || 0)) / 100,
-          )),
+          commissionExVat: fromOre(revisionAmounts.commissionExVatOre),
+          subscriptionExVat: fromOre(revisionAmounts.subscriptionExVatOre),
+          viaEatsExVat: fromOre(revisionAmounts.viaEatsExVatOre),
+          vat: fromOre(revisionAmounts.vatOre),
           payout: fromOre(snapshot.payoutAmount),
           manualAdjustment: fromOre(snapshot.manualAdjustmentAmount),
         }];
@@ -950,12 +954,24 @@ router.get('/payout/:restaurantId', async (req, res) => {
     const detailFeesComplete = detailMollieReport.feeStatus !== 'unavailable' &&
       molliePaymentIds.length === mollieOrders.length &&
       molliePaymentIds.every((id) => detailMollieReport.displayFeeByPaymentId.has(id));
+    const detailRefundedPaymentIds = mollieOrders
+      .filter((order) =>
+        Number(order.refundAmount || 0) > 0 ||
+        String(order.paymentStatus || '').toUpperCase() === 'REFUNDED')
+      .map((order) => resolvedMolliePaymentId(detailMollieReport, order))
+      .filter(Boolean);
+    const detailRefundFeesComplete = detailRefundedPaymentIds.every((id) =>
+      detailMollieReport.displayRefundFeeByPaymentId.has(id),
+    );
     const detailMollieFeesOre = !detailFeesComplete
       ? null
       : molliePaymentIds.reduce((sum, id) => sum + (detailMollieReport.displayFeeByPaymentId.get(id) || 0), 0);
-    const detailRefundProcessingFeesOre = !detailFeesComplete
+    const detailRefundProcessingFeesOre = !detailFeesComplete || !detailRefundFeesComplete
       ? null
-      : molliePaymentIds.reduce((sum, id) => sum + (detailMollieReport.displayRefundFeeByPaymentId.get(id) || 0), 0);
+      : detailRefundedPaymentIds.reduce(
+          (sum, id) => sum + (detailMollieReport.displayRefundFeeByPaymentId.get(id) || 0),
+          0,
+        );
     const detailPaymentFeesOre = detailMollieFeesOre == null || detailRefundProcessingFeesOre == null
       ? null
       : Math.max(0, detailMollieFeesOre - detailRefundProcessingFeesOre);
@@ -1036,6 +1052,12 @@ router.get('/payout/:restaurantId', async (req, res) => {
         targetCapacityAmount: persisted?.status === 'PAID' || adjustedOwedOre > 0
           ? 0
           : Math.max(0, adjustedPayoutOre - manualAdjustmentAmount),
+        resolveSourceMollieFeeAmount: ({ source, orders }) =>
+          resolveCurrentPayoutSourceMollieFeeAmount({
+            source,
+            orders,
+            bypassCache: true,
+          }),
       });
       recoveryPreview = {
         blocked: false,
@@ -1177,6 +1199,10 @@ router.get('/payout/:restaurantId', async (req, res) => {
         : null,
     });
   } catch (error) {
+    if (error instanceof FinancePeriodError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     console.error('Finance payout detail error:', error);
     res.status(500).json({ error: 'Kunde inte hämta utbetalningsspecen' });
   }

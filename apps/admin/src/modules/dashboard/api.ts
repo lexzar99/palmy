@@ -189,6 +189,61 @@ export interface ControlCenterParams {
 
 export type DashboardPeriodKey = "today" | "yesterday" | "thisWeek" | "lastWeek" | "thisMonth" | "lastMonth";
 
+export interface DashboardOverviewAction {
+  id: string;
+  kind: "closed-with-live-orders" | "pending-orders" | "closed-during-hours" | "missing-hours";
+  severity: "high" | "medium" | "info";
+  restaurantId: string;
+  title: string;
+  detail: string;
+  href: string;
+}
+
+export interface DashboardOverviewRestaurantStatus {
+  id: string;
+  name: string;
+  slug: string;
+  isOpen: boolean;
+  scheduledOpenNow: boolean;
+  availabilityReason: RestaurantAvailabilityReason;
+  hasHours: boolean;
+  liveOrders: number;
+  pendingOrders: number;
+  updatedAt: string;
+}
+
+export interface DashboardOverviewData {
+  generatedAt: string;
+  timeZone: string;
+  scope: { restaurantId: string | null; isSuperAdmin: boolean };
+  restaurantRefs: RestaurantRef[];
+  today: {
+    netSales: number;
+    orders: number;
+    liveOrders: number;
+    pendingOrders: number;
+  };
+  restaurants: { open: number; total: number };
+  trend7d: Array<{ date: string; label: string; netSales: number; orders: number }>;
+  liveStatusCounts: Record<string, number>;
+  actions: DashboardOverviewAction[];
+  restaurantStatus: DashboardOverviewRestaurantStatus[];
+}
+
+export interface DashboardOverviewParams {
+  restaurantId?: string | null;
+}
+
+export const overviewQueryKey = (params: DashboardOverviewParams = {}) =>
+  ["dashboard", "overview", params.restaurantId ?? null] as const;
+
+export const getDashboardOverview = (params: DashboardOverviewParams = {}) => {
+  const search = new URLSearchParams();
+  if (params.restaurantId) search.set("restaurantId", params.restaurantId);
+  const qs = search.toString();
+  return apiGet<DashboardOverviewData>(`/admin/overview${qs ? `?${qs}` : ""}`);
+};
+
 export const dashboardQueryKey = (params: ControlCenterParams = {}) =>
   ["dashboard", "control-center", params.restaurantId ?? null, params.period ?? "thisMonth"] as const;
 export const healthQueryKey = ["dashboard", "health"] as const;

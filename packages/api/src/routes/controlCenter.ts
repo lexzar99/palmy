@@ -12,6 +12,7 @@ import {
 import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
 import { moneyDto } from '../utils/money';
 import { getMollieFinanceReport } from '../lib/mollieFinance';
+import { buildDashboardActions, buildDashboardTrend } from '../lib/dashboardOverview';
 
 const router = Router();
 router.use(authenticate);
@@ -160,6 +161,168 @@ const severityRank: Record<string, number> = {
   medium: 2,
   info: 1,
 };
+
+// GET /api/admin/overview — small, operational start page.
+// Deliberately contains no Mollie calls or accounting-document projections;
+// detailed commission, VAT and payout truth belongs to /admin/finance.
+router.get('/overview', async (req, res) => {
+  try {
+    const authReq = req as AuthRequest;
+    if (authReq.admin?.role !== 'SUPER_ADMIN' && authReq.admin?.role !== 'GROWTH_AGENT') {
+      return res.status(403).json({ error: 'Kräver super admin-behörighet' });
+    }
+
+    const scopedRestaurantId = req.query.restaurantId ? String(req.query.restaurantId) : null;
+    const [allRestaurants, platformSettings] = await Promise.all([
+      prisma.restaurant.findMany({
+        where: { archivedAt: null, draft: false },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          isOpen: true,
+          scheduledOpenNow: true,
+          acceptingOrdersMode: true,
+          acceptingOrdersOverrideUntil: true,
+          acceptingOrdersOverrideReason: true,
+          pausedUntil: true,
+          comingSoon: true,
+          draft: true,
+          openingHours: true,
+          updatedAt: true,
+          city_relation: {
+            select: { ordersPaused: true, ordersPausedUntil: true, ordersPauseReason: true },
+          },
+        },
+        orderBy: { name: 'asc' },
+      }),
+      prisma.restaurantSettings.findUnique({ where: { id: 'settings' } }),
+    ]);
+
+    const restaurants = scopedRestaurantId
+      ? allRestaurants.filter((restaurant) => restaurant.id === scopedRestaurantId)
+      : allRestaurants.filter((restaurant) => restaurant.draft !== true);
+    const restaurantIds = restaurants.map((restaurant) => restaurant.id);
+    const today = startOfZonedDay();
+    const tomorrow = addZonedDays(today, 1);
+    const trendStart = addZonedDays(today, -6);
+    const whereForRestaurants = { restaurantId: { in: restaurantIds } };
+
+    const [accountingOrders, liveOrders] = restaurantIds.length > 0
+      ? await Promise.all([
+          prisma.order.findMany({
+            where: {
+              ...whereForRestaurants,
+              status: { notIn: [...CLOSED_STATUSES] },
+              paymentStatus: { in: [...PAYOUT_PAYMENT_STATUSES] },
+              createdAt: { gte: trendStart, lt: tomorrow },
+              ...orderBusinessFilters,
+            },
+            select: {
+              total: true,
+              paymentStatus: true,
+              refundAmount: true,
+              createdAt: true,
+            },
+          }),
+          prisma.order.findMany({
+            where: {
+              ...whereForRestaurants,
+              status: { in: [...LIVE_STATUSES] },
+              ...orderBusinessFilters,
+            },
+            select: { id: true, status: true, restaurantId: true },
+          }),
+        ])
+      : [[], []];
+
+    const trendDays = Array.from({ length: 7 }, (_, index) => {
+      const day = addZonedDays(trendStart, index);
+      return {
+        date: dateKey(day),
+        label: weekdayLabelFormatter.format(day).replace('.', ''),
+      };
+    });
+    const trend = buildDashboardTrend(
+      trendDays,
+      accountingOrders.map((order) => ({
+        date: dateKey(order.createdAt),
+        netSalesOre: netPaidAmount(order),
+      })),
+    );
+
+    const liveByRestaurant = new Map<string, typeof liveOrders>();
+    const liveStatusCounts: Record<string, number> = {};
+    for (const order of liveOrders) {
+      const current = liveByRestaurant.get(order.restaurantId || 'unknown') || [];
+      current.push(order);
+      liveByRestaurant.set(order.restaurantId || 'unknown', current);
+      liveStatusCounts[order.status] = (liveStatusCounts[order.status] || 0) + 1;
+    }
+
+    const restaurantStatus = restaurants.map((restaurant) => {
+      const availability = resolveRestaurantAvailability(restaurant, {
+        city: restaurant.city_relation,
+        platform: platformSettings,
+      });
+      const currentLiveOrders = liveByRestaurant.get(restaurant.id) || [];
+      return {
+        id: restaurant.id,
+        name: restaurant.name,
+        slug: restaurant.slug,
+        isOpen: availability.isOpen,
+        scheduledOpenNow: availability.scheduledOpenNow,
+        availabilityReason: availability.reason,
+        hasHours: hasOpeningHours(parseJson<Record<string, unknown>>(restaurant.openingHours, {})),
+        liveOrders: currentLiveOrders.length,
+        pendingOrders: currentLiveOrders.filter((order) => order.status === 'PENDING').length,
+        updatedAt: restaurant.updatedAt.toISOString(),
+      };
+    }).sort((left, right) => {
+      if (right.pendingOrders !== left.pendingOrders) return right.pendingOrders - left.pendingOrders;
+      if (right.liveOrders !== left.liveOrders) return right.liveOrders - left.liveOrders;
+      if (left.isOpen !== right.isOpen) return left.isOpen ? -1 : 1;
+      return left.name.localeCompare(right.name, 'sv');
+    });
+
+    const actions = buildDashboardActions(restaurantStatus);
+    const todayTrend = trend.find((point) => point.date === dateKey(today));
+    const pendingOrders = restaurantStatus.reduce((sum, restaurant) => sum + restaurant.pendingOrders, 0);
+    const openRestaurants = restaurantStatus.filter((restaurant) => restaurant.isOpen).length;
+
+    res.json({
+      generatedAt: new Date().toISOString(),
+      timeZone: REPORT_TIME_ZONE,
+      scope: {
+        restaurantId: scopedRestaurantId,
+        isSuperAdmin: authReq.admin?.role === 'SUPER_ADMIN',
+      },
+      restaurantRefs: allRestaurants.map((restaurant) => ({ id: restaurant.id, name: restaurant.name })),
+      today: {
+        netSales: (todayTrend?.netSalesOre || 0) / 100,
+        orders: todayTrend?.orders || 0,
+        liveOrders: liveOrders.length,
+        pendingOrders,
+      },
+      restaurants: {
+        open: openRestaurants,
+        total: restaurantStatus.length,
+      },
+      trend7d: trend.map((point) => ({
+        date: point.date,
+        label: point.label,
+        netSales: point.netSalesOre / 100,
+        orders: point.orders,
+      })),
+      liveStatusCounts,
+      actions,
+      restaurantStatus,
+    });
+  } catch (error) {
+    console.error('Dashboard overview error:', error);
+    res.status(500).json({ error: 'Kunde inte hämta översikten' });
+  }
+});
 
 router.get('/control-center', async (req, res) => {
   try {

@@ -19,6 +19,24 @@ const TIER_META: Record<number, { blurb: string; tone: "warning" | "info" | "neu
 };
 const tierTone = (fc: number) => TIER_META[fc]?.tone ?? "neutral";
 
+const parseOptionalTierPrice = (value: string) => {
+  const trimmed = value.trim();
+  if (trimmed === "") return null;
+  return Number(trimmed.replace(",", "."));
+};
+
+const tierPriceError = (value: string, label: string) => {
+  const parsed = parseOptionalTierPrice(value);
+  return parsed != null && (!Number.isFinite(parsed) || parsed < 0)
+    ? `${label} måste vara ett giltigt belopp på 0 kr eller mer.`
+    : null;
+};
+
+const mutationErrorMessage = (error: unknown, fallback: string) => {
+  const value = error as { response?: { data?: { error?: string } }; message?: string } | null;
+  return value?.response?.data?.error || value?.message || fallback;
+};
+
 // Presentations-katalog för tier-korten. featuredClass kopplar varje kort till
 // restaurangernas faktiska tier-klass; chip = liten färgad ruta per nivå.
 const TIER_CARDS = [
@@ -66,26 +84,35 @@ function TierModal({ restaurant, open, onClose }: { restaurant: ControlCenterRes
   }, [open, restaurant]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const toNullableNumber = (value: string) => {
-    const trimmed = value.trim();
-    const parsed = Number(trimmed);
-    return trimmed === "" || !Number.isFinite(parsed) ? null : Math.max(0, parsed);
+  const goldPriceError = tierPriceError(goldPrice, "Guldpris");
+  const silverPriceError = tierPriceError(silverPrice, "Silverpris");
+  const standardPriceError = tierPriceError(standardPrice, "Standardpris");
+  const priceValidationError = goldPriceError || silverPriceError || standardPriceError;
+
+  const previewPrice = (value: string, globalPrice: number | undefined) => {
+    const parsed = parseOptionalTierPrice(value);
+    return parsed != null && Number.isFinite(parsed) && parsed >= 0
+      ? parsed
+      : globalPrice ?? restaurant?.subscriptionEstimate ?? 0;
   };
 
   const previewSubscription =
     featuredClass === 1
-      ? toNullableNumber(goldPrice) ?? economy.data?.tierGoldFee ?? restaurant?.subscriptionEstimate ?? 0
+      ? previewPrice(goldPrice, economy.data?.tierGoldFee)
       : featuredClass === 2
-        ? toNullableNumber(silverPrice) ?? economy.data?.tierSilverFee ?? restaurant?.subscriptionEstimate ?? 0
-        : toNullableNumber(standardPrice) ?? economy.data?.tierStandardFee ?? restaurant?.subscriptionEstimate ?? 0;
+        ? previewPrice(silverPrice, economy.data?.tierSilverFee)
+        : previewPrice(standardPrice, economy.data?.tierStandardFee);
 
   const saveMutation = useMutation({
-    mutationFn: () => patchRestaurant(restaurant!.id, {
-      featuredClass,
-      tierGoldFeeOverride: toNullableNumber(goldPrice),
-      tierSilverFeeOverride: toNullableNumber(silverPrice),
-      tierStandardFeeOverride: toNullableNumber(standardPrice),
-    }),
+    mutationFn: () => {
+      if (priceValidationError) throw new Error(priceValidationError);
+      return patchRestaurant(restaurant!.id, {
+        featuredClass,
+        tierGoldFeeOverride: parseOptionalTierPrice(goldPrice),
+        tierSilverFeeOverride: parseOptionalTierPrice(silverPrice),
+        tierStandardFeeOverride: parseOptionalTierPrice(standardPrice),
+      });
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       await queryClient.invalidateQueries({ queryKey: ["restaurants"] });
@@ -105,8 +132,13 @@ function TierModal({ restaurant, open, onClose }: { restaurant: ControlCenterRes
       footer={
         <div className="flex justify-end gap-2">
           <Button onClick={onClose}>Avbryt</Button>
-          <Button variant="primary" onClick={() => saveMutation.mutate()}>
-            {saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : "Spara tier"}
+          <Button
+            variant="primary"
+            disabled={Boolean(priceValidationError) || saveMutation.isPending}
+            onClick={() => saveMutation.mutate()}
+          >
+            {saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : null}
+            Spara tier
           </Button>
         </div>
       }
@@ -118,7 +150,10 @@ function TierModal({ restaurant, open, onClose }: { restaurant: ControlCenterRes
           <MetricCard label="Väntande ordrar" value={formatNumber(restaurant.pendingOrders)} />
         </div>
         <Field label="Tier-klass">
-          <Select value={String(featuredClass)} onChange={(event) => setFeaturedClass(Number(event.target.value))}>
+          <Select value={String(featuredClass)} onChange={(event) => {
+            if (saveMutation.isError) saveMutation.reset();
+            setFeaturedClass(Number(event.target.value));
+          }}>
             <option value="1">Guld</option>
             <option value="2">Silver</option>
             <option value="3">Brons</option>
@@ -126,34 +161,54 @@ function TierModal({ restaurant, open, onClose }: { restaurant: ControlCenterRes
           </Select>
         </Field>
         <div className="grid gap-4 md:grid-cols-3">
-          <Field label="Guldpris">
+          <Field label="Guldpris" error={goldPriceError}>
             <Input
               type="number"
               min={0}
+              step="0.01"
               value={goldPrice}
+              aria-invalid={Boolean(goldPriceError)}
               placeholder={economy.data ? `Globalt ${formatCurrency(economy.data.tierGoldFee)}` : "Globalt"}
-              onChange={(event) => setGoldPrice(event.target.value)}
+              onChange={(event) => {
+                if (saveMutation.isError) saveMutation.reset();
+                setGoldPrice(event.target.value);
+              }}
             />
           </Field>
-          <Field label="Silverpris">
+          <Field label="Silverpris" error={silverPriceError}>
             <Input
               type="number"
               min={0}
+              step="0.01"
               value={silverPrice}
+              aria-invalid={Boolean(silverPriceError)}
               placeholder={economy.data ? `Globalt ${formatCurrency(economy.data.tierSilverFee)}` : "Globalt"}
-              onChange={(event) => setSilverPrice(event.target.value)}
+              onChange={(event) => {
+                if (saveMutation.isError) saveMutation.reset();
+                setSilverPrice(event.target.value);
+              }}
             />
           </Field>
-          <Field label="Standardpris">
+          <Field label="Standardpris" error={standardPriceError}>
             <Input
               type="number"
               min={0}
+              step="0.01"
               value={standardPrice}
+              aria-invalid={Boolean(standardPriceError)}
               placeholder={economy.data ? `Globalt ${formatCurrency(economy.data.tierStandardFee)}` : "Globalt"}
-              onChange={(event) => setStandardPrice(event.target.value)}
+              onChange={(event) => {
+                if (saveMutation.isError) saveMutation.reset();
+                setStandardPrice(event.target.value);
+              }}
             />
           </Field>
         </div>
+        {saveMutation.isError ? (
+          <p role="alert" className="rounded-xl bg-[var(--danger-soft)] px-4 py-3 text-sm font-semibold text-[var(--danger-text)]">
+            {mutationErrorMessage(saveMutation.error, "Tier-inställningen kunde inte sparas.")}
+          </p>
+        ) : null}
         <Surface className="px-5 py-5">
           <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Effekt</p>
           <div className="mt-3 grid gap-2 text-sm text-[var(--text-secondary)]">

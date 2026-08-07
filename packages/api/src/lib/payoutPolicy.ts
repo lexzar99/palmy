@@ -79,6 +79,10 @@ export type PayoutProviderAuditOrder = Pick<PayoutOrder, 'status' | 'paymentStat
   updatedAt: Date | string;
 };
 
+export type PayoutFinanceAuditOrder = PayoutProviderAuditOrder & {
+  total: number;
+};
+
 export class PayoutProviderAuditError extends Error {
   constructor(
     public readonly code: 'PAYOUT_PROVIDER_AUDIT_BLOCKED' | 'PAYOUT_PROVIDER_AUDIT_STALE',
@@ -165,6 +169,29 @@ export function assertPayoutProviderAuditFingerprint(
   ) {
     throw new PayoutProviderAuditStaleError(context);
   }
+}
+
+/** Stable proof for all settled payment rows, including fully refunded rows. */
+export function buildPayoutFinanceFingerprint(
+  orders: readonly PayoutFinanceAuditOrder[],
+): string {
+  return JSON.stringify(
+    [...orders]
+      .filter(isFinanceRealPaymentOrder)
+      .sort((a, b) => String(a.id).localeCompare(String(b.id)))
+      .map((order) => ({
+        id: order.id,
+        status: String(order.status || '').toUpperCase(),
+        paymentStatus: String(order.paymentStatus || '').toUpperCase(),
+        paymentProvider: String(order.paymentProvider || '').toLowerCase(),
+        molliePaymentId: String(order.molliePaymentId || ''),
+        total: nonNegativeOre(order.total),
+        refundAmount: Math.min(nonNegativeOre(order.total), nonNegativeOre(order.refundAmount)),
+        updatedAt: order.updatedAt instanceof Date
+          ? order.updatedAt.toISOString()
+          : String(order.updatedAt || ''),
+      })),
+  );
 }
 
 export type NetPayoutOrder = OrderEcon & {
@@ -509,10 +536,10 @@ export function hasCompletePayoutEconomicSnapshot(
  * restaurant/settings rows: changing a commission rate must never rewrite a
  * settlement that has already been paid.
  */
-export function recomputePayoutFromEconomicSnapshot(
+export function recomputePayoutSettlementFromEconomicSnapshot(
   orders: PayoutOrder[],
   source: PayoutEconomicSnapshot,
-): PayoutMoneySnapshot {
+): { snapshot: PayoutMoneySnapshot; owedAmount: number } {
   if (!hasCompletePayoutEconomicSnapshot(source)) {
     throw new Error('PAYOUT_ECONOMIC_SNAPSHOT_MISSING');
   }
@@ -553,17 +580,27 @@ export function recomputePayoutFromEconomicSnapshot(
   });
 
   return {
-    grossSales,
-    orderCount: eligible.length,
-    commissionAmount,
-    subscriptionAmount,
-    manualAdjustmentAmount,
-    lateRefundAdjustmentAmount,
-    mollieFeeAmount,
-    foodVatAmount,
-    platformTipAmount: source.selfDeliverySnapshot ? 0 : tipTotal,
-    payoutAmount: settlement.payoutAmount,
+    snapshot: {
+      grossSales,
+      orderCount: eligible.length,
+      commissionAmount,
+      subscriptionAmount,
+      manualAdjustmentAmount,
+      lateRefundAdjustmentAmount,
+      mollieFeeAmount,
+      foodVatAmount,
+      platformTipAmount: source.selfDeliverySnapshot ? 0 : tipTotal,
+      payoutAmount: settlement.payoutAmount,
+    },
+    owedAmount: settlement.owedAmount,
   };
+}
+
+export function recomputePayoutFromEconomicSnapshot(
+  orders: PayoutOrder[],
+  source: PayoutEconomicSnapshot,
+): PayoutMoneySnapshot {
+  return recomputePayoutSettlementFromEconomicSnapshot(orders, source).snapshot;
 }
 
 /** Allocate oldest outstanding recoveries first and retain any remainder. */
@@ -605,6 +642,20 @@ export function requiredLateRefundRecoveryAmount(
   const paid = Math.max(0, Math.round(Number(sourcePaidAmount) || 0));
   const recomputed = Math.max(0, Math.round(Number(recomputedSourceAmount) || 0));
   return Math.min(paid, Math.max(0, paid - recomputed));
+}
+
+/**
+ * Recovery must retain the negative side of the recalculated settlement.
+ * Otherwise a full late refund stops at the old payout and silently drops the
+ * original payment fee and the newly booked refund processing fee.
+ */
+export function requiredLateRefundRecoverySettlementAmount(
+  sourcePaidAmount: number,
+  recomputedSourceAmount: number,
+  recomputedOwedAmount: number,
+): number {
+  return requiredLateRefundRecoveryAmount(sourcePaidAmount, recomputedSourceAmount) +
+    Math.max(0, Math.round(Number(recomputedOwedAmount) || 0));
 }
 
 export function sameRecoveryAllocations(
