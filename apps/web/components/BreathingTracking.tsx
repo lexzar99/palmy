@@ -4,6 +4,18 @@ import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { MapPin, MessageSquareWarning, Phone, Receipt, X } from "lucide-react";
+import {
+  DONE_STATUSES,
+  forecastLabel,
+  isPickupOrder,
+  ON_WAY_STATUSES,
+  phaseSubtitle,
+  phaseTitle,
+  resolvePhase,
+  stepIndex,
+  stepLabels,
+  type BreathingPhase,
+} from "@/lib/trackingPhase";
 
 const CourierTrackingMap = dynamic(() => import("@/components/CourierTrackingMap"), { ssr: false });
 
@@ -17,8 +29,6 @@ const CourierTrackingMap = dynamic(() => import("@/components/CourierTrackingMap
 // visas den och märks som uppdaterad. Annars visas den ursprungliga tiden.
 // Ordet "försenad" finns inte i den här filen.
 
-export type BreathingPhase = "waiting" | "preparing" | "onTheWay" | "readyForPickup" | "done";
-
 const TINTS: Record<BreathingPhase, string> = {
   waiting: "#F0531C",
   preparing: "#FAA81A",
@@ -30,43 +40,6 @@ const TINTS: Record<BreathingPhase, string> = {
 
 export function phaseTint(phase: BreathingPhase): string {
   return TINTS[phase];
-}
-
-export function phaseHeadline(phase: BreathingPhase): string {
-  return phaseTitle(phase);
-}
-
-const ON_WAY_STATUSES = ["DELIVERING", "OUT_FOR_DELIVERY", "ON_THE_WAY"];
-const DONE_STATUSES = ["DELIVERED", "COMPLETED"];
-
-export function resolvePhase(order: any): BreathingPhase {
-  const status = String(order?.status || "PENDING").toUpperCase();
-  const isPickup = String(order?.orderType || order?.type || "DELIVERY").toUpperCase() === "PICKUP";
-  if (DONE_STATUSES.includes(status)) return isPickup ? "readyForPickup" : "done";
-  if (isPickup && status === "READY") return "readyForPickup";
-  if (ON_WAY_STATUSES.includes(status)) return isPickup ? "readyForPickup" : "onTheWay";
-  if (status === "PREPARING" || status === "ACCEPTED" || status === "READY") return "preparing";
-  return "waiting";
-}
-
-function phaseTitle(phase: BreathingPhase): string {
-  switch (phase) {
-    case "waiting": return "Vi väntar på restaurangen";
-    case "preparing": return "Mottagen och förbereds";
-    case "onTheWay": return "På väg";
-    case "readyForPickup": return "Redo att hämtas";
-    case "done": return "Klart";
-  }
-}
-
-function phaseSubtitle(phase: BreathingPhase, restaurant: string): string {
-  switch (phase) {
-    case "waiting": return `${restaurant} svarar oftast inom en minut.`;
-    case "preparing": return "Köket förbereder din mat.";
-    case "onTheWay": return "Maten har lämnat restaurangen.";
-    case "readyForPickup": return "Visa ordernumret i restaurangen.";
-    case "done": return "Hoppas det smakade.";
-  }
 }
 
 function clockText(value: unknown): string | null {
@@ -101,7 +74,7 @@ function highLoad(order: any, phase: BreathingPhase): boolean {
 }
 
 /** Uppdaterad prognos vinner när den finns — annars den ursprungliga tiden. */
-function forecast(order: any, phase: BreathingPhase) {
+function forecast(order: any, phase: BreathingPhase, pickup = false) {
   const revised = order?.etaRevisedAt ?? null;
   const target = revised ?? order?.etaEndsAt ?? null;
   const clock = clockText(target);
@@ -121,13 +94,7 @@ function forecast(order: any, phase: BreathingPhase) {
     later = targetMs >= promised + 3 * 60000;
   }
 
-  let label: string;
-  if (phase === "waiting") label = "Tid kommer när köket svarat";
-  else if (phase === "done") label = "Klar";
-  else if (phase === "readyForPickup") label = "Redo nu";
-  else if (phase === "onTheWay") {
-    label = earlier ? "Kommer tidigare än beräknat" : later || revised ? "Uppdaterad prognos" : "Beräknad vara här";
-  } else label = "Beräknad framme";
+  const label = forecastLabel({ phase, pickup, earlier, later, revised: Boolean(revised) });
 
   return {
     label,
@@ -222,10 +189,12 @@ function PlacedBurst({ tint }: { tint: string }) {
 
 // ── Steg ────────────────────────────────────────────────────────────────────
 
-function StepRail({ phase }: { phase: BreathingPhase }) {
+function StepRail({ phase, pickup }: { phase: BreathingPhase; pickup: boolean }) {
   const tint = TINTS[phase];
-  const steps = ["Skickad", "Förbereds", "På väg"];
-  const activeIndex = phase === "waiting" ? 0 : phase === "preparing" ? 1 : 2;
+  // Sista steget skiljer sig: en hämtorder blir klar i restaurangen, den åker
+  // aldrig iväg någonstans.
+  const steps = stepLabels(pickup);
+  const activeIndex = stepIndex(phase);
 
   return (
     <div className="mx-auto mt-6 flex max-w-[320px] gap-2">
@@ -360,7 +329,8 @@ export function BreathingTrackingPanel({
   const phase = resolvePhase(order);
   const tint = TINTS[phase];
   const restName = order?.restaurantName || "Restaurangen";
-  const { label, clock, minutesLeft, revised, earlier } = forecast(order, phase);
+  const pickup = isPickupOrder(order);
+  const { label, clock, minutesLeft, revised, earlier } = forecast(order, phase, pickup);
   const busyKitchen = highLoad(order, phase);
   const isSelfDelivery = String(order?.orderType || order?.type || "DELIVERY").toUpperCase() === "DELIVERY" && !!order?.selfDelivery;
 
@@ -437,14 +407,14 @@ export function BreathingTrackingPanel({
           className="text-[28px] font-black leading-tight tracking-[-0.02em]"
           style={{ color: "var(--text-primary)" }}
         >
-          {phaseTitle(phase)}
+          {phaseTitle(phase, pickup)}
         </motion.h1>
         <p className="mx-auto mt-1.5 max-w-[300px] text-[14px] font-bold" style={{ color: "var(--text-secondary)" }}>
           {phase === "onTheWay" && earlier
             ? "Vi beräknar att din mat kommer tidigare än väntat."
             : phase === "onTheWay" && revised
               ? "Uppdaterad prognos — maten är utanför restaurangen och på väg till dig. Oroa dig inte."
-              : phaseSubtitle(phase, restName)}
+              : phaseSubtitle(phase, restName, pickup)}
         </p>
         {busyKitchen ? (
           <span className="mt-2.5 inline-flex rounded-full px-3 py-1.5 text-[11.5px] font-black" style={{ backgroundColor: "#FFF7DB", color: "#8A5B00" }}>
@@ -458,7 +428,7 @@ export function BreathingTrackingPanel({
         ) : null}
       </div>
 
-      <StepRail phase={phase} />
+      <StepRail phase={phase} pickup={pickup} />
 
       <div className="mt-6 grid grid-cols-2 gap-3">
         <button

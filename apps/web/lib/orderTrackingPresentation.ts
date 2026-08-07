@@ -49,7 +49,7 @@ export function orderTrackingCopy(order: any): OrderTrackingCopy {
     case "READY":
       return pickup
         ? {
-            title: "Redo att hämtas",
+            title: "Klar för hämtning",
             short: "Din mat väntar",
             description: "Visa ordernumret i restaurangen när du hämtar beställningen.",
           }
@@ -119,7 +119,8 @@ export function orderTrackingProgress(order: any): { labels: string[]; activeInd
   const firstLabel = status === "PENDING" || status === "AWAITING_PAYMENT" ? "Skickad" : "Bekräftad";
 
   if (pickup) {
-    const labels = [firstLabel, "Tillagas", "Redo"];
+    // Samma ord som i andningsvyn — "På väg" finns inte vid avhämtning.
+    const labels = [firstLabel, "Tillagas", "Klar för hämtning"];
     if (DONE_STATUSES.includes(status) || status === "READY") return { labels, activeIndex: 2 };
     if (status === "PREPARING") return { labels, activeIndex: 1 };
     return { labels, activeIndex: 0 };

@@ -6,7 +6,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Bike, Check, ChevronRight, Navigation, Package, ShoppingBag, X } from "lucide-react";
 import { motion } from "framer-motion";
 import { orderTrackingCopy, orderTrackingProgress } from "@/lib/orderTrackingPresentation";
-import { phaseHeadline, phaseTint, resolvePhase } from "@/components/BreathingTracking";
+import { phaseTint } from "@/components/BreathingTracking";
+import { isPickupOrder, phaseTitle, resolvePhase } from "@/lib/trackingPhase";
 
 const CourierTrackingMap = dynamic(() => import("@/components/CourierTrackingMap"), { ssr: false });
 
@@ -41,6 +42,7 @@ function etaLabel(order: any, now = Date.now()) {
 function CompactTrackingCard({ order, href, className = "" }: { order: any; href?: string; className?: string }) {
   const phase = resolvePhase(order);
   const tint = phaseTint(phase);
+  const pickup = isPickupOrder(order);
   const status = String(order.status || "PENDING").toUpperCase();
   const isCancelled = ["CANCELLED", "REJECTED", "DELIVERY_FAILED"].includes(status);
   const accent = isCancelled ? "#C0392B" : tint;
@@ -51,7 +53,7 @@ function CompactTrackingCard({ order, href, className = "" }: { order: any; href
   const clock = target
     ? new Date(target).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })
     : null;
-  const headline = isCancelled ? "Avbruten" : phaseHeadline(phase);
+  const headline = isCancelled ? "Avbruten" : phaseTitle(phase, pickup);
   const done = phase === "done" || phase === "readyForPickup";
 
   const body = (
