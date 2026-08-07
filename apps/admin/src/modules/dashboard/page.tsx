@@ -106,7 +106,16 @@ export function DashboardPage() {
   }
 
   const s = summary.settlement;
-  const rows = summary.rows.map((row) => ({ row, status: statusLabel(row.status) }));
+  // Störst försäljning först. På översikten är listan en rangordning, inte ett
+  // register — den som omsätter mest ska stå överst, inte den som råkar heta
+  // något tidigt i alfabetet. Vid lika netto avgör namnet, så ordningen är
+  // stabil mellan omladdningar.
+  const rows = [...summary.rows]
+    .sort(
+      (a, b) =>
+        b.settlement.netSales - a.settlement.netSales || a.name.localeCompare(b.name, "sv"),
+    )
+    .map((row) => ({ row, status: statusLabel(row.status) }));
   const group = (status: string) => rows.filter((item) => item.status === status);
   const sum = (list: typeof rows) => list.reduce((total, item) => total + item.row.settlement.payout, 0);
   const drafts = group("Utkast");

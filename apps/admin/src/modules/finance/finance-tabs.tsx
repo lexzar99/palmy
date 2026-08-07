@@ -14,11 +14,6 @@ import styles from "@/modules/finance/finance-tabs.module.css";
 const TABS = [
   { href: "/finance", label: "Ekonomi", match: (path: string) => path === "/finance" },
   {
-    href: "/finance/payouts",
-    label: "Utbetalningar",
-    match: (path: string) => path.startsWith("/finance/payouts"),
-  },
-  {
     href: "/finance/restaurangekonomi",
     label: "Restaurangekonomi",
     // En restaurangs spec ligger på /finance/<id> och hör hit, inte till
@@ -28,6 +23,11 @@ const TABS = [
       const segment = path.split("/")[2] || "";
       return Boolean(segment) && !["payouts", "avstamning", "installningar"].includes(segment);
     },
+  },
+  {
+    href: "/finance/payouts",
+    label: "Utbetalningar",
+    match: (path: string) => path.startsWith("/finance/payouts"),
   },
 ];
 
