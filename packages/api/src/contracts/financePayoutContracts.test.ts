@@ -71,6 +71,7 @@ import {
   resolveFinancePeriod,
   subscriptionAppliesToFinancePeriod,
 } from '../lib/financePeriod';
+import { commissionOverrideFromAgreement } from '../lib/restaurantFinanceAgreement';
 
 const paidDelivered = {
   status: 'DELIVERED',
@@ -316,6 +317,17 @@ const zeroCommissionPayout = computePayout(
 );
 assert.equal(zeroCommissionPayout.commissionPct, 0);
 assert.equal(zeroCommissionPayout.commissionOre, 0);
+assert.equal(
+  commissionOverrideFromAgreement('CUSTOM', 0),
+  0,
+  'the agreement transport must preserve an explicit restaurant 0%',
+);
+assert.equal(
+  commissionOverrideFromAgreement('GLOBAL', 0),
+  null,
+  'only explicit global mode may clear the restaurant override',
+);
+assert.throws(() => commissionOverrideFromAgreement('CUSTOM', null), TypeError);
 assert.equal(zeroCommissionPayout.feeVatOre, 0);
 assert.equal(zeroCommissionPayout.payoutOre, 8_000);
 assert.equal(hasCommissionOverride(null), false);
@@ -1558,6 +1570,25 @@ async function runPayoutSourceAuditContracts() {
     'the locked revision freezes only discount support that increases restaurant gross',
   );
   const financeRouteSource = readFileSync(join(__dirname, '..', 'routes', 'finance.ts'), 'utf8');
+  assert.match(
+    financeRouteSource,
+    /router\.patch\('\/restaurants\/:restaurantId\/agreement'[\s\S]*commissionOverrideFromAgreement\([\s\S]*input\.commissionMode,[\s\S]*input\.commissionPct/,
+    'the finance agreement endpoint must distinguish explicit GLOBAL from CUSTOM 0%',
+  );
+  const financeTermsSource = readFileSync(
+    join(__dirname, '..', '..', '..', '..', 'apps', 'admin', 'src', 'modules', 'finance', 'terms-page.tsx'),
+    'utf8',
+  );
+  assert.match(
+    financeTermsSource,
+    /commissionMode:\s*commissionMode === "global" \? "GLOBAL" : "CUSTOM"[\s\S]*commissionPct:\s*expectedCommissionOverride/,
+    'the agreement UI must send explicit mode and preserve a custom zero value',
+  );
+  assert.doesNotMatch(
+    financeTermsSource,
+    /customCommissionValue\s*<=\s*0[^\n]*\?\s*null/,
+    'the UI must never translate custom 0% into the global null sentinel',
+  );
   assert.match(
     financeRouteSource,
     /createdAt: \{ lte: end \},[\s\S]*OR: \[[\s\S]*\{ archivedAt: null \},[\s\S]*\{ archivedAt: \{ gte: start \} \}/,

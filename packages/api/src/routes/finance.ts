@@ -1,6 +1,7 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import prisma from '../lib/prisma';
-import { authenticate, requireSuperAdmin } from '../middleware/auth';
+import { authenticate, requireSuperAdmin, type AuthRequest } from '../middleware/auth';
 import {
   computePayout,
   economyFromSettings,
@@ -47,9 +48,29 @@ import {
 } from '../lib/financePeriod';
 import { financeRevisionAmounts } from '../lib/financeRevision';
 import { resolveCurrentPayoutSourceMollieFeeAmount } from '../lib/payoutSourceFees';
+import { parseFinancePriceOre } from '../lib/financeSettingsInput';
+import { commissionOverrideFromAgreement } from '../lib/restaurantFinanceAgreement';
+import { audit } from '../lib/auditLog';
 
 const router = Router();
 router.use(authenticate, requireSuperAdmin);
+
+const restaurantFinanceAgreementSchema = z.object({
+  selfDelivery: z.boolean(),
+  commissionMode: z.enum(['GLOBAL', 'CUSTOM']),
+  commissionPct: z.number().int().min(0).max(100).nullable().optional(),
+  tierGoldFeeOverride: z.number().finite().min(0).nullable().optional(),
+  tierSilverFeeOverride: z.number().finite().min(0).nullable().optional(),
+  tierStandardFeeOverride: z.number().finite().min(0).nullable().optional(),
+}).superRefine((value, context) => {
+  if (value.commissionMode === 'CUSTOM' && value.commissionPct == null) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['commissionPct'],
+      message: 'Egen provision måste anges. 0 procent är tillåtet.',
+    });
+  }
+});
 
 const fromOre = (n?: number | null) => Number(n || 0) / 100;
 
@@ -142,6 +163,83 @@ const orderAtAmount = (order: {
     foodVatPercent: order.foodVatPercent,
   };
 };
+
+// PATCH /api/admin/finance/restaurants/:restaurantId/agreement
+// The contract is intentionally explicit: GLOBAL is the only operation that
+// clears the override. CUSTOM + 0 must remain an exact, commission-free deal.
+router.patch('/restaurants/:restaurantId/agreement', async (req: AuthRequest, res) => {
+  try {
+    const input = restaurantFinanceAgreementSchema.parse(req.body);
+    const restaurant = await prisma.restaurant.findFirst({
+      where: { id: req.params.restaurantId, archivedAt: null },
+      select: {
+        id: true,
+        selfDelivery: true,
+        commissionPctOverride: true,
+        tierGoldFeeOverride: true,
+        tierSilverFeeOverride: true,
+        tierStandardFeeOverride: true,
+      },
+    });
+    if (!restaurant) {
+      res.status(404).json({ error: 'Restaurang hittades inte' });
+      return;
+    }
+
+    const commissionPctOverride = commissionOverrideFromAgreement(
+      input.commissionMode,
+      input.commissionPct,
+    );
+    const tierOverride = (value: number | null | undefined, label: string) =>
+      value === undefined ? undefined : value === null ? null : parseFinancePriceOre(value, label);
+
+    const updated = await prisma.restaurant.update({
+      where: { id: restaurant.id },
+      data: {
+        selfDelivery: input.selfDelivery,
+        commissionPctOverride,
+        tierGoldFeeOverride: tierOverride(input.tierGoldFeeOverride, 'Guldpris'),
+        tierSilverFeeOverride: tierOverride(input.tierSilverFeeOverride, 'Silverpris'),
+        tierStandardFeeOverride: tierOverride(input.tierStandardFeeOverride, 'Standardpris'),
+      },
+      select: {
+        id: true,
+        selfDelivery: true,
+        commissionPctOverride: true,
+        tierGoldFeeOverride: true,
+        tierSilverFeeOverride: true,
+        tierStandardFeeOverride: true,
+        updatedAt: true,
+      },
+    });
+
+    await audit(req, 'RESTAURANT_FINANCE_AGREEMENT_UPDATE', {
+      resourceType: 'Restaurant',
+      resourceId: restaurant.id,
+      changes: {
+        before: restaurant,
+        after: updated,
+      },
+    });
+
+    res.json({
+      restaurant: {
+        ...updated,
+        commissionMode: updated.commissionPctOverride == null ? 'GLOBAL' : 'CUSTOM',
+        tierGoldFeeOverride: updated.tierGoldFeeOverride == null ? null : fromOre(updated.tierGoldFeeOverride),
+        tierSilverFeeOverride: updated.tierSilverFeeOverride == null ? null : fromOre(updated.tierSilverFeeOverride),
+        tierStandardFeeOverride: updated.tierStandardFeeOverride == null ? null : fromOre(updated.tierStandardFeeOverride),
+      },
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError || error instanceof TypeError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    console.error('Restaurant finance agreement update error:', error);
+    res.status(500).json({ error: 'Avtalet kunde inte sparas' });
+  }
+});
 
 // GET /api/admin/finance/summary?from=&to= — utbetalningskö för perioden (nya modellen)
 router.get('/summary', async (req, res) => {

@@ -10,6 +10,7 @@ import {
   parseFinancePriceOre,
 } from '../lib/financeSettingsInput';
 import { financeRevisionAmounts } from '../lib/financeRevision';
+import { commissionOverrideFromAgreement } from '../lib/restaurantFinanceAgreement';
 
 const springForward = resolveFinancePeriod('2026-03-29', '2026-03-29');
 assert.equal(springForward.start.toISOString(), '2026-03-28T23:00:00.000Z');
@@ -106,6 +107,21 @@ assert.equal(parseFinancePercentage('12.5', 'Provision'), 13);
 assert.equal(parseFinancePriceOre(0, 'Pris'), 0);
 assert.equal(parseFinancePriceOre('0', 'Pris'), 0);
 assert.equal(parseFinancePriceOre('12.34', 'Pris'), 1_234);
+
+assert.equal(
+  commissionOverrideFromAgreement('CUSTOM', 0),
+  0,
+  'a commission-free restaurant must persist an explicit 0 override',
+);
+assert.equal(commissionOverrideFromAgreement('CUSTOM', 17), 17);
+assert.equal(
+  commissionOverrideFromAgreement('GLOBAL', 0),
+  null,
+  'only the explicit global mode may clear the restaurant override',
+);
+assert.throws(() => commissionOverrideFromAgreement('CUSTOM', null), TypeError);
+assert.throws(() => commissionOverrideFromAgreement('CUSTOM', -1), TypeError);
+assert.throws(() => commissionOverrideFromAgreement('CUSTOM', 12.5), TypeError);
 
 for (const invalid of [null, '', '   ', false, true, {}, []]) {
   assert.throws(() => parseFinancePercentage(invalid, 'Provision'), TypeError);

@@ -380,13 +380,27 @@ export const getEconomy = () => apiGet<EconomyRates>("/admin/finance/economy");
 export const updateEconomyRates = (payload: Partial<EconomyRates>) =>
   apiPatch<unknown>("/settings", payload);
 
-export const setRestaurantDelivery = (
+export type RestaurantFinanceAgreement = {
+  restaurant: {
+    id: string;
+    selfDelivery: boolean;
+    commissionMode: "GLOBAL" | "CUSTOM";
+    commissionPctOverride: number | null;
+    tierGoldFeeOverride: number | null;
+    tierSilverFeeOverride: number | null;
+    tierStandardFeeOverride: number | null;
+    updatedAt: string;
+  };
+};
+
+export const saveRestaurantFinanceAgreement = (
   restaurantId: string,
   payload: {
-    selfDelivery?: boolean;
-    commissionPctOverride?: number | null;
+    selfDelivery: boolean;
+    commissionMode: "GLOBAL" | "CUSTOM";
+    commissionPct: number | null;
     tierGoldFeeOverride?: number | null;
     tierSilverFeeOverride?: number | null;
     tierStandardFeeOverride?: number | null;
   },
-) => apiPatch<unknown>(`/restaurants/${restaurantId}`, payload);
+) => apiPatch<RestaurantFinanceAgreement>(`/admin/finance/restaurants/${restaurantId}/agreement`, payload);

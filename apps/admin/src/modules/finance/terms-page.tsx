@@ -21,7 +21,7 @@ import {
   getEconomy,
   getPayoutSpec,
   payoutSpecQueryKey,
-  setRestaurantDelivery,
+  saveRestaurantFinanceAgreement,
   type PayoutSpec,
 } from "@/modules/finance/api";
 import { FinanceWorkspace, financeQuery } from "@/modules/finance/finance-workspace";
@@ -278,11 +278,17 @@ export function FinanceTermsPage({
     mutationFn: async () => {
       if (!data || !tier || !economy.data) throw new Error("Avtalet har inte laddats klart.");
       if (commissionError || subscriptionError) throw new Error(commissionError || subscriptionError || "Kontrollera avtalet.");
-      return setRestaurantDelivery(restaurantId, {
+      const expectedCommissionOverride = commissionMode === "global" ? null : customCommissionValue;
+      const result = await saveRestaurantFinanceAgreement(restaurantId, {
         selfDelivery,
-        commissionPctOverride: commissionMode === "global" ? null : customCommissionValue,
+        commissionMode: commissionMode === "global" ? "GLOBAL" : "CUSTOM",
+        commissionPct: expectedCommissionOverride,
         [tier.key]: subscriptionMode === "global" ? null : customSubscriptionValue,
       });
+      if (result.restaurant.commissionPctOverride !== expectedCommissionOverride) {
+        throw new Error("Servern bekräftade inte den valda provisionssatsen.");
+      }
+      return result;
     },
     onSuccess: async () => {
       await invalidateEconomyDomain(queryClient);
