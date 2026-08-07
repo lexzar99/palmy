@@ -72,6 +72,7 @@ import {
   checkoutTotalDifferenceOre,
   checkoutTotalMatches,
 } from '../lib/checkoutIntegrity';
+import { resolvePlatformFundedDiscount } from '../lib/discountFunding';
 
 const router = Router();
 
@@ -1110,6 +1111,7 @@ router.post('/', async (req: Request, res: Response) => {
     // i gäst-kassan (matchar /api/welcome-offer som kassan läser).
     let welcomeAppliedTitle: string | null = null;
     let welcomeAppliedDealId: string | null = null;
+    let automaticWelcomeApplied = false;
     if (!skipAutoDeals) {
       try {
         const welcomeOffer = await getWelcomeOffer();
@@ -1134,6 +1136,7 @@ router.post('/', async (req: Request, res: Response) => {
               appliedDeal = null;
               welcomeAppliedTitle = welcomeOffer.title;
               welcomeAppliedDealId = welcomeOffer.dealId;
+              automaticWelcomeApplied = true;
             }
           }
         }
@@ -1164,6 +1167,7 @@ router.post('/', async (req: Request, res: Response) => {
       // = manualDiscountAmount, inte automaticDiscountAmount).
       welcomeAppliedTitle = null;
       welcomeAppliedDealId = null;
+      automaticWelcomeApplied = false;
     } else {
       validatedCode = undefined;
     }
@@ -1179,6 +1183,7 @@ router.post('/', async (req: Request, res: Response) => {
     // percent-migreringen (vissa kan ha gamla 50 kr-rabatter i DB).
     let appliedUserDealId: string | null = null;
     let appliedUserDealAmountKr: number | null = null;
+    let appliedUserDealType: string | null = null;
     if (data.userDealId && orderUserId) {
       const userDeal = await (prisma as any).userDeal.findFirst({
         where: {
@@ -1325,9 +1330,11 @@ router.post('/', async (req: Request, res: Response) => {
           // UserDeal vinner → välkomst-auto-erbjudandet gäller inte.
           welcomeAppliedTitle = null;
           welcomeAppliedDealId = null;
+          automaticWelcomeApplied = false;
         }
         appliedUserDealId = userDeal.id;
         appliedUserDealAmountKr = Math.round(totalDealOre / 100);
+        appliedUserDealType = String(userDeal.type || '');
       }
     }
 
@@ -1346,6 +1353,17 @@ router.post('/', async (req: Request, res: Response) => {
       deliveryDiscountAmount = Math.min(Math.max(0, deliveryDiscountAmount), deliveryFee);
       discountAmount = foodDiscountAmount + deliveryDiscountAmount;
     }
+    const platformDiscountFunding = isTestOrder
+      ? {
+          platformFundedFoodDiscountAmount: 0,
+          platformFundedDeliveryDiscountAmount: 0,
+        }
+      : resolvePlatformFundedDiscount({
+          foodDiscountAmount,
+          deliveryDiscountAmount,
+          automaticWelcomeApplied,
+          appliedUserDealType,
+        });
 
     // ── RABATT-TOLERANS: min-order-validering ────────────────────────────────
     // Nu när discountAmount är slutgiltig kan vi avgöra om kunden får använda
@@ -1531,6 +1549,8 @@ router.post('/', async (req: Request, res: Response) => {
         discountAmount,
         foodDiscountAmount,
         deliveryDiscountAmount,
+        platformFundedFoodDiscountAmount: platformDiscountFunding.platformFundedFoodDiscountAmount,
+        platformFundedDeliveryDiscountAmount: platformDiscountFunding.platformFundedDeliveryDiscountAmount,
         smallOrderFee,
         foodVatPercent: restaurantFoodVatPercent,
         deliveryVatPercent: orderDeliveryVatPercent,

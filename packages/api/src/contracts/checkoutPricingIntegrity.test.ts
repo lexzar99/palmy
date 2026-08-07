@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   checkoutTotalDifferenceOre,
   checkoutTotalMatches,
@@ -8,6 +10,10 @@ import {
   dealMatchesRestaurant,
   isAutomaticBasketDeal,
 } from '../lib/deals';
+import {
+  isPlatformFundedUserDealType,
+  resolvePlatformFundedDiscount,
+} from '../lib/discountFunding';
 
 const romaId = 'restaurant-roma';
 const palmyraId = 'restaurant-palmyra';
@@ -66,6 +72,29 @@ assert.equal(checkoutTotalMatches(128.99, 13_000), false);
 assert.equal(checkoutTotalDifferenceOre(78, 13_100), 5_300);
 assert.equal(checkoutTotalMatches(undefined, 13_000), true, 'legacy clients remain compatible');
 
+for (const type of ['WELCOME', 'REFERRAL_INVITER', 'REFERRAL_INVITEE', 'MANUAL']) {
+  assert.equal(isPlatformFundedUserDealType(type), true, `${type} is financed by ViaEats`);
+}
+assert.equal(isPlatformFundedUserDealType('APP_DEAL'), false);
+assert.deepEqual(resolvePlatformFundedDiscount({
+  foodDiscountAmount: 2_000,
+  deliveryDiscountAmount: 500,
+  automaticWelcomeApplied: true,
+  appliedUserDealType: null,
+}), {
+  platformFundedFoodDiscountAmount: 2_000,
+  platformFundedDeliveryDiscountAmount: 500,
+});
+assert.deepEqual(resolvePlatformFundedDiscount({
+  foodDiscountAmount: 2_000,
+  deliveryDiscountAmount: 500,
+  automaticWelcomeApplied: true,
+  appliedUserDealType: 'APP_DEAL',
+}), {
+  platformFundedFoodDiscountAmount: 0,
+  platformFundedDeliveryDiscountAmount: 0,
+}, 'a restaurant-funded UserDeal winner replaces the automatic welcome source');
+
 assert.deepEqual(
   validateFrozenOrderPricing({
     total: 7_900,
@@ -103,5 +132,37 @@ assert.equal(
   }).reason,
   'TOTAL_MISMATCH',
 );
+
+assert.deepEqual(
+  validateFrozenOrderPricing({
+    total: 7_900,
+    deliveryFee: 100,
+    discountAmount: 5_200,
+    foodDiscountAmount: 5_200,
+    deliveryDiscountAmount: 0,
+    platformFundedFoodDiscountAmount: 5_200,
+    platformFundedDeliveryDiscountAmount: 0,
+    items: [{ subtotal: 13_000 }],
+  }),
+  { valid: true, expectedTotalOre: 7_900 },
+);
+assert.equal(
+  validateFrozenOrderPricing({
+    total: 7_900,
+    deliveryFee: 100,
+    discountAmount: 5_200,
+    foodDiscountAmount: 5_200,
+    deliveryDiscountAmount: 0,
+    platformFundedFoodDiscountAmount: 5_201,
+    items: [{ subtotal: 13_000 }],
+  }).reason,
+  'PLATFORM_FUNDING_EXCEEDS_DISCOUNT',
+);
+
+const orderRouteSource = readFileSync(join(__dirname, '..', 'routes', 'orders.ts'), 'utf8');
+assert.match(orderRouteSource, /automaticWelcomeApplied = true/);
+assert.match(orderRouteSource, /appliedUserDealType = String\(userDeal\.type \|\| ''\)/);
+assert.match(orderRouteSource, /platformFundedFoodDiscountAmount: platformDiscountFunding\.platformFundedFoodDiscountAmount/);
+assert.match(orderRouteSource, /platformFundedDeliveryDiscountAmount: platformDiscountFunding\.platformFundedDeliveryDiscountAmount/);
 
 console.log('Checkout pricing integrity: restaurant scope, deal scope and PSP totals OK');

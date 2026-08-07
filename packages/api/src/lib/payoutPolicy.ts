@@ -1,5 +1,6 @@
 import {
   computePayout,
+  financeOrderComponents,
   type EconomySettings,
   type OrderEcon,
   type PayoutBreakdown,
@@ -66,6 +67,12 @@ export type PayoutOrder = {
   total: number;
   deliveryFee: number;
   tipAmount: number;
+  discountAmount?: number | null;
+  foodDiscountAmount?: number | null;
+  deliveryDiscountAmount?: number | null;
+  platformFundedFoodDiscountAmount?: number | null;
+  platformFundedDeliveryDiscountAmount?: number | null;
+  smallOrderFee?: number | null;
   foodVatPercent?: number | null;
   refundAmount?: number | null;
 };
@@ -79,9 +86,13 @@ export type PayoutProviderAuditOrder = Pick<PayoutOrder, 'status' | 'paymentStat
   updatedAt: Date | string;
 };
 
-export type PayoutFinanceAuditOrder = PayoutProviderAuditOrder & {
-  total: number;
-};
+export type PayoutFinanceAuditOrder = PayoutProviderAuditOrder &
+  Pick<PayoutOrder, 'total'> &
+  Partial<Pick<PayoutOrder,
+    'deliveryFee' | 'tipAmount' | 'discountAmount' |
+    'foodDiscountAmount' | 'deliveryDiscountAmount' |
+    'platformFundedFoodDiscountAmount' | 'platformFundedDeliveryDiscountAmount' |
+    'smallOrderFee'>>;
 
 export class PayoutProviderAuditError extends Error {
   constructor(
@@ -186,7 +197,15 @@ export function buildPayoutFinanceFingerprint(
         paymentProvider: String(order.paymentProvider || '').toLowerCase(),
         molliePaymentId: String(order.molliePaymentId || ''),
         total: nonNegativeOre(order.total),
-        refundAmount: Math.min(nonNegativeOre(order.total), nonNegativeOre(order.refundAmount)),
+        deliveryFee: nonNegativeOre(order.deliveryFee),
+        tipAmount: nonNegativeOre(order.tipAmount),
+        discountAmount: nonNegativeOre(order.discountAmount),
+        foodDiscountAmount: nonNegativeOre(order.foodDiscountAmount),
+        deliveryDiscountAmount: nonNegativeOre(order.deliveryDiscountAmount),
+        platformFundedFoodDiscountAmount: nonNegativeOre(order.platformFundedFoodDiscountAmount),
+        platformFundedDeliveryDiscountAmount: nonNegativeOre(order.platformFundedDeliveryDiscountAmount),
+        smallOrderFee: nonNegativeOre(order.smallOrderFee),
+        refundAmount: effectiveRefundAmountOre(order),
         updatedAt: order.updatedAt instanceof Date
           ? order.updatedAt.toISOString()
           : String(order.updatedAt || ''),
@@ -291,6 +310,19 @@ export function isFinanceRealPaymentOrder(
 }
 
 /**
+ * REFUNDED is authoritative even for legacy rows whose cumulative amount was
+ * left at zero (or below the full total). Partial refunds keep the clamped PSP
+ * amount. This one rule is shared by fingerprints and saved finance snapshots.
+ */
+export function effectiveRefundAmountOre(
+  order: Pick<PayoutOrder, 'total' | 'refundAmount' | 'paymentStatus'>,
+): number {
+  const total = nonNegativeOre(order.total);
+  if (String(order.paymentStatus || '').toUpperCase() === 'REFUNDED') return total;
+  return Math.min(total, nonNegativeOre(order.refundAmount));
+}
+
+/**
  * A period must not be approved while money or fulfilment can still change.
  * FAILED and fully REFUNDED rows are final without a payout; every other
  * non-eligible combination remains a settlement blocker.
@@ -319,10 +351,11 @@ const nonNegativeOre = (value: unknown): number => {
  * Convert the immutable monetary snapshots on an Order into the amount that
  * is still paid after the PSP's cumulative refund amount.
  *
- * Refunds currently have no per-line allocation snapshot, so partial refunds
- * are distributed proportionally over food, delivery and tip. This preserves
- * the original commercial split, makes all components add up to the exact net
- * paid amount and, importantly, consumes the cumulative refund only once.
+ * Refunds currently have no per-line allocation snapshot. The conservative
+ * settlement rule is therefore FOOD-FIRST: restaurant food bears the refund
+ * before customer-paid delivery and tip are reduced. ViaEats-funded discounts
+ * remain frozen support on a partial customer refund; a full refund excludes
+ * the complete order.
  */
 export function netPayoutOrder(order: PayoutOrder): NetPayoutOrder | null {
   if (!isPayoutEligibleOrder(order)) return null;
@@ -330,7 +363,7 @@ export function netPayoutOrder(order: PayoutOrder): NetPayoutOrder | null {
   const originalTotal = nonNegativeOre(order.total);
   if (originalTotal <= 0) return null;
 
-  const refundAmount = Math.min(originalTotal, nonNegativeOre(order.refundAmount));
+  const refundAmount = effectiveRefundAmountOre(order);
   if (String(order.paymentStatus).toUpperCase() === 'PARTIALLY_REFUNDED' && refundAmount <= 0) {
     return null;
   }
@@ -340,17 +373,41 @@ export function netPayoutOrder(order: PayoutOrder): NetPayoutOrder | null {
   // fail closed rather than accidentally paying the restaurant.
   if (netTotal <= 0) return null;
 
-  const originalDelivery = Math.min(originalTotal, nonNegativeOre(order.deliveryFee));
-  const originalTip = Math.min(originalTotal - originalDelivery, nonNegativeOre(order.tipAmount));
-  const ratio = netTotal / originalTotal;
+  const originalComponents = financeOrderComponents(order);
+  const originalNetDelivery = Math.min(originalTotal, originalComponents.netDeliveryFee);
+  const originalTip = Math.min(
+    originalTotal - originalNetDelivery,
+    originalComponents.tipAmount,
+  );
+  const originalCustomerFood = originalTotal - originalNetDelivery - originalTip;
 
-  const deliveryFee = Math.min(netTotal, Math.round(originalDelivery * ratio));
-  const tipAmount = Math.min(netTotal - deliveryFee, Math.round(originalTip * ratio));
+  let refundRemaining = refundAmount;
+  const foodRefund = Math.min(originalCustomerFood, refundRemaining);
+  refundRemaining -= foodRefund;
+  const deliveryRefund = Math.min(originalNetDelivery, refundRemaining);
+  refundRemaining -= deliveryRefund;
+  const tipRefund = Math.min(originalTip, refundRemaining);
+  refundRemaining -= tipRefund;
+  if (refundRemaining !== 0) return null;
+
+  const remainingCustomerFood = originalCustomerFood - foodRefund;
+  const remainingNetDelivery = originalNetDelivery - deliveryRefund;
+  const tipAmount = originalTip - tipRefund;
+  const originalSmallOrderFee = Math.min(originalCustomerFood, originalComponents.smallOrderFee);
+  const smallOrderFee = Math.min(originalSmallOrderFee, remainingCustomerFood);
+  const deliveryDiscountAmount = originalComponents.deliveryDiscountAmount;
+  const deliveryFee = remainingNetDelivery + deliveryDiscountAmount;
 
   const net: NetPayoutOrder = {
     total: netTotal,
     deliveryFee,
     tipAmount,
+    discountAmount: originalComponents.discountAmount,
+    foodDiscountAmount: originalComponents.foodDiscountAmount,
+    deliveryDiscountAmount,
+    platformFundedFoodDiscountAmount: originalComponents.platformFundedFoodDiscountAmount,
+    platformFundedDeliveryDiscountAmount: originalComponents.platformFundedDeliveryDiscountAmount,
+    smallOrderFee,
     originalTotal,
     refundAmount,
   };
@@ -545,13 +602,30 @@ export function recomputePayoutSettlementFromEconomicSnapshot(
   }
 
   const eligible = payoutOrders(orders);
+  const components = eligible.map(financeOrderComponents);
   const grossTotal = eligible.reduce((sum, order) => sum + order.total, 0);
-  const deliveryFeeTotal = eligible.reduce((sum, order) => sum + order.deliveryFee, 0);
-  const tipTotal = eligible.reduce((sum, order) => sum + order.tipAmount, 0);
-  const foodBase = Math.max(0, grossTotal - deliveryFeeTotal - tipTotal);
+  const deliveryFeeTotal = components.reduce((sum, row) => sum + row.netDeliveryFee, 0);
+  const tipTotal = components.reduce((sum, row) => sum + row.tipAmount, 0);
+  const customerFoodBase = components.reduce(
+    (sum, row) => sum + Math.max(0, row.total - row.netDeliveryFee - row.tipAmount),
+    0,
+  );
+  const platformFundedFoodDiscountTotal = components.reduce(
+    (sum, row) => sum + row.platformFundedFoodDiscountAmount,
+    0,
+  );
+  const platformFundedDeliveryDiscountTotal = components.reduce(
+    (sum, row) => sum + row.platformFundedDeliveryDiscountAmount,
+    0,
+  );
+  const foodBase = customerFoodBase + platformFundedFoodDiscountTotal;
   const foodVatRates = eligible.map((order) => order.foodVatPercent ?? source.foodVatPctSnapshot ?? 0);
   const foodVatAmount = eligible.reduce((sum, order, index) => {
-    const orderFoodBase = Math.max(0, Number(order.total || 0) - Number(order.deliveryFee || 0) - Number(order.tipAmount || 0));
+    const component = components[index];
+    const orderFoodBase = Math.max(
+      0,
+      component.total - component.netDeliveryFee - component.tipAmount,
+    ) + component.platformFundedFoodDiscountAmount;
     const rate = Math.max(0, Number(foodVatRates[index] ?? 0));
     const v = rate / 100;
     return sum + (v > 0 ? Math.round(orderFoodBase - orderFoodBase / (1 + v)) : 0);
@@ -563,7 +637,9 @@ export function recomputePayoutSettlementFromEconomicSnapshot(
   const feeVatAmount = Math.round(
     ((commissionAmount + subscriptionAmount) * Number(source.feeVatPctSnapshot)) / 100,
   );
-  const grossSales = source.selfDeliverySnapshot ? grossTotal : foodBase;
+  const grossSales = source.selfDeliverySnapshot
+    ? grossTotal + platformFundedFoodDiscountTotal + platformFundedDeliveryDiscountTotal
+    : foodBase;
   const mollieFeeAmount = nonNegativeOre(source.mollieFeeAmount);
   const commercialPosition = grossSales - commissionAmount - subscriptionAmount - feeVatAmount;
   const manualAdjustmentAmount = Number.isFinite(source.manualAdjustmentAmount)

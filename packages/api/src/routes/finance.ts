@@ -1,19 +1,33 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
-import { computePayout, economyFromSettings, type OrderEcon } from '../lib/financeCalc';
+import {
+  computePayout,
+  economyFromSettings,
+  hasCommissionOverride,
+  type OrderEcon,
+} from '../lib/financeCalc';
 import {
   FINANCE_ACCOUNTING_ORDER_FILTER,
   FINANCE_REAL_PAYMENT_STATUSES,
   applySettlementAdjustments,
   isFinanceRealPaymentOrder,
+  isPayoutOrderRefundWindowClosed,
+  isPayoutRefundWindowClosed,
+  isPayoutSettlementBlockingOrder,
   netPayoutOrder,
+  PAYOUT_NON_PAYABLE_FINAL_PAYMENT_STATUSES,
   PAYOUT_NON_TEST_ORDER_FILTER,
   PAYOUT_ORDER_STATUSES,
   payoutRefundWindowClosesAt,
   payoutRefundWindowHours,
+  sameRecoveryAllocations,
 } from '../lib/payoutPolicy';
-import { calculateLateRefundRecoveryPlan, PayoutRecoveryError } from '../lib/payoutRecovery';
+import {
+  calculateLateRefundRecoveryPlan,
+  getReservedRecoveryAllocations,
+  PayoutRecoveryError,
+} from '../lib/payoutRecovery';
 import {
   activeFinanceSummarySnapshot,
   reconcileRestaurantFundingOre,
@@ -25,7 +39,12 @@ import {
   reconcileFinanceOrders,
   type FinanceDeviation,
 } from '../lib/financeReconciliation';
-import { FinancePeriodError, resolveFinancePeriod } from '../lib/financePeriod';
+import {
+  FinancePeriodError,
+  isFinanceCalendarMonthPeriod,
+  resolveFinancePeriod,
+  subscriptionAppliesToFinancePeriod,
+} from '../lib/financePeriod';
 import { financeRevisionAmounts } from '../lib/financeRevision';
 import { resolveCurrentPayoutSourceMollieFeeAmount } from '../lib/payoutSourceFees';
 
@@ -33,6 +52,22 @@ const router = Router();
 router.use(authenticate, requireSuperAdmin);
 
 const fromOre = (n?: number | null) => Number(n || 0) / 100;
+
+const restaurantTermsForPeriod = <T extends {
+  createdAt: Date;
+  archivedAt?: Date | null;
+  tierGoldFeeOverride?: number | null;
+  tierSilverFeeOverride?: number | null;
+  tierStandardFeeOverride?: number | null;
+}>(restaurant: T, start: Date, end: Date): T =>
+  subscriptionAppliesToFinancePeriod(restaurant.createdAt, restaurant.archivedAt ?? null, start, end)
+    ? restaurant
+    : {
+        ...restaurant,
+        tierGoldFeeOverride: 0,
+        tierSilverFeeOverride: 0,
+        tierStandardFeeOverride: 0,
+      };
 
 const isMollieCandidateOrder = (order: { paymentProvider?: string | null }) => {
   const provider = String(order.paymentProvider || '').trim().toLowerCase();
@@ -66,31 +101,44 @@ const clampedRefundOre = (order: {
   total: number;
   refundAmount?: number | null;
   paymentStatus?: string | null;
-}) => Math.min(
-  Math.max(0, Number(order.total || 0)),
-  Math.max(
-    0,
-    Number(order.refundAmount ?? (
-      String(order.paymentStatus || '').toUpperCase() === 'REFUNDED'
-        ? order.total
-        : 0
-    )),
-  ),
-);
+}) => {
+  const total = Math.max(0, Number(order.total || 0));
+  const recorded = Math.max(0, Number(order.refundAmount || 0));
+  // PSP-status REFUNDED är auktoritativ. Ett fördröjt/legacy refundAmount=0
+  // får aldrig göra en full återbetalning till försäljning igen.
+  const effective = String(order.paymentStatus || '').toUpperCase() === 'REFUNDED'
+    ? total
+    : recorded;
+  return Math.min(total, effective);
+};
 
 const orderAtAmount = (order: {
   total: number;
   deliveryFee: number;
   tipAmount: number;
+  discountAmount?: number | null;
+  foodDiscountAmount?: number | null;
+  deliveryDiscountAmount?: number | null;
+  platformFundedFoodDiscountAmount?: number | null;
+  platformFundedDeliveryDiscountAmount?: number | null;
+  smallOrderFee?: number | null;
   foodVatPercent: number | null;
 }, amountOre: number): OrderEcon | null => {
   const originalOre = Math.max(0, Number(order.total || 0));
   const normalizedOre = Math.min(originalOre, Math.max(0, Math.round(amountOre)));
   if (originalOre <= 0 || normalizedOre <= 0) return null;
+  const scale = (value: number | null | undefined) =>
+    Math.round(Math.max(0, Number(value || 0)) * normalizedOre / originalOre);
   return {
     total: normalizedOre,
-    deliveryFee: Math.round(Math.max(0, Number(order.deliveryFee || 0)) * normalizedOre / originalOre),
-    tipAmount: Math.round(Math.max(0, Number(order.tipAmount || 0)) * normalizedOre / originalOre),
+    deliveryFee: scale(order.deliveryFee),
+    tipAmount: scale(order.tipAmount),
+    discountAmount: scale(order.discountAmount),
+    foodDiscountAmount: scale(order.foodDiscountAmount),
+    deliveryDiscountAmount: scale(order.deliveryDiscountAmount),
+    platformFundedFoodDiscountAmount: scale(order.platformFundedFoodDiscountAmount),
+    platformFundedDeliveryDiscountAmount: scale(order.platformFundedDeliveryDiscountAmount),
+    smallOrderFee: scale(order.smallOrderFee),
     foodVatPercent: order.foodVatPercent,
   };
 };
@@ -100,10 +148,72 @@ router.get('/summary', async (req, res) => {
   try {
     const { start, end } = resolveFinancePeriod(req.query.from, req.query.to);
 
-    const [settingsRow, restaurants, orders, excludedOrders, persisted] = await Promise.all([
+    const [
+      settingsRow,
+      restaurants,
+      orders,
+      excludedOrders,
+      persisted,
+      completedHistoricalRefunds,
+      legacyHistoricalRefundOrders,
+    ] = await Promise.all([
       prisma.restaurantSettings.findUnique({ where: { id: 'settings' } }),
       prisma.restaurant.findMany({
-        where: { archivedAt: null },
+        where: {
+          OR: [
+            {
+              // Every restaurant whose lifecycle overlaps the month needs a
+              // row, even with zero orders, so the full monthly subscription
+              // can become a clear invoice/owed amount.
+              createdAt: { lte: end },
+              OR: [
+                { archivedAt: null },
+                { archivedAt: { gte: start } },
+              ],
+            },
+            { orders: { some: { createdAt: { gte: start, lte: end } } } },
+            {
+              orders: {
+                some: {
+                  paymentRefunds: {
+                    some: {
+                      provider: 'mollie',
+                      status: 'REFUNDED',
+                      OR: [
+                        { completedAt: { gte: start, lte: end } },
+                        {
+                          // Mollie's event timestamp owns the accounting
+                          // period even when our completion sync runs later.
+                          providerCreatedAt: { gte: start, lte: end },
+                        },
+                        {
+                          completedAt: null,
+                          providerCreatedAt: null,
+                          lastSeenAt: { gte: start, lte: end },
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+            {
+              // Legacy refunds predating the durable PaymentRefund ledger are
+              // still period activity. Keep an archived restaurant visible so
+              // the row can be reconciled and recovered instead of disappearing.
+              orders: {
+                some: {
+                  createdAt: { lt: start },
+                  refundedAt: { gte: start, lte: end },
+                  paymentProvider: 'mollie',
+                  paymentStatus: { in: ['REFUNDED', 'PARTIALLY_REFUNDED'] },
+                  ...PAYOUT_NON_TEST_ORDER_FILTER,
+                },
+              },
+            },
+            { payouts: { some: { periodStart: start, periodEnd: end } } },
+          ],
+        },
         select: {
           id: true,
           name: true,
@@ -116,6 +226,8 @@ router.get('/summary', async (req, res) => {
           tierGoldFeeOverride: true,
           tierSilverFeeOverride: true,
           tierStandardFeeOverride: true,
+          archivedAt: true,
+          createdAt: true,
         },
         orderBy: { name: 'asc' },
       }),
@@ -135,6 +247,12 @@ router.get('/summary', async (req, res) => {
           total: true,
           deliveryFee: true,
           tipAmount: true,
+          discountAmount: true,
+          foodDiscountAmount: true,
+          deliveryDiscountAmount: true,
+          platformFundedFoodDiscountAmount: true,
+          platformFundedDeliveryDiscountAmount: true,
+          smallOrderFee: true,
           foodVatPercent: true,
           refundAmount: true,
         },
@@ -156,6 +274,12 @@ router.get('/summary', async (req, res) => {
           total: true,
           deliveryFee: true,
           tipAmount: true,
+          discountAmount: true,
+          foodDiscountAmount: true,
+          deliveryDiscountAmount: true,
+          platformFundedFoodDiscountAmount: true,
+          platformFundedDeliveryDiscountAmount: true,
+          smallOrderFee: true,
           foodVatPercent: true,
           refundAmount: true,
         },
@@ -185,6 +309,67 @@ router.get('/summary', async (req, res) => {
           notes: true,
         },
       }),
+      prisma.paymentRefund.findMany({
+        where: {
+          provider: 'mollie',
+          status: 'REFUNDED',
+          OR: [
+            { completedAt: { gte: start, lte: end } },
+            {
+              // Mollie's event timestamp owns the accounting period even
+              // when completedAt is populated in a later local period.
+              providerCreatedAt: { gte: start, lte: end },
+            },
+            {
+              completedAt: null,
+              providerCreatedAt: null,
+              lastSeenAt: { gte: start, lte: end },
+            },
+          ],
+          order: {
+            is: {
+              createdAt: { lt: start },
+              ...PAYOUT_NON_TEST_ORDER_FILTER,
+            },
+          },
+        },
+        select: {
+          paymentRef: true,
+          order: {
+            select: {
+              id: true,
+              orderNumber: true,
+              restaurantId: true,
+              molliePaymentId: true,
+              paymentProvider: true,
+              status: true,
+              paymentStatus: true,
+              total: true,
+              refundAmount: true,
+            },
+          },
+        },
+      }),
+      prisma.order.findMany({
+        where: {
+          createdAt: { lt: start },
+          refundedAt: { gte: start, lte: end },
+          paymentProvider: 'mollie',
+          paymentStatus: { in: ['REFUNDED', 'PARTIALLY_REFUNDED'] },
+          ...PAYOUT_NON_TEST_ORDER_FILTER,
+        },
+        select: {
+          id: true,
+          orderNumber: true,
+          restaurantId: true,
+          molliePaymentId: true,
+          paymentProvider: true,
+          status: true,
+          paymentStatus: true,
+          total: true,
+          refundAmount: true,
+        },
+      }),
     ]);
 
     const economy = economyFromSettings(settingsRow);
@@ -192,17 +377,27 @@ router.get('/summary', async (req, res) => {
     const reportOrders = orders.filter(isFinanceRealPaymentOrder);
     const reportMollieOrders = reportOrders
       .filter(isMollieCandidateOrder);
+    const historicalRefundOrders = [
+      ...completedHistoricalRefunds.map(({ paymentRef, order }) => ({
+        ...order,
+        molliePaymentId: String(paymentRef || order.molliePaymentId || '').trim() || null,
+      })),
+      ...legacyHistoricalRefundOrders,
+    ].filter((order, index, rows) =>
+      rows.findIndex((candidate) => candidate.id === order.id) === index,
+    );
+    const linkedMollieOrders = [...reportMollieOrders, ...historicalRefundOrders];
     const mollieReport = await getMollieFinanceReport({
       from: start,
       to: end,
-      paymentIds: reportMollieOrders.map((order) => String(order.molliePaymentId || '')),
-      refundedPaymentIds: reportMollieOrders
+      paymentIds: linkedMollieOrders.map((order) => String(order.molliePaymentId || '')),
+      refundedPaymentIds: linkedMollieOrders
         .filter((order) =>
           Math.max(0, Number(order.refundAmount || 0)) > 0 ||
           String(order.paymentStatus || '').toUpperCase() === 'REFUNDED'
         )
         .map((order) => String(order.molliePaymentId || '')),
-      orderReferences: mollieOrderReferences(reportOrders),
+      orderReferences: mollieOrderReferences([...reportOrders, ...historicalRefundOrders]),
     });
     const excludedMollieOrders = excludedOrders
       .filter(isMollieCandidateOrder);
@@ -253,14 +448,22 @@ router.get('/summary', async (req, res) => {
       ordersByRestaurant.set(o.restaurantId, list);
     }
 
-    const rows = restaurants
+    let rows = restaurants
       .map((r) => {
-        const b = computePayout(ordersByRestaurant.get(r.id) || [], r, economy);
+        const b = computePayout(
+          ordersByRestaurant.get(r.id) || [],
+          restaurantTermsForPeriod(r, start, end),
+          economy,
+        );
         const p = persistedMap.get(r.id) || null;
         const latestRevisionMetrics = p ? frozenMetricSnapshots.get(p.id) : null;
         const frozenMetrics = String(p?.status || '').toUpperCase() === 'DRAFT'
           ? null
           : latestRevisionMetrics;
+        const livePlatformFundedDiscountOre = b.restaurantPlatformFundedDiscountTotal;
+        const platformFundedDiscountOre = Number.isFinite(Number(frozenMetrics?.platformFundedDiscountAmount))
+          ? Math.max(0, Math.round(Number(frozenMetrics?.platformFundedDiscountAmount)))
+          : livePlatformFundedDiscountOre;
         const activePersisted = activeFinanceSummarySnapshot(p, latestRevisionMetrics as any);
         const restaurantReportOrders = reportOrders.filter((order) => order.restaurantId === r.id);
         const liveGrossTotalOre = restaurantReportOrders.reduce(
@@ -268,17 +471,7 @@ router.get('/summary', async (req, res) => {
           0,
         );
         const liveRefundTotalOre = restaurantReportOrders.reduce(
-          (sum, order) => sum + Math.min(
-            Math.max(0, Number(order.total || 0)),
-            Math.max(
-              0,
-              Number(order.refundAmount ?? (
-                String(order.paymentStatus || '').toUpperCase() === 'REFUNDED'
-                  ? order.total
-                  : 0
-              )),
-            ),
-          ),
+          (sum, order) => sum + clampedRefundOre(order),
           0,
         );
         const grossTotalOre = Number.isFinite(Number(frozenMetrics?.grossTotal))
@@ -382,7 +575,6 @@ router.get('/summary', async (req, res) => {
           ? frozenMollieFeeSnapshot
           : mollieFeesOre;
         const manualAdjustmentOre = Math.round(Number(activePersisted?.manualAdjustmentAmount || 0));
-        const lateRefundAdjustmentOre = Math.max(0, Math.round(Number(activePersisted?.lateRefundAdjustmentAmount || 0)));
         const liveSettlement = economic.usesFrozenSnapshot
           ? { payoutAmount: economic.payout, owedAmount: economic.owed }
           : applySettlementAdjustments({
@@ -390,7 +582,10 @@ router.get('/summary', async (req, res) => {
               owedAmount: economic.owed,
               mollieFeeAmount: restaurantMollieFeeOre ?? 0,
               manualAdjustmentAmount: manualAdjustmentOre,
-              lateRefundAdjustmentAmount: lateRefundAdjustmentOre,
+              // Recovery is recalculated below from its original capacity and
+              // then applied exactly once. A stored working-copy amount must
+              // never shrink the capacity before the fresh plan is built.
+              lateRefundAdjustmentAmount: 0,
             });
         const commissionVatPct = economic.usesFrozenSnapshot && activePersisted?.feeVatPctSnapshot != null
           ? Number(activePersisted.feeVatPctSnapshot)
@@ -403,13 +598,14 @@ router.get('/summary', async (req, res) => {
           name: r.name,
           slug: r.slug,
           city: r.city,
+          archived: r.archivedAt != null,
           featuredClass: r.featuredClass ?? 3,
           tierLabel: b.tierLabel,
           selfDelivery: economic.selfDelivery,
           commissionPct: economic.commissionPct,
           rateSource: economic.usesFrozenSnapshot
             ? 'snapshot'
-            : r.commissionPctOverride != null && Number(r.commissionPctOverride) > 0
+            : hasCommissionOverride(r.commissionPctOverride)
               ? 'override'
               : r.selfDelivery
                 ? 'global-self'
@@ -422,6 +618,7 @@ router.get('/summary', async (req, res) => {
           grossSales: fromOre(economic.grossSales),
           refunds: fromOre(refundTotalOre),
           foodBase: fromOre(b.foodBase),
+          platformFundedDiscount: fromOre(platformFundedDiscountOre),
           deliveryFee: fromOre(b.deliveryFeeTotal),
           tip: fromOre(b.tipTotal),
           restaurantTip: fromOre(b.restaurantTipOre),
@@ -463,6 +660,10 @@ router.get('/summary', async (req, res) => {
           adjustmentNote: manualAdjustmentOre === 0
             ? null
             : String((activePersisted as any)?.notes || p?.notes || '').trim() || null,
+          lateRefundRecovery: 0,
+          lateRefundRecoveryRemaining: 0,
+          recoveryBlocked: false,
+          recoveryRequiresAction: false,
           payout: fromOre(liveSettlement.payoutAmount),
           owed: fromOre(liveSettlement.owedAmount),
           usesFrozenSnapshot: economic.usesFrozenSnapshot,
@@ -470,6 +671,141 @@ router.get('/summary', async (req, res) => {
           payoutReference: p?.payoutReference ?? null,
         };
       });
+
+    // Only restaurants with an actual post-payment refund need a recovery
+    // preview. This keeps the overview accurate without running historical
+    // payout audits for every restaurant on every request.
+    const priorPaidPayouts = restaurants.length === 0
+      ? []
+      : await prisma.restaurantPayout.findMany({
+          where: {
+            restaurantId: { in: restaurants.map((restaurant) => restaurant.id) },
+            status: 'PAID',
+            periodEnd: { lt: start },
+          },
+          select: {
+            id: true,
+            restaurantId: true,
+            periodStart: true,
+            periodEnd: true,
+            paidAt: true,
+            updatedAt: true,
+          },
+        });
+    if (priorPaidPayouts.length > 0) {
+      const earliestPaidAt = priorPaidPayouts.reduce(
+        (earliest, payout) => {
+          const paidAt = payout.paidAt || payout.updatedAt;
+          return paidAt < earliest ? paidAt : earliest;
+        },
+        priorPaidPayouts[0].paidAt || priorPaidPayouts[0].updatedAt,
+      );
+      const refundedHistoricalOrders = await prisma.order.findMany({
+        where: {
+          restaurantId: { in: [...new Set(priorPaidPayouts.map((payout) => payout.restaurantId))] },
+          createdAt: { lt: start },
+          updatedAt: { gt: earliestPaidAt },
+          OR: [
+            { refundAmount: { gt: 0 } },
+            { paymentStatus: { in: ['REFUNDED', 'PARTIALLY_REFUNDED'] } },
+          ],
+          ...PAYOUT_NON_TEST_ORDER_FILTER,
+        },
+        select: { restaurantId: true, createdAt: true, updatedAt: true },
+      });
+      const recoveryRestaurantIds = new Set(
+        refundedHistoricalOrders.flatMap((order) => {
+          const source = priorPaidPayouts.find((payout) =>
+            payout.restaurantId === order.restaurantId &&
+            order.createdAt >= payout.periodStart &&
+            order.createdAt <= payout.periodEnd &&
+            order.updatedAt > (payout.paidAt || payout.updatedAt)
+          );
+          return source && order.restaurantId ? [order.restaurantId] : [];
+        }),
+      );
+      type SummaryRecoveryPreview = {
+        recovery: Awaited<ReturnType<typeof calculateLateRefundRecoveryPlan>> | null;
+        blocked: boolean;
+        recoveryRequiresAction: boolean;
+      } | null;
+      const recoveryPreviews = new Map<string, SummaryRecoveryPreview>(await Promise.all(
+        [...recoveryRestaurantIds].map(async (restaurantId): Promise<readonly [string, SummaryRecoveryPreview]> => {
+          const row = rows.find((item) => item.restaurantId === restaurantId);
+          const target = persistedMap.get(restaurantId) || null;
+          if (!row || String(target?.status || '').toUpperCase() === 'PAID') {
+            return [restaurantId, null] as const;
+          }
+          try {
+            const commercialPositionOre =
+              Math.round(row.grossSales * 100) -
+              Math.round(row.commission * 100) -
+              Math.round(row.subscription * 100) -
+              Math.round(row.feeVat * 100);
+            const recoveryCapacity = applySettlementAdjustments({
+              payoutAmount: Math.max(0, commercialPositionOre),
+              owedAmount: Math.max(0, -commercialPositionOre),
+              mollieFeeAmount: Math.max(0, Math.round(Number(row.restaurantMollieFee || 0) * 100)),
+              manualAdjustmentAmount: Math.round(Number(row.manualAdjustment || 0) * 100),
+              lateRefundAdjustmentAmount: 0,
+            });
+            const recovery = await calculateLateRefundRecoveryPlan(prisma, {
+              restaurantId,
+              targetPayoutId: target?.id,
+              targetPeriodStart: start,
+              targetCapacityAmount: recoveryCapacity.payoutAmount,
+              resolveSourceMollieFeeAmount: ({ source, orders }) =>
+                resolveCurrentPayoutSourceMollieFeeAmount({ source, orders }),
+            });
+            const targetStatus = String(target?.status || '').toUpperCase();
+            const reservedRecovery = target && targetStatus === 'APPROVED'
+              ? await getReservedRecoveryAllocations(prisma, target.id)
+              : [];
+            const matchesSavedApprovedRecovery = Boolean(
+              target &&
+              targetStatus === 'APPROVED' &&
+              Math.max(0, Math.round(Number(target.lateRefundAdjustmentAmount || 0))) === recovery.totalAmount &&
+              sameRecoveryAllocations(reservedRecovery, recovery.allocations),
+            );
+            return [restaurantId, {
+              recovery,
+              blocked: false,
+              recoveryRequiresAction: targetStatus === 'APPROVED'
+                ? !matchesSavedApprovedRecovery
+                : recovery.totalAmount > 0 || recovery.remainingAmount > 0,
+            }] as const;
+          } catch (error) {
+            if (!(error instanceof PayoutRecoveryError)) throw error;
+            return [restaurantId, {
+              recovery: null,
+              blocked: true,
+              recoveryRequiresAction: true,
+            }] as const;
+          }
+        }),
+      ));
+      rows = rows.map((row) => {
+        const preview = recoveryPreviews.get(row.restaurantId);
+        if (!preview) return row;
+        if (preview.blocked || !preview.recovery) {
+          return {
+            ...row,
+            payout: 0,
+            recoveryBlocked: true,
+            recoveryRequiresAction: true,
+          };
+        }
+        const recovery = fromOre(preview.recovery.totalAmount);
+        const remaining = fromOre(preview.recovery.remainingAmount);
+        return {
+          ...row,
+          payout: row.usesFrozenSnapshot ? row.payout : Math.max(0, row.payout - recovery),
+          lateRefundRecovery: recovery,
+          lateRefundRecoveryRemaining: remaining,
+          recoveryRequiresAction: preview.recoveryRequiresAction,
+        };
+      });
+    }
 
     const totals = sumFinanceSummaryRows(rows);
     const nullableSum = (
@@ -482,6 +818,23 @@ router.get('/summary', async (req, res) => {
     const periodRefundsOre = mollieReport.periodRefundsOre;
     const periodFeesOre = mollieReport.periodFeesOre;
     const externalFeesOre = mollieReport.unlinkedFeesOre;
+    const historicalPaymentIds = [...new Set(
+      historicalRefundOrders
+        .map((order) => resolvedMolliePaymentId(mollieReport, order))
+        .filter(Boolean),
+    )];
+    const historicalRefundPrincipalOre = historicalPaymentIds.reduce(
+      (sum, paymentId) => sum + (mollieReport.periodRefundByPaymentId.get(paymentId) || 0),
+      0,
+    );
+    const historicalRefundFeesOre = historicalPaymentIds.reduce(
+      (sum, paymentId) => sum + (mollieReport.periodFeeByPaymentId.get(paymentId) || 0),
+      0,
+    );
+    const lateRefundRecoveryOre = rows.reduce(
+      (sum, row) => sum + toRoundedOre(row.lateRefundRecovery),
+      0,
+    );
     const fundingReconciliation = reconcileRestaurantFundingOre({
       periodGross: periodGrossOre,
       periodRefunds: periodRefundsOre,
@@ -489,6 +842,9 @@ router.get('/summary', async (req, res) => {
       externalGross: mollieReport.unlinkedGrossOre,
       externalRefunds: mollieReport.unlinkedRefundsOre,
       externalFees: externalFeesOre,
+      historicalRefundPrincipal: historicalRefundPrincipalOre,
+      historicalRefundFees: historicalRefundFeesOre,
+      lateRefundRecovery: lateRefundRecoveryOre,
       rows: rows.map((row) => ({
         grossTotal: toRoundedOre(row.grossTotal),
         refunds: toRoundedOre(row.refunds),
@@ -502,6 +858,7 @@ router.get('/summary', async (req, res) => {
         tip: toRoundedOre(row.tip),
         selfDelivery: row.selfDelivery,
         manualAdjustment: toRoundedOre(row.manualAdjustment),
+        platformFundedDiscount: toRoundedOre(row.platformFundedDiscount),
       })),
     });
     const restaurantNameById = new Map(restaurants.map((restaurant) => [restaurant.id, restaurant.name]));
@@ -582,7 +939,11 @@ router.get('/summary', async (req, res) => {
         scenarioOrdersByRestaurant.set(order.restaurantId, list);
       }
       const breakdowns = restaurants.map((restaurant) =>
-        computePayout(scenarioOrdersByRestaurant.get(restaurant.id) || [], restaurant, economy)
+        computePayout(
+          scenarioOrdersByRestaurant.get(restaurant.id) || [],
+          restaurantTermsForPeriod(restaurant, start, end),
+          economy,
+        )
       );
       return {
         commissionOre: breakdowns.reduce((sum, row) => sum + row.commissionOre, 0),
@@ -655,6 +1016,7 @@ router.get('/summary', async (req, res) => {
         companyRevenueExVat: nullableSum('companyRevenueExVat'),
         commissionAfterMollieFees: nullableSum('commissionAfterMollieFees'),
         manualAdjustment: rows.reduce((sum, row) => sum + row.manualAdjustment, 0),
+        platformFundedDiscount: rows.reduce((sum, row) => sum + row.platformFundedDiscount, 0),
       },
       fundingReconciliation: {
         status: fundingReconciliation.difference === 0 ? 'exact' : fundingReconciliation.difference == null ? 'unavailable' : 'difference',
@@ -837,23 +1199,34 @@ router.get('/payout/:restaurantId', async (req, res) => {
           tierGoldFeeOverride: true,
           tierSilverFeeOverride: true,
           tierStandardFeeOverride: true,
+          createdAt: true,
+          archivedAt: true,
         },
       }),
       prisma.order.findMany({
         where: {
           restaurantId,
           createdAt: { gte: start, lte: end },
-          ...FINANCE_ACCOUNTING_ORDER_FILTER,
+          // Keep unsettled rows visible here: the detail endpoint must expose
+          // the same lock blockers as the payout POST, not only accounting rows.
+          ...PAYOUT_NON_TEST_ORDER_FILTER,
         },
         select: {
           id: true,
           orderNumber: true,
           createdAt: true,
+          updatedAt: true,
           status: true,
           paymentStatus: true,
           total: true,
           deliveryFee: true,
           tipAmount: true,
+          discountAmount: true,
+          foodDiscountAmount: true,
+          deliveryDiscountAmount: true,
+          platformFundedFoodDiscountAmount: true,
+          platformFundedDeliveryDiscountAmount: true,
+          smallOrderFee: true,
           foodVatPercent: true,
           refundAmount: true,
           paymentProvider: true,
@@ -910,6 +1283,7 @@ router.get('/payout/:restaurantId', async (req, res) => {
           vat: fromOre(revisionAmounts.vatOre),
           payout: fromOre(snapshot.payoutAmount),
           manualAdjustment: fromOre(snapshot.manualAdjustmentAmount),
+          platformFundedDiscountAmount: fromOre(snapshot.platformFundedDiscountAmount),
         }];
       } catch {
         return [];
@@ -933,9 +1307,17 @@ router.get('/payout/:restaurantId', async (req, res) => {
     const financialOrders = orders.filter(isFinanceRealPaymentOrder);
     const b = computePayout(
       eligibleOrders.map(({ net }) => net),
-      restaurant,
+      restaurantTermsForPeriod(restaurant, start, end),
       economy,
     );
+    const livePlatformFundedDiscountOre = b.restaurantPlatformFundedDiscountTotal;
+    const activePlatformFundedDiscountSnapshot = String(persisted?.status || '').toUpperCase() === 'DRAFT'
+      ? null
+      : latestFrozenMetrics?.platformFundedDiscountAmount;
+    const platformFundedDiscountOre = activePlatformFundedDiscountSnapshot != null &&
+      Number.isFinite(Number(activePlatformFundedDiscountSnapshot))
+      ? Math.max(0, Math.round(Number(activePlatformFundedDiscountSnapshot)))
+      : livePlatformFundedDiscountOre;
     const mollieOrders = financialOrders.filter(isMollieCandidateOrder);
     const storedMolliePaymentIds = [...new Set(mollieOrders.map((order) => String(order.molliePaymentId || '').trim()).filter(Boolean))];
     const detailMollieReport = await getMollieFinanceReport({
@@ -953,7 +1335,7 @@ router.get('/payout/:restaurantId', async (req, res) => {
     )];
     const detailFeesComplete = detailMollieReport.feeStatus !== 'unavailable' &&
       molliePaymentIds.length === mollieOrders.length &&
-      molliePaymentIds.every((id) => detailMollieReport.displayFeeByPaymentId.has(id));
+      molliePaymentIds.every((id) => detailMollieReport.feeByPaymentId.has(id));
     const detailRefundedPaymentIds = mollieOrders
       .filter((order) =>
         Number(order.refundAmount || 0) > 0 ||
@@ -961,15 +1343,15 @@ router.get('/payout/:restaurantId', async (req, res) => {
       .map((order) => resolvedMolliePaymentId(detailMollieReport, order))
       .filter(Boolean);
     const detailRefundFeesComplete = detailRefundedPaymentIds.every((id) =>
-      detailMollieReport.displayRefundFeeByPaymentId.has(id),
+      detailMollieReport.refundFeeByPaymentId.has(id),
     );
     const detailMollieFeesOre = !detailFeesComplete
       ? null
-      : molliePaymentIds.reduce((sum, id) => sum + (detailMollieReport.displayFeeByPaymentId.get(id) || 0), 0);
+      : molliePaymentIds.reduce((sum, id) => sum + (detailMollieReport.feeByPaymentId.get(id) || 0), 0);
     const detailRefundProcessingFeesOre = !detailFeesComplete || !detailRefundFeesComplete
       ? null
       : detailRefundedPaymentIds.reduce(
-          (sum, id) => sum + (detailMollieReport.displayRefundFeeByPaymentId.get(id) || 0),
+          (sum, id) => sum + (detailMollieReport.refundFeeByPaymentId.get(id) || 0),
           0,
         );
     const detailPaymentFeesOre = detailMollieFeesOre == null || detailRefundProcessingFeesOre == null
@@ -991,23 +1373,19 @@ router.get('/payout/:restaurantId', async (req, res) => {
       0,
     );
     const refundTotal = financialOrders.reduce(
-      (sum, order) => sum + Math.min(
-        Math.max(0, Number(order.total || 0)),
-        Math.max(
-          0,
-          Number(order.refundAmount ?? (
-            String(order.paymentStatus || '').toUpperCase() === 'REFUNDED'
-              ? order.total
-              : 0
-          )),
-        ),
-      ),
+      (sum, order) => sum + clampedRefundOre(order),
       0,
     );
     const refundWindowHours = payoutRefundWindowHours();
     const refundWindowClosesAt = payoutRefundWindowClosesAt(end, refundWindowHours);
     const s = (settingsRow as any) || {};
     const manualAdjustmentAmount = Number(persisted?.manualAdjustmentAmount || 0);
+    const recoveryCapacity = applySettlementAdjustments({
+      payoutAmount: adjustedPayoutOre,
+      owedAmount: adjustedOwedOre,
+      manualAdjustmentAmount,
+      lateRefundAdjustmentAmount: 0,
+    });
     const persistedOwedAmount = persisted
       ? applySettlementAdjustments({
           payoutAmount: Math.max(
@@ -1049,9 +1427,9 @@ router.get('/payout/:restaurantId', async (req, res) => {
         targetPeriodStart: start,
         // A PAID target cannot absorb more recovery. Capacity zero makes the
         // response expose the exact carry remainder for the next period.
-        targetCapacityAmount: persisted?.status === 'PAID' || adjustedOwedOre > 0
+        targetCapacityAmount: persisted?.status === 'PAID'
           ? 0
-          : Math.max(0, adjustedPayoutOre - manualAdjustmentAmount),
+          : recoveryCapacity.payoutAmount,
         resolveSourceMollieFeeAmount: ({ source, orders }) =>
           resolveCurrentPayoutSourceMollieFeeAmount({
             source,
@@ -1076,6 +1454,66 @@ router.get('/payout/:restaurantId', async (req, res) => {
         sourceCount: 0,
       };
     }
+
+    const readinessNow = new Date();
+    const settlementReadinessOrders = orders.filter((order) =>
+      !(PAYOUT_NON_PAYABLE_FINAL_PAYMENT_STATUSES as readonly string[])
+        .includes(String(order.paymentStatus || '').toUpperCase()),
+    );
+    const blockingOrderCount = settlementReadinessOrders
+      .filter(isPayoutSettlementBlockingOrder)
+      .length;
+    const immatureOrderCount = settlementReadinessOrders.filter((order) =>
+      (PAYOUT_ORDER_STATUSES as readonly string[]).includes(String(order.status || '').toUpperCase()) &&
+      !isPayoutOrderRefundWindowClosed(order, readinessNow, refundWindowHours),
+    ).length;
+    const periodIsCalendarMonth = isFinanceCalendarMonthPeriod(start, end);
+    const refundWindowClosed = isPayoutRefundWindowClosed(end, readinessNow, refundWindowHours);
+    const providerBlockerCount = financialOrders.filter((order) =>
+      String(order.paymentProvider || '').trim().toLowerCase() !== 'mollie' ||
+      !resolvedMolliePaymentId(detailMollieReport, order),
+    ).length;
+    const providerAuditReady = providerBlockerCount === 0;
+    const exactFeesReady = mollieOrders.length === 0 || (detailFeesComplete && detailRefundFeesComplete);
+    const alreadyPaid = String(persisted?.status || '').toUpperCase() === 'PAID';
+    const readinessBlocker = !periodIsCalendarMonth
+      ? {
+          code: 'PAYOUT_PERIOD_MUST_BE_CALENDAR_MONTH',
+          reason: 'Avräkningen måste omfatta en hel kalendermånad.',
+        }
+      : alreadyPaid
+        ? { code: 'PAYOUT_ALREADY_PAID', reason: 'Avräkningen är redan betald.' }
+        : !refundWindowClosed
+          ? {
+              code: 'PAYOUT_REFUND_WINDOW_OPEN',
+              reason: `Återbetalningsfönstret stänger ${refundWindowClosesAt.toISOString()}.`,
+            }
+          : blockingOrderCount > 0
+            ? {
+                code: 'PAYOUT_PERIOD_NOT_SETTLED',
+                reason: `${blockingOrderCount} order är inte slutligt avstämda.`,
+              }
+            : immatureOrderCount > 0
+              ? {
+                  code: 'PAYOUT_ORDER_REFUND_WINDOW_OPEN',
+                  reason: `${immatureOrderCount} order har fortfarande öppet återbetalningsfönster.`,
+                }
+              : !providerAuditReady
+                ? {
+                    code: 'PAYOUT_PROVIDER_AUDIT_BLOCKED',
+                    reason: `${providerBlockerCount} betalningar saknar verifierbar Mollie-koppling.`,
+                  }
+                : !exactFeesReady
+                ? {
+                    code: 'PAYOUT_MOLLIE_FEES_NOT_RECONCILED',
+                    reason: 'Exakta kort- och återbetalningsavgifter saknas.',
+                  }
+                : recoveryPreview.blocked
+                  ? {
+                      code: 'PAYOUT_RECOVERY_BLOCKED',
+                      reason: recoveryPreview.error || 'Sen återbetalningsrecovery kunde inte verifieras.',
+                    }
+                  : null;
 
     res.json({
       restaurant: {
@@ -1106,6 +1544,19 @@ router.get('/payout/:restaurantId', async (req, res) => {
         closed: new Date().getTime() >= refundWindowClosesAt.getTime(),
       },
       lateRefundRecovery: recoveryPreview,
+      settlementReadiness: {
+        canLock: readinessBlocker == null,
+        code: readinessBlocker?.code || null,
+        reason: readinessBlocker?.reason || null,
+        periodIsCalendarMonth,
+        refundWindowClosed,
+        providerAuditReady,
+        providerBlockerCount,
+        exactFeesReady,
+        recoveryBlocked: recoveryPreview.blocked,
+        blockingOrderCount,
+        immatureOrderCount,
+      },
       breakdown: {
         orderCount: b.orderCount,
         periodOrderCount: financialOrders.length,
@@ -1113,6 +1564,7 @@ router.get('/payout/:restaurantId', async (req, res) => {
         refunds: fromOre(refundTotal),
         grossTotal: fromOre(b.grossTotal),
         foodBase: fromOre(b.foodBase),
+        platformFundedDiscount: fromOre(platformFundedDiscountOre),
         deliveryFee: fromOre(b.deliveryFeeTotal),
         tip: fromOre(b.tipTotal),
         restaurantTip: fromOre(b.restaurantTipOre),
@@ -1129,7 +1581,11 @@ router.get('/payout/:restaurantId', async (req, res) => {
         mollieFees: lockedMollieFeesOre == null ? null : fromOre(lockedMollieFeesOre),
         mollieFeeStatus: persisted && String(persisted.status || '').toUpperCase() === 'PAID'
           ? 'available'
-          : detailMollieReport.feeStatus,
+          : detailFeesComplete && detailRefundFeesComplete
+            ? 'available'
+            : detailMollieReport.feeStatus === 'unavailable'
+              ? 'unavailable'
+              : 'partial',
         paymentFees: detailPaymentFeesOre == null ? null : fromOre(detailPaymentFeesOre),
         refundProcessingFees: detailRefundProcessingFeesOre == null ? null : fromOre(detailRefundProcessingFeesOre),
         foodVatPct: b.foodVatPct,
@@ -1145,7 +1601,7 @@ router.get('/payout/:restaurantId', async (req, res) => {
           paymentStatus: order.paymentStatus,
           includedInPayout: Boolean(net),
           originalTotal: fromOre(net?.originalTotal ?? order.total),
-          refundAmount: fromOre(net?.refundAmount ?? order.refundAmount),
+          refundAmount: fromOre(net?.refundAmount ?? clampedRefundOre(order)),
           total: fromOre(net?.total ?? order.total),
           deliveryFee: fromOre(net?.deliveryFee ?? order.deliveryFee),
           tip: fromOre(net?.tipAmount ?? order.tipAmount),
@@ -1159,6 +1615,7 @@ router.get('/payout/:restaurantId', async (req, res) => {
               ? fromOre(persisted.grossSales)
               : fromOre(latestFrozenMetrics.grossTotal),
             refunds: latestFrozenMetrics?.refunds == null ? 0 : fromOre(latestFrozenMetrics.refunds),
+            platformFundedDiscountAmount: fromOre(platformFundedDiscountOre),
             orderCount: persisted.orderCount,
             periodOrderCount: latestFrozenMetrics?.realPaymentCount == null
               ? persisted.orderCount
@@ -1168,7 +1625,7 @@ router.get('/payout/:restaurantId', async (req, res) => {
             manualAdjustmentAmount: fromOre(persisted.manualAdjustmentAmount),
             lateRefundAdjustmentAmount: fromOre(persisted.lateRefundAdjustmentAmount),
             mollieFeeAmount: fromOre(persisted.mollieFeeAmount),
-            mollieFeeStatus: String(latestFrozenMetrics?.mollieFeeStatus || 'available'),
+            mollieFeeStatus: String(latestFrozenMetrics?.mollieFeeStatus || 'unavailable'),
             paymentFeeAmount: latestFrozenMetrics?.mollieFees == null
               ? fromOre(persisted.mollieFeeAmount)
               : fromOre(Math.max(

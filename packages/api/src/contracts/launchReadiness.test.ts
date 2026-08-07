@@ -25,6 +25,8 @@ const healthy: NodeJS.ProcessEnv = {
   DIRECT_URL: 'postgresql://db-direct',
   PAYMENT_PROVIDER: 'mollie',
   MOLLIE_API_KEY: 'live_example',
+  MOLLIE_REPORTING_ACCESS_TOKEN: 'org_reporting_example',
+  MOLLIE_PROFILE_ID: 'pfl_viaeats',
   API_PUBLIC_URL: 'https://api.viaeats.se',
   FRONTEND_URL: 'https://viaeats.se',
   GOOGLE_MAPS_KEY: 'maps',
@@ -85,6 +87,24 @@ assert.doesNotThrow(() => assertRuntimeCriticalConfiguration({
 const missingPayment = { ...healthy, MOLLIE_API_KEY: '' };
 assert(getLaunchConfigIssues(missingPayment).some((issue) => issue.key === 'mollie_key' && issue.severity === 'error'));
 assert.throws(() => assertRuntimeCriticalConfiguration(missingPayment), /MOLLIE_API_KEY/);
+
+const missingMollieReportingToken = { ...healthy, MOLLIE_REPORTING_ACCESS_TOKEN: '' };
+assert(getLaunchConfigIssues(missingMollieReportingToken).some(
+  (issue) => issue.key === 'mollie_reporting_token' && issue.severity === 'error',
+));
+assert.throws(
+  () => assertRuntimeCriticalConfiguration(missingMollieReportingToken),
+  /MOLLIE_REPORTING_ACCESS_TOKEN/,
+);
+
+const missingMollieProfile = { ...healthy, MOLLIE_PROFILE_ID: '' };
+assert(getLaunchConfigIssues(missingMollieProfile).some(
+  (issue) => issue.key === 'mollie_profile_id' && issue.severity === 'error',
+));
+assert.throws(
+  () => assertRuntimeCriticalConfiguration(missingMollieProfile),
+  /MOLLIE_PROFILE_ID/,
+);
 
 const testMollieInProduction = { ...healthy, MOLLIE_API_KEY: 'test_example' };
 assert(getLaunchConfigIssues(testMollieInProduction).some((issue) => issue.key === 'mollie_mode'));

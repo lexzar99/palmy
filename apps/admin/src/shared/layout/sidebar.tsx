@@ -57,8 +57,7 @@ export function Sidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   const profileName = displayName(session.data?.name);
 
   const isRouteActive = (id: string, href: string) => {
-    if (id === "finance") return pathname === "/finance";
-    if (id === "restaurant-finance") return pathname.startsWith("/finance/");
+    if (id === "finance") return pathname === "/finance" || pathname.startsWith("/finance/");
     if (!isActiveAdminHref(pathname, href)) return false;
     if (id === "tiers") return searchParams.get("tab") === "tiers";
     return true;

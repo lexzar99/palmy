@@ -185,8 +185,8 @@ const restaurantSchema = z.object({
   vatPercent: z.union([z.literal(0), z.literal(6), z.literal(12), z.literal(25)]).nullable().optional(),
   // Leveransansvar: true = restaurangen levererar själv, false = plattformen.
   selfDelivery: z.boolean().optional(),
-  // Provisions-override i %. null = använd global self/platform-sats.
-  commissionPctOverride: z.number().nullable().optional(),
+  // Provisions-override i %. null = global sats, 0 = provisionsfritt avtal.
+  commissionPctOverride: z.number().int().min(0).max(100).nullable().optional(),
   // Restaurangspecifika tier-priser i kr/mån. null = använd global tier-sats.
   tierGoldFeeOverride: z.any().nullable().optional(),
   tierSilverFeeOverride: z.any().nullable().optional(),
@@ -718,7 +718,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       selfDelivery: payload.selfDelivery,
       commissionPctOverride: payload.commissionPctOverride == null
         ? payload.commissionPctOverride
-        : Math.max(0, Math.min(100, Math.round(Number(payload.commissionPctOverride)))),
+        : payload.commissionPctOverride,
       tierGoldFeeOverride: payload.tierGoldFeeOverride !== undefined
         ? tierOverrideToOre(payload.tierGoldFeeOverride, 'tierGoldFeeOverride')
         : undefined,
@@ -1064,7 +1064,7 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     if ((payload as any).selfDelivery !== undefined) data.selfDelivery = Boolean((payload as any).selfDelivery);
     if ((payload as any).commissionPctOverride !== undefined) {
       const v = (payload as any).commissionPctOverride;
-      data.commissionPctOverride = v === null || v === '' ? null : Math.max(0, Math.min(100, Math.round(Number(v))));
+      data.commissionPctOverride = v === null ? null : Number(v);
     }
     if ((payload as any).tierGoldFeeOverride !== undefined) {
       data.tierGoldFeeOverride = tierOverrideToOre((payload as any).tierGoldFeeOverride, 'tierGoldFeeOverride');

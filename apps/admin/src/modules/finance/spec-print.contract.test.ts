@@ -3,6 +3,10 @@ import type { PayoutSpec, PayoutSpecOrder } from "@/modules/finance/api";
 import {
   payoutPrintDailyRows,
   payoutPrintOrders,
+  payoutPrintMode,
+  payoutPrintPaymentFees,
+  payoutPrintPercent,
+  payoutPrintSalesBridge,
   payoutPrintSettlementAmount,
   payoutPrintStockholmDateKey,
   payoutPrintSummary,
@@ -70,5 +74,109 @@ assert.deepEqual(payoutPrintDailyRows(defaultRows), [{
   refundTotal: 350,
 }]);
 assert.equal(payoutPrintStockholmDateKey("2026-03-28T23:30:00.000Z"), "2026-03-29");
+assert.equal(payoutPrintPercent(0), "0 %");
+assert.equal(payoutPrintPercent(12.5), "12,5 %");
+assert.equal(payoutPrintPercent(null), "Ej angiven");
 
-console.log("finance PDF order, refund and Stockholm-day contracts: ok");
+const preliminaryHoldFees = payoutPrintPaymentFees({
+  breakdown: {
+    mollieFees: 12.5,
+    paymentFees: 10,
+    refundProcessingFees: 2.5,
+    mollieFeeStatus: "partial",
+  } as PayoutSpec["breakdown"],
+  persisted: {
+    status: "HOLD",
+    mollieFeeAmount: 12.5,
+    mollieFeeStatus: "partial",
+    paymentFeeAmount: 10,
+    refundProcessingFeeAmount: 2.5,
+  } as PayoutSpec["persisted"],
+});
+assert.deepEqual(preliminaryHoldFees, {
+  total: 12.5,
+  card: 10,
+  refund: 2.5,
+  ready: false,
+  preliminary: true,
+});
+assert.equal(
+  preliminaryHoldFees.card! + preliminaryHoldFees.refund!,
+  preliminaryHoldFees.total,
+  "a preliminary HOLD prints every Mollie fee included in its saved settlement",
+);
+
+const legacyHoldFees = payoutPrintPaymentFees({
+  breakdown: {} as PayoutSpec["breakdown"],
+  persisted: {
+    status: "HOLD",
+    mollieFeeAmount: 8.75,
+    mollieFeeStatus: "unavailable",
+  } as PayoutSpec["persisted"],
+});
+assert.deepEqual(legacyHoldFees, {
+  total: 8.75,
+  card: 8.75,
+  refund: 0,
+  ready: false,
+  preliminary: true,
+});
+
+const liveFundingBridge = payoutPrintSalesBridge({
+  breakdown: {
+    originalGrossTotal: 100,
+    refunds: 20,
+    restaurantGross: 90,
+    platformFundedDiscount: 20,
+  } as PayoutSpec["breakdown"],
+  persisted: null,
+});
+assert.deepEqual(liveFundingBridge, {
+  orderSales: 100,
+  refunds: 20,
+  salesAfterRefunds: 80,
+  platformFundedDiscount: 20,
+  excludedDeliveryAndTip: 10,
+  restaurantGross: 90,
+});
+
+const savedFundingBridge = payoutPrintSalesBridge({
+  breakdown: {
+    originalGrossTotal: 999,
+    refunds: 0,
+    restaurantGross: 999,
+    platformFundedDiscount: 0,
+  } as PayoutSpec["breakdown"],
+  persisted: {
+    status: "APPROVED",
+    originalGrossTotal: 100,
+    refunds: 20,
+    grossSales: 90,
+    platformFundedDiscountAmount: 20,
+  } as PayoutSpec["persisted"],
+});
+assert.deepEqual(
+  savedFundingBridge,
+  liveFundingBridge,
+  "a locked PDF uses the frozen ViaEats subsidy and settlement base",
+);
+
+for (const status of ["HOLD", "APPROVED", "PAID"]) {
+  assert.equal(
+    payoutPrintMode({ persisted: { status } as PayoutSpec["persisted"] }, "orders"),
+    "summary",
+    `${status} cannot print a live order appendix beside frozen totals`,
+  );
+  assert.equal(
+    payoutPrintMode({ persisted: { status } as PayoutSpec["persisted"] }, "daily"),
+    "summary",
+    `${status} cannot print a live daily appendix beside frozen totals`,
+  );
+}
+assert.equal(payoutPrintMode({ persisted: null }, "orders"), "orders");
+assert.equal(
+  payoutPrintMode({ persisted: { status: "DRAFT" } as PayoutSpec["persisted"] }, "daily"),
+  "daily",
+);
+
+console.log("finance PDF order, refund, funding, fee visibility, commission and Stockholm-day contracts: ok");

@@ -1,6 +1,6 @@
 import { FinancePayoutPage } from "@/modules/finance/payout-page";
 
-export default async function PayoutRoutePage({
+export default async function RestaurantFinanceOrdersRoute({
   params,
   searchParams,
 }: {
@@ -16,7 +16,7 @@ export default async function PayoutRoutePage({
       to={to}
       month={month}
       period={period}
-      view="settlement"
+      view="orders"
     />
   );
 }

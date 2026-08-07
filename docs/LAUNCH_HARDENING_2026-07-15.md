@@ -37,6 +37,10 @@ genomförda på riktig infrastruktur och fysisk hårdvara.
 
 - Mollie är den valda launch-providern. En produktionsprocess vägrar starta
   med testnyckel när Mollie är aktiv.
+- Ekonomirapporter kräver dessutom `MOLLIE_REPORTING_ACCESS_TOKEN` och
+  `MOLLIE_PROFILE_ID`. Organisationstoken ska vara read-only med exakt
+  `balances.read`, `balance-reports.read`, `payments.read`, `settlements.read`
+  och `payouts.read`; `profileId` skickas när periodens betalningar hämtas.
 - PSP-belopp jämförs med den auktoritativa ordersumman innan ordern blir
   `PAID`; avvikelse går till `NEEDS_REVIEW`.
 - Betalningsfinalisering är idempotent mellan webhook, retur-URL,
@@ -249,8 +253,11 @@ separata databas-runbooken ordagrant.
 
 1. Ta verifierad backup/PITR och kör de åtta SQL-patcherna i rätt ordning enligt
    databas-runbooken **före** API-deploy.
-2. Sätt `PAYMENT_PROVIDER=mollie`, riktig `MOLLIE_API_KEY=live_...` och publik
-   HTTPS-webhook. Genomför en riktig lågprisorder och full refund.
+2. Sätt `PAYMENT_PROVIDER=mollie`, riktig `MOLLIE_API_KEY=live_...`,
+   `MOLLIE_REPORTING_ACCESS_TOKEN`, `MOLLIE_PROFILE_ID` och publik
+   HTTPS-webhook. Reporting-token måste ha exakt `balances.read`,
+   `balance-reports.read`, `payments.read`, `settlements.read` och
+   `payouts.read`. Genomför en riktig lågprisorder och full refund.
 3. Under smoke test: sätt `PRELAUNCH_MODE=1` på API och samma starka
    `LAUNCH_ACCESS_COOKIE_SECRET` på webb och API. Öppna först därefter webben
    med launchkoden. Vid offentlig öppning sätts `PRELAUNCH_MODE=0`.

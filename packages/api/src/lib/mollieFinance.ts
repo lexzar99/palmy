@@ -2,12 +2,19 @@
  * Read-only Mollie bookkeeping data.
  *
  * Exact processing fees live in the Balances API rather than the Payments API.
- * That API needs an organization access token with `balances.read` and
- * `balance-reports.read`; a normal live_/test_ profile key is still used for
- * checkout and may not have access.
+ * That API needs an organization access token with the exact read scopes
+ * listed below; a normal live_/test_ profile key is still used for checkout
+ * and may not have access.
  */
 
 const MOLLIE_API_BASE = 'https://api.mollie.com/v2';
+export const MOLLIE_REPORTING_REQUIRED_SCOPES = [
+  'balances.read',
+  'balance-reports.read',
+  'payments.read',
+  'settlements.read',
+  'payouts.read',
+] as const;
 const SEK = 'SEK';
 const CACHE_TTL_MS = 60_000;
 const ERROR_CACHE_TTL_MS = 5 * 60_000;
@@ -18,7 +25,7 @@ type MollieAmount = {
   value?: unknown;
 } | null | undefined;
 
-type MollieBalanceTransaction = {
+export type MollieBalanceTransaction = {
   id?: unknown;
   type?: unknown;
   createdAt?: unknown;
@@ -156,6 +163,9 @@ export type MollieFinanceReport = {
   periodDifferenceOre: number | null;
   periodOpeningBalanceOre: number | null;
   periodClosingBalanceOre: number | null;
+  /** Period-booked principal/fees keyed by provider payment for reconciliation. */
+  periodRefundByPaymentId: Map<string, number>;
+  periodFeeByPaymentId: Map<string, number>;
   unlinkedPaymentCount: number;
   unlinkedGrossOre: number;
   unlinkedRefundsOre: number;
@@ -378,6 +388,162 @@ export function mollieFeeBreakdownFromTransactions(
   return { totalByPaymentId, paymentByPaymentId, refundByPaymentId };
 }
 
+/**
+ * Refund turnover belongs to the balance transaction's booking period, not to
+ * the original payment's creation period. `initialAmount` is the refunded
+ * principal; `resultAmount` can also contain Mollie's separate refund fee and
+ * must therefore never be used as the refund amount.
+ */
+function mollieRefundEntriesFromTransactionsInPeriod(
+  transactions: readonly MollieBalanceTransaction[],
+  from: Date,
+  to: Date,
+): Array<{ paymentId: string | null; principalOre: number }> | null {
+  const fromTime = from.getTime();
+  const toTime = to.getTime();
+  if (!Number.isFinite(fromTime) || !Number.isFinite(toTime) || fromTime > toTime) return null;
+  const seen = new Set<string>();
+  const entries: Array<{ paymentId: string | null; principalOre: number }> = [];
+
+  for (const transaction of transactions) {
+    if (String(transaction.type || '').trim().toLowerCase() !== 'refund') continue;
+    const createdAt = new Date(String(transaction.createdAt || '')).getTime();
+    if (!Number.isFinite(createdAt) || createdAt < fromTime || createdAt > toTime) continue;
+    const id = String(transaction.id || '').trim();
+    if (id && seen.has(id)) continue;
+    const principal = exactOre(transaction.initialAmount);
+    if (principal == null) return null;
+    if (id) seen.add(id);
+    entries.push({
+      paymentId: contextPaymentId(transaction.context),
+      principalOre: Math.abs(principal),
+    });
+  }
+  return entries;
+}
+
+export function mollieRefundsFromTransactionsInPeriod(
+  transactions: readonly MollieBalanceTransaction[],
+  from: Date,
+  to: Date,
+): number | null {
+  const entries = mollieRefundEntriesFromTransactionsInPeriod(transactions, from, to);
+  return entries?.reduce((sum, entry) => sum + entry.principalOre, 0) ?? null;
+}
+
+/** Refunds without a matching restaurant payment stay outside restaurant funds. */
+export function mollieUnlinkedRefundsFromTransactionsInPeriod(
+  transactions: readonly MollieBalanceTransaction[],
+  from: Date,
+  to: Date,
+  linkedPaymentIds: ReadonlySet<string>,
+): number | null {
+  const entries = mollieRefundEntriesFromTransactionsInPeriod(transactions, from, to);
+  return entries?.reduce(
+    (sum, entry) => sum + (
+      entry.paymentId && linkedPaymentIds.has(entry.paymentId) ? 0 : entry.principalOre
+    ),
+    0,
+  ) ?? null;
+}
+
+/**
+ * Payment turnover follows the balance booking time. The Payments API's
+ * `createdAt` is checkout time and can sit in a different accounting month.
+ */
+function molliePaymentEntriesFromTransactionsInPeriod(
+  transactions: readonly MollieBalanceTransaction[],
+  from: Date,
+  to: Date,
+): Array<{ paymentId: string | null; principalOre: number }> | null {
+  const fromTime = from.getTime();
+  const toTime = to.getTime();
+  if (!Number.isFinite(fromTime) || !Number.isFinite(toTime) || fromTime > toTime) return null;
+  const seen = new Set<string>();
+  const entries: Array<{ paymentId: string | null; principalOre: number }> = [];
+
+  for (const transaction of transactions) {
+    const type = String(transaction.type || '').trim().toLowerCase();
+    if (type !== 'payment' && type !== 'capture') continue;
+    const createdAt = new Date(String(transaction.createdAt || '')).getTime();
+    if (!Number.isFinite(createdAt) || createdAt < fromTime || createdAt > toTime) continue;
+    const id = String(transaction.id || '').trim();
+    if (id && seen.has(id)) continue;
+    const principal = exactOre(transaction.initialAmount);
+    if (principal == null) return null;
+    if (id) seen.add(id);
+    entries.push({
+      paymentId: contextPaymentId(transaction.context),
+      principalOre: Math.abs(principal),
+    });
+  }
+  return entries;
+}
+
+export function molliePaymentsFromTransactionsInPeriod(
+  transactions: readonly MollieBalanceTransaction[],
+  from: Date,
+  to: Date,
+): number | null {
+  const entries = molliePaymentEntriesFromTransactionsInPeriod(transactions, from, to);
+  return entries?.reduce((sum, entry) => sum + entry.principalOre, 0) ?? null;
+}
+
+export function mollieUnlinkedPaymentsFromTransactionsInPeriod(
+  transactions: readonly MollieBalanceTransaction[],
+  from: Date,
+  to: Date,
+  linkedPaymentIds: ReadonlySet<string>,
+): { count: number; grossOre: number; paymentIds: string[]; hasUnknownPaymentId: boolean } | null {
+  const entries = molliePaymentEntriesFromTransactionsInPeriod(transactions, from, to);
+  if (!entries) return null;
+  const unlinked = entries.filter((entry) =>
+    !entry.paymentId || !linkedPaymentIds.has(entry.paymentId),
+  );
+  return {
+    count: unlinked.length,
+    grossOre: unlinked.reduce((sum, entry) => sum + entry.principalOre, 0),
+    paymentIds: [...new Set(unlinked.map((entry) => entry.paymentId).filter((id): id is string => Boolean(id)))],
+    hasUnknownPaymentId: unlinked.some((entry) => !entry.paymentId),
+  };
+}
+
+/** Provider fees are booked in the balance transaction's own period too. */
+export function mollieFeesFromTransactionsInPeriod(
+  transactions: readonly MollieBalanceTransaction[],
+  from: Date,
+  to: Date,
+): number | null {
+  const fromTime = from.getTime();
+  const toTime = to.getTime();
+  if (!Number.isFinite(fromTime) || !Number.isFinite(toTime) || fromTime > toTime) return null;
+  const seen = new Set<string>();
+  const periodTransactions = transactions.filter((transaction) => {
+    const createdAt = new Date(String(transaction.createdAt || '')).getTime();
+    if (!Number.isFinite(createdAt) || createdAt < fromTime || createdAt > toTime) return false;
+    const id = String(transaction.id || '').trim();
+    if (id && seen.has(id)) return false;
+    if (id) seen.add(id);
+    return true;
+  });
+  for (const transaction of periodTransactions) {
+    const type = String(transaction.type || '').trim().toLowerCase();
+    const paymentId = contextPaymentId(transaction.context);
+    if (transaction.deductionDetails?.fees != null) {
+      if (!paymentId || exactOre(transaction.deductionDetails.fees) == null) return null;
+      continue;
+    }
+    if (type === 'payment-fee' || type === 'reimbursement-fee') {
+      const amount = exactOre(transaction.resultAmount)
+        ?? exactOre(transaction.initialAmount)
+        ?? exactOre(transaction.deductions);
+      if (!paymentId || amount == null) return null;
+    }
+  }
+  return [...mollieFeeBreakdownFromTransactions(periodTransactions).totalByPaymentId.values()]
+    .reduce((sum, fee) => sum + fee, 0);
+}
+
 function paymentFingerprint(payment: MolliePayment): string {
   const details = payment.details || {};
   return [
@@ -457,13 +623,25 @@ async function collectPayments(
   return payments;
 }
 
+export function molliePeriodPaymentsUrl(profileId: string): string {
+  const normalizedProfileId = String(profileId || '').trim();
+  if (!normalizedProfileId) throw new Error('MOLLIE_PROFILE_ID_REQUIRED');
+  const query = new URLSearchParams({
+    limit: '250',
+    sort: 'desc',
+    profileId: normalizedProfileId,
+  });
+  return `${MOLLIE_API_BASE}/payments?${query.toString()}`;
+}
+
 async function collectPeriodPayments(
   token: string,
+  profileId: string,
   from: Date,
   to: Date,
 ): Promise<MolliePayment[]> {
   const payments: MolliePayment[] = [];
-  let nextUrl: string | null = `${MOLLIE_API_BASE}/payments?limit=250&sort=desc`;
+  let nextUrl: string | null = molliePeriodPaymentsUrl(profileId);
   let page = 0;
 
   while (nextUrl && page < MAX_TRANSACTION_PAGES) {
@@ -507,7 +685,10 @@ const stockholmDate = (date: Date) =>
 export function mollieBalanceReportUntil(requestedTo: Date, now = new Date()): string {
   const requestedToKey = stockholmDate(requestedTo);
   const todayKey = stockholmDate(now);
-  return requestedToKey < todayKey ? requestedToKey : todayKey;
+  const inclusiveEndKey = requestedToKey < todayKey ? requestedToKey : todayKey;
+  const [year, month, day] = inclusiveEndKey.split('-').map(Number);
+  const exclusiveEnd = new Date(Date.UTC(year, month - 1, day + 1, 12));
+  return stockholmDate(exclusiveEnd);
 }
 
 function atStockholmNoon(date = new Date()): Date {
@@ -569,6 +750,38 @@ function reportingToken(env: NodeJS.ProcessEnv = process.env): string | null {
     '',
   ).trim();
   return token || null;
+}
+
+function reportingProfileId(env: NodeJS.ProcessEnv = process.env): string | null {
+  const profileId = String(env.MOLLIE_PROFILE_ID || '').trim();
+  return profileId || null;
+}
+
+export function mollieFinanceReportCacheKey(input: {
+  profileId: string;
+  from: Date;
+  to: Date;
+  paymentIds: readonly string[];
+  refundedPaymentIds?: readonly string[];
+  orderReferences?: readonly MollieOrderReference[];
+}): string {
+  const values = (items: readonly string[]) => [...new Set(
+    items.map((value) => String(value || '').trim()).filter(Boolean),
+  )].sort();
+  return JSON.stringify({
+    profileId: String(input.profileId || '').trim(),
+    from: input.from.toISOString().slice(0, 10),
+    to: input.to.toISOString().slice(0, 10),
+    paymentIds: values(input.paymentIds),
+    refundedPaymentIds: values(input.refundedPaymentIds || []),
+    orderReferences: (input.orderReferences || [])
+      .map((reference) => ({
+        id: String(reference.id || '').trim(),
+        orderNumber: String(reference.orderNumber || '').trim(),
+        refunded: Boolean(reference.refunded),
+      }))
+      .sort((a, b) => `${a.id}:${a.orderNumber}`.localeCompare(`${b.id}:${b.orderNumber}`)),
+  });
 }
 
 async function mollieGet<T>(pathOrUrl: string, token: string): Promise<T> {
@@ -657,6 +870,8 @@ function unavailableReport(message: string, requestedPaymentCount: number): Moll
     periodDifferenceOre: null,
     periodOpeningBalanceOre: null,
     periodClosingBalanceOre: null,
+    periodRefundByPaymentId: new Map(),
+    periodFeeByPaymentId: new Map(),
     unlinkedPaymentCount: 0,
     unlinkedGrossOre: 0,
     unlinkedRefundsOre: 0,
@@ -687,20 +902,29 @@ export async function getMollieFinanceReport(input: {
   }));
   const env = input.env ?? process.env;
   const token = reportingToken(env);
+  const requiredScopes = MOLLIE_REPORTING_REQUIRED_SCOPES.join(', ');
   if (!token) {
     return unavailableReport(
-      'MOLLIE_REPORTING_ACCESS_TOKEN saknas (kräver balances.read och balance-reports.read)',
+      `MOLLIE_REPORTING_ACCESS_TOKEN saknas (kräver ${requiredScopes})`,
+      explicitPaymentIds.length,
+    );
+  }
+  const profileId = reportingProfileId(env);
+  if (!profileId) {
+    return unavailableReport(
+      'MOLLIE_PROFILE_ID saknas (krävs för payments.read med organisationstoken)',
       explicitPaymentIds.length,
     );
   }
 
-  const cacheKey = [
-    input.from.toISOString().slice(0, 10),
-    (input.to || new Date()).toISOString().slice(0, 10),
-    explicitPaymentIds.join(','),
-    explicitRefundedPaymentIds.join(','),
-    orderReferences.map((reference) => `${reference.id}:${reference.orderNumber}:${reference.refunded ? 1 : 0}`).sort().join(','),
-  ].join(':');
+  const cacheKey = mollieFinanceReportCacheKey({
+    profileId,
+    from: input.from,
+    to: input.to || new Date(),
+    paymentIds: explicitPaymentIds,
+    refundedPaymentIds: explicitRefundedPaymentIds,
+    orderReferences,
+  });
   const cached = reportCache.get(cacheKey);
   if (!input.bypassCache && cached && cached.expiresAt > Date.now()) return cached.report;
 
@@ -711,8 +935,8 @@ export async function getMollieFinanceReport(input: {
     const requestedTo = input.to && input.to < now ? input.to : now;
     const todayKey = stockholmDate(now);
     const requestedToKey = stockholmDate(requestedTo);
-    // Mollie's balance report `until` is inclusive. Passing the following day
-    // pulled 1 August into July (including its 8.66 SEK fee).
+    // Mollie's balance report `until` is exclusive. A July report must
+    // therefore end at 1 August or every movement on 31 July is omitted.
     const reportUntil = mollieBalanceReportUntil(requestedTo, now);
     const reportFrom = stockholmDate(input.from);
     const balanceReportPromise = reportUntil >= reportFrom
@@ -725,7 +949,7 @@ export async function getMollieFinanceReport(input: {
     const [balance, transactions, periodPaymentsResult, balanceReportResult, nextSettlementResult, payoutsResult] = await Promise.all([
       mollieGet<MollieBalance>('/balances/primary', token),
       collectBalanceTransactions(token, earliest),
-      collectPeriodPayments(token, input.from, requestedTo)
+      collectPeriodPayments(token, profileId, input.from, requestedTo)
         .then((value) => ({ value, error: null }))
         .catch((error: unknown) => ({ value: null, error })),
       balanceReportPromise,
@@ -860,56 +1084,83 @@ export async function getMollieFinanceReport(input: {
       requestedToKey < todayKey ||
       (reportClosingBalance != null && totalBalance != null && reportClosingBalance === totalBalance)
     );
-    const periodGross = periodPayments
-      ? periodPayments.reduce((sum, payment) => sum + Math.max(0, exactOre(payment.amount) || 0), 0)
-      : null;
-    const periodRefunds = periodPayments
-      ? periodPayments.reduce((sum, payment) => sum + Math.max(0, exactOre(payment.amountRefunded) || 0), 0)
-      : null;
-    const periodPaymentIds = periodPayments
-      ? periodPayments.map((payment) => String(payment.id || '').trim()).filter(Boolean)
-      : [];
-    const transactionFeesComplete = periodPaymentIds.every((paymentId) =>
-      allFees.totalByPaymentId.has(paymentId)
+    const periodGross = molliePaymentsFromTransactionsInPeriod(
+      transactions,
+      input.from,
+      requestedTo,
     );
-    const transactionPeriodFees = periodPayments && transactionFeesComplete
-      ? periodPaymentIds.reduce(
-          (sum, paymentId) => sum + (allFees.totalByPaymentId.get(paymentId) || 0),
-          0,
-        )
-      : null;
+    const periodRefunds = mollieRefundsFromTransactionsInPeriod(
+      transactions,
+      input.from,
+      requestedTo,
+    );
     const requestedPaymentIds = new Set(paymentIds);
-    const unlinkedPayments = periodPayments
-      ? periodPayments.filter((payment) => {
-          const paymentId = String(payment.id || '').trim();
-          return paymentId && !requestedPaymentIds.has(paymentId);
-        })
-      : [];
-    const unlinkedPaymentIds = unlinkedPayments
-      .map((payment) => String(payment.id || '').trim())
-      .filter(Boolean);
-    const unlinkedGross = unlinkedPayments.reduce(
-      (sum, payment) => sum + Math.max(0, exactOre(payment.amount) || 0),
-      0,
+    const unlinkedPaymentMovements = mollieUnlinkedPaymentsFromTransactionsInPeriod(
+      transactions,
+      input.from,
+      requestedTo,
+      requestedPaymentIds,
     );
-    const unlinkedRefunds = unlinkedPayments.reduce(
-      (sum, payment) => sum + Math.max(0, exactOre(payment.amountRefunded) || 0),
-      0,
+    const unlinkedGross = unlinkedPaymentMovements?.grossOre ?? 0;
+    const unlinkedRefunds = mollieUnlinkedRefundsFromTransactionsInPeriod(
+      transactions,
+      input.from,
+      requestedTo,
+      requestedPaymentIds,
+    ) ?? 0;
+    const periodTransactions = transactions.filter((transaction) => {
+      const createdAt = new Date(String(transaction.createdAt || '')).getTime();
+      return Number.isFinite(createdAt) &&
+        createdAt >= input.from.getTime() &&
+        createdAt <= requestedTo.getTime();
+    });
+    const periodFeeByPaymentId = mollieFeeBreakdownFromTransactions(periodTransactions).totalByPaymentId;
+    const unlinkedRefundEntries = mollieRefundEntriesFromTransactionsInPeriod(
+      transactions,
+      input.from,
+      requestedTo,
     );
-    const unlinkedFeesComplete = unlinkedPaymentIds.every((paymentId) =>
-      allFees.totalByPaymentId.has(paymentId)
+    const periodRefundByPaymentId = new Map<string, number>();
+    for (const entry of unlinkedRefundEntries || []) {
+      if (!entry.paymentId) continue;
+      periodRefundByPaymentId.set(
+        entry.paymentId,
+        (periodRefundByPaymentId.get(entry.paymentId) || 0) + entry.principalOre,
+      );
+    }
+    const unlinkedMovementPaymentIds = [...new Set([
+      ...(unlinkedPaymentMovements?.paymentIds || []),
+      ...(unlinkedRefundEntries || [])
+        .filter((entry) => !entry.paymentId || !requestedPaymentIds.has(entry.paymentId))
+        .map((entry) => entry.paymentId)
+        .filter((id): id is string => Boolean(id)),
+    ])];
+    const hasUnknownUnlinkedMovement = Boolean(
+      unlinkedPaymentMovements?.hasUnknownPaymentId ||
+      (unlinkedRefundEntries || []).some((entry) =>
+        !entry.paymentId && entry.principalOre > 0,
+      ),
     );
+    const unlinkedFeesComplete = !hasUnknownUnlinkedMovement &&
+      unlinkedMovementPaymentIds.every((paymentId) => periodFeeByPaymentId.has(paymentId));
     const unlinkedFees = unlinkedFeesComplete
-      ? unlinkedPaymentIds.reduce(
-          (sum, paymentId) => sum + (allFees.totalByPaymentId.get(paymentId) || 0),
+      ? unlinkedMovementPaymentIds.reduce(
+          (sum, paymentId) => sum + (periodFeeByPaymentId.get(paymentId) || 0),
           0,
         )
       : null;
-    const exactPeriodFees = requestedToKey < todayKey && transactionPeriodFees != null
-      ? transactionPeriodFees
-      : reportCoversRequestedPeriod && balanceReportFees != null
-        ? Math.abs(balanceReportFees)
+    // Only the aggregated Balance Report can prove that every provider fee in
+    // the period is represented. Transaction rows without a usable paymentId
+    // or amount must never make a partial parse look like an exact zero.
+    const exactPeriodFees = reportCoversRequestedPeriod && balanceReportFees != null
+      ? Math.abs(balanceReportFees)
       : null;
+    const periodLedgerExact = exactPeriodFees != null &&
+      periodGross != null &&
+      periodRefunds != null &&
+      reportOpeningBalance != null &&
+      reportClosingBalance != null &&
+      reportOtherMovements != null;
     const periodDifference = (
       reportCoversRequestedPeriod &&
       reportOpeningBalance != null &&
@@ -968,12 +1219,14 @@ export async function getMollieFinanceReport(input: {
       latestPayoutAmountOre: exactOre(latestPayout?.amount),
       latestPayoutStatus: String(latestPayout?.status || '').trim() || null,
       latestPayoutCreatedAt: String(latestPayout?.createdAt || '').trim() || null,
-      periodLedgerStatus: exactPeriodFees != null
+      periodLedgerStatus: periodLedgerExact
         ? 'exact'
         : balanceReport || periodPayments
           ? 'partial'
           : 'unavailable',
-      periodReportUntil: String(balanceReport?.until || '').trim() || null,
+      // Admin-API:t exposes the inclusive final day because the UI labels this
+      // value "t.o.m."; Mollie's raw response contains the exclusive boundary.
+      periodReportUntil: balanceReport ? requestedToKey : null,
       periodGrossOre: periodGross,
       periodRefundsOre: periodRefunds,
       periodFeesOre: exactPeriodFees,
@@ -981,7 +1234,9 @@ export async function getMollieFinanceReport(input: {
       periodDifferenceOre: periodDifference,
       periodOpeningBalanceOre: reportOpeningBalance,
       periodClosingBalanceOre: reportClosingBalance,
-      unlinkedPaymentCount: unlinkedPayments.length,
+      periodRefundByPaymentId,
+      periodFeeByPaymentId,
+      unlinkedPaymentCount: unlinkedPaymentMovements?.count ?? 0,
       unlinkedGrossOre: unlinkedGross,
       unlinkedRefundsOre: unlinkedRefunds,
       unlinkedFeesOre: unlinkedFees,

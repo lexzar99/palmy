@@ -114,6 +114,8 @@ CREATE TABLE "Order" (
     "discountAmount" INTEGER NOT NULL DEFAULT 0,
     "foodDiscountAmount" INTEGER NOT NULL DEFAULT 0,
     "deliveryDiscountAmount" INTEGER NOT NULL DEFAULT 0,
+    "platformFundedFoodDiscountAmount" INTEGER NOT NULL DEFAULT 0,
+    "platformFundedDeliveryDiscountAmount" INTEGER NOT NULL DEFAULT 0,
     "smallOrderFee" INTEGER NOT NULL DEFAULT 0,
     "foodVatPercent" INTEGER NOT NULL DEFAULT 6,
     "deliveryVatPercent" INTEGER,
@@ -1503,6 +1505,13 @@ ALTER TABLE "Order"
       "foodDiscountAmount" >= 0
       AND "deliveryDiscountAmount" >= 0
       AND "smallOrderFee" >= 0
+    ),
+  ADD CONSTRAINT "Order_platform_funded_discount_components_check"
+    CHECK (
+      "platformFundedFoodDiscountAmount" >= 0
+      AND "platformFundedFoodDiscountAmount" <= "foodDiscountAmount"
+      AND "platformFundedDeliveryDiscountAmount" >= 0
+      AND "platformFundedDeliveryDiscountAmount" <= "deliveryDiscountAmount"
     ),
   ADD CONSTRAINT "Order_foodVatPercent_check"
     CHECK ("foodVatPercent" IN (0, 6, 12, 25)),

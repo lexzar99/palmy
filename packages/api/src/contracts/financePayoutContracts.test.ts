@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { computePayout, DEFAULT_ECONOMY } from '../lib/financeCalc';
+import { computePayout, DEFAULT_ECONOMY, hasCommissionOverride } from '../lib/financeCalc';
 import {
   applySettlementAdjustments,
   buildPayoutMoneySnapshot,
@@ -16,6 +16,7 @@ import {
   isFinanceRealPaymentOrder,
   isPayoutEligibleOrder,
   isPayoutSettlementBlockingOrder,
+  effectiveRefundAmountOre,
   netPayoutOrder,
   payoutOrders,
   payoutRefundWindowClosesAt,
@@ -54,12 +55,22 @@ import {
   estimateMollieFeeFromSwedishPricing,
   estimateNextMolliePayoutDate,
   mollieFeeBreakdownFromTransactions,
+  mollieFeesFromTransactionsInPeriod,
   mollieBalanceReportUntil,
   mollieRefundFeeForDisplay,
   molliePaymentOrderReference,
   molliePaymentFeesFromTransactions,
+  molliePaymentsFromTransactionsInPeriod,
+  mollieRefundsFromTransactionsInPeriod,
+  mollieUnlinkedPaymentsFromTransactionsInPeriod,
+  mollieUnlinkedRefundsFromTransactionsInPeriod,
 } from '../lib/mollieFinance';
 import { reconcileFinanceOrders } from '../lib/financeReconciliation';
+import {
+  isFinanceCalendarMonthPeriod,
+  resolveFinancePeriod,
+  subscriptionAppliesToFinancePeriod,
+} from '../lib/financePeriod';
 
 const paidDelivered = {
   status: 'DELIVERED',
@@ -139,14 +150,77 @@ assert.deepEqual(partial, {
   originalTotal: 10_000,
   refundAmount: 2_000,
   total: 8_000,
-  deliveryFee: 800,
-  tipAmount: 400,
+  deliveryFee: 1_000,
+  tipAmount: 500,
+  discountAmount: 0,
+  foodDiscountAmount: 0,
+  deliveryDiscountAmount: 0,
+  platformFundedFoodDiscountAmount: 0,
+  platformFundedDeliveryDiscountAmount: 0,
+  smallOrderFee: 0,
 });
+
+const foodFirstRefund = netPayoutOrder({
+  ...paidDelivered,
+  total: 12_000,
+  deliveryFee: 2_000,
+  tipAmount: 0,
+  paymentStatus: 'PARTIALLY_REFUNDED',
+  refundAmount: 2_000,
+});
+assert.equal(foodFirstRefund?.total, 10_000);
+assert.equal(foodFirstRefund?.deliveryFee, 2_000);
+assert.equal(foodFirstRefund?.tipAmount, 0);
+const foodFirstBreakdown = computePayout(
+  [foodFirstRefund!],
+  { selfDelivery: false, commissionPctOverride: 20, featuredClass: 3 },
+  DEFAULT_ECONOMY,
+);
+assert.equal(foodFirstBreakdown.foodBase, 8_000);
+assert.equal(foodFirstBreakdown.deliveryFeeTotal, 2_000);
 
 // A corrupt "partial" row refunded down to zero must fail closed.
 assert.equal(netPayoutOrder({ ...paidDelivered, paymentStatus: 'PARTIALLY_REFUNDED', refundAmount: 10_000 }), null);
 assert.equal(netPayoutOrder({ ...paidDelivered, paymentStatus: 'PARTIALLY_REFUNDED', refundAmount: 50_000 }), null);
 assert.equal(netPayoutOrder({ ...paidDelivered, paymentStatus: 'PARTIALLY_REFUNDED', refundAmount: null }), null);
+assert.equal(
+  effectiveRefundAmountOre({ ...paidDelivered, paymentStatus: 'REFUNDED', refundAmount: 0 }),
+  paidDelivered.total,
+  'REFUNDED is a full refund even when a legacy cumulative amount is zero',
+);
+assert.equal(
+  effectiveRefundAmountOre({ ...paidDelivered, paymentStatus: 'REFUNDED', refundAmount: 1_000 }),
+  paidDelivered.total,
+  'REFUNDED is a full refund even when a legacy cumulative amount is incomplete',
+);
+
+const fullyRefundedAuditOrder = {
+  ...paidDelivered,
+  id: 'full-refund-audit',
+  orderNumber: 'VE-FULL',
+  paymentStatus: 'REFUNDED',
+  paymentProvider: 'mollie',
+  molliePaymentId: 'tr_full',
+  updatedAt: new Date('2026-08-05T10:00:00.000Z'),
+};
+assert.equal(
+  buildPayoutFinanceFingerprint([{ ...fullyRefundedAuditOrder, refundAmount: 0 }]),
+  buildPayoutFinanceFingerprint([{ ...fullyRefundedAuditOrder, refundAmount: paidDelivered.total }]),
+  'finance snapshots normalize every fully refunded row to its full total',
+);
+assert.notEqual(
+  buildPayoutFinanceFingerprint([{
+    ...fullyRefundedAuditOrder,
+    foodDiscountAmount: 1_000,
+    platformFundedFoodDiscountAmount: 0,
+  }]),
+  buildPayoutFinanceFingerprint([{
+    ...fullyRefundedAuditOrder,
+    foodDiscountAmount: 1_000,
+    platformFundedFoodDiscountAmount: 1_000,
+  }]),
+  'changing only the frozen discount funder invalidates the finance snapshot',
+);
 
 const eligible = payoutOrders([
   paidDelivered,
@@ -209,15 +283,15 @@ const platformPayout = computePayout(
   DEFAULT_ECONOMY,
 );
 assert.equal(platformPayout.grossTotal, 8_000);
-assert.equal(platformPayout.foodBase, 6_800);
-assert.equal(platformPayout.restaurantGrossOre, 6_800);
-assert.equal(platformPayout.commissionOre, 1_360);
-assert.equal(platformPayout.feeVatOre, 340);
-assert.equal(platformPayout.foodVatOre, 385);
+assert.equal(platformPayout.foodBase, 6_500);
+assert.equal(platformPayout.restaurantGrossOre, 6_500);
+assert.equal(platformPayout.commissionOre, 1_300);
+assert.equal(platformPayout.feeVatOre, 325);
+assert.equal(platformPayout.foodVatOre, 368);
 assert.equal(platformPayout.foodVatPct, 6);
 assert.equal(platformPayout.restaurantTipOre, 0);
-assert.equal(platformPayout.platformTipOre, 400);
-assert.equal(platformPayout.payoutOre, 5_100);
+assert.equal(platformPayout.platformTipOre, 500);
+assert.equal(platformPayout.payoutOre, 4_875);
 
 const selfDeliveryPayout = computePayout(
   [partial!],
@@ -225,26 +299,116 @@ const selfDeliveryPayout = computePayout(
   DEFAULT_ECONOMY,
 );
 assert.equal(selfDeliveryPayout.restaurantGrossOre, 8_000);
-assert.equal(selfDeliveryPayout.commissionOre, 680);
-assert.equal(selfDeliveryPayout.feeVatOre, 170);
-assert.equal(selfDeliveryPayout.foodVatOre, 385);
+assert.equal(selfDeliveryPayout.commissionOre, 650);
+assert.equal(selfDeliveryPayout.feeVatOre, 163);
+assert.equal(selfDeliveryPayout.foodVatOre, 368);
 assert.equal(selfDeliveryPayout.foodVatPct, 6);
-assert.equal(selfDeliveryPayout.restaurantTipOre, 400);
+assert.equal(selfDeliveryPayout.restaurantTipOre, 500);
 assert.equal(selfDeliveryPayout.platformTipOre, 0);
-assert.equal(selfDeliveryPayout.payoutOre, 7_150);
+assert.equal(selfDeliveryPayout.payoutOre, 7_187);
 
-// A legacy zero override means that the optional override was cleared. It
-// must fall back to the configured delivery-model rate instead of making the
-// dashboard and finance overview report zero commission.
-const legacyZeroOverridePayout = computePayout(
+// null alone means global. An explicit 0 is a real, provisionsfritt avtal and
+// must survive every calculation unchanged.
+const zeroCommissionPayout = computePayout(
   [partial!],
   { selfDelivery: true, commissionPctOverride: 0, featuredClass: 3 },
   DEFAULT_ECONOMY,
 );
-assert.equal(legacyZeroOverridePayout.commissionPct, DEFAULT_ECONOMY.commissionSelfPct);
-assert.equal(legacyZeroOverridePayout.commissionOre, 680);
-assert.equal(legacyZeroOverridePayout.feeVatOre, 170);
-assert.equal(legacyZeroOverridePayout.payoutOre, 7_150);
+assert.equal(zeroCommissionPayout.commissionPct, 0);
+assert.equal(zeroCommissionPayout.commissionOre, 0);
+assert.equal(zeroCommissionPayout.feeVatOre, 0);
+assert.equal(zeroCommissionPayout.payoutOre, 8_000);
+assert.equal(hasCommissionOverride(null), false);
+assert.equal(hasCommissionOverride(0), true);
+assert.equal(hasCommissionOverride(5), true);
+assert.equal(hasCommissionOverride(-1), false);
+assert.equal(hasCommissionOverride(101), false);
+
+const customCommissionPayout = computePayout(
+  [partial!],
+  { selfDelivery: true, commissionPctOverride: 5, featuredClass: 3 },
+  DEFAULT_ECONOMY,
+);
+assert.equal(customCommissionPayout.commissionPct, 5);
+assert.equal(customCommissionPayout.commissionOre, 325);
+
+const globalCommissionPayout = computePayout(
+  [partial!],
+  { selfDelivery: true, commissionPctOverride: null, featuredClass: 3 },
+  DEFAULT_ECONOMY,
+);
+assert.equal(globalCommissionPayout.commissionPct, DEFAULT_ECONOMY.commissionSelfPct);
+
+// A delivery discount removes only the delivery component. Food discounts
+// reduce the commission base, while the minimum-order top-up remains revenue
+// for the restaurant.
+const discountedPayout = computePayout(
+  [{
+    ...paidDelivered,
+    total: 9_500,
+    deliveryFee: 2_000,
+    tipAmount: 0,
+    discountAmount: 3_000,
+    foodDiscountAmount: 1_000,
+    deliveryDiscountAmount: 2_000,
+    smallOrderFee: 500,
+  }],
+  { selfDelivery: false, commissionPctOverride: 20, featuredClass: 3 },
+  DEFAULT_ECONOMY,
+);
+assert.equal(discountedPayout.deliveryFeeTotal, 0);
+assert.equal(discountedPayout.deliveryDiscountTotal, 2_000);
+assert.equal(discountedPayout.smallOrderFeeTotal, 500);
+assert.equal(discountedPayout.foodBase, 9_500);
+assert.equal(discountedPayout.commissionOre, 1_900);
+assert.equal(discountedPayout.payoutOre, 7_125);
+
+const platformFundedDiscountOrder = {
+  ...paidDelivered,
+  total: 9_500,
+  deliveryFee: 2_000,
+  tipAmount: 0,
+  discountAmount: 3_000,
+  foodDiscountAmount: 1_000,
+  deliveryDiscountAmount: 2_000,
+  platformFundedFoodDiscountAmount: 1_000,
+  platformFundedDeliveryDiscountAmount: 2_000,
+  smallOrderFee: 500,
+  paymentStatus: 'PARTIALLY_REFUNDED',
+  refundAmount: 2_000,
+} satisfies PayoutOrder;
+const platformFundedPartial = netPayoutOrder(platformFundedDiscountOrder)!;
+assert.equal(platformFundedPartial.total, 7_500);
+assert.equal(platformFundedPartial.deliveryFee, 2_000, 'free delivery remains fully discounted');
+assert.equal(platformFundedPartial.deliveryDiscountAmount, 2_000);
+assert.equal(platformFundedPartial.smallOrderFee, 500, 'food refund consumes menu value before top-up');
+assert.equal(platformFundedPartial.platformFundedFoodDiscountAmount, 1_000);
+assert.equal(platformFundedPartial.platformFundedDeliveryDiscountAmount, 2_000);
+
+const platformFundedPlatformDelivery = computePayout(
+  [platformFundedPartial],
+  { selfDelivery: false, commissionPctOverride: 20, featuredClass: 3 },
+  DEFAULT_ECONOMY,
+);
+assert.equal(platformFundedPlatformDelivery.grossTotal, 7_500);
+assert.equal(platformFundedPlatformDelivery.foodBase, 8_500);
+assert.equal(platformFundedPlatformDelivery.restaurantGrossOre, 8_500);
+assert.equal(platformFundedPlatformDelivery.platformFundedFoodDiscountTotal, 1_000);
+assert.equal(platformFundedPlatformDelivery.platformFundedDeliveryDiscountTotal, 2_000);
+assert.equal(platformFundedPlatformDelivery.restaurantPlatformFundedDiscountTotal, 1_000);
+
+const platformFundedSelfDelivery = computePayout(
+  [platformFundedPartial],
+  { selfDelivery: true, commissionPctOverride: 20, featuredClass: 3 },
+  DEFAULT_ECONOMY,
+);
+assert.equal(platformFundedSelfDelivery.foodBase, 8_500);
+assert.equal(platformFundedSelfDelivery.restaurantPlatformFundedDiscountTotal, 3_000);
+assert.equal(
+  platformFundedSelfDelivery.restaurantGrossOre,
+  10_500,
+  'self-delivery receives both ViaEats-funded food and delivery discount',
+);
 
 const customTierPayout = computePayout(
   [],
@@ -274,15 +438,15 @@ const settlement = buildPayoutMoneySnapshot(
   100,
 );
 assert.deepEqual(settlement.snapshot, {
-  grossSales: 6_800,
+  grossSales: 6_500,
   orderCount: 1,
-  commissionAmount: 1_360,
+  commissionAmount: 1_300,
   subscriptionAmount: 0,
   manualAdjustmentAmount: 100,
   lateRefundAdjustmentAmount: 0,
-  foodVatAmount: 385,
-  platformTipAmount: 400,
-  payoutAmount: 5_000,
+  foodVatAmount: 368,
+  platformTipAmount: 500,
+  payoutAmount: 4_775,
   mollieFeeAmount: 0,
 });
 assert.deepEqual(settlement.economicSnapshot, {
@@ -292,6 +456,62 @@ assert.deepEqual(settlement.economicSnapshot, {
   selfDeliverySnapshot: false,
   mollieFeeAmount: 0,
 });
+
+const billingStartMonth = resolveFinancePeriod(
+  '2026-03-01',
+  '2026-03-31',
+  new Date('2026-03-20T12:00:00.000Z'),
+);
+const historicalMonth = resolveFinancePeriod(
+  '2026-02-01',
+  '2026-02-28',
+  new Date('2026-03-20T12:00:00.000Z'),
+);
+const partialBillingMonth = resolveFinancePeriod(
+  '2026-03-15',
+  '2026-03-31',
+  new Date('2026-03-20T12:00:00.000Z'),
+);
+const restaurantCreatedAt = new Date('2026-03-20T12:00:00.000Z');
+assert.equal(isFinanceCalendarMonthPeriod(billingStartMonth.start, billingStartMonth.end), true);
+assert.equal(isFinanceCalendarMonthPeriod(partialBillingMonth.start, partialBillingMonth.end), false);
+assert.equal(
+  subscriptionAppliesToFinancePeriod(restaurantCreatedAt, null, historicalMonth.start, historicalMonth.end),
+  false,
+  'a restaurant is never billed before its createdAt month',
+);
+assert.equal(
+  subscriptionAppliesToFinancePeriod(restaurantCreatedAt, null, billingStartMonth.start, billingStartMonth.end),
+  true,
+  'the exact restaurant start month carries one full monthly subscription',
+);
+assert.equal(
+  subscriptionAppliesToFinancePeriod(restaurantCreatedAt, null, partialBillingMonth.start, partialBillingMonth.end),
+  false,
+  'a partial period cannot create a duplicate subscription charge',
+);
+
+const archiveMonth = resolveFinancePeriod(
+  '2026-05-01',
+  '2026-05-31',
+  new Date('2026-05-15T12:00:00.000Z'),
+);
+const postArchiveMonth = resolveFinancePeriod(
+  '2026-06-01',
+  '2026-06-30',
+  new Date('2026-06-15T12:00:00.000Z'),
+);
+const restaurantArchivedAt = new Date('2026-05-07T10:00:00.000Z');
+assert.equal(
+  subscriptionAppliesToFinancePeriod(restaurantCreatedAt, restaurantArchivedAt, archiveMonth.start, archiveMonth.end),
+  true,
+  'the exact archive month carries the final full monthly subscription',
+);
+assert.equal(
+  subscriptionAppliesToFinancePeriod(restaurantCreatedAt, restaurantArchivedAt, postArchiveMonth.start, postArchiveMonth.end),
+  false,
+  'subscription stops for the first month beginning after archivedAt',
+);
 
 // Manual transfers are signed and exact to the öre. A paired transfer moves
 // the Burger King cost to Palmyra without changing the period total.
@@ -310,6 +530,40 @@ assert.deepEqual(applySettlementAdjustments({
   owedAmount: 5_553,
   manualAdjustmentAmount: -6_000,
 }), { payoutAmount: 447, owedAmount: 0 });
+const creditedRecoveryCapacity = applySettlementAdjustments({
+  payoutAmount: 0,
+  owedAmount: 5_553,
+  manualAdjustmentAmount: -6_000,
+  lateRefundAdjustmentAmount: 0,
+});
+assert.deepEqual(
+  buildLateRefundRecoveryPlan([{
+    sourcePayoutId: 'late-refund-after-credit',
+    requiredRecoveryAmount: 1_000,
+    appliedAmount: 0,
+    reservedElsewhereAmount: 0,
+  }], creditedRecoveryCapacity.payoutAmount),
+  {
+    allocations: [{ sourcePayoutId: 'late-refund-after-credit', amount: 447 }],
+    totalAmount: 447,
+    remainingAmount: 553,
+  },
+  'preview recovery capacity applies a manual credit after existing debt, exactly like payout save',
+);
+
+const freshRecoveryCapacity = 10_000;
+const recoveryFromOriginalCapacity = buildLateRefundRecoveryPlan([{
+  sourcePayoutId: 'already-reserved-target',
+  requiredRecoveryAmount: 9_000,
+  appliedAmount: 0,
+  reservedElsewhereAmount: 0,
+}], freshRecoveryCapacity);
+assert.equal(recoveryFromOriginalCapacity.totalAmount, 9_000);
+assert.equal(
+  freshRecoveryCapacity - recoveryFromOriginalCapacity.totalAmount,
+  1_000,
+  'a stored recovery must not reduce the target capacity before the fresh plan is recalculated',
+);
 assert.equal(
   applySettlementAdjustments({ payoutAmount: 301_300, owedAmount: 0, manualAdjustmentAmount: 5_553 }).payoutAmount -
     applySettlementAdjustments({ payoutAmount: 0, owedAmount: 5_553, manualAdjustmentAmount: -5_553 }).owedAmount,
@@ -341,15 +595,15 @@ assert.deepEqual(
     { ...paidDelivered, paymentStatus: 'PARTIALLY_REFUNDED', refundAmount: 4_000 },
   ], lateRefundSource),
   {
-    grossSales: 5_100,
+    grossSales: 4_500,
     orderCount: 1,
-    commissionAmount: 1_020,
+    commissionAmount: 900,
     subscriptionAmount: 0,
     manualAdjustmentAmount: 100,
     lateRefundAdjustmentAmount: 0,
-    foodVatAmount: 289,
-    platformTipAmount: 300,
-    payoutAmount: 3_725,
+    foodVatAmount: 255,
+    platformTipAmount: 500,
+    payoutAmount: 3_275,
     mollieFeeAmount: 0,
   },
 );
@@ -398,6 +652,42 @@ assert.equal(sameRecoveryAllocations(recoveryPlan.allocations, [
   { sourcePayoutId: 'oldest', amount: 2_499 },
   { sourcePayoutId: 'newer', amount: 1_501 },
 ]), false);
+const approvedRecoveryRequiresAction = (
+  savedAmount: number,
+  currentAmount: number,
+  savedAllocations: typeof recoveryPlan.allocations,
+  currentAllocations: typeof recoveryPlan.allocations,
+) => savedAmount !== currentAmount || !sameRecoveryAllocations(savedAllocations, currentAllocations);
+assert.equal(
+  approvedRecoveryRequiresAction(
+    recoveryPlan.totalAmount,
+    recoveryPlan.totalAmount,
+    recoveryPlan.allocations,
+    [...recoveryPlan.allocations].reverse(),
+  ),
+  false,
+  'an unchanged approved recovery snapshot remains locked',
+);
+assert.equal(
+  approvedRecoveryRequiresAction(
+    recoveryPlan.totalAmount,
+    recoveryPlan.totalAmount,
+    recoveryPlan.allocations,
+    [{ sourcePayoutId: 'replacement-source', amount: recoveryPlan.totalAmount }],
+  ),
+  true,
+  'a changed recovery source requires a new locked version even when the total is unchanged',
+);
+assert.equal(
+  approvedRecoveryRequiresAction(
+    recoveryPlan.totalAmount,
+    recoveryPlan.totalAmount + 1,
+    recoveryPlan.allocations,
+    recoveryPlan.allocations,
+  ),
+  true,
+  'a changed recovery amount requires action',
+);
 assert.equal(requiredLateRefundRecoveryAmount(5_000, 3_725), 1_275);
 assert.equal(requiredLateRefundRecoveryAmount(5_000, 0), 5_000);
 assert.equal(requiredLateRefundRecoveryAmount(5_000, 5_500), 0);
@@ -575,6 +865,7 @@ const pairedRestaurantFunding = reconcileRestaurantFundingOre({
       tip: 0,
       selfDelivery: true,
       manualAdjustment: 5_553,
+      platformFundedDiscount: 0,
     },
     {
       grossTotal: 0,
@@ -589,6 +880,7 @@ const pairedRestaurantFunding = reconcileRestaurantFundingOre({
       tip: 0,
       selfDelivery: true,
       manualAdjustment: -5_553,
+      platformFundedDiscount: 0,
     },
   ],
 });
@@ -603,7 +895,7 @@ assert.deepEqual(pairedRestaurantFunding, {
   externalNet: 988,
 });
 
-const invoiceNeedsPayoutAdjustment = reconcileRestaurantFundingOre({
+const invoiceRestaurantFunding = reconcileRestaurantFundingOre({
   periodGross: 312_900,
   periodRefunds: 0,
   periodFees: 16_165,
@@ -614,22 +906,94 @@ const invoiceNeedsPayoutAdjustment = reconcileRestaurantFundingOre({
     grossTotal: 311_900,
     refunds: 0,
     mollieFee: 16_153,
-    payout: 301_300,
+    payout: 0,
     owed: 5_553,
-    commission: 0,
+    commission: 301_300,
     subscription: 0,
     feeVat: 0,
     deliveryFee: 0,
     tip: 0,
     selfDelivery: true,
     manualAdjustment: 0,
+    platformFundedDiscount: 0,
   }],
 });
-assert.equal(invoiceNeedsPayoutAdjustment.calculatedRestaurantNet, 301_300);
-assert.equal(invoiceNeedsPayoutAdjustment.invoiceTotal, 5_553);
-assert.equal(invoiceNeedsPayoutAdjustment.difference, -5_553);
+assert.equal(invoiceRestaurantFunding.calculatedRestaurantNet, 295_747);
+assert.equal(invoiceRestaurantFunding.invoiceTotal, 5_553);
+assert.equal(invoiceRestaurantFunding.difference, 0);
 
-const unpairedRestaurantFunding = reconcileRestaurantFundingOre({
+assert.deepEqual(applySettlementAdjustments({
+  payoutAmount: 0,
+  owedAmount: 8_750,
+  mollieFeeAmount: 300,
+}), { payoutAmount: 0, owedAmount: 9_050 });
+
+const invoiceCashIdentity = reconcileRestaurantFundingOre({
+  periodGross: 10_000,
+  periodRefunds: 0,
+  periodFees: 300,
+  externalGross: 0,
+  externalRefunds: 0,
+  externalFees: 0,
+  rows: [{
+    grossTotal: 10_000,
+    refunds: 0,
+    mollieFee: 300,
+    payout: 0,
+    owed: 9_050,
+    commission: 15_000,
+    subscription: 3_000,
+    feeVat: 750,
+    deliveryFee: 0,
+    tip: 0,
+    selfDelivery: true,
+    manualAdjustment: 0,
+    platformFundedDiscount: 0,
+  }],
+});
+assert.equal(invoiceCashIdentity.mollieRestaurantNet, 9_700);
+assert.equal(invoiceCashIdentity.calculatedRestaurantNet, 9_700);
+assert.equal(invoiceCashIdentity.invoiceTotal, 9_050);
+assert.equal(invoiceCashIdentity.difference, 0);
+
+assert.deepEqual(applySettlementAdjustments({
+  payoutAmount: 9_000,
+  owedAmount: 0,
+  mollieFeeAmount: 300,
+  manualAdjustmentAmount: -500,
+}), { payoutAmount: 9_200, owedAmount: 0 });
+
+const manualCreditCashIdentity = reconcileRestaurantFundingOre({
+  periodGross: 10_000,
+  periodRefunds: 0,
+  periodFees: 300,
+  externalGross: 0,
+  externalRefunds: 0,
+  externalFees: 0,
+  rows: [{
+    grossTotal: 10_000,
+    refunds: 0,
+    mollieFee: 300,
+    payout: 9_200,
+    owed: 0,
+    commission: 1_000,
+    subscription: 0,
+    feeVat: 0,
+    deliveryFee: 0,
+    tip: 0,
+    selfDelivery: true,
+    // Negative is a credit: it increases payout, so the signed amount is
+    // added back (and therefore subtracts 500) in the cash identity.
+    manualAdjustment: -500,
+    platformFundedDiscount: 0,
+  }],
+});
+assert.equal(manualCreditCashIdentity.mollieRestaurantNet, 9_700);
+assert.equal(manualCreditCashIdentity.calculatedRestaurantNet, 9_700);
+assert.equal(manualCreditCashIdentity.adjustmentNet, -500);
+assert.equal(manualCreditCashIdentity.difference, 0);
+
+const positiveManualFunding = reconcileRestaurantFundingOre({
   periodGross: 312_900,
   periodRefunds: 0,
   periodFees: 16_165,
@@ -640,8 +1004,8 @@ const unpairedRestaurantFunding = reconcileRestaurantFundingOre({
     grossTotal: 311_900,
     refunds: 0,
     mollieFee: 16_153,
-    payout: 295_747,
-    owed: 5_553,
+    payout: 290_194,
+    owed: 0,
     commission: 0,
     subscription: 0,
     feeVat: 0,
@@ -649,12 +1013,104 @@ const unpairedRestaurantFunding = reconcileRestaurantFundingOre({
     tip: 0,
     selfDelivery: true,
     manualAdjustment: 5_553,
+    platformFundedDiscount: 0,
   }],
 });
-assert.equal(unpairedRestaurantFunding.difference, 0);
-assert.equal(unpairedRestaurantFunding.calculatedRestaurantNet, 295_747);
-assert.equal(unpairedRestaurantFunding.adjustmentNet, 5_553);
-assert.equal(unpairedRestaurantFunding.invoiceTotal, 5_553);
+assert.equal(positiveManualFunding.difference, 0);
+assert.equal(positiveManualFunding.calculatedRestaurantNet, 295_747);
+assert.equal(positiveManualFunding.adjustmentNet, 5_553);
+assert.equal(positiveManualFunding.invoiceTotal, 0);
+
+const exactLateRefundFunding = reconcileRestaurantFundingOre({
+  periodGross: 10_000,
+  periodRefunds: 2_000,
+  periodFees: 200,
+  externalGross: 0,
+  externalRefunds: 0,
+  externalFees: 0,
+  historicalRefundPrincipal: 2_000,
+  historicalRefundFees: 200,
+  lateRefundRecovery: 1_950,
+  rows: [{
+    grossTotal: 10_000,
+    refunds: 0,
+    mollieFee: 0,
+    payout: 6_800,
+    owed: 0,
+    commission: 1_000,
+    subscription: 0,
+    feeVat: 250,
+    deliveryFee: 0,
+    tip: 0,
+    selfDelivery: true,
+    manualAdjustment: 0,
+    platformFundedDiscount: 0,
+  }],
+});
+assert.equal(exactLateRefundFunding.mollieRestaurantNet, 7_800);
+assert.equal(exactLateRefundFunding.calculatedRestaurantNet, 7_800);
+assert.equal(exactLateRefundFunding.difference, 0);
+assert.equal(exactLateRefundFunding.salesDifference, 0);
+assert.equal(exactLateRefundFunding.feeDifference, 0);
+
+const carriedLateRefundFunding = reconcileRestaurantFundingOre({
+  periodGross: 10_000,
+  periodRefunds: 0,
+  periodFees: 0,
+  externalGross: 0,
+  externalRefunds: 0,
+  externalFees: 0,
+  historicalRefundPrincipal: 0,
+  historicalRefundFees: 0,
+  lateRefundRecovery: 1_950,
+  rows: [{
+    grossTotal: 10_000,
+    refunds: 0,
+    mollieFee: 0,
+    payout: 6_800,
+    owed: 0,
+    commission: 1_000,
+    subscription: 0,
+    feeVat: 250,
+    deliveryFee: 0,
+    tip: 0,
+    selfDelivery: true,
+    manualAdjustment: 0,
+    platformFundedDiscount: 0,
+  }],
+});
+assert.equal(carriedLateRefundFunding.calculatedRestaurantNet, 10_000);
+assert.equal(carriedLateRefundFunding.difference, 0);
+assert.equal(carriedLateRefundFunding.salesDifference, 0);
+assert.equal(carriedLateRefundFunding.feeDifference, 0);
+
+const platformFundedRestaurantFunding = reconcileRestaurantFundingOre({
+  periodGross: 8_000,
+  periodRefunds: 0,
+  periodFees: 0,
+  externalGross: 0,
+  externalRefunds: 0,
+  externalFees: 0,
+  rows: [{
+    grossTotal: 8_000,
+    refunds: 0,
+    mollieFee: 0,
+    payout: 10_000,
+    owed: 0,
+    commission: 0,
+    subscription: 0,
+    feeVat: 0,
+    deliveryFee: 0,
+    tip: 0,
+    selfDelivery: true,
+    manualAdjustment: 0,
+    platformFundedDiscount: 2_000,
+  }],
+});
+assert.equal(platformFundedRestaurantFunding.mollieRestaurantNet, 8_000);
+assert.equal(platformFundedRestaurantFunding.calculatedRestaurantNet, 8_000);
+assert.equal(platformFundedRestaurantFunding.difference, 0);
+assert.equal(platformFundedRestaurantFunding.salesDifference, 0);
 
 const mollieFees = molliePaymentFeesFromTransactions([
   {
@@ -702,7 +1158,16 @@ assert.equal(
     new Date('2026-07-31T21:59:59.999Z'),
     new Date('2026-08-03T12:00:00.000Z'),
   ),
-  '2026-07-31',
+  '2026-08-01',
+  'Mollie until is exclusive, so a completed July report ends on 1 August',
+);
+assert.equal(
+  mollieBalanceReportUntil(
+    new Date('2026-08-07T10:00:00.000Z'),
+    new Date('2026-08-07T12:00:00.000Z'),
+  ),
+  '2026-08-08',
+  'the current day is included by sending tomorrow as the exclusive boundary',
 );
 const refundFeeBreakdown = mollieFeeBreakdownFromTransactions([
   {
@@ -721,6 +1186,144 @@ const refundFeeBreakdown = mollieFeeBreakdownFromTransactions([
 assert.equal(refundFeeBreakdown.paymentByPaymentId.get('tr_refunded'), 292);
 assert.equal(refundFeeBreakdown.refundByPaymentId.get('tr_refunded'), 270);
 assert.equal(refundFeeBreakdown.totalByPaymentId.get('tr_refunded'), 562);
+const augustLedgerTransactions = [
+  {
+    id: 'bst_original_payment',
+    type: 'payment',
+    createdAt: '2026-07-10T10:00:00.000Z',
+    context: { paymentId: 'tr_late_refund' },
+    initialAmount: { currency: 'SEK', value: '40.00' },
+    deductionDetails: { fees: { currency: 'SEK', value: '-2.92' } },
+  },
+  {
+    // Checkout can be created in July while the balance booking belongs to August.
+    id: 'bst_august_payment',
+    type: 'payment',
+    createdAt: '2026-08-01T00:05:00.000Z',
+    context: { paymentId: 'tr_booked_in_august' },
+    initialAmount: { currency: 'SEK', value: '100.00' },
+    resultAmount: { currency: 'SEK', value: '96.00' },
+    deductionDetails: { fees: { currency: 'SEK', value: '-4.00' } },
+  },
+  {
+    id: 'bst_late_refund',
+    type: 'refund',
+    createdAt: '2026-08-05T10:00:00.000Z',
+    context: { paymentId: 'tr_late_refund', refundId: 're_late' },
+    initialAmount: { currency: 'SEK', value: '-40.00' },
+    resultAmount: { currency: 'SEK', value: '-42.70' },
+    deductionDetails: { fees: { currency: 'SEK', value: '-2.70' } },
+  },
+  {
+    // Pagination can repeat an edge row; the transaction id is authoritative.
+    id: 'bst_late_refund',
+    type: 'refund',
+    createdAt: '2026-08-05T10:00:00.000Z',
+    context: { paymentId: 'tr_late_refund', refundId: 're_late' },
+    initialAmount: { currency: 'SEK', value: '-40.00' },
+    resultAmount: { currency: 'SEK', value: '-42.70' },
+    deductionDetails: { fees: { currency: 'SEK', value: '-2.70' } },
+  },
+] as const;
+const julyStart = new Date('2026-07-01T00:00:00.000Z');
+const julyEnd = new Date('2026-07-31T23:59:59.999Z');
+const augustStart = new Date('2026-08-01T00:00:00.000Z');
+const augustEnd = new Date('2026-08-31T23:59:59.999Z');
+assert.equal(
+  mollieRefundsFromTransactionsInPeriod(augustLedgerTransactions, julyStart, julyEnd),
+  0,
+  'a July payment does not make its August refund part of July',
+);
+assert.equal(
+  mollieRefundsFromTransactionsInPeriod(augustLedgerTransactions, augustStart, augustEnd),
+  4_000,
+  'a late refund uses its August booking, deduplicates transaction id and excludes its fee from principal',
+);
+assert.equal(
+  molliePaymentsFromTransactionsInPeriod(augustLedgerTransactions, julyStart, julyEnd),
+  4_000,
+  'period gross follows the July balance booking rather than a later cumulative payment object',
+);
+assert.equal(
+  molliePaymentsFromTransactionsInPeriod(augustLedgerTransactions, augustStart, augustEnd),
+  10_000,
+  'a payment booked in August belongs to August and excludes its fee from principal',
+);
+assert.deepEqual(
+  mollieUnlinkedPaymentsFromTransactionsInPeriod(
+    augustLedgerTransactions,
+    augustStart,
+    augustEnd,
+    new Set(['tr_booked_in_august']),
+  ),
+  { count: 0, grossOre: 0, paymentIds: [], hasUnknownPaymentId: false },
+  'a known restaurant payment is not external merely because checkout was created earlier',
+);
+assert.deepEqual(
+  mollieUnlinkedPaymentsFromTransactionsInPeriod(
+    augustLedgerTransactions,
+    augustStart,
+    augustEnd,
+    new Set(),
+  ),
+  {
+    count: 1,
+    grossOre: 10_000,
+    paymentIds: ['tr_booked_in_august'],
+    hasUnknownPaymentId: false,
+  },
+  'an unmatched balance-booked payment is external in its booking month',
+);
+assert.equal(
+  mollieUnlinkedRefundsFromTransactionsInPeriod(
+    augustLedgerTransactions,
+    augustStart,
+    augustEnd,
+    new Set(['tr_late_refund']),
+  ),
+  0,
+  'a refund whose payment belongs to a restaurant is not an external refund',
+);
+assert.equal(
+  mollieUnlinkedRefundsFromTransactionsInPeriod(
+    augustLedgerTransactions,
+    augustStart,
+    augustEnd,
+    new Set(),
+  ),
+  4_000,
+  'an unmatched late refund is periodized as external in its booking month',
+);
+assert.equal(
+  mollieFeesFromTransactionsInPeriod(augustLedgerTransactions, augustStart, augustEnd),
+  670,
+  'the original July payment fee stays in July while the August payment and refund fees are booked in August',
+);
+assert.equal(
+  mollieFeesFromTransactionsInPeriod([
+    {
+      id: 'unlinked_fee',
+      type: 'payment-fee',
+      createdAt: '2026-08-05T10:00:00.000Z',
+      resultAmount: { currency: 'SEK', value: '-3.00' },
+    },
+  ], augustStart, augustEnd),
+  null,
+  'a provider fee without a payment reference is partial, never an exact zero',
+);
+assert.equal(
+  mollieFeesFromTransactionsInPeriod([
+    {
+      id: 'invalid_fee',
+      type: 'payment',
+      createdAt: '2026-08-05T10:00:00.000Z',
+      context: { paymentId: 'tr_invalid_fee' },
+      deductionDetails: { fees: { currency: 'SEK', value: 'not-an-amount' } },
+    },
+  ], augustStart, augustEnd),
+  null,
+  'an unparseable fee is partial, never silently coerced to zero',
+);
 assert.equal(exactMollieFeeSnapshot({
   paymentIds: ['tr_refunded'],
   refundedPaymentIds: ['tr_refunded'],
@@ -933,6 +1536,131 @@ async function runPayoutSourceAuditContracts() {
     payoutRouteSource,
     /assertPayoutProviderAuditFingerprint\(\s*settlementRows,\s*payoutAudit\.targetFingerprint/,
     'target fingerprint must be revalidated inside the serializable payout transaction',
+  );
+  assert.match(
+    payoutRouteSource,
+    /if \(!isFinanceCalendarMonthPeriod\(start, end\)\)[\s\S]*PAYOUT_PERIOD_MUST_BE_CALENDAR_MONTH/,
+    'payout POST must reject partial and overlapping sub-month periods',
+  );
+  assert.match(
+    payoutRouteSource,
+    /periodRestaurant = restaurantTermsForPeriod\(restaurant, start, end\)[\s\S]*buildPayoutMoneySnapshot\([\s\S]*periodRestaurant/,
+    'payout save must use the same restaurant lifecycle subscription rule as finance preview',
+  );
+  assert.match(
+    payoutRouteSource,
+    /platformFundedFoodDiscountAmount: order\.platformFundedFoodDiscountAmount[\s\S]*platformFundedDeliveryDiscountAmount: order\.platformFundedDeliveryDiscountAmount/,
+    'the immutable payout fingerprint includes both discount funder snapshots',
+  );
+  assert.match(
+    payoutRouteSource,
+    /financeSnapshotMetrics\.platformFundedDiscountAmount\s*=\s*baseCalculation\.breakdown\.restaurantPlatformFundedDiscountTotal/,
+    'the locked revision freezes only discount support that increases restaurant gross',
+  );
+  const financeRouteSource = readFileSync(join(__dirname, '..', 'routes', 'finance.ts'), 'utf8');
+  assert.match(
+    financeRouteSource,
+    /createdAt: \{ lte: end \},[\s\S]*OR: \[[\s\S]*\{ archivedAt: null \},[\s\S]*\{ archivedAt: \{ gte: start \} \}/,
+    'finance summary must include every restaurant whose lifecycle overlaps the selected month',
+  );
+  assert.match(
+    financeRouteSource,
+    /historicalRefundPrincipalOre = historicalPaymentIds\.reduce[\s\S]*periodRefundByPaymentId[\s\S]*historicalRefundFeesOre = historicalPaymentIds\.reduce[\s\S]*periodFeeByPaymentId[\s\S]*historicalRefundPrincipal: historicalRefundPrincipalOre[\s\S]*historicalRefundFees: historicalRefundFeesOre[\s\S]*lateRefundRecovery: lateRefundRecoveryOre/,
+    'funding reconciliation must receive historical refund principal, historical provider fees and current recovery',
+  );
+  assert.match(
+    financeRouteSource,
+    /platformFundedDiscountAmount: fromOre\(snapshot\.platformFundedDiscountAmount\)/,
+    'revision API exposes the frozen ViaEats-funded restaurant support',
+  );
+  assert.match(
+    payoutRouteSource,
+    /archivedAt: true[\s\S]*periodRestaurant = restaurantTermsForPeriod\(restaurant, start, end\)/,
+    'payout save must include archivedAt when resolving the monthly subscription',
+  );
+  assert.match(
+    financeRouteSource,
+    /targetCapacityAmount: recoveryCapacity\.payoutAmount/,
+    'detail preview must apply signed manual credit before calculating recovery capacity',
+  );
+  assert.match(
+    financeRouteSource,
+    /lateRefundAdjustmentAmount: 0,[\s\S]*targetCapacityAmount: recoveryCapacity\.payoutAmount/,
+    'summary recovery must start from original capacity rather than an already reduced saved payout',
+  );
+  assert.match(
+    financeRouteSource,
+    /settlementReadiness:[\s\S]*blockingOrderCount[\s\S]*immatureOrderCount/,
+    'detail preview must expose the same order-readiness blockers as payout save',
+  );
+  assert.match(
+    financeRouteSource,
+    /exactFeesReady = mollieOrders\.length === 0 \|\| \(detailFeesComplete && detailRefundFeesComplete\)/,
+    'a zero-order subscription invoice is fee-ready without Mollie payment tokens',
+  );
+  assert.match(
+    financeRouteSource,
+    /providerBlockerCount = financialOrders\.filter[\s\S]*PAYOUT_PROVIDER_AUDIT_BLOCKED[\s\S]*providerAuditReady/,
+    'detail readiness must fail closed for non-Mollie or unlinked real payments',
+  );
+  assert.match(
+    financeRouteSource,
+    /paymentRefund\.findMany[\s\S]*completedHistoricalRefunds[\s\S]*linkedMollieOrders[\s\S]*paymentIds: linkedMollieOrders/,
+    'refund-month reconciliation must link historical restaurant payment IDs before classifying external movements',
+  );
+  assert.match(
+    financeRouteSource,
+    /matchesSavedApprovedRecovery[\s\S]*lateRefundAdjustmentAmount[\s\S]*sameRecoveryAllocations\(reservedRecovery, recovery\.allocations\)/,
+    'summary recovery status must compare the live plan with the saved approved snapshot and reservations',
+  );
+  assert.match(
+    financeRouteSource,
+    /recoveryRequiresAction: targetStatus === 'APPROVED'[\s\S]*\? !matchesSavedApprovedRecovery/,
+    'an unchanged approved recovery must remain locked while a changed recovery requires action',
+  );
+  assert.match(
+    financeRouteSource,
+    /paymentRefunds:[\s\S]{0,900}completedAt: \{ gte: start, lte: end \}[\s\S]{0,500}providerCreatedAt: \{ gte: start, lte: end \}/,
+    'restaurant inclusion must use providerCreatedAt even when completedAt belongs to a later period',
+  );
+  assert.match(
+    financeRouteSource,
+    /paymentRefund\.findMany\([\s\S]{0,700}completedAt: \{ gte: start, lte: end \}[\s\S]{0,500}providerCreatedAt: \{ gte: start, lte: end \}/,
+    'historical refund candidates must use providerCreatedAt even when completedAt belongs to a later period',
+  );
+  assert.equal(
+    financeRouteSource.match(/providerCreatedAt: \{ gte: start, lte: end \}/g)?.length,
+    2,
+    'both historical PaymentRefund query locations carry the independent provider period branch',
+  );
+  assert.doesNotMatch(
+    financeRouteSource,
+    /completedAt: null,\s*providerCreatedAt: \{ gte: start, lte: end \}/,
+    'providerCreatedAt must not depend on a null local completedAt',
+  );
+  assert.equal(
+    financeRouteSource.match(/completedAt: null,\s*providerCreatedAt: null,\s*lastSeenAt: \{ gte: start, lte: end \}/g)?.length,
+    2,
+    'lastSeenAt remains a fallback only when completedAt and providerCreatedAt are both absent',
+  );
+  assert.match(
+    financeRouteSource,
+    /historicalPaymentIds = \[\.\.\.new Set\([\s\S]*historicalRefundOrders[\s\S]*\.filter\(Boolean\)[\s\S]*periodRefundByPaymentId\.get\(paymentId\)/,
+    'historical refund accounting deduplicates payment IDs and takes each amount once from the period ledger',
+  );
+  assert.match(
+    financeRouteSource,
+    /Legacy refunds predating[\s\S]*createdAt: \{ lt: start \}[\s\S]*refundedAt: \{ gte: start, lte: end \}/,
+    'an archived restaurant with only a legacy refundedAt event must remain in the period rows',
+  );
+  const financePageSource = readFileSync(
+    join(__dirname, '..', '..', '..', '..', 'apps', 'admin', 'src', 'modules', 'finance', 'page.tsx'),
+    'utf8',
+  );
+  assert.match(
+    financePageSource,
+    /hasDeviation \|\| row\.recoveryRequiresAction/,
+    'the finance UI must not treat a saved recovery amount alone as a new action',
   );
 
   async function expectStaleWhenSweepChangesPayableSet(

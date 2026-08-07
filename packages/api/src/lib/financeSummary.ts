@@ -158,6 +158,7 @@ export type FundingReconciliationOreRow = {
   tip: number;
   selfDelivery: boolean;
   manualAdjustment: number;
+  platformFundedDiscount: number;
 };
 
 export function reconcileRestaurantFundingOre(input: {
@@ -167,22 +168,39 @@ export function reconcileRestaurantFundingOre(input: {
   externalGross: number;
   externalRefunds: number;
   externalFees: number | null;
+  historicalRefundPrincipal?: number;
+  historicalRefundFees?: number;
+  lateRefundRecovery?: number;
   rows: readonly FundingReconciliationOreRow[];
 }) {
+  const historicalRefundPrincipal = Math.max(0, Number(input.historicalRefundPrincipal || 0));
+  const historicalRefundFees = Math.max(0, Number(input.historicalRefundFees || 0));
+  const lateRefundRecovery = Math.max(0, Number(input.lateRefundRecovery || 0));
   const externalNet = input.externalFees == null
     ? null
     : input.externalGross - input.externalRefunds - input.externalFees;
   const restaurantFeesComplete = input.rows.every((row) => row.mollieFee != null);
   const restaurantFees = restaurantFeesComplete
-    ? input.rows.reduce((sum, row) => sum + Number(row.mollieFee || 0), 0)
+    ? input.rows.reduce((sum, row) => sum + Number(row.mollieFee || 0), historicalRefundFees)
     : null;
   const mollieRestaurantNet = input.periodGross == null || input.periodRefunds == null || input.periodFees == null || externalNet == null
     ? null
     : input.periodGross - input.periodRefunds - input.periodFees - externalNet;
-  const calculatedRestaurantNet = input.rows.reduce((sum, row) =>
-    sum + row.payout + row.commission + row.subscription + row.feeVat +
-      (row.selfDelivery ? 0 : row.deliveryFee + row.tip),
-  0);
+  const calculatedRestaurantNet = input.rows.reduce((sum, row) => {
+    const owed = Math.max(0, Math.round(Number(row.owed) || 0));
+    const manualAdjustment = Number.isFinite(Number(row.manualAdjustment))
+      ? Math.round(Number(row.manualAdjustment))
+      : 0;
+    // applySettlementAdjustments stores the final signed cash position as
+    // payout - owed. Add the signed manual adjustment back to reconstruct the
+    // provider-funded position: positive means retained cash, negative means a
+    // credit that increased payout. Late-refund recovery is added back below
+    // with the same identity at period level.
+    return sum + row.payout - owed + manualAdjustment +
+      row.commission + row.subscription + row.feeVat +
+      (row.selfDelivery ? 0 : row.deliveryFee + row.tip) -
+      Math.max(0, Number(row.platformFundedDiscount || 0));
+  }, 0) - historicalRefundPrincipal - historicalRefundFees + lateRefundRecovery;
   const adjustmentNet = input.rows.reduce((sum, row) => sum + row.manualAdjustment, 0);
   const invoiceTotal = input.rows.reduce((sum, row) => sum + row.owed, 0);
   const linkedMollieSales = input.periodGross == null || input.periodRefunds == null
@@ -191,7 +209,7 @@ export function reconcileRestaurantFundingOre(input: {
   const calculatedRestaurantSales = input.rows.reduce(
     (sum, row) => sum + row.grossTotal - row.refunds,
     0,
-  );
+  ) - historicalRefundPrincipal;
 
   return {
     mollieRestaurantNet,

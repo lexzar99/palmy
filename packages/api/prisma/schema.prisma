@@ -152,6 +152,10 @@ model Order {
   // för korrekta PSP-/momsrader när fri leverans kombineras med matrabatt.
   foodDiscountAmount        Int                       @default(0)
   deliveryDiscountAmount    Int                       @default(0)
+  // Den del av rabatten som ViaEats finansierar. Resterande rabatt finansieras
+  // av restaurangen. Fryst källa krävs för historiskt korrekta utbetalningar.
+  platformFundedFoodDiscountAmount     Int            @default(0)
+  platformFundedDeliveryDiscountAmount Int            @default(0)
   // Frivillig komplettering till minsta ordervärde är inte leveransavgift.
   // Separat lagring förhindrar fel moms, payout och fri-leverans-rabatt.
   smallOrderFee             Int                       @default(0)

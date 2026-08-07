@@ -17,6 +17,7 @@ export interface FinanceRow {
   name: string;
   slug: string;
   city?: string | null;
+  archived?: boolean;
   featuredClass: number;
   tierLabel: string;
   selfDelivery: boolean;
@@ -30,6 +31,7 @@ export interface FinanceRow {
   grossTotal: number; // kundbetalningar före återbetalningar
   netSales: number; // grossTotal − refunds
   foodBase: number;
+  platformFundedDiscount: number;
   deliveryFee: number;
   tip: number;
   restaurantTip: number;
@@ -44,7 +46,10 @@ export interface FinanceRow {
   companyRevenueExVat: number | null;
   commissionAfterMollieFees: number | null;
   mollieFeeStatus: "available" | "partial" | "unavailable";
+  /** A saved HOLD is waiting for exact Mollie fees. */
   waitingForMollieConfirmation: boolean;
+  /** Exact Mollie fees are now available. This is not full lock readiness;
+   * refund-window and order-maturity checks happen when the payout is saved. */
   mollieConfirmationReady: boolean;
   subscription: number;
   feeVat: number;
@@ -53,6 +58,11 @@ export interface FinanceRow {
   owed: number; // restaurangen är skyldig oss (faktureras) — > 0 ersätter payout
   manualAdjustment: number; // positiv = extra avdrag, negativ = kreditering
   adjustmentNote: string | null;
+  lateRefundRecovery: number;
+  lateRefundRecoveryRemaining: number;
+  recoveryBlocked: boolean;
+  /** True only when live recovery differs from the saved locked settlement. */
+  recoveryRequiresAction: boolean;
   refunds: number;
   usesFrozenSnapshot: boolean;
   status: string | null;
@@ -82,6 +92,7 @@ export interface FinanceSummary {
     payout: number;
     owed: number;
     manualAdjustment: number;
+    platformFundedDiscount: number;
     refunds: number;
     orderCount: number;
   };
@@ -241,6 +252,19 @@ export interface PayoutSpec {
     remaining: number;
     sourceCount: number;
   };
+  settlementReadiness: {
+    canLock: boolean;
+    code: string | null;
+    reason: string | null;
+    periodIsCalendarMonth: boolean;
+    refundWindowClosed: boolean;
+    providerAuditReady: boolean;
+    providerBlockerCount: number;
+    exactFeesReady: boolean;
+    recoveryBlocked: boolean;
+    blockingOrderCount: number;
+    immatureOrderCount: number;
+  };
   breakdown: {
     orderCount: number;
     periodOrderCount: number;
@@ -248,6 +272,7 @@ export interface PayoutSpec {
     refunds: number;
     grossTotal: number;
     foodBase: number;
+    platformFundedDiscount: number;
     deliveryFee: number;
     tip: number;
     restaurantTip: number;
@@ -274,6 +299,7 @@ export interface PayoutSpec {
     grossSales: number;
     originalGrossTotal?: number;
     refunds?: number;
+    platformFundedDiscountAmount: number;
     orderCount: number;
     periodOrderCount?: number;
     commissionAmount: number;
@@ -313,6 +339,7 @@ export interface PayoutSpec {
       vat: number;
       payout: number;
       manualAdjustment: number;
+      platformFundedDiscountAmount: number;
     }>;
   } | null;
 }

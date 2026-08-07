@@ -1,6 +1,6 @@
-import { FinancePayoutPage } from "@/modules/finance/payout-page";
+import { FinanceTermsPage } from "@/modules/finance/terms-page";
 
-export default async function PayoutRoutePage({
+export default async function FinanceTermsRoute({
   params,
   searchParams,
 }: {
@@ -9,14 +9,14 @@ export default async function PayoutRoutePage({
 }) {
   const { restaurantId } = await params;
   const { from, to, month, period } = await searchParams;
+
   return (
-    <FinancePayoutPage
+    <FinanceTermsPage
       restaurantId={restaurantId}
       from={from}
       to={to}
       month={month}
       period={period}
-      view="settlement"
     />
   );
 }

@@ -862,8 +862,8 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
               </div>
 
               <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
-                <Field label="Provisions-override" optional>
-                  <PercentInput placeholder="Global sats" value={form.commissionPctOverride} onValueChange={(value) => set("commissionPctOverride", value)} />
+                <Field label="Egen provision" optional hint="Tomt = global sats · 0 % = provisionsfritt">
+                  <PercentInput min={0} max={100} step={1} integer placeholder="Global sats" value={form.commissionPctOverride} onValueChange={(value) => set("commissionPctOverride", value)} />
                 </Field>
                 <Field label="ETA-override" optional>
                   <DurationInput min={25} max={60} placeholder="35" value={form.etaOverride} onValueChange={(value) => set("etaOverride", value)} />
@@ -1426,8 +1426,8 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                     <option value="self">Levererar själv</option>
                   </Select>
                 </Field>
-                <Field label="Provisions-override">
-                  <PercentInput placeholder="Global sats" value={form.commissionPctOverride} onValueChange={(value) => set("commissionPctOverride", value)} />
+                <Field label="Egen provision" hint="Tomt = global sats · 0 % = provisionsfritt">
+                  <PercentInput min={0} max={100} step={1} integer placeholder="Global sats" value={form.commissionPctOverride} onValueChange={(value) => set("commissionPctOverride", value)} />
                 </Field>
               </div>
             </div>

@@ -17,11 +17,15 @@ const allKeys = [
   'order_restaurant_restrict',
   'product_vat_percent',
   'order_tax_discount_snapshot',
+  'order_discount_funding_snapshot',
+  'order_discount_funding_history_complete',
+  'order_mollie_payment_id_unique',
   'order_item_vat_percent',
   'payment_effects_completed_at',
   'payment_provider_without_default',
   'product_vat_check',
   'order_discount_nonnegative_check',
+  'order_discount_funding_check',
   'order_food_vat_check',
   'order_delivery_vat_check',
   'order_item_vat_check',
@@ -76,10 +80,24 @@ assert.deepEqual(failed, [{
   message: 'LaunchLead-tabellen saknas',
 }]);
 
+const incompleteDiscountHistory = launchDatabaseSchemaIssues(
+  allKeys
+    .filter((key) => key !== 'order_discount_funding_history_complete')
+    .map((key) => ({ key, ok: true })),
+);
+assert.deepEqual(incompleteDiscountHistory, [{
+  key: 'database_schema_order_discount_funding_history_complete',
+  message: 'Historiska rabattkällor eller deras frysta ViaEats-finansiering är ofullständiga',
+}]);
+
 const readinessSource = readFileSync(
   join(__dirname, '..', 'lib', 'launchDatabaseReadiness.ts'),
   'utf8',
 );
+const discountHistoryStart = readinessSource.indexOf("('order_discount_funding_history_complete'");
+const discountHistoryEnd = readinessSource.indexOf("('order_mollie_payment_id_unique'", discountHistoryStart);
+assert(discountHistoryStart >= 0 && discountHistoryEnd > discountHistoryStart);
+const discountHistorySource = readinessSource.slice(discountHistoryStart, discountHistoryEnd);
 assert.match(
   readinessSource,
   /ledger\.successful_amount <> COALESCE\(o\."refundAmount", 0\)/,
@@ -94,6 +112,56 @@ assert.match(
   readinessSource,
   /WHEN 'REFUNDING'[\s\S]*ledger\.active_count = 0/,
   'REFUNDING orders must have an active individual ledger lifecycle',
+);
+assert.match(
+  discountHistorySource,
+  /o\."userDealId" IS NOT NULL AND ud\."id" IS NULL/,
+  'discount orders with an orphan UserDeal reference must block readiness',
+);
+assert.match(
+  discountHistorySource,
+  /o\."userDealId" IS NULL[\s\S]*o\."appliedDealId" IS NOT NULL[\s\S]*d\."id" IS NULL/,
+  'discount orders with an orphan Deal reference and no UserDeal must block readiness',
+);
+assert.match(
+  discountHistorySource,
+  /ud\."type" IN \([\s\S]*'WELCOME'[\s\S]*'REFERRAL_INVITER'[\s\S]*'REFERRAL_INVITEE'[\s\S]*'MANUAL'[\s\S]*d\."isPersonalTemplate" = TRUE/,
+  'every durable personal platform source must be recognized explicitly',
+);
+assert.match(
+  discountHistorySource,
+  /o\."platformFundedFoodDiscountAmount" <> o\."foodDiscountAmount"[\s\S]*o\."platformFundedDeliveryDiscountAmount" <> o\."deliveryDiscountAmount"/,
+  'both frozen funding components must exactly match every durable platform source',
+);
+assert.match(
+  discountHistorySource,
+  /COALESCE\(o\."accountingExcluded", FALSE\) = FALSE[\s\S]*UPPER\(o\."paymentStatus"\) IN \('PAID', 'PARTIALLY_REFUNDED', 'REFUNDED'\)[\s\S]*LOWER\(COALESCE\(o\."discountCode", ''\)\) NOT IN \('test', 'testa'\)[\s\S]*'TEST_PAYMENT'[\s\S]*'AUTOTEST'/,
+  'discount history readiness must use the same accounting-real non-test population as payout finance',
+);
+assert.match(
+  discountHistorySource,
+  /o\."userDealId" IS NULL[\s\S]*o\."appliedDealId" IS NULL[\s\S]*o\."discountCode" IS NULL/,
+  'a real discounted order with no durable source at all must block readiness',
+);
+assert.match(
+  discountHistorySource,
+  /ud\."type" NOT IN \([\s\S]*'WELCOME'[\s\S]*'MANUAL'[\s\S]*d\."isPersonalTemplate" = FALSE[\s\S]*o\."discountCode" IS NOT NULL[\s\S]*o\."platformFundedFoodDiscountAmount" > 0[\s\S]*o\."platformFundedDeliveryDiscountAmount" > 0/,
+  'restaurant-funded UserDeal, public Deal and code-only sources must reject positive platform funding',
+);
+assert.match(
+  readinessSource,
+  /COALESCE\(o\."accountingExcluded", FALSE\) = FALSE[\s\S]*UPPER\(o\."paymentStatus"\) IN \('PAID', 'PARTIALLY_REFUNDED', 'REFUNDED'\)/,
+  'only accounting-real paid/refunded orders participate in Mollie reference uniqueness',
+);
+assert.match(
+  readinessSource,
+  /o\."molliePaymentId" IS NOT NULL[\s\S]*BTRIM\(o\."molliePaymentId"\) <> ''[\s\S]*LOWER\(COALESCE\(o\."discountCode", ''\)\) NOT IN \('test', 'testa'\)[\s\S]*'TEST_PAYMENT'[\s\S]*'AUTOTEST'/,
+  'blank and explicit non-accounting test orders must not create false duplicate blockers',
+);
+assert.match(
+  readinessSource,
+  /GROUP BY BTRIM\(o\."molliePaymentId"\)[\s\S]*HAVING COUNT\(\*\) > 1/,
+  'every duplicate nonblank Mollie payment reference must block readiness',
 );
 
 console.log('launch database readiness contracts: ok');

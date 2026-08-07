@@ -24,11 +24,15 @@ const REQUIRED_CHECKS: Readonly<Record<string, string>> = {
   order_restaurant_restrict: 'Order.restaurantId saknar ON DELETE RESTRICT',
   product_vat_percent: 'Product.vatPercent saknas',
   order_tax_discount_snapshot: 'Orderns moms-/rabatt-/avgiftssnapshot är ofullständig',
+  order_discount_funding_snapshot: 'Orderns frysta finansieringskälla för rabatter saknas',
+  order_discount_funding_history_complete: 'Historiska rabattkällor eller deras frysta ViaEats-finansiering är ofullständiga',
+  order_mollie_payment_id_unique: 'Flera bokföringsorder delar samma Mollie-betalningsreferens',
   order_item_vat_percent: 'OrderItem.vatPercent saknas',
   payment_effects_completed_at: 'Order.paymentEffectsCompletedAt saknas',
   payment_provider_without_default: 'Order.paymentProvider har fortfarande ett databasdefault',
   product_vat_check: 'Databaskontroll för Product.vatPercent saknas',
   order_discount_nonnegative_check: 'Databaskontroll för icke-negativa orderkomponenter saknas',
+  order_discount_funding_check: 'Databaskontroll för plattformsfinansierade rabatter saknas',
   order_food_vat_check: 'Databaskontroll för matmoms saknas',
   order_delivery_vat_check: 'Databaskontroll för leveransmoms saknas',
   order_item_vat_check: 'Databaskontroll för orderradsmoms saknas',
@@ -149,6 +153,87 @@ export async function getLaunchDatabaseSchemaIssues(): Promise<LaunchDatabaseSch
         WHERE table_schema = current_schema() AND table_name = 'Order'
           AND column_name IN ('foodDiscountAmount', 'deliveryDiscountAmount', 'smallOrderFee', 'foodVatPercent', 'deliveryVatPercent')
       )),
+      ('order_discount_funding_snapshot', (
+        SELECT COUNT(*) = 2 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'Order'
+          AND column_name IN ('platformFundedFoodDiscountAmount', 'platformFundedDeliveryDiscountAmount')
+      )),
+      ('order_discount_funding_history_complete', NOT EXISTS (
+        SELECT 1
+        FROM "Order" o
+        LEFT JOIN "UserDeal" ud ON ud."id" = o."userDealId"
+        LEFT JOIN "Deal" d ON d."id" = o."appliedDealId"
+        WHERE COALESCE(o."accountingExcluded", FALSE) = FALSE
+          AND UPPER(o."paymentStatus") IN ('PAID', 'PARTIALLY_REFUNDED', 'REFUNDED')
+          AND LOWER(COALESCE(o."discountCode", '')) NOT IN ('test', 'testa')
+          AND COALESCE(o."stripePaymentIntentId", '') <> 'TEST_PAYMENT'
+          AND o."customerName" <> 'AUTOTEST'
+          AND (
+          COALESCE(o."discountAmount", 0) > 0
+          OR COALESCE(o."foodDiscountAmount", 0) > 0
+          OR COALESCE(o."deliveryDiscountAmount", 0) > 0
+        ) AND (
+          (o."userDealId" IS NOT NULL AND ud."id" IS NULL)
+          OR (
+            o."userDealId" IS NULL
+            AND o."appliedDealId" IS NOT NULL
+            AND d."id" IS NULL
+          )
+          OR (
+            (
+              (ud."id" IS NOT NULL AND ud."type" IN (
+                'WELCOME', 'REFERRAL_INVITER', 'REFERRAL_INVITEE', 'MANUAL'
+              ))
+              OR (
+                o."userDealId" IS NULL
+                AND d."id" IS NOT NULL
+                AND d."isPersonalTemplate" = TRUE
+              )
+            ) AND (
+              o."platformFundedFoodDiscountAmount" <> o."foodDiscountAmount"
+              OR o."platformFundedDeliveryDiscountAmount" <> o."deliveryDiscountAmount"
+            )
+          )
+          OR (
+            o."userDealId" IS NULL
+            AND o."appliedDealId" IS NULL
+            AND o."discountCode" IS NULL
+          )
+          OR (
+            (
+              (ud."id" IS NOT NULL AND ud."type" NOT IN (
+                'WELCOME', 'REFERRAL_INVITER', 'REFERRAL_INVITEE', 'MANUAL'
+              ))
+              OR (
+                o."userDealId" IS NULL
+                AND d."id" IS NOT NULL
+                AND d."isPersonalTemplate" = FALSE
+              )
+              OR (
+                o."userDealId" IS NULL
+                AND o."appliedDealId" IS NULL
+                AND o."discountCode" IS NOT NULL
+              )
+            ) AND (
+              o."platformFundedFoodDiscountAmount" > 0
+              OR o."platformFundedDeliveryDiscountAmount" > 0
+            )
+          )
+        )
+      )),
+      ('order_mollie_payment_id_unique', NOT EXISTS (
+        SELECT 1
+        FROM "Order" o
+        WHERE COALESCE(o."accountingExcluded", FALSE) = FALSE
+          AND UPPER(o."paymentStatus") IN ('PAID', 'PARTIALLY_REFUNDED', 'REFUNDED')
+          AND o."molliePaymentId" IS NOT NULL
+          AND BTRIM(o."molliePaymentId") <> ''
+          AND LOWER(COALESCE(o."discountCode", '')) NOT IN ('test', 'testa')
+          AND COALESCE(o."stripePaymentIntentId", '') <> 'TEST_PAYMENT'
+          AND o."customerName" <> 'AUTOTEST'
+        GROUP BY BTRIM(o."molliePaymentId")
+        HAVING COUNT(*) > 1
+      )),
       ('order_item_vat_percent', EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_schema = current_schema() AND table_name = 'OrderItem' AND column_name = 'vatPercent'
@@ -169,6 +254,12 @@ export async function getLaunchDatabaseSchemaIssues(): Promise<LaunchDatabaseSch
       ('order_discount_nonnegative_check', EXISTS (
         SELECT 1 FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace
         WHERE n.nspname = current_schema() AND c.conname = 'Order_discount_components_nonnegative_check' AND c.contype = 'c'
+      )),
+      ('order_discount_funding_check', EXISTS (
+        SELECT 1 FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace
+        WHERE n.nspname = current_schema()
+          AND c.conname = 'Order_platform_funded_discount_components_check'
+          AND c.contype = 'c' AND c.convalidated
       )),
       ('order_food_vat_check', EXISTS (
         SELECT 1 FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace

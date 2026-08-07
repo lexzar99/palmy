@@ -149,3 +149,37 @@ export function resolveFinancePeriod(
   }
   return { start, end };
 }
+
+/** Exact inclusive calendar month in Europe/Stockholm, including DST shifts. */
+export function isFinanceCalendarMonthPeriod(start: Date, end: Date): boolean {
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return false;
+  const startParts = datePartsInStockholm(start);
+  const expectedStart = stockholmMidnight({
+    year: startParts.year,
+    month: startParts.month,
+    day: 1,
+  });
+  const nextMonth = startParts.month === 12
+    ? { year: startParts.year + 1, month: 1, day: 1 }
+    : { year: startParts.year, month: startParts.month + 1, day: 1 };
+  const expectedEnd = new Date(stockholmMidnight(nextMonth).getTime() - 1);
+  return start.getTime() === expectedStart.getTime() && end.getTime() === expectedEnd.getTime();
+}
+
+/**
+ * Monthly subscription starts in the restaurant's creation month and ends in
+ * its archive month. We do not prorate: both boundary months are charged in
+ * full, while historical, post-archive and partial/custom periods are not.
+ */
+export function subscriptionAppliesToFinancePeriod(
+  restaurantCreatedAt: Date,
+  restaurantArchivedAt: Date | null,
+  start: Date,
+  end: Date,
+): boolean {
+  if (!Number.isFinite(restaurantCreatedAt.getTime()) ||
+      !isFinanceCalendarMonthPeriod(start, end)) return false;
+  if (restaurantArchivedAt && !Number.isFinite(restaurantArchivedAt.getTime())) return false;
+  return restaurantCreatedAt.getTime() <= end.getTime() &&
+    (!restaurantArchivedAt || start.getTime() <= restaurantArchivedAt.getTime());
+}

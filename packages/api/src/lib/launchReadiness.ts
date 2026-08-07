@@ -69,6 +69,16 @@ export function getLaunchConfigIssues(
     } else if (production && !String(env.MOLLIE_API_KEY).startsWith('live_')) {
       add('mollie_mode', 'error', 'Mollie använder inte en live-nyckel');
     }
+    if (!present(env, 'MOLLIE_REPORTING_ACCESS_TOKEN')) {
+      add(
+        'mollie_reporting_token',
+        'error',
+        'MOLLIE_REPORTING_ACCESS_TOKEN saknas för ekonomirapporter',
+      );
+    }
+    if (!present(env, 'MOLLIE_PROFILE_ID')) {
+      add('mollie_profile_id', 'error', 'MOLLIE_PROFILE_ID saknas för ekonomirapporter');
+    }
   } else if (provider === 'stripe') {
     if (!present(env, 'STRIPE_SECRET_KEY')) add('stripe_key', 'error', 'STRIPE_SECRET_KEY saknas');
     if (!present(env, 'STRIPE_WEBHOOK_SECRET')) add('stripe_webhook', 'error', 'STRIPE_WEBHOOK_SECRET saknas');
@@ -206,7 +216,7 @@ export function assertRuntimeCriticalConfiguration(
   }
   const required =
     provider === 'mollie'
-      ? ['MOLLIE_API_KEY']
+      ? ['MOLLIE_API_KEY', 'MOLLIE_REPORTING_ACCESS_TOKEN', 'MOLLIE_PROFILE_ID']
       : provider === 'stripe'
         ? ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET']
         : ['ADYEN_API_KEY', 'ADYEN_MERCHANT_ACCOUNT', 'ADYEN_HMAC_KEY'];

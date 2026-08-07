@@ -8,6 +8,8 @@ export type FrozenOrderPricing = {
   discountAmount?: number | null;
   foodDiscountAmount?: number | null;
   deliveryDiscountAmount?: number | null;
+  platformFundedFoodDiscountAmount?: number | null;
+  platformFundedDeliveryDiscountAmount?: number | null;
   items?: Array<{ subtotal?: number | null }> | null;
 };
 
@@ -51,6 +53,8 @@ export function validateFrozenOrderPricing(order: FrozenOrderPricing): {
   const discountAmount = ore(order.discountAmount ?? 0);
   const foodDiscountAmount = ore(order.foodDiscountAmount ?? 0);
   const deliveryDiscountAmount = ore(order.deliveryDiscountAmount ?? 0);
+  const platformFundedFoodDiscountAmount = ore(order.platformFundedFoodDiscountAmount ?? 0);
+  const platformFundedDeliveryDiscountAmount = ore(order.platformFundedDeliveryDiscountAmount ?? 0);
   const itemSubtotals = (order.items || []).map((item) => ore(item.subtotal ?? 0));
   const values = [
     total,
@@ -60,6 +64,8 @@ export function validateFrozenOrderPricing(order: FrozenOrderPricing): {
     discountAmount,
     foodDiscountAmount,
     deliveryDiscountAmount,
+    platformFundedFoodDiscountAmount,
+    platformFundedDeliveryDiscountAmount,
     ...itemSubtotals,
   ];
   if (values.some((value) => !Number.isFinite(value) || value < 0)) {
@@ -72,6 +78,12 @@ export function validateFrozenOrderPricing(order: FrozenOrderPricing): {
   }
   if (foodDiscountAmount > subtotal || deliveryDiscountAmount > deliveryFee) {
     return { valid: false, expectedTotalOre: null, reason: 'DISCOUNT_EXCEEDS_BASE' };
+  }
+  if (
+    platformFundedFoodDiscountAmount > foodDiscountAmount ||
+    platformFundedDeliveryDiscountAmount > deliveryDiscountAmount
+  ) {
+    return { valid: false, expectedTotalOre: null, reason: 'PLATFORM_FUNDING_EXCEEDS_DISCOUNT' };
   }
 
   const expectedTotalOre =

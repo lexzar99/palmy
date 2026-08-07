@@ -10,6 +10,7 @@ import {
   assertPayoutProviderAuditFingerprint,
   canAdminMarkPayoutPaid,
   canTransitionPayout,
+  effectiveRefundAmountOre,
   isPayoutRefundWindowClosed,
   isPayoutOrderRefundWindowClosed,
   isPayoutSettlementBlockingOrder,
@@ -39,6 +40,10 @@ import {
   PayoutSourceFeeError,
   resolveCurrentPayoutSourceMollieFeeAmount,
 } from '../lib/payoutSourceFees';
+import {
+  isFinanceCalendarMonthPeriod,
+  subscriptionAppliesToFinancePeriod,
+} from '../lib/financePeriod';
 
 const router = Router();
 router.use(authenticate, requireSuperAdmin);
@@ -51,7 +56,29 @@ const parseDate = (value: unknown) => {
   return date && Number.isFinite(date.getTime()) ? date : null;
 };
 
-const financeSnapshotOrderFingerprint = (orders: readonly Record<string, any>[]) =>
+const restaurantTermsForPeriod = <T extends {
+  createdAt: Date;
+  archivedAt?: Date | null;
+  tierGoldFeeOverride?: number | null;
+  tierSilverFeeOverride?: number | null;
+  tierStandardFeeOverride?: number | null;
+}>(restaurant: T, start: Date, end: Date): T =>
+  subscriptionAppliesToFinancePeriod(restaurant.createdAt, restaurant.archivedAt ?? null, start, end)
+    ? restaurant
+    : {
+        ...restaurant,
+        tierGoldFeeOverride: 0,
+        tierSilverFeeOverride: 0,
+        tierStandardFeeOverride: 0,
+      };
+
+type FinanceSnapshotFingerprintOrder = Record<string, any> & {
+  total: number;
+  paymentStatus: string;
+  refundAmount?: number | null;
+};
+
+const financeSnapshotOrderFingerprint = (orders: readonly FinanceSnapshotFingerprintOrder[]) =>
   JSON.stringify(
     [...orders]
       .sort((a, b) => String(a.id).localeCompare(String(b.id)))
@@ -62,7 +89,15 @@ const financeSnapshotOrderFingerprint = (orders: readonly Record<string, any>[])
         paymentProvider: order.paymentProvider,
         molliePaymentId: order.molliePaymentId,
         total: order.total,
-        refundAmount: order.refundAmount,
+        deliveryFee: order.deliveryFee,
+        tipAmount: order.tipAmount,
+        discountAmount: order.discountAmount,
+        foodDiscountAmount: order.foodDiscountAmount,
+        deliveryDiscountAmount: order.deliveryDiscountAmount,
+        platformFundedFoodDiscountAmount: order.platformFundedFoodDiscountAmount,
+        platformFundedDeliveryDiscountAmount: order.platformFundedDeliveryDiscountAmount,
+        smallOrderFee: order.smallOrderFee,
+        refundAmount: effectiveRefundAmountOre(order),
         updatedAt: order.updatedAt instanceof Date
           ? order.updatedAt.toISOString()
           : String(order.updatedAt || ''),
@@ -116,6 +151,7 @@ async function recordPayoutSnapshot(
     mollieFees: number | null;
     refundTransactionFees: number | null;
     refundProcessingFees: number | null;
+    platformFundedDiscountAmount: number;
     mollieFeeStatus: string;
   },
 ) {
@@ -220,6 +256,14 @@ async function attachExactLateRefundFees(
         paymentProvider: true,
         molliePaymentId: true,
         total: true,
+        deliveryFee: true,
+        tipAmount: true,
+        discountAmount: true,
+        foodDiscountAmount: true,
+        deliveryDiscountAmount: true,
+        platformFundedFoodDiscountAmount: true,
+        platformFundedDeliveryDiscountAmount: true,
+        smallOrderFee: true,
         refundAmount: true,
         updatedAt: true,
       },
@@ -299,6 +343,12 @@ router.post('/', async (req: AuthRequest, res) => {
     if (start.getTime() >= end.getTime()) {
       return res.status(400).json({ error: 'Periodens slut måste vara efter start' });
     }
+    if (!isFinanceCalendarMonthPeriod(start, end)) {
+      return res.status(400).json({
+        error: 'Avräkningen måste omfatta en hel kalendermånad i Europe/Stockholm',
+        code: 'PAYOUT_PERIOD_MUST_BE_CALENDAR_MONTH',
+      });
+    }
 
     const saveMode = String(rawSaveMode || '').trim().toUpperCase();
     if (saveMode && !['DRAFT', 'OVERRIDE', 'PAID'].includes(saveMode)) {
@@ -348,6 +398,7 @@ router.post('/', async (req: AuthRequest, res) => {
       mollieFees: number | null;
       refundTransactionFees: number | null;
       refundProcessingFees: number | null;
+      platformFundedDiscountAmount: number;
       mollieFeeStatus: string;
     } | undefined;
     if (savesOriginal || nextStatus === 'PAID') {
@@ -385,6 +436,14 @@ router.post('/', async (req: AuthRequest, res) => {
           id: true,
           orderNumber: true,
           total: true,
+          deliveryFee: true,
+          tipAmount: true,
+          discountAmount: true,
+          foodDiscountAmount: true,
+          deliveryDiscountAmount: true,
+          platformFundedFoodDiscountAmount: true,
+          platformFundedDeliveryDiscountAmount: true,
+          smallOrderFee: true,
           refundAmount: true,
           paymentStatus: true,
           status: true,
@@ -475,18 +534,14 @@ router.post('/', async (req: AuthRequest, res) => {
       }
       financeSnapshotMetrics = {
         grossTotal: financialOrders.reduce((sum, order) => sum + Math.max(0, Number(order.total || 0)), 0),
-        refunds: financialOrders.reduce((sum, order) => sum + Math.min(
-          Math.max(0, Number(order.total || 0)),
-          Math.max(
-            0,
-            Number(order.refundAmount ?? (
-              String(order.paymentStatus || '').toUpperCase() === 'REFUNDED'
-                ? order.total
-                : 0
-            )),
-          ),
-        ), 0),
+        refunds: financialOrders.reduce(
+          (sum, order) => sum + effectiveRefundAmountOre(order),
+          0,
+        ),
         realPaymentCount: financialOrders.length,
+        // Set from the server-calculated period breakdown inside the serializable
+        // transaction, where the period's restaurant delivery model is frozen.
+        platformFundedDiscountAmount: 0,
         mollieFees: feesCompleteForSave
           ? overrideOriginal
             ? paymentIds.reduce(
@@ -599,6 +654,8 @@ router.post('/', async (req: AuthRequest, res) => {
           tierGoldFeeOverride: true,
           tierSilverFeeOverride: true,
           tierStandardFeeOverride: true,
+          createdAt: true,
+          archivedAt: true,
         },
       });
       if (!restaurant) {
@@ -624,6 +681,12 @@ router.post('/', async (req: AuthRequest, res) => {
             total: true,
             deliveryFee: true,
             tipAmount: true,
+            discountAmount: true,
+            foodDiscountAmount: true,
+            deliveryDiscountAmount: true,
+            platformFundedFoodDiscountAmount: true,
+            platformFundedDeliveryDiscountAmount: true,
+            smallOrderFee: true,
             refundAmount: true,
             updatedAt: true,
           },
@@ -639,6 +702,14 @@ router.post('/', async (req: AuthRequest, res) => {
               select: {
                 id: true,
                 total: true,
+                deliveryFee: true,
+                tipAmount: true,
+                discountAmount: true,
+                foodDiscountAmount: true,
+                deliveryDiscountAmount: true,
+                platformFundedFoodDiscountAmount: true,
+                platformFundedDeliveryDiscountAmount: true,
+                smallOrderFee: true,
                 refundAmount: true,
                 paymentStatus: true,
                 status: true,
@@ -813,14 +884,19 @@ router.post('/', async (req: AuthRequest, res) => {
         });
       }
 
+      const periodRestaurant = restaurantTermsForPeriod(restaurant, start, end);
       const baseCalculation = buildPayoutMoneySnapshot(
         settlementRows,
-        restaurant,
+        periodRestaurant,
         economyFromSettings(settingsRow),
         requestedAdjustmentOre,
         0,
         financeSnapshotMetrics?.mollieFees || 0,
       );
+      if (financeSnapshotMetrics) {
+        financeSnapshotMetrics.platformFundedDiscountAmount =
+          baseCalculation.breakdown.restaurantPlatformFundedDiscountTotal;
+      }
       const recoveryPlan = savesOriginal
         ? await calculateLateRefundRecoveryPlan(tx, {
             restaurantId: restaurantKey,
@@ -832,7 +908,7 @@ router.post('/', async (req: AuthRequest, res) => {
         : { allocations: [], totalAmount: 0, remainingAmount: 0, sources: [] };
       const { snapshot: calculated, economicSnapshot } = buildPayoutMoneySnapshot(
         settlementRows,
-        restaurant,
+        periodRestaurant,
         economyFromSettings(settingsRow),
         requestedAdjustmentOre,
         recoveryPlan.totalAmount,

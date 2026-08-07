@@ -82,17 +82,18 @@ export interface RestaurantEcon {
 }
 
 /**
- * Effektiv provisionssats i %: en giltig positiv override vinner, annars
- * används self/platform-default. Äldre adminflöden kunde spara 0 när fältet
- * skulle rensas; det får inte stänga av provisionen i ekonomisammanställningen.
+ * Ett explicit tal, inklusive 0, är restaurangens eget avtal. Endast null
+ * betyder att den globala satsen för leveransmodellen ska användas.
  */
+export function hasCommissionOverride(
+  value: number | null | undefined,
+): value is number {
+  return value != null && Number.isFinite(value) && value >= 0 && value <= 100;
+}
+
+/** Effektiv provisionssats i procent. */
 export function resolveCommissionPct(r: RestaurantEcon, s: EconomySettings): number {
-  if (
-    r.commissionPctOverride != null &&
-    Number.isFinite(r.commissionPctOverride) &&
-    r.commissionPctOverride > 0 &&
-    r.commissionPctOverride <= 100
-  ) {
+  if (hasCommissionOverride(r.commissionPctOverride)) {
     return r.commissionPctOverride;
   }
   return r.selfDelivery ? s.commissionSelfPct : s.commissionPlatformPct;
@@ -103,7 +104,81 @@ export interface OrderEcon {
   total: number;
   deliveryFee: number;
   tipAmount: number;
+  /** Total rabatt: mat + leverans. */
+  discountAmount?: number | null;
+  /** Fryst matrabatt. Äldre order kan sakna den uppdelade snapshoten. */
+  foodDiscountAmount?: number | null;
+  /** Fryst leveransrabatt, till exempel fri leverans. */
+  deliveryDiscountAmount?: number | null;
+  /** Del av matrabatten som ViaEats, inte restaurangen, finansierar. */
+  platformFundedFoodDiscountAmount?: number | null;
+  /** Del av leveransrabatten som ViaEats finansierar. */
+  platformFundedDeliveryDiscountAmount?: number | null;
+  /** Kundens komplettering till minsta ordervärde. Tillfaller restaurangen. */
+  smallOrderFee?: number | null;
   foodVatPercent?: number | null;
+}
+
+const nonNegativeOre = (value: unknown): number => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0;
+};
+
+/**
+ * Resolve the frozen checkout components without mistaking a delivery discount
+ * for missing food revenue. New orders have an exact food/delivery discount
+ * split. For legacy rows whose split is missing, use the same conservative
+ * food-first allocation as the tax projection.
+ */
+export function financeOrderComponents(order: OrderEcon) {
+  const total = nonNegativeOre(order.total);
+  const deliveryFee = nonNegativeOre(order.deliveryFee);
+  const tipAmount = nonNegativeOre(order.tipAmount);
+  const smallOrderFee = nonNegativeOre(order.smallOrderFee);
+  const explicitFoodDiscount = nonNegativeOre(order.foodDiscountAmount);
+  const explicitDeliveryDiscount = nonNegativeOre(order.deliveryDiscountAmount);
+  const explicitComponentTotal = explicitFoodDiscount + explicitDeliveryDiscount;
+  const hasTotalDiscount = order.discountAmount != null && Number.isFinite(Number(order.discountAmount));
+  const discountAmount = hasTotalDiscount
+    ? nonNegativeOre(order.discountAmount)
+    : explicitComponentTotal;
+  const componentsAreComplete = explicitComponentTotal === discountAmount;
+
+  let foodDiscountAmount = explicitFoodDiscount;
+  let deliveryDiscountAmount = explicitDeliveryDiscount;
+  if (!componentsAreComplete) {
+    const originalFoodSubtotal = Math.max(
+      0,
+      total + discountAmount - deliveryFee - smallOrderFee - tipAmount,
+    );
+    foodDiscountAmount = Math.min(discountAmount, originalFoodSubtotal);
+    deliveryDiscountAmount = Math.min(
+      deliveryFee,
+      Math.max(0, discountAmount - foodDiscountAmount),
+    );
+  }
+  deliveryDiscountAmount = Math.min(deliveryFee, deliveryDiscountAmount);
+  const platformFundedFoodDiscountAmount = Math.min(
+    foodDiscountAmount,
+    nonNegativeOre(order.platformFundedFoodDiscountAmount),
+  );
+  const platformFundedDeliveryDiscountAmount = Math.min(
+    deliveryDiscountAmount,
+    nonNegativeOre(order.platformFundedDeliveryDiscountAmount),
+  );
+
+  return {
+    total,
+    deliveryFee,
+    discountAmount,
+    foodDiscountAmount,
+    deliveryDiscountAmount,
+    platformFundedFoodDiscountAmount,
+    platformFundedDeliveryDiscountAmount,
+    netDeliveryFee: deliveryFee - deliveryDiscountAmount,
+    smallOrderFee,
+    tipAmount,
+  };
 }
 
 export interface PayoutBreakdown {
@@ -111,7 +186,13 @@ export interface PayoutBreakdown {
   // allt i ÖRE
   grossTotal: number; // summa order.total (allt kunden betalade)
   foodBase: number; // provisionsbas = total − leveransavgift − dricks
-  deliveryFeeTotal: number;
+  deliveryFeeTotal: number; // leveransavgift efter eventuell leveransrabatt
+  deliveryDiscountTotal: number;
+  platformFundedFoodDiscountTotal: number;
+  platformFundedDeliveryDiscountTotal: number;
+  /** ViaEats-stöd som faktiskt ökar restaurangens brutto i leveransmodellen. */
+  restaurantPlatformFundedDiscountTotal: number;
+  smallOrderFeeTotal: number;
   tipTotal: number;
   restaurantTipOre: number;
   platformTipOre: number;
@@ -133,11 +214,25 @@ export function computePayout(
   r: RestaurantEcon,
   s: EconomySettings,
 ): PayoutBreakdown {
-  const sum = (f: (o: OrderEcon) => number) => orders.reduce((a, o) => a + (Number(f(o)) || 0), 0);
-  const grossTotal = sum((o) => o.total);
-  const deliveryFeeTotal = sum((o) => o.deliveryFee);
-  const tipTotal = sum((o) => o.tipAmount);
-  const foodBase = Math.max(0, grossTotal - deliveryFeeTotal - tipTotal);
+  const components = orders.map(financeOrderComponents);
+  const grossTotal = components.reduce((total, row) => total + row.total, 0);
+  const deliveryFeeTotal = components.reduce((total, row) => total + row.netDeliveryFee, 0);
+  const deliveryDiscountTotal = components.reduce((total, row) => total + row.deliveryDiscountAmount, 0);
+  const platformFundedFoodDiscountTotal = components.reduce(
+    (total, row) => total + row.platformFundedFoodDiscountAmount,
+    0,
+  );
+  const platformFundedDeliveryDiscountTotal = components.reduce(
+    (total, row) => total + row.platformFundedDeliveryDiscountAmount,
+    0,
+  );
+  const smallOrderFeeTotal = components.reduce((total, row) => total + row.smallOrderFee, 0);
+  const tipTotal = components.reduce((total, row) => total + row.tipAmount, 0);
+  const customerFoodBase = components.reduce(
+    (total, row) => total + Math.max(0, row.total - row.netDeliveryFee - row.tipAmount),
+    0,
+  );
+  const foodBase = customerFoodBase + platformFundedFoodDiscountTotal;
   const restaurantTipOre = r.selfDelivery ? tipTotal : 0;
   const platformTipOre = r.selfDelivery ? 0 : tipTotal;
 
@@ -147,9 +242,13 @@ export function computePayout(
   const subscriptionOre = tier.subscriptionOre;
   const feeVatOre = Math.round(((commissionOre + subscriptionOre) * s.vatPlatformFeePct) / 100);
 
-  // self: behåller leveransavgift + dricks → gross = total
+  // self: behåller leveransavgift + dricks → gross = kundbelopp + ViaEats stöd
   // platform: leveransavgift → plattform, dricks → bud → gross = foodBase
-  const restaurantGrossOre = r.selfDelivery ? grossTotal : foodBase;
+  const restaurantGrossOre = r.selfDelivery
+    ? grossTotal + platformFundedFoodDiscountTotal + platformFundedDeliveryDiscountTotal
+    : foodBase;
+  const restaurantPlatformFundedDiscountTotal = platformFundedFoodDiscountTotal +
+    (r.selfDelivery ? platformFundedDeliveryDiscountTotal : 0);
   // Avdragen kan överstiga intäkten (t.ex. abonnemang vid få ordrar). Då betalar
   // vi INTE ut ett negativt belopp — utbetalningen golvas vid 0 och mellanskillnaden
   // blir istället ett belopp restaurangen är skyldig oss (faktureras).
@@ -163,7 +262,11 @@ export function computePayout(
   const fallbackFoodVatPct = r.vatPercent ?? s.vatCustomerPct;
   const foodVatRates = orders.map((order) => order.foodVatPercent ?? fallbackFoodVatPct);
   const foodVatOre = orders.reduce((total, order, index) => {
-    const orderFoodBase = Math.max(0, Number(order.total || 0) - Number(order.deliveryFee || 0) - Number(order.tipAmount || 0));
+    const component = components[index];
+    const orderFoodBase = Math.max(
+      0,
+      component.total - component.netDeliveryFee - component.tipAmount,
+    ) + component.platformFundedFoodDiscountAmount;
     const rate = Math.max(0, Number(foodVatRates[index] ?? 0));
     const v = rate / 100;
     return total + (v > 0 ? Math.round(orderFoodBase - orderFoodBase / (1 + v)) : 0);
@@ -178,6 +281,11 @@ export function computePayout(
     grossTotal,
     foodBase,
     deliveryFeeTotal,
+    deliveryDiscountTotal,
+    platformFundedFoodDiscountTotal,
+    platformFundedDeliveryDiscountTotal,
+    restaurantPlatformFundedDiscountTotal,
+    smallOrderFeeTotal,
     tipTotal,
     restaurantTipOre,
     platformTipOre,

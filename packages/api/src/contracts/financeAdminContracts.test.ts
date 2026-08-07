@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
-import { resolveFinancePeriod, FinancePeriodError } from '../lib/financePeriod';
+import {
+  resolveFinancePeriod,
+  FinancePeriodError,
+  isFinanceCalendarMonthPeriod,
+  subscriptionAppliesToFinancePeriod,
+} from '../lib/financePeriod';
 import {
   parseFinancePercentage,
   parseFinancePriceOre,
@@ -31,6 +36,68 @@ assert.throws(
 assert.throws(
   () => resolveFinancePeriod('2026-03-02', '2026-03-01'),
   FinancePeriodError,
+);
+
+const january = resolveFinancePeriod(
+  '2026-01-01',
+  '2026-01-31',
+  new Date('2026-01-15T12:00:00.000Z'),
+);
+const march = resolveFinancePeriod(
+  '2026-03-01',
+  '2026-03-31',
+  new Date('2026-03-15T12:00:00.000Z'),
+);
+const october = resolveFinancePeriod(
+  '2026-10-01',
+  '2026-10-31',
+  new Date('2026-10-15T12:00:00.000Z'),
+);
+const partialMarch = resolveFinancePeriod(
+  '2026-03-15',
+  '2026-03-31',
+  new Date('2026-03-15T12:00:00.000Z'),
+);
+assert.equal(isFinanceCalendarMonthPeriod(january.start, january.end), true);
+assert.equal(isFinanceCalendarMonthPeriod(march.start, march.end), true, 'CET→CEST month is exact');
+assert.equal(isFinanceCalendarMonthPeriod(october.start, october.end), true, 'CEST→CET month is exact');
+assert.equal(isFinanceCalendarMonthPeriod(partialMarch.start, partialMarch.end), false);
+assert.equal(
+  subscriptionAppliesToFinancePeriod(new Date('2026-02-10T12:00:00.000Z'), null, january.start, january.end),
+  false,
+  'a historical month before restaurant creation has no subscription',
+);
+assert.equal(
+  subscriptionAppliesToFinancePeriod(new Date('2026-03-20T12:00:00.000Z'), null, march.start, march.end),
+  true,
+  'the full restaurant start month has one full subscription',
+);
+assert.equal(
+  subscriptionAppliesToFinancePeriod(new Date('2026-03-01T00:00:00.000Z'), null, partialMarch.start, partialMarch.end),
+  false,
+  'partial periods cannot create a second monthly subscription',
+);
+
+const may = resolveFinancePeriod(
+  '2026-05-01',
+  '2026-05-31',
+  new Date('2026-05-15T12:00:00.000Z'),
+);
+const june = resolveFinancePeriod(
+  '2026-06-01',
+  '2026-06-30',
+  new Date('2026-06-15T12:00:00.000Z'),
+);
+const archivedAt = new Date('2026-05-07T10:00:00.000Z');
+assert.equal(
+  subscriptionAppliesToFinancePeriod(new Date('2026-02-10T12:00:00.000Z'), archivedAt, may.start, may.end),
+  true,
+  'the full archive month carries one final full subscription',
+);
+assert.equal(
+  subscriptionAppliesToFinancePeriod(new Date('2026-02-10T12:00:00.000Z'), archivedAt, june.start, june.end),
+  false,
+  'a month beginning after archivedAt has no subscription',
 );
 
 assert.equal(parseFinancePercentage(0, 'Provision'), 0);

@@ -1,214 +1,167 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, RefreshCw } from "lucide-react";
+import { Check, Loader2, Pencil, RefreshCw } from "lucide-react";
 import { economyQueryKey, getEconomy, updateEconomyRates, type EconomyRates } from "@/modules/finance/api";
+import { FinanceWorkspace } from "@/modules/finance/finance-workspace";
+import styles from "@/modules/finance/finance-workspace.module.css";
 import { invalidateEconomyDomain } from "@/shared/api/invalidate-economy-domain";
-import { Button, ErrorPanel, Field, Input, PageHeader, Surface } from "@/shared/components/ui";
+import { Badge, Button, ErrorPanel, Field, MoneyInput, PercentInput, Surface } from "@/shared/components/ui";
+import { formatCurrencyExact as formatCurrency } from "@/shared/utils/format";
 
-type EconomyRateForm = Record<keyof EconomyRates, string>;
+type RateForm = Record<keyof EconomyRates, string>;
+type SettingsSection = "rates" | "subscriptions";
 
-const toForm = (rates: EconomyRates): EconomyRateForm => ({
-  commissionSelfPct: String(rates.commissionSelfPct),
-  commissionPlatformPct: String(rates.commissionPlatformPct),
-  vatCustomerPct: String(rates.vatCustomerPct),
-  vatPlatformFeePct: String(rates.vatPlatformFeePct),
-  tierGoldFee: String(rates.tierGoldFee),
-  tierSilverFee: String(rates.tierSilverFee),
-  tierStandardFee: String(rates.tierStandardFee),
-});
+const toForm = (rates: EconomyRates): RateForm => Object.fromEntries(
+  Object.entries(rates).map(([key, value]) => [key, String(value)]),
+) as RateForm;
 
-const parseValue = (value: string) => {
-  const normalized = value.trim().replace(",", ".");
-  return normalized === "" ? Number.NaN : Number(normalized);
-};
+const parse = (value: string) => Number(value.trim().replace(",", "."));
+const toPayload = (form: RateForm): EconomyRates => Object.fromEntries(
+  Object.entries(form).map(([key, value]) => [key, parse(value)]),
+) as unknown as EconomyRates;
 
-const mutationErrorMessage = (error: unknown) => {
-  const value = error as { response?: { data?: { error?: string } }; message?: string } | null;
-  return value?.response?.data?.error || value?.message || "Satserna kunde inte sparas.";
-};
-
-function validateForm(form: EconomyRateForm): string | null {
-  const percentageFields: Array<[keyof EconomyRates, string]> = [
-    ["commissionSelfPct", "Provision vid egen leverans"],
+function validate(form: RateForm) {
+  const percentages: Array<[keyof EconomyRates, string]> = [
     ["commissionPlatformPct", "Provision när ViaEats levererar"],
+    ["commissionSelfPct", "Provision vid egen leverans"],
     ["vatCustomerPct", "Matmoms"],
     ["vatPlatformFeePct", "Moms på ViaEats avgifter"],
   ];
-  for (const [key, label] of percentageFields) {
-    const value = parseValue(form[key]);
+  for (const [key, label] of percentages) {
+    const value = parse(form[key]);
     if (!Number.isFinite(value) || value < 0 || value > 100) return `${label} måste vara 0–100 %.`;
   }
-  const priceFields: Array<[keyof EconomyRates, string]> = [
-    ["tierGoldFee", "Guld"],
-    ["tierSilverFee", "Silver"],
-    ["tierStandardFee", "Standard"],
+  const prices: Array<[keyof EconomyRates, string]> = [
+    ["tierGoldFee", "Guld"], ["tierSilverFee", "Silver"], ["tierStandardFee", "Standard"],
   ];
-  for (const [key, label] of priceFields) {
-    const value = parseValue(form[key]);
+  for (const [key, label] of prices) {
+    const value = parse(form[key]);
     if (!Number.isFinite(value) || value < 0) return `${label} måste vara 0 kr eller mer.`;
   }
   return null;
 }
 
-const toPayload = (form: EconomyRateForm): EconomyRates => ({
-  commissionSelfPct: parseValue(form.commissionSelfPct),
-  commissionPlatformPct: parseValue(form.commissionPlatformPct),
-  vatCustomerPct: parseValue(form.vatCustomerPct),
-  vatPlatformFeePct: parseValue(form.vatPlatformFeePct),
-  tierGoldFee: parseValue(form.tierGoldFee),
-  tierSilverFee: parseValue(form.tierSilverFee),
-  tierStandardFee: parseValue(form.tierStandardFee),
-});
+const errorMessage = (error: unknown) => {
+  const value = error as { response?: { data?: { error?: string } }; message?: string } | null;
+  return value?.response?.data?.error || value?.message || "Reglerna kunde inte sparas.";
+};
 
-export function FinanceSettingsPage({ embedded = false }: { embedded?: boolean } = {}) {
+function ValueCard({ label, value, detail }: { label: string; value: React.ReactNode; detail: string }) {
+  return (
+    <article className="rounded-[14px] border border-[var(--border-subtle)] bg-[var(--bg-panel)] p-5">
+      <p className={styles.microLabel}>{label}</p>
+      <p className="mt-2 text-[28px] font-black tracking-[-0.04em] tabular-nums text-[var(--text-primary)]">{value}</p>
+      <p className="mt-2 text-[11px] leading-relaxed text-[var(--text-muted)]">{detail}</p>
+    </article>
+  );
+}
+
+export function FinanceSettingsPage({
+  embedded = false,
+  section = "rates",
+}: {
+  embedded?: boolean;
+  section?: SettingsSection;
+} = {}) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState<EconomyRateForm | null>(null);
-
   const economy = useQuery({ queryKey: economyQueryKey, queryFn: getEconomy });
+  const [form, setForm] = useState<RateForm | null>(null);
+  const [editing, setEditing] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (economy.data) setForm(toForm(economy.data));
-  }, [economy.data]);
+  useEffect(() => { if (economy.data && !editing) setForm(toForm(economy.data)); }, [economy.data, editing]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const save = useMutation({
     mutationFn: async () => {
-      if (!form) throw new Error("Satserna har inte laddats.");
-      const validationError = validateForm(form);
-      if (validationError) throw new Error(validationError);
+      if (!form) throw new Error("Reglerna har inte laddats.");
+      const problem = validate(form);
+      if (problem) throw new Error(problem);
       return updateEconomyRates(toPayload(form));
     },
     onSuccess: async () => {
       await invalidateEconomyDomain(queryClient);
+      setEditing(false);
     },
   });
 
-  const setValue = (key: keyof EconomyRates) => (event: React.ChangeEvent<HTMLInputElement>) => {
+  const changed = useMemo(() => Boolean(form && economy.data && JSON.stringify(toPayload(form)) !== JSON.stringify(economy.data)), [economy.data, form]);
+  const validationError = form ? validate(form) : null;
+  const setValue = (key: keyof EconomyRates) => (value: string) => {
     if (save.isError || save.isSuccess) save.reset();
-    setForm((current) => current ? { ...current, [key]: event.target.value } : current);
+    setForm((current) => current ? { ...current, [key]: value } : current);
   };
-  const validationError = form ? validateForm(form) : null;
-  const loadFailed = economy.isError && !economy.data;
-  const saveError = save.isError ? mutationErrorMessage(save.error) : null;
-  const saveMessage = validationError || saveError || (save.isSuccess
-    ? "Sparat. Nya och upplåsta underlag använder satserna."
-    : "Ändringar påverkar nya och upplåsta underlag. Låsta rapporter ändras aldrig.");
+  const content = economy.data;
 
-  return (
-    <div className="page-stack">
-      {!embedded ? (
-        <PageHeader
-          breadcrumb="Restaurangekonomi"
-          title="Globala satser"
-          actions={
-            <Link href="/finance/restauranger" className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border-subtle)] px-3.5 py-2 text-sm font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
-              <ArrowLeft size={15} /> Tillbaka
-            </Link>
-          }
-        />
-      ) : null}
-
-      {loadFailed ? (
-        <ErrorPanel
-          title="Satserna kunde inte laddas"
-          description="Inga reservvärden visas eller kan sparas. Försök hämta de riktiga värdena igen."
-          action={
-            <Button onClick={() => void economy.refetch()} disabled={economy.isFetching}>
-              <RefreshCw size={15} className={economy.isFetching ? "animate-spin" : undefined} /> Försök igen
-            </Button>
-          }
-        />
-      ) : economy.isLoading || !form ? (
-        <Surface className="flex items-center gap-2 px-6 py-12 text-sm text-[var(--text-secondary)]">
-          <Loader2 size={16} className="animate-spin" /> Hämtar sparade satser…
-        </Surface>
-      ) : (
+  const body = economy.isError && !content ? (
+    <ErrorPanel title="Reglerna kunde inte laddas" description="Inga reservsatser visas eller kan sparas." action={<Button onClick={() => void economy.refetch()}><RefreshCw size={14} /> Försök igen</Button>} />
+  ) : economy.isLoading || !content || !form ? (
+    <Surface className="flex items-center gap-2 px-6 py-14 text-sm text-[var(--text-secondary)]"><Loader2 size={16} className="animate-spin" /> Hämtar regler och priser…</Surface>
+  ) : (
+    <>
+      {section === "rates" ? (
         <>
-          {economy.isError ? (
-            <Surface className="border-[var(--warning)] bg-[var(--warning-soft)] px-4 py-3 text-sm font-semibold text-[var(--text-secondary)]">
-              Senaste uppdateringen misslyckades. Spara är avstängt tills de aktuella värdena har hämtats igen.
+          {!editing ? (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <ValueCard label="ViaEats levererar" value={`${content.commissionPlatformPct} %`} detail="Global provision när ViaEats ansvarar för leveransen." />
+              <ValueCard label="Egen leverans" value={`${content.commissionSelfPct} %`} detail="Global provision när restaurangen levererar själv." />
+              <ValueCard label="Moms · mat" value={`${content.vatCustomerPct} %`} detail="Fallback för matmoms när ordersnapshot saknas." />
+              <ValueCard label="Moms · ViaEats" value={`${content.vatPlatformFeePct} %`} detail="Moms på provision och abonnemang." />
+            </div>
+          ) : (
+            <Surface className="grid gap-5 p-5 md:grid-cols-2">
+              <Field label="Provision · ViaEats levererar" hint="0 % är tillåtet som global sats."><PercentInput min={0} max={100} step={1} value={form.commissionPlatformPct} onValueChange={setValue("commissionPlatformPct")} /></Field>
+              <Field label="Provision · egen leverans" hint="Restaurangens eget avtal har alltid företräde."><PercentInput min={0} max={100} step={1} value={form.commissionSelfPct} onValueChange={setValue("commissionSelfPct")} /></Field>
+              <Field label="Matmoms"><PercentInput min={0} max={100} step={1} value={form.vatCustomerPct} onValueChange={setValue("vatCustomerPct")} /></Field>
+              <Field label="Moms på ViaEats avgifter"><PercentInput min={0} max={100} step={1} value={form.vatPlatformFeePct} onValueChange={setValue("vatPlatformFeePct")} /></Field>
             </Surface>
-          ) : null}
-
-          <Surface className="overflow-hidden p-0">
-            <div className="grid gap-5 px-5 py-5 lg:grid-cols-[180px_1fr]">
-              <div>
-                <p className="text-sm font-black text-[var(--text-primary)]">Provision</p>
-                <p className="mt-1 text-xs text-[var(--text-muted)]">Standard när restaurangen saknar eget avtal.</p>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Restaurangen levererar">
-                  <Input type="number" min={0} max={100} step={1} value={form.commissionSelfPct} onChange={setValue("commissionSelfPct")} />
-                </Field>
-                <Field label="ViaEats levererar">
-                  <Input type="number" min={0} max={100} step={1} value={form.commissionPlatformPct} onChange={setValue("commissionPlatformPct")} />
-                </Field>
-              </div>
-            </div>
-
-            <div className="grid gap-5 border-t border-[var(--border-subtle)] px-5 py-5 lg:grid-cols-[180px_1fr]">
-              <div>
-                <p className="text-sm font-black text-[var(--text-primary)]">Moms</p>
-                <p className="mt-1 text-xs text-[var(--text-muted)]">Används när nya underlag beräknas.</p>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Mat / kund">
-                  <Input type="number" min={0} max={100} step={1} value={form.vatCustomerPct} onChange={setValue("vatCustomerPct")} />
-                </Field>
-                <Field label="ViaEats avgifter">
-                  <Input type="number" min={0} max={100} step={1} value={form.vatPlatformFeePct} onChange={setValue("vatPlatformFeePct")} />
-                </Field>
-              </div>
-            </div>
-
-            <div className="grid gap-5 border-t border-[var(--border-subtle)] px-5 py-5 lg:grid-cols-[180px_1fr]">
-              <div>
-                <p className="text-sm font-black text-[var(--text-primary)]">Abonnemang</p>
-                <p className="mt-1 text-xs text-[var(--text-muted)]">Pris per kalendermånad.</p>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <Field label="Guld">
-                  <Input type="number" min={0} step="0.01" value={form.tierGoldFee} onChange={setValue("tierGoldFee")} />
-                </Field>
-                <Field label="Silver">
-                  <Input type="number" min={0} step="0.01" value={form.tierSilverFee} onChange={setValue("tierSilverFee")} />
-                </Field>
-                <Field label="Standard">
-                  <Input type="number" min={0} step="0.01" value={form.tierStandardFee} onChange={setValue("tierStandardFee")} />
-                </Field>
-              </div>
-            </div>
-          </Surface>
-
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p
-              role={saveError ? "alert" : "status"}
-              aria-live="polite"
-              className={`text-xs font-semibold ${
-                validationError || saveError
-                  ? "text-[var(--danger)]"
-                  : save.isSuccess
-                    ? "text-[var(--success-text)]"
-                    : "text-[var(--text-muted)]"
-              }`}
-            >
-              {saveMessage}
-            </p>
-            <Button
-              variant="primary"
-              disabled={Boolean(validationError) || economy.isError || save.isPending}
-              onClick={() => save.mutate()}
-            >
-              {save.isPending ? <Loader2 size={16} className="animate-spin" /> : null}
-              Spara satser
-            </Button>
-          </div>
+          )}
         </>
+      ) : !editing ? (
+        <div className="grid gap-3 md:grid-cols-3">
+          <ValueCard label="Guld" value={formatCurrency(content.tierGoldFee)} detail="Globalt månadspris för Guld." />
+          <ValueCard label="Silver" value={formatCurrency(content.tierSilverFee)} detail="Globalt månadspris för Silver." />
+          <ValueCard label="Standard" value={formatCurrency(content.tierStandardFee)} detail="Globalt månadspris för Standard." />
+        </div>
+      ) : (
+        <Surface className="grid gap-5 p-5 md:grid-cols-3">
+          <Field label="Guld · per månad"><MoneyInput min={0} step="0.01" value={form.tierGoldFee} onValueChange={setValue("tierGoldFee")} /></Field>
+          <Field label="Silver · per månad"><MoneyInput min={0} step="0.01" value={form.tierSilverFee} onValueChange={setValue("tierSilverFee")} /></Field>
+          <Field label="Standard · per månad"><MoneyInput min={0} step="0.01" value={form.tierStandardFee} onValueChange={setValue("tierStandardFee")} /></Field>
+        </Surface>
       )}
-    </div>
+
+      {!editing ? (
+        <div className="flex justify-end"><Button variant="primary" onClick={() => setEditing(true)}><Pencil size={14} /> Redigera {section === "rates" ? "satser" : "priser"}</Button></div>
+      ) : (
+        <div className={styles.saveBar}>
+          <div className={styles.saveSummary}>
+            <strong>{changed ? "Ändringar väntar" : "Inga ändringar"}</strong>
+            Låsta rapporter påverkas aldrig.
+            {validationError ? <span className="mt-1 block text-[var(--danger)]">{validationError}</span> : null}
+            {save.isError ? <span className="mt-1 block text-[var(--danger)]">{errorMessage(save.error)}</span> : null}
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={() => { setForm(toForm(content)); setEditing(false); save.reset(); }}>Avbryt</Button>
+            <Button variant="primary" disabled={!changed || Boolean(validationError)} loading={save.isPending} onClick={() => save.mutate()}><Check size={14} /> Spara</Button>
+          </div>
+        </div>
+      )}
+      {save.isSuccess ? <p role="status" className="text-right text-xs font-semibold text-[var(--success-text)]">Reglerna är sparade och aktiva för nya upplåsta underlag.</p> : null}
+    </>
+  );
+
+  if (embedded) return <div className="grid gap-5">{body}</div>;
+  return (
+    <FinanceWorkspace
+      title={section === "rates" ? "Provision" : "Abonnemang"}
+      description={section === "rates"
+        ? "Globala satser. Ett restaurangavtal kan ersätta dem."
+        : "Globala månadspriser. Ett restaurangavtal kan ersätta dem."}
+    >
+      {body}
+    </FinanceWorkspace>
   );
 }
