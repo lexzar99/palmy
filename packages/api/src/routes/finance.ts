@@ -705,15 +705,24 @@ router.get('/summary', async (req, res) => {
         // återbetalningsavgiften på de återbetalda. Den ska varken adderas med
         // refund-fälten (då räknas avgiften på återbetalda ordrar två gånger)
         // eller delas upp, eftersom hela beloppet ändå belastar restaurangen.
+        // Avräkningen räknas ALLTID på färskt underlag — aldrig på den frysta
+        // ögonblicksbilden. Modellen har inga låsningar: underlaget får ändras
+        // när som helst, även efter att posten markerats som betald.
+        //
+        // Den frysta bilden kommer dessutom från den gamla modellen, där
+        // provisionen räknades på matvärdet i stället för nettoförsäljningen.
+        // Läste vi den skulle siffrorna hoppa i samma sekund som en justering
+        // sparades och posten blev godkänd.
         const settlementOre = computeSettlement({
-          grossTotal: grossTotalOre,
-          refunds: refundTotalOre,
-          commissionPct: economic.commissionPct,
-          cardFees: mollieFeesOre,
+          grossTotal: liveGrossTotalOre,
+          refunds: liveRefundTotalOre,
+          commissionPct: b.commissionPct,
+          cardFees: liveMollieFeesOre,
           // Nya modellens tecken: positivt betyder att restaurangen får extra.
           // Det lagrade fältet har motsatt tecken och lämnas orört.
           adjustment: -manualAdjustmentOre,
-          vatPct: commissionVatPct,
+          // Även momssatsen tas färsk, av samma skäl.
+          vatPct: economy.vatPlatformFeePct,
         });
         const settlement: Settlement = {
           ...settlementOre,

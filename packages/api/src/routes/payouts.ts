@@ -41,7 +41,9 @@ import {
   resolveCurrentPayoutSourceMollieFeeAmount,
 } from '../lib/payoutSourceFees';
 import {
+  FinancePeriodError,
   isFinanceCalendarMonthPeriod,
+  resolveFinancePeriod,
   subscriptionAppliesToFinancePeriod,
 } from '../lib/financePeriod';
 
@@ -289,13 +291,21 @@ async function attachExactLateRefundFees(
 router.get('/', async (req, res) => {
   try {
     const { restaurantId } = req.query;
-    const from = parseDate(req.query.from);
-    const to = parseDate(req.query.to);
+    // Samma tolkning som när posten sparades — annars matchar filtret inget.
+    let period: { start: Date; end: Date } | null = null;
+    if (req.query.from && req.query.to) {
+      try {
+        period = resolveFinancePeriod(req.query.from, req.query.to);
+      } catch (error) {
+        if (!(error instanceof FinancePeriodError)) throw error;
+        return res.status(400).json({ error: error.message });
+      }
+    }
 
     const payouts = await prisma.restaurantPayout.findMany({
       where: {
         ...(restaurantId ? { restaurantId: String(restaurantId) } : {}),
-        ...(from && to ? { periodStart: from, periodEnd: to } : {}),
+        ...(period ? { periodStart: period.start, periodEnd: period.end } : {}),
       },
       include: {
         restaurant: {
@@ -335,10 +345,21 @@ router.post('/', async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Restaurang och period krävs' });
     }
 
-    const start = parseDate(periodStart);
-    const end = parseDate(periodEnd);
-    if (!start || !end) {
-      return res.status(400).json({ error: 'Ogiltig period' });
+    // Perioden måste tolkas exakt som i /admin/finance/summary. Klienten
+    // skickar datum utan tid ("2026-08-01"), och `new Date()` läser dem som
+    // UTC-midnatt medan kalendermånadskontrollen räknar i Europe/Stockholm.
+    // Skillnaden är två timmar på sommaren — tillräckligt för att varje
+    // sparförsök avvisades som "inte en hel kalendermånad", och för att
+    // sparade rader inte gick att hitta igen.
+    let start: Date;
+    let end: Date;
+    try {
+      ({ start, end } = resolveFinancePeriod(periodStart, periodEnd));
+    } catch (error) {
+      if (error instanceof FinancePeriodError) {
+        return res.status(400).json({ error: error.message });
+      }
+      throw error;
     }
     if (start.getTime() >= end.getTime()) {
       return res.status(400).json({ error: 'Periodens slut måste vara efter start' });
