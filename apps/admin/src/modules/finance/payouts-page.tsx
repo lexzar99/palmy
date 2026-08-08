@@ -16,10 +16,12 @@ import {
 } from "@/modules/finance/api";
 import { isMonthParam, monthId, monthLabel, monthRange } from "@/modules/finance/finance-workspace";
 import {
+  amountInputValue,
   count,
   kr,
   negativeFeeKr,
   num,
+  parseAmount,
   signed,
   statusCode,
   statusLabel,
@@ -55,10 +57,6 @@ const reference = (row: FinanceRow, month: string) =>
 
 /** Justeringen lagras med motsatt tecken mot vad modellen och gränssnittet använder. */
 const toStoredAdjustment = (value: number) => -value;
-
-/** Heltal ur ett fritextfält. "−200 kr" → -200 */
-const parseAmount = (value: string) =>
-  parseInt(String(value).replace(/−/g, "-").replace(/[^\-0-9]/g, ""), 10) || 0;
 
 /* ── Listan ─────────────────────────────────────────────────────────────── */
 
@@ -248,14 +246,16 @@ function PayoutDetail({
   const [lastServerState, setLastServerState] = useState(serverState);
   if (lastServerState !== serverState) {
     setLastServerState(serverState);
-    setDraftAdjustment(String(s.adjustment));
+    setDraftAdjustment(amountInputValue(s.adjustment));
     setNote(row.adjustmentNote || "");
   }
 
+  // null = fältet går inte att tolka. Då sparar vi ingenting.
   const draftValue = parseAmount(draftAdjustment);
+  const validAmount = draftValue != null;
   // Förhandsvisningen byter bara ut justeringen i den redan beräknade raden.
-  const preview = s.payout - s.adjustment + draftValue;
-  const dirty = draftValue !== s.adjustment || (note || "") !== (row.adjustmentNote || "");
+  const preview = s.payout - s.adjustment + (draftValue ?? s.adjustment);
+  const dirty = (validAmount && draftValue !== s.adjustment) || (note || "") !== (row.adjustmentNote || "");
 
   // Alla övergångar är tillåtna. Knapparna visar bara de lägen posten inte
   // redan står i, i den ordning arbetet normalt går.
@@ -367,7 +367,7 @@ function PayoutDetail({
                   type="button"
                   className={styles.stepButton}
                   aria-label="Minska med 200"
-                  onClick={() => setDraftAdjustment(String(parseAmount(draftAdjustment) - 200))}
+                  onClick={() => setDraftAdjustment(amountInputValue((parseAmount(draftAdjustment) ?? 0) - 200))}
                 >
                   −
                 </button>
@@ -382,7 +382,7 @@ function PayoutDetail({
                   type="button"
                   className={styles.stepButton}
                   aria-label="Öka med 200"
-                  onClick={() => setDraftAdjustment(String(parseAmount(draftAdjustment) + 200))}
+                  onClick={() => setDraftAdjustment(amountInputValue((parseAmount(draftAdjustment) ?? 0) + 200))}
                 >
                   +
                 </button>
@@ -402,7 +402,7 @@ function PayoutDetail({
                 // En justering utan orsak avvisas av API:t. Blockera i knappen
                 // i stället för att skicka och visa ett fel.
                 disabled={saving || !dirty || (draftValue !== 0 && !note.trim())}
-                onClick={() => onSaveAdjustment(draftValue, note.trim())}
+                onClick={() => validAmount && onSaveAdjustment(draftValue, note.trim())}
               >
                 {saving ? "Sparar…" : "Spara version"}
               </button>

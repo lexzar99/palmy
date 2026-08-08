@@ -63,6 +63,34 @@ export const shortDate = (iso: string) => {
   return `${Number(day)} ${MONTHS[Number(month) - 1] ?? ""}`.trim();
 };
 
+/**
+ * Belopp ur ett fritextfält, i kronor.
+ *
+ * Justeringar är pengar och har ören. Tidigare plockades decimaltecknet bort
+ * innan `parseInt` fick tag i strängen, så "55,53" blev 5 553 kr — hundra
+ * gånger för mycket, och utbetalningen blev orimlig.
+ *
+ * Godtar svenskt komma såväl som punkt, tusenavgränsare som mellanslag, och
+ * typografiskt minustecken. Returnerar null när fältet inte går att tolka, så
+ * anropet kan skilja på "tomt" och "noll".
+ */
+export const parseAmount = (value: string): number | null => {
+  const normalized = String(value)
+    .replace(/[−–—]/g, "-")
+    .replace(/[\s ]/g, "")
+    .replace(",", ".")
+    .replace(/[^\d.-]/g, "");
+  if (!normalized || normalized === "-" || normalized === ".") return null;
+  const parsed = Number.parseFloat(normalized);
+  if (!Number.isFinite(parsed)) return null;
+  // Ören är minsta enhet. Inga tiondels ören i ett belopp som ska betalas ut.
+  return Math.round(parsed * 100) / 100;
+};
+
+/** Beloppet tillbaka till fältet, med svenskt decimaltecken. */
+export const amountInputValue = (value: number): string =>
+  Number.isInteger(value) ? String(value) : String(value).replace(".", ",");
+
 export type StatusLabel = "Utkast" | "Godkänd" | "Betald";
 
 /**

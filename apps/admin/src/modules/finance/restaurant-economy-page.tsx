@@ -17,11 +17,13 @@ import {
 } from "@/modules/finance/api";
 import { isMonthParam, monthId, monthLabel, monthRange } from "@/modules/finance/finance-workspace";
 import {
+  amountInputValue,
   count,
   feeKr,
   kr,
   negativeFee,
   num,
+  parseAmount,
   signed,
   statusCode,
   statusLabel,
@@ -65,9 +67,6 @@ const adjustTone = (value: number) =>
 
 /** Justeringen lagras med motsatt tecken mot vad modellen och gränssnittet använder. */
 const toStoredAdjustment = (value: number) => -value;
-
-const parseAmount = (value: string) =>
-  parseInt(String(value).replace(/−/g, "-").replace(/[^\-0-9]/g, ""), 10) || 0;
 
 const percent = (part: number, whole: number, decimals: number) =>
   whole === 0 ? "—" : `${((part / whole) * 100).toFixed(decimals).replace(".", ",")} %`;
@@ -159,7 +158,8 @@ function buildChecks(
       fix: unmatchedAmount > 0
         ? {
             text: `Vill du hålla restaurangen skadeslös lägger du ${kr(unmatchedAmount)} som justering.`,
-            amount: Math.round(unmatchedAmount),
+            // Exakt belopp — justeringar har ören.
+            amount: Math.round(unmatchedAmount * 100) / 100,
             note: "Kompensation för ordrar utan matchad betalning",
           }
         : undefined,
@@ -324,7 +324,7 @@ export function RestaurantEconomyPage({ restaurantId = null }: { restaurantId?: 
   const [lastServerState, setLastServerState] = useState(serverState);
   if (lastServerState !== serverState) {
     setLastServerState(serverState);
-    setDraftAdjustment(String(s?.adjustment ?? 0));
+    setDraftAdjustment(amountInputValue(s?.adjustment ?? 0));
     setNote(row?.adjustmentNote || "");
   }
 
@@ -389,9 +389,11 @@ export function RestaurantEconomyPage({ restaurantId = null }: { restaurantId?: 
   const reference = row.payoutReference || `VE-${(period.month ?? from.slice(0, 7)).slice(2).replace("-", "")}-${String(resolvedId).slice(0, 3).toUpperCase()}`;
   const legalName = restaurant?.legalName || row.name;
 
+  // null = fältet går inte att tolka. Då sparar vi ingenting.
   const draftValue = parseAmount(draftAdjustment);
-  const preview = s.payout - s.adjustment + draftValue;
-  const dirty = draftValue !== s.adjustment || (note || "") !== (row.adjustmentNote || "");
+  const validAmount = draftValue != null;
+  const preview = s.payout - s.adjustment + (draftValue ?? s.adjustment);
+  const dirty = (validAmount && draftValue !== s.adjustment) || (note || "") !== (row.adjustmentNote || "");
 
   // Alla övergångar är tillåtna. Knapparna visar de lägen posten inte står i.
   const statusActions: Array<{ label: string; next: StatusLabel; primary: boolean }> = [];
@@ -546,7 +548,7 @@ export function RestaurantEconomyPage({ restaurantId = null }: { restaurantId?: 
                       type="button"
                       className={`${styles.smallButton} ${styles.smallButtonPrimary}`}
                       onClick={() => {
-                        setDraftAdjustment(String(active.fix!.amount));
+                        setDraftAdjustment(amountInputValue(active.fix!.amount));
                         setNote(active.fix!.note);
                         setActiveCheck(null);
                       }}
@@ -694,7 +696,7 @@ export function RestaurantEconomyPage({ restaurantId = null }: { restaurantId?: 
                 type="button"
                 className={styles.stepButton}
                 aria-label="Minska med 200"
-                onClick={() => setDraftAdjustment(String(parseAmount(draftAdjustment) - 200))}
+                onClick={() => setDraftAdjustment(amountInputValue((parseAmount(draftAdjustment) ?? 0) - 200))}
               >
                 −
               </button>
@@ -709,7 +711,7 @@ export function RestaurantEconomyPage({ restaurantId = null }: { restaurantId?: 
                 type="button"
                 className={styles.stepButton}
                 aria-label="Öka med 200"
-                onClick={() => setDraftAdjustment(String(parseAmount(draftAdjustment) + 200))}
+                onClick={() => setDraftAdjustment(amountInputValue((parseAmount(draftAdjustment) ?? 0) + 200))}
               >
                 +
               </button>
@@ -729,8 +731,8 @@ export function RestaurantEconomyPage({ restaurantId = null }: { restaurantId?: 
               type="button"
               className={styles.saveButton}
               // En justering utan orsak avvisas av API:t.
-              disabled={save.isPending || !canSave || !dirty || (draftValue !== 0 && !note.trim())}
-              onClick={() => save.mutate({ status, adjustment: draftValue, note: note.trim() })}
+              disabled={save.isPending || !canSave || !validAmount || !dirty || (draftValue !== 0 && !note.trim())}
+              onClick={() => validAmount && save.mutate({ status, adjustment: draftValue, note: note.trim() })}
             >
               {save.isPending ? "Sparar…" : "Spara justering"}
             </button>
