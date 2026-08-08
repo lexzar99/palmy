@@ -27,7 +27,9 @@ import {
   statusLabel,
   type StatusLabel,
 } from "@/modules/finance/format";
+import viaeatsSymbol from "../../../../../Logotyp/exports/smiley-navy-transparent.png";
 import { FinanceTabs } from "@/modules/finance/finance-tabs";
+import { openPayoutPdf } from "@/modules/finance/payout-pdf";
 import styles from "@/modules/finance/payouts.module.css";
 import { EmptyState, ErrorPanel, Surface } from "@/shared/components/ui";
 import { invalidateEconomyDomain } from "@/shared/api/invalidate-economy-domain";
@@ -297,6 +299,25 @@ function PayoutDetail({
             <p className={styles.detailAmountLabel}>Utbetalningsbelopp</p>
             <p className={styles.detailAmount}>{kr(s.payout)}</p>
             <div className={styles.detailActions}>
+              {/* Går att ta ut i alla lägen — underlag före betalning, kvitto efter. */}
+              <button
+                type="button"
+                className={styles.actionButton}
+                onClick={() =>
+                  openPayoutPdf({
+                    row,
+                    spec,
+                    periodLabel: monthLabel(month),
+                    periodFrom: monthRange(month).from,
+                    periodTo: monthRange(month).to,
+                    reference: reference(row, month),
+                    status,
+                    logoUrl: viaeatsSymbol.src,
+                  })
+                }
+              >
+                Ladda ner PDF
+              </button>
               {actions.map((action) => (
                 <button
                   type="button"

@@ -29,7 +29,9 @@ import {
   statusLabel,
   type StatusLabel,
 } from "@/modules/finance/format";
+import viaeatsSymbol from "../../../../../Logotyp/exports/smiley-navy-transparent.png";
 import { FinanceTabs } from "@/modules/finance/finance-tabs";
+import { openPayoutPdf } from "@/modules/finance/payout-pdf";
 import {
   isWholeMonth,
   PeriodPicker,
@@ -441,6 +443,25 @@ export function RestaurantEconomyPage({ restaurantId = null }: { restaurantId?: 
             onSelect={(id) => goTo(id, period)}
           />
           <PeriodPicker period={period} onChange={changePeriod} />
+          {/* Går att ta ut i alla lägen — underlag före betalning, kvitto efter. */}
+          <button
+            type="button"
+            className={styles.actionButton}
+            onClick={() =>
+              openPayoutPdf({
+                row,
+                spec: spec.data,
+                periodLabel: periodLabel(period),
+                periodFrom: from,
+                periodTo: to,
+                reference,
+                status,
+                logoUrl: viaeatsSymbol.src,
+              })
+            }
+          >
+            Ladda ner PDF
+          </button>
           {statusActions.map((action) => (
             <button
               type="button"
