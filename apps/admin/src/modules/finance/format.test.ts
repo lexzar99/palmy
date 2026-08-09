@@ -1,5 +1,17 @@
 import assert from "node:assert/strict";
-import { amountInputValue, count, kr, num, parseAmount, signed } from "./format";
+import {
+  activeCommissionRates,
+  amountInputValue,
+  commissionRateDetail,
+  count,
+  kr,
+  num,
+  parseAmount,
+  pct,
+  signed,
+} from "./format";
+
+const row = (netSales: number, commissionPct: number) => ({ settlement: { netSales, commissionPct } });
 
 function run(name: string, fn: () => void) {
   fn();
@@ -73,6 +85,41 @@ run("justeringar visas med tecken, och noll utan", () => {
   assert.equal(signed(200), "+200,00");
   assert.equal(signed(-200), "−200,00");
   assert.equal(signed(0), "0,00");
+});
+
+run("provisionssatser skrivs som de är avtalade", () => {
+  // En jämn sats får inte se ut som ett avrundat snitt: 12 %, inte 12,0 %.
+  assert.equal(pct(12), "12 %");
+  assert.equal(pct(11), "11 %");
+  assert.equal(pct(0), "0 %");
+  assert.equal(pct(12.5), "12,5 %");
+});
+
+/* ── Provisionssatserna bakom "Vi behåller" ─────────────────────────────── */
+
+run("olika satser listas, inte döljs bakom snittet", () => {
+  // 11, 13 och 14 % kan väga samman till precis 12,0 % — utan satserna
+  // utskrivna ser en korrekt uträknad siffra ut som en hårdkodad 12 %.
+  const rows = [row(100_000, 11), row(50_000, 13), row(25_000, 14)];
+  assert.deepEqual(activeCommissionRates(rows), [11, 13, 14]);
+  assert.equal(commissionRateDetail(activeCommissionRates(rows)), "11 % · 13 % · 14 %");
+});
+
+run("ligger alla på samma sats behövs ingen extra rad", () => {
+  const rows = [row(100_000, 12), row(50_000, 12)];
+  assert.deepEqual(activeCommissionRates(rows), [12]);
+  assert.equal(commissionRateDetail(activeCommissionRates(rows)), null);
+});
+
+run("restauranger utan omsättning vidgar inte spannet", () => {
+  // Vilande restaurang med eget 5 %-avtal påverkar ingen krona i perioden.
+  const rows = [row(100_000, 12), row(50_000, 12), row(0, 5)];
+  assert.deepEqual(activeCommissionRates(rows), [12]);
+});
+
+run("många olika satser visas som spann", () => {
+  const rows = [row(1, 11), row(1, 12), row(1, 13), row(1, 14), row(1, 16)];
+  assert.equal(commissionRateDetail(activeCommissionRates(rows)), "11 %–16 %");
 });
 
 console.log("\nformat: alla testfall gröna");

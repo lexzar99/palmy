@@ -13,11 +13,14 @@ import {
 } from "@/modules/finance/api";
 import { isMonthParam, monthId, monthLabel, monthRange } from "@/modules/finance/finance-workspace";
 import {
+  activeCommissionRates,
+  commissionRateDetail,
   count,
   fee,
   kr,
   negativeFee,
   num,
+  pct,
   shortDate,
   signed,
   statusLabel,
@@ -38,6 +41,24 @@ import { Button, EmptyState, ErrorPanel, Surface } from "@/shared/components/ui"
 const adjustTone = (value: number) =>
   value === 0 ? styles.adjustZero : value > 0 ? styles.adjustPlus : styles.adjustMinus;
 
+/**
+ * Varifrån radens sats kommer. Utan det går det inte att se skillnad på en
+ * restaurang som råkar ligga på den globala satsen och en som har den som
+ * eget avtal — och då går det inte heller att lita på att satsen är läst.
+ */
+const rateSourceLabel = (source: FinanceRow["rateSource"]) => {
+  switch (source) {
+    case "override":
+      return "eget avtal";
+    case "snapshot":
+      return "låst i underlaget";
+    case "global-self":
+      return "global sats · egen leverans";
+    default:
+      return "global sats · vi levererar";
+  }
+};
+
 const STATUS_STYLE: Record<StatusLabel, string> = {
   Utkast: styles.statusDraft,
   Godkänd: styles.statusApproved,
@@ -49,6 +70,15 @@ const STATUS_STYLE: Record<StatusLabel, string> = {
 function MoneyFlow({ summary }: { summary: FinanceSummary }) {
   const s = summary.settlement;
   const orders = summary.totals.orderCount;
+
+  // Procenten i "Vi behåller" är vår intäkt delad med nettoförsäljningen — ett
+  // vägt snitt av restaurangernas egna satser, inte en fast sats. Med 11, 13
+  // och 14 % kan snittet landa på precis 12,0 %, och då ser en korrekt uträknad
+  // siffra ut som en hårdkodad. Därför skrivs satserna som ligger bakom ut.
+  //
+  const rates = useMemo(() => activeCommissionRates(summary.rows), [summary.rows]);
+  const rateDetail = commissionRateDetail(rates);
+  const mixedRates = rates.length > 1;
 
   return (
     <div className={styles.columns}>
@@ -133,6 +163,7 @@ function MoneyFlow({ summary }: { summary: FinanceSummary }) {
         <p className={styles.cardValue}>{kr(s.ourRevenue)}</p>
         <p className={styles.cardCaption}>
           {s.marginPct.toFixed(1).replace(".", ",")} % av nettoförsäljningen
+          {mixedRates ? " · vägt snitt" : ""}
         </p>
 
         <div className={styles.lines}>
@@ -140,6 +171,12 @@ function MoneyFlow({ summary }: { summary: FinanceSummary }) {
             <span className={styles.lineLabel}>Provision ex moms</span>
             <span className={styles.lineValue}>{num(s.commission)}</span>
           </div>
+          {rateDetail ? (
+            <div className={styles.line}>
+              <span className={`${styles.lineLabel} ${styles.lineDim}`}>Satser i perioden</span>
+              <span className={`${styles.lineValue} ${styles.lineDim}`}>{rateDetail}</span>
+            </div>
+          ) : null}
           <div className={styles.line}>
             <span className={styles.lineLabel}>± Manuella justeringar</span>
             <span className={styles.lineValue}>{signed(-s.adjustment)}</span>
@@ -208,7 +245,7 @@ function RestaurantTable({ summary, onOpen }: { summary: FinanceSummary; onOpen:
               <span>
                 <span className={styles.rowName}>{row.name}</span>
                 <span className={styles.rowMeta}>
-                  {row.settlement.commissionPct} % provision · {row.tierLabel}
+                  {pct(row.settlement.commissionPct)} provision · {rateSourceLabel(row.rateSource)} · {row.tierLabel}
                 </span>
               </span>
               <span className={`${styles.numeric} ${styles.cellSoft}`}>{count(row.orderCount)}</span>

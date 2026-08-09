@@ -91,6 +91,42 @@ export const parseAmount = (value: string): number | null => {
 export const amountInputValue = (value: number): string =>
   Number.isInteger(value) ? String(value) : String(value).replace(".", ",");
 
+/**
+ * Provisionssats. Heltal skrivs utan decimaler — "12 %", inte "12,0 %" — så en
+ * sats som faktiskt är jämn inte ser ut som ett avrundat snitt.
+ */
+export const pct = (value: number | null | undefined) => {
+  const numeric = Number(value || 0);
+  return Number.isInteger(numeric)
+    ? `${numeric} %`
+    : `${group(numeric.toLocaleString("sv-SE", { maximumFractionDigits: 1 }))} %`;
+};
+
+/**
+ * Provisionssatserna som faktiskt ligger bakom periodens siffror.
+ *
+ * Bara restauranger med omsättning räknas: en vilande restaurang med avvikande
+ * avtal påverkar varken provisionen eller snittet, och ska därför inte vidga
+ * spannet som visas.
+ */
+export const activeCommissionRates = (
+  rows: readonly { settlement: { netSales: number; commissionPct: number } }[],
+): number[] =>
+  [...new Set(
+    rows.filter((row) => row.settlement.netSales !== 0).map((row) => row.settlement.commissionPct),
+  )].sort((a, b) => a - b);
+
+/**
+ * Satserna som en läsbar rad. null när alla ligger på samma sats — då säger
+ * kortets egen procent redan allt. Många olika satser visas som spann, annars
+ * blir raden längre än den är värd.
+ */
+export const commissionRateDetail = (rates: readonly number[]): string | null => {
+  if (rates.length <= 1) return null;
+  if (rates.length <= 4) return rates.map((rate) => pct(rate)).join(" · ");
+  return `${pct(rates[0])}–${pct(rates[rates.length - 1])}`;
+};
+
 export type StatusLabel = "Utkast" | "Godkänd" | "Betald";
 
 /**
