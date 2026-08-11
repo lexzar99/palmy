@@ -297,6 +297,30 @@ export async function resolveStripePaymentIntentId(paymentRef: string): Promise<
   return paymentIntentId;
 }
 
+/**
+ * Resolve the hosted Checkout Session that owns a canonical PaymentIntent.
+ * Refund and Charge webhook objects can omit the order metadata and expose
+ * only `pi_`, while ViaEats intentionally stores the `cs_` session binding.
+ */
+export async function resolveStripeCheckoutSessionRef(
+  paymentIntentId: string,
+): Promise<string | null> {
+  if (!paymentIntentId.startsWith('pi_')) {
+    throw new Error('Ogiltig Stripe PaymentIntent-referens');
+  }
+  const sessions = await stripe().checkout.sessions.list({
+    payment_intent: paymentIntentId,
+    limit: 2,
+  });
+  if (sessions.data.some((session) => process.env.NODE_ENV === 'production' && !session.livemode)) {
+    throw new Error('Stripe returnerade en testläge-session i produktion');
+  }
+  if (sessions.data.length > 1) {
+    throw new Error('Flera Stripe Checkout-sessioner delar samma PaymentIntent');
+  }
+  return sessions.data[0]?.id || null;
+}
+
 /** Server-side proof used by webhooks before any local order mutation. */
 export async function assertStripePaymentReferenceBinding(
   paymentRef: string,

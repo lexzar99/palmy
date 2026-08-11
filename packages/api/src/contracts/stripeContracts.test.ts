@@ -44,6 +44,10 @@ assert.match(stripeSource, /checkout\.sessions\.expire/,
   'hosted Checkout abandonment must expire the remote session');
 assert.doesNotMatch(stripeSource, /phone_number_collection/,
   'hosted Checkout must not ask for the phone number already collected by ViaEats');
+assert.match(stripeSource, /checkout\.sessions\.list\(\{[\s\S]*payment_intent: paymentIntentId/,
+  'hosted refund webhooks must resolve their cs_ binding from the canonical pi_');
+assert.match(paymentRouteSource, /resolveStripeCheckoutSessionRef\(binding\.paymentIntentRef\)[\s\S]*stripeOrderByStoredRef\(canonicalSessionRef\)/,
+  'metadata-empty refund events must map pi_ back to the stored hosted session');
 assert.match(stripeSource, /paymentIntents\.cancel/,
   'inline PaymentIntent abandonment must cancel the remote intent');
 assert.match(paymentRouteSource, /paymentReference: provider\.name === 'stripe'[\s\S]*order\.stripePaymentIntentId/,

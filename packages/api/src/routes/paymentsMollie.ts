@@ -27,6 +27,7 @@ import { verifyAdyenHmac } from '../lib/payments/adyen';
 import {
   assertStripePaymentReferenceBinding,
   constructStripeWebhookEvent,
+  resolveStripeCheckoutSessionRef,
 } from '../lib/payments/stripe';
 import { getAllowedOrigins } from '../lib/config';
 import { getPublicApiBaseUrl } from '../lib/launchReadiness';
@@ -706,6 +707,22 @@ function stripeWebhookBinding(event: any): StripeWebhookBinding {
   };
 }
 
+async function stripeOrderByStoredRef(paymentRef: string) {
+  const candidates = await prisma.order.findMany({
+    where: { paymentProvider: 'stripe', stripePaymentIntentId: paymentRef },
+    select: {
+      id: true,
+      orderNumber: true,
+      total: true,
+      paymentProvider: true,
+      stripePaymentIntentId: true,
+    },
+    take: 2,
+  });
+  if (candidates.length > 1) throw new Error('Flera order delar samma Stripe-referens');
+  return candidates[0] || null;
+}
+
 async function canonicalStripeWebhookOrder(event: any) {
   if (process.env.NODE_ENV === 'production' && event.livemode !== true) {
     throw new Error('Stripe testevent blockerades i produktion');
@@ -723,22 +740,21 @@ async function canonicalStripeWebhookOrder(event: any) {
         },
       })
     : null;
+  let canonicalSessionRef = binding.sessionRef;
   if (!order) {
     const directRef = binding.sessionRef || binding.paymentIntentRef;
     if (directRef) {
-      const candidates = await prisma.order.findMany({
-        where: { paymentProvider: 'stripe', stripePaymentIntentId: directRef },
-        select: {
-          id: true,
-          orderNumber: true,
-          total: true,
-          paymentProvider: true,
-          stripePaymentIntentId: true,
-        },
-        take: 2,
-      });
-      if (candidates.length === 1) order = candidates[0];
-      if (candidates.length > 1) throw new Error('Flera order delar samma Stripe-referens');
+      order = await stripeOrderByStoredRef(directRef);
+    }
+  }
+  if (!order && binding.paymentIntentRef) {
+    // Hosted Checkout orders store their cs_ binding, while refund/charge
+    // events often contain only pi_. Resolve that relationship canonically at
+    // Stripe before looking up the local order; never trust event metadata as
+    // the sole proof.
+    canonicalSessionRef = await resolveStripeCheckoutSessionRef(binding.paymentIntentRef);
+    if (canonicalSessionRef) {
+      order = await stripeOrderByStoredRef(canonicalSessionRef);
     }
   }
   if (!order) return null;
@@ -751,7 +767,7 @@ async function canonicalStripeWebhookOrder(event: any) {
 
   const storedRef = order.stripePaymentIntentId;
   const proof = await assertStripePaymentReferenceBinding(storedRef, order);
-  if (binding.sessionRef && binding.sessionRef !== storedRef) {
+  if (canonicalSessionRef && canonicalSessionRef !== storedRef) {
     throw new Error('Stripe-eventets Checkout Session matchar inte lagrad referens');
   }
   if (binding.paymentIntentRef && binding.paymentIntentRef !== proof.paymentIntentId) {
