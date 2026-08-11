@@ -37,12 +37,14 @@ import BogoPickerModal from "@/components/BogoPickerModal";
 import { rememberActiveOrder } from "@/lib/activeOrder";
 import StripeWalletButtons, {
   preloadStripeWallets,
-  type PreparedStripeWalletPayment,
+  type PreparedStripePayment,
   type StripeWalletMethod,
 } from "@/components/StripeWalletButtons";
+import StripeCardForm from "@/components/StripeCardForm";
 // Betalning sker via ett provider-neutralt checkout-flöde. Direkt Swish visas
 // separat, Apple Pay/Google Pay använder Stripes riktiga Express Checkout-
-// knappar och kort/Klarna öppnar Stripe-hostad Checkout.
+// knappar, kort anges säkert i ViaEats med Stripe Elements och Klarna öppnar
+// Stripe-hostad Checkout.
 import ProductModal from "@/components/ProductModal";
 import { saveOrderToHistory } from "@/lib/orderHistory";
 import {
@@ -89,7 +91,7 @@ const CHECKOUT_ATTEMPT_KEY = "viaeats.checkout.attempt.v1";
 // Versionsnycklarna ingår i fingerprinten så en gammal pi_ aldrig återanvänds
 // som cs_ (eller tvärtom) när kunden byter checkout-upplevelse.
 const STRIPE_HOSTED_FLOW_VERSION = "stripe-hosted-v1";
-const STRIPE_WALLET_FLOW_VERSION = "stripe-wallet-deferred-v1";
+const STRIPE_DEFERRED_FLOW_VERSION = "stripe-elements-deferred-v2";
 
 type CheckoutAttempt = { key: string; fingerprint: string };
 type HostedPaymentContext = {
@@ -356,11 +358,11 @@ export default function CartPage() {
   const [paymentProvidersLoaded, setPaymentProvidersLoaded] = useState(false);
   const [paymentStepOpen, setPaymentStepOpen] = useState(false);
   const [selectedCheckoutMethod, setSelectedCheckoutMethod] = useState<CheckoutMethod | null>(null);
-  // En wallet-order skapas först efter att kunden godkänt i Apple Pay/Google
-  // Pay. Håll den separat så Express Checkout Element förblir monterat medan
-  // vi skapar/bekräftar PaymentIntenten.
-  const [walletPendingOrderId, setWalletPendingOrderId] = useState<string | null>(null);
-  const [walletProcessing, setWalletProcessing] = useState(false);
+  // En inbäddad Stripe-order skapas först efter att wallet eller kortfält har
+  // validerats. Håll den separat så Elements förblir monterat medan vi
+  // skapar/bekräftar PaymentIntenten.
+  const [embeddedStripeOrderId, setEmbeddedStripeOrderId] = useState<string | null>(null);
+  const [embeddedStripeProcessing, setEmbeddedStripeProcessing] = useState(false);
   const [walletAvailable, setWalletAvailable] = useState(false);
   // Sätts först efter mount — user agent finns inte vid SSR och skulle annars
   // ge hydration mismatch.
@@ -1914,8 +1916,8 @@ export default function CartPage() {
     setCancellingPayment(true);
     setSwishCheckout(null);
     setHostedCheckoutUrl(null);
-    setWalletPendingOrderId(null);
-    setWalletProcessing(false);
+    setEmbeddedStripeOrderId(null);
+    setEmbeddedStripeProcessing(false);
     paymentInFlightRef.current = false;
     clearCartReturnParams();
     const outcome = await abandonPendingOrder(orderId);
@@ -2024,7 +2026,7 @@ export default function CartPage() {
           clearCartReturnParams();
           clearPendingPaymentStorage();
           setPendingOrderId(null);
-          setWalletPendingOrderId(null);
+          setEmbeddedStripeOrderId(null);
           // En gammal order som städas bort passivt ska inte skrämmas upp som
           // ett färskt betalfel.
           if (!passive) setError("Betalningen genomfördes inte. Din varukorg är kvar, försök igen eller välj ett annat betalsätt.");
@@ -2042,7 +2044,7 @@ export default function CartPage() {
           clearCartReturnParams();
           clearPendingPaymentStorage();
           setPendingOrderId(null);
-          setWalletPendingOrderId(null);
+          setEmbeddedStripeOrderId(null);
           if (!passive) setError("Den tidigare betalningen kunde inte återställas. Din varukorg är kvar, så du kan försöka igen.");
           return;
         }
@@ -2249,26 +2251,25 @@ export default function CartPage() {
     if (formData.customerEmail) localStorage.setItem("guest_email", formData.customerEmail);
   }, [user, formData.customerName, formData.customerPhone, formData.customerEmail]);
 
-  // Swish och hosted Stripe startar på kundens metodknapp. Wallets använder
-  // däremot Stripes redan monterade Express Checkout Element: den öppnar den
-  // native sheeten först och anropar denna funktion från onConfirm för att
-  // skapa den frysta ordern + PaymentIntenten efter kundens godkännande.
+  // Swish och hosted Klarna startar på kundens metodknapp. Stripes inbäddade
+  // wallets/kortfält validerar däremot först och anropar sedan denna funktion
+  // för att skapa den frysta ordern + PaymentIntenten. Det gör att native
+  // wallet-sheet och kortfält visas direkt, utan en tom förberedelsevy.
   const startCheckout = async (
     e: { preventDefault: () => void },
     checkoutMethod: CheckoutMethod,
     options: StartCheckoutOptions = {},
-  ): Promise<PreparedStripeWalletPayment | void> => {
+  ): Promise<PreparedStripePayment | void> => {
     e.preventDefault();
     const checkoutExperience = options.checkoutExperience || "hosted";
-    const deferredWallet = checkoutExperience === "embedded" &&
-      (checkoutMethod === "apple_pay" || checkoutMethod === "google_pay");
+    const deferredStripePayment = checkoutExperience === "embedded" && checkoutMethod !== "swish";
     const rejectCheckout = (message: string) => {
-      if (deferredWallet) throw new Error(message);
+      if (deferredStripePayment) throw new Error(message);
       setError(message);
     };
     let preserveLoadingForNavigation = false;
     paymentPollGenerationRef.current += 1;
-    if (!deferredWallet) {
+    if (!deferredStripePayment) {
       setError(null);
       setHostedCheckoutUrl(null);
       setSwishCheckout(null);
@@ -2292,7 +2293,7 @@ export default function CartPage() {
     // betalning (annars betalar kunden och missar gratisen). Öppna pickern.
     if (bogoMustPick) {
       setShowBogoPicker(true);
-      if (deferredWallet) throw new Error("Välj din kostnadsfria vara innan du betalar.");
+      if (deferredStripePayment) throw new Error("Välj din kostnadsfria vara innan du betalar.");
       return;
     }
 
@@ -2389,7 +2390,7 @@ export default function CartPage() {
 
       // If still no coords but we have a street, try one last time to get them
       if ((!lat || !lng) && formData.deliveryStreet) {
-        if (!deferredWallet) {
+        if (!deferredStripePayment) {
           setLoading(true);
           setError(t("cart.errors.verifyingAddress"));
         }
@@ -2419,7 +2420,7 @@ export default function CartPage() {
           if (!zRes.data.available) {
             setAddressZoneStatus("error");
             rejectCheckout(t("cart.errors.zoneNotCovered"));
-            if (!deferredWallet) setLoading(false);
+            if (!deferredStripePayment) setLoading(false);
             return;
           }
           // ALWAYS update the fee from the fresh zone check result
@@ -2442,7 +2443,7 @@ export default function CartPage() {
           console.warn("[cart] zone check failed:", zoneErr?.message || zoneErr);
           setAddressZoneStatus("error");
           rejectCheckout(t("cart.errors.zoneCheckFailed"));
-          if (!deferredWallet) setLoading(false);
+          if (!deferredStripePayment) setLoading(false);
           return;
         }
       } else if (formData.deliveryStreet) {
@@ -2452,18 +2453,18 @@ export default function CartPage() {
         // till kunden behöver vara konkret, inte "välj från listan" eftersom
         // ingen lista visades.
         rejectCheckout(t("cart.errors.addressNotFound"));
-        if (!deferredWallet) setLoading(false);
+        if (!deferredStripePayment) setLoading(false);
         return;
       }
     }
     // ────────────────────────────────────────────────────────────────────────
 
-    if (!deferredWallet) setLoading(true);
+    if (!deferredStripePayment) setLoading(true);
     try {
       // isTestFlow är redan beräknad ovan — testa-koden gör att vi
       // direktpostar order utan att gå via Stripe.
       if (isTestFlow) {
-        if (deferredWallet) throw new Error("Wallet-betalning används inte i testläget.");
+        if (deferredStripePayment) throw new Error("Stripe-betalning används inte i testläget.");
         await submitOrder("FREE_PROMO");
         return;
       }
@@ -2482,8 +2483,8 @@ export default function CartPage() {
         checkoutMethod,
         ...(checkoutProvider === "stripe"
           ? {
-              checkoutFlowVersion: deferredWallet
-                ? STRIPE_WALLET_FLOW_VERSION
+              checkoutFlowVersion: deferredStripePayment
+                ? STRIPE_DEFERRED_FLOW_VERSION
                 : STRIPE_HOSTED_FLOW_VERSION,
             }
           : {}),
@@ -2526,7 +2527,7 @@ export default function CartPage() {
         // cancel. PAID vinner alltid; pending/nätfel bevarar original-proof.
         const cancellation = await abandonPendingOrder(previousOrderId);
         if (cancellation === "paid") {
-          if (deferredWallet) {
+          if (deferredStripePayment) {
             return { status: "paid", orderId: previousOrderId };
           }
           await goToOrderTracking(previousOrderId);
@@ -2535,14 +2536,14 @@ export default function CartPage() {
         if (cancellation === "pending") {
           setSwishCheckout(null);
           setPaymentStepOpen(true);
-          if (deferredWallet) setWalletPendingOrderId(previousOrderId);
+          if (deferredStripePayment) setEmbeddedStripeOrderId(previousOrderId);
           else setPendingOrderId(previousOrderId);
           rejectCheckout("Den tidigare betalningen kan fortfarande behandlas och kunde inte avbrytas säkert. Vänta på status eller avbryt säkert igen innan du ändrar betalsätt.");
           return;
         }
         clearPendingPaymentStorage();
         setPendingOrderId(null);
-        setWalletPendingOrderId(null);
+        setEmbeddedStripeOrderId(null);
       }
       const attempt = writeCheckoutAttempt(fingerprint);
       idempotencyKey.current = attempt.key;
@@ -2558,7 +2559,7 @@ export default function CartPage() {
       localStorage.setItem("pending_order_id", orderId);
       localStorage.setItem("pending_order_phone", (formData.customerPhone || "").trim());
       writePendingPaymentProvider(localStorage, checkoutProvider);
-      if (deferredWallet) setWalletPendingOrderId(orderId);
+      if (deferredStripePayment) setEmbeddedStripeOrderId(orderId);
       else setPendingOrderId(orderId);
 
       // Step 2: Skapa hosted checkout och skicka kunden dit. Providern
@@ -2566,7 +2567,7 @@ export default function CartPage() {
       // betalningen, där vi pollar orderstatus. Webhooken finaliserar ordern,
       // klienten flippar aldrig status själv. paymentInFlight hindrar pagehide
       // från att abandona ordern under redirect-flödet.
-      if (!deferredWallet) paymentInFlightRef.current = true;
+      if (!deferredStripePayment) paymentInFlightRef.current = true;
       const currentParams = new URLSearchParams(window.location.search);
       const checkoutEmbedded = currentParams.get("embed") === "1";
       const returnParams = new URLSearchParams({ payment_return: orderId });
@@ -2596,14 +2597,14 @@ export default function CartPage() {
         checkoutMethod: checkoutProvider === "stripe" ? checkoutMethod : undefined,
       });
       if (payRes.data?.alreadyPaid === true || String(payRes.data?.paymentStatus || "").toUpperCase() === "PAID") {
-        if (deferredWallet) {
+        if (deferredStripePayment) {
           return { status: "paid", orderId };
         }
         clearCartReturnParams();
         await goToOrderTracking(orderId);
         return;
       }
-      if (deferredWallet) {
+      if (deferredStripePayment) {
         const clientSecret = String(payRes.data?.clientSecret || "");
         if (!clientSecret.startsWith("pi_") || !clientSecret.includes("_secret_")) {
           throw new Error("Stripe-betalningen saknar en giltig bekräftelsenyckel");
@@ -2665,7 +2666,7 @@ export default function CartPage() {
         // abandon the obsolete unpaid order before creating a new attempt.
         clearCheckoutAttempt();
       }
-      if (deferredWallet) {
+      if (deferredStripePayment) {
         const message = err.response?.data?.error || err.message || t("cart.errors.paymentUnavailable");
         throw new Error(message);
       }
@@ -2674,7 +2675,7 @@ export default function CartPage() {
       setPaymentStepOpen(true);
       setError(err.response?.data?.error || t("cart.errors.paymentUnavailable"));
     } finally {
-      if (!deferredWallet && !preserveLoadingForNavigation) setLoading(false);
+      if (!deferredStripePayment && !preserveLoadingForNavigation) setLoading(false);
     }
   };
 
@@ -3106,15 +3107,15 @@ export default function CartPage() {
       setSelectedCheckoutMethod(null);
       setSwishCheckout(null);
       setHostedCheckoutUrl(null);
-      setWalletPendingOrderId(null);
-      setWalletProcessing(false);
+      setEmbeddedStripeOrderId(null);
+      setEmbeddedStripeProcessing(false);
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const returnFromPayment = () => {
-    if (walletPendingOrderId) {
-      void handlePaymentCancelled(walletPendingOrderId);
+    if (embeddedStripeOrderId) {
+      void handlePaymentCancelled(embeddedStripeOrderId);
       return;
     }
     if (pendingOrderId) {
@@ -3140,7 +3141,7 @@ export default function CartPage() {
   }> = [
     { id: "swish", label: "Swish", hint: "Betala med Swish smidigt och enkelt", provider: "swish" },
     { id: "klarna", label: "Klarna", hint: "Betala direkt, senare eller dela upp", provider: "stripe" },
-    { id: "card", label: "Kort", hint: "Visa, Mastercard och tillgängliga wallets hos Stripe", provider: "stripe" },
+    { id: "card", label: "Kort", hint: "Kortfält direkt här – utan e-post eller Link", provider: "stripe" },
   ];
 
   const renderMethodMark = (method: CheckoutMethod) => {
@@ -3155,22 +3156,46 @@ export default function CartPage() {
       return <span aria-hidden="true" className="grid h-10 w-[94px] shrink-0 place-items-center rounded-xl bg-[#FFB3C7] text-[16px] font-black tracking-[-0.04em] text-black">Klarna.</span>;
     }
     return (
-      <span aria-hidden="true" className="flex h-10 w-[94px] shrink-0 items-center justify-center gap-2 rounded-xl bg-white" style={{ border: "1px solid rgba(23,26,27,0.10)" }}>
-        <span className="text-[12px] font-black italic tracking-[-0.08em] text-[#1434CB]">VISA</span>
-        <span className="relative h-[18px] w-[29px]">
-          <span className="absolute left-0 top-0 h-[18px] w-[18px] rounded-full bg-[#EB001B]" />
-          <span className="absolute right-0 top-0 h-[18px] w-[18px] rounded-full bg-[#F79E1B] opacity-90" />
+      <span aria-hidden="true" className="flex h-11 w-[132px] shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-2 sm:w-[148px] sm:gap-2.5" style={{ border: "1px solid rgba(23,26,27,0.10)" }}>
+        <span className="flex items-center gap-0.5 text-[8px] font-semibold tracking-[-0.03em] text-black">
+          <svg viewBox="0 0 384 512" focusable="false" className="h-[14px] w-[11px] fill-current" role="presentation">
+            <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5c0 26.2 4.8 53.3 14.4 81.2 12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.7-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.6-90-61.6-91.9zm-57.5-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
+          </svg>
+          <span>Pay</span>
+        </span>
+        <span className="whitespace-nowrap text-[8px] font-semibold tracking-[-0.04em] text-[#3C4043]"><span className="text-[#4285F4]">G</span> Pay</span>
+        <span className="text-[10px] font-black italic tracking-[-0.08em] text-[#1434CB]">VISA</span>
+        <span className="relative h-[15px] w-[24px]">
+          <span className="absolute left-0 top-0 h-[15px] w-[15px] rounded-full bg-[#EB001B]" />
+          <span className="absolute right-0 top-0 h-[15px] w-[15px] rounded-full bg-[#F79E1B] opacity-90" />
         </span>
       </span>
     );
+  };
+
+  const choosePaymentMethod = (
+    event: { preventDefault: () => void },
+    method: CheckoutMethod,
+  ) => {
+    if (method === "card") {
+      event.preventDefault();
+      setError(null);
+      setHostedCheckoutUrl(null);
+      setSwishCheckout(null);
+      setSelectedCheckoutMethod("card");
+      setPaymentStepOpen(true);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    void startCheckout(event, method);
   };
 
   const renderPaymentMethodChoice = (method: (typeof paymentMethods)[number]) => (
     <button
       key={method.id}
       type="button"
-      onClick={(event) => { void startCheckout(event, method.id); }}
-      disabled={loading || walletProcessing}
+      onClick={(event) => { choosePaymentMethod(event, method.id); }}
+      disabled={loading || embeddedStripeProcessing}
       className="flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 disabled:opacity-50"
       style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-primary)" }}
     >
@@ -3184,13 +3209,16 @@ export default function CartPage() {
   );
 
   const renderPaymentStep = () => {
-    const methods = paymentMethods.filter((method) => availablePaymentProviders.includes(method.provider));
+    const methods = paymentMethods.filter((method) =>
+      availablePaymentProviders.includes(method.provider) &&
+      (method.id !== "card" || Boolean(stripePublishableKey)),
+    );
     return (
       <div className="mx-auto w-full max-w-2xl px-1 sm:px-4">
         <button
           type="button"
           onClick={returnFromPayment}
-          disabled={loading || verifyingPayment || walletProcessing}
+          disabled={loading || verifyingPayment || embeddedStripeProcessing}
           className="mb-6 inline-flex items-center gap-1.5 text-[13.5px] font-semibold transition-opacity hover:opacity-70 disabled:opacity-50"
           style={{ color: "var(--text-secondary)" }}
         >
@@ -3258,6 +3286,40 @@ export default function CartPage() {
               <p className="text-[13.5px] leading-5" style={{ color: "var(--text-secondary)" }}>Betalningen måste öppnas på den översta sidan för att fungera i restaurangens inbäddade kassa.</p>
               <a href={hostedCheckoutUrl} target="_top" rel="noopener" className="mt-5 flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-gold-500 px-4 text-[15px] font-semibold text-white">Öppna säker betalning <ArrowRight size={18} /></a>
             </div>
+          ) : selectedCheckoutMethod === "card" && stripePublishableKey ? (
+            <div className="mt-6">
+              <p className="mb-4 text-[13px] leading-5" style={{ color: "var(--text-secondary)" }}>
+                Kortuppgifterna krypteras av Stripe och lämnar aldrig det säkra kortfältet. Ingen e-post eller Link behövs.
+              </p>
+              <StripeCardForm
+                publishableKey={stripePublishableKey}
+                amountOre={Math.round(total * 100)}
+                amountLabel={`${formatSekAmount(total)} SEK`}
+                billingDetails={{
+                  name: formData.customerName,
+                  email: formData.customerEmail,
+                  phone: formData.customerPhone,
+                }}
+                disabled={verifyingPayment}
+                createPayment={async () => {
+                  const prepared = await startCheckout(
+                    { preventDefault: () => undefined },
+                    "card",
+                    { checkoutExperience: "embedded" },
+                  );
+                  if (!prepared) {
+                    throw new Error("Kortbetalningen kunde inte förberedas. Kontrollera uppgifterna och försök igen.");
+                  }
+                  return prepared;
+                }}
+                onConfirmed={async (orderId) => {
+                  setEmbeddedStripeOrderId(null);
+                  setPendingOrderId(orderId);
+                  await finishHostedPayment(orderId, hostedPaymentContext("stripe"));
+                }}
+                onProcessingChange={setEmbeddedStripeProcessing}
+              />
+            </div>
           ) : selectedCheckoutMethod && loading ? (
             <div className="flex min-h-56 flex-col items-center justify-center gap-3 py-8 text-center">
               <Loader2 size={28} className="animate-spin" style={{ color: "var(--gold-ink)" }} />
@@ -3297,11 +3359,11 @@ export default function CartPage() {
                       return prepared;
                     }}
                     onConfirmed={async (orderId) => {
-                      setWalletPendingOrderId(null);
+                      setEmbeddedStripeOrderId(null);
                       setPendingOrderId(orderId);
                       await finishHostedPayment(orderId, hostedPaymentContext("stripe"));
                     }}
-                    onProcessingChange={setWalletProcessing}
+                    onProcessingChange={setEmbeddedStripeProcessing}
                     onAvailabilityChange={setWalletAvailable}
                   />
                 </div>
@@ -3315,7 +3377,7 @@ export default function CartPage() {
               {paymentProvidersLoaded && methods.length === 0 && (
                 <p className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-[13.5px] text-rose-600">Inget betalsätt är tillgängligt just nu. Försök igen om en stund.</p>
               )}
-              <p className="pt-2 text-center text-[11.5px] leading-4" style={{ color: "var(--text-secondary)" }}>Apple Pay och Google Pay öppnas direkt på kompatibla enheter. Kort och Klarna öppnas säkert hos Stripe.</p>
+              <p className="pt-2 text-center text-[11.5px] leading-4" style={{ color: "var(--text-secondary)" }}>Apple Pay och Google Pay öppnas direkt på kompatibla enheter. Kort fylls i här och Klarna öppnas säkert hos Stripe.</p>
             </div>
           )}
         </section>

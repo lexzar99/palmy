@@ -19,9 +19,11 @@ import { formatCheckoutSek } from "../lib/checkoutMoney.ts";
 const cart = fs.readFileSync(new URL("../app/cart/page.tsx", import.meta.url), "utf8");
 const menu = fs.readFileSync(new URL("../components/MenuContent.tsx", import.meta.url), "utf8");
 const wallets = fs.readFileSync(new URL("../components/StripeWalletButtons.tsx", import.meta.url), "utf8");
+const cardForm = fs.readFileSync(new URL("../components/StripeCardForm.tsx", import.meta.url), "utf8");
 
 test("direct Swish checkout uses the server app link and Commerce QR", () => {
-  assert.match(cart, /startCheckout\(event, method\.id\)/);
+  assert.match(cart, /choosePaymentMethod\(event, method\.id\)/);
+  assert.match(cart, /void startCheckout\(event, method\)/);
   assert.match(cart, /\{ id: "swish", label: "Swish"/);
   assert.match(cart, /payRes\.data\?\.swishUrl/);
   assert.match(cart, /payRes\.data\?\.swishQrCode/);
@@ -152,7 +154,7 @@ test("same checkout attempt resumes safely and recovers a lost Swish create resp
   assert.match(cart, /role="alert"[\s\S]*?\{error\}/);
 });
 
-test("payment methods use a stable choice step with direct wallets and hosted card/Klarna", () => {
+test("payment methods use direct wallets, embedded card and hosted Klarna", () => {
   for (const method of ["swish", "klarna", "card"]) {
     assert.match(cart, new RegExp(`id: "${method}"`));
   }
@@ -164,7 +166,9 @@ test("payment methods use a stable choice step with direct wallets and hosted ca
   assert.match(cart, /checkoutMethod: checkoutProvider === "stripe" \? checkoutMethod : undefined/);
   assert.match(cart, /window\.location\.assign\(checkoutUrl\)/);
   assert.match(cart, /STRIPE_HOSTED_FLOW_VERSION = "stripe-hosted-v1"/);
-  assert.match(cart, /STRIPE_WALLET_FLOW_VERSION = "stripe-wallet-deferred-v1"/);
+  assert.match(cart, /STRIPE_DEFERRED_FLOW_VERSION = "stripe-elements-deferred-v2"/);
+  assert.match(cart, /method === "card"[\s\S]*?setSelectedCheckoutMethod\("card"\)/);
+  assert.match(cart, /<StripeCardForm/);
   assert.match(cart, /preserveLoadingForNavigation = true;[\s\S]*?window\.location\.assign\(checkoutUrl\)/);
   assert.match(cart, /!preserveLoadingForNavigation\) setLoading\(false\)/);
   assert.doesNotMatch(cart, /renderPayMenu|payMenuOpen|mollieOptionsOpen/);
@@ -173,15 +177,31 @@ test("payment methods use a stable choice step with direct wallets and hosted ca
   assert.doesNotMatch(cart, /StripeInlineCheckout|preloadStripeCheckout/);
 });
 
-test("Swish, Klarna and card choices have marks while wallets use genuine Stripe buttons", () => {
+test("method choices show Swish, Klarna, Apple Pay, Google Pay, Visa and Mastercard marks", () => {
   assert.match(cart, /src="\/swish-logo\.svg" alt=""/);
   assert.match(cart, /method === "klarna"[\s\S]*?Klarna\./);
+  assert.match(cart, /viewBox="0 0 384 512"/);
+  assert.match(cart, />G<\/span> Pay/);
   assert.match(cart, />VISA<\/span>/);
   assert.match(cart, /bg-\[#EB001B\][\s\S]*?bg-\[#F79E1B\]/);
   assert.match(cart, /aria-hidden="true"/);
   assert.match(cart, /<StripeWalletButtons/);
   assert.match(wallets, /<ExpressCheckoutElement/);
   assert.doesNotMatch(cart, /method === "apple_pay"|method === "google_pay"|/);
+});
+
+test("embedded card form is card-only, modern and collects no email or Link", () => {
+  assert.match(cardForm, /mode: "payment"/);
+  assert.match(cardForm, /paymentMethodTypes: \["card"\]/);
+  assert.match(cardForm, /paymentMethodOrder: \["card"\]/);
+  assert.match(cardForm, /email: "never"/);
+  assert.match(cardForm, /phone: "never"/);
+  assert.match(cardForm, /applePay: "never"/);
+  assert.match(cardForm, /googlePay: "never"/);
+  assert.match(cardForm, /link: "never"/);
+  assert.match(cardForm, /theme: "flat"/);
+  assert.match(cardForm, /const submitted = await elements\.submit\(\);[\s\S]*?await createPayment\(\)[\s\S]*?stripe\.confirmPayment\(\{/);
+  assert.doesNotMatch(cardForm, /customer_email|Link Authentication|emailRequired/);
 });
 
 test("wallet buttons mount before click and create the bound Intent only after native authorization", () => {

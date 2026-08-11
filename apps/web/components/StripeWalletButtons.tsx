@@ -17,7 +17,7 @@ import { AlertCircle, Loader2 } from "lucide-react";
 
 export type StripeWalletMethod = "apple_pay" | "google_pay";
 
-export type PreparedStripeWalletPayment =
+export type PreparedStripePayment =
   | {
       status: "prepared";
       orderId: string;
@@ -29,11 +29,14 @@ export type PreparedStripeWalletPayment =
       orderId: string;
     };
 
+// Kept as an alias for callers that only render Express Checkout wallets.
+export type PreparedStripeWalletPayment = PreparedStripePayment;
+
 type StripeWalletButtonsProps = {
   publishableKey: string;
   amountOre: number;
   disabled?: boolean;
-  createPayment: (method: StripeWalletMethod) => Promise<PreparedStripeWalletPayment>;
+  createPayment: (method: StripeWalletMethod) => Promise<PreparedStripePayment>;
   onConfirmed: (orderId: string) => Promise<void> | void;
   onProcessingChange?: (processing: boolean) => void;
   onAvailabilityChange?: (available: boolean) => void;
