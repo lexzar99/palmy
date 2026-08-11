@@ -417,8 +417,10 @@ async function createInlinePaymentIntent(args: CreatePaymentArgs): Promise<Creat
 async function createHostedCheckoutSession(args: CreatePaymentArgs): Promise<CreatePaymentResult> {
   const { order, returnUrl, idempotencyKey } = args;
   const method = parseStripeCheckoutMethod(args.checkoutMethod);
-  if (!method) throw new Error('Ogiltig eller saknad checkoutMethod för Stripe hosted Checkout');
-  assertRequestedPaymentMethodEnabled(method);
+  // Utan explicit metod visar hosted Checkout hela den konfigurerade
+  // uppsättningen (card + klarna) i EN session; Apple Pay/Google Pay följer
+  // automatiskt med card på Stripes egen, alltid domänverifierade, sida.
+  if (method) assertRequestedPaymentMethodEnabled(method);
 
   if (args.paymentReference) {
     if (!args.paymentReference.startsWith('cs_')) {
@@ -427,6 +429,7 @@ async function createHostedCheckoutSession(args: CreatePaymentArgs): Promise<Cre
     const existing = await stripe().checkout.sessions.retrieve(args.paymentReference);
     assertCheckoutSessionBinding(existing, order);
     if (
+      method &&
       existing.metadata?.viaeatsCheckoutMethod &&
       existing.metadata.viaeatsCheckoutMethod !== method
     ) {
@@ -437,12 +440,10 @@ async function createHostedCheckoutSession(args: CreatePaymentArgs): Promise<Cre
     return { paymentRef: existing.id, checkoutUrl: existing.url };
   }
 
-  const explicitMethods: Stripe.Checkout.SessionCreateParams.PaymentMethodType[] = [
-    stripePaymentMethodType(method),
-  ];
-  const configuredMethods = configuredPaymentMethodTypes();
-  const methodTypes = explicitMethods.length ? explicitMethods : configuredMethods;
-  const metadata = metadataFor(order, 'Web', method);
+  const methodTypes: Stripe.Checkout.SessionCreateParams.PaymentMethodType[] = method
+    ? [stripePaymentMethodType(method)]
+    : (configuredPaymentMethodTypes() ?? ['card', 'klarna']);
+  const metadata = metadataFor(order, 'Web', method || undefined);
   const baseParams: Stripe.Checkout.SessionCreateParams = {
     mode: 'payment',
     locale: 'sv',

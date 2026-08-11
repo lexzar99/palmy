@@ -1,5 +1,14 @@
 # Stripe payment method domains — varför knappar "försvinner" och hur de registreras
 
+> **Nuvarande arkitektur (2026-08-12):** webbkassan visar exakt två val —
+> **Swish native** och **EN hosted Stripe Checkout-sida** ("Fler betalmetoder":
+> Apple Pay, Klarna, kort, Google Pay i samma session, `checkoutMethod` utelämnas
+> → backend skapar sessionen med hela `STRIPE_PAYMENT_METHOD_TYPES`).
+> Hosted körs på `checkout.stripe.com` som alltid är domänverifierad, så
+> knapparna där påverkas INTE av registreringen nedan. Det här dokumentet
+> gäller den dag inbäddade Stripe-ytor (Elements/Express Checkout) återinförs
+> på viaeats.se — domänkravet och skriptet är fortsatt korrekta då.
+
 ## Varför detta finns
 
 Apple Pay, Google Pay, Klarna, Link, PayPal och Amazon Pay visas **bara** i
@@ -59,13 +68,11 @@ det nästan alltid verifieringsfilen som inte nås med 200).
 | Google Pay | Chrome/Android med Google Pay uppsatt. |
 | Klarna (expressknapp) | Stripe avgör per session; **kan inte tvingas** (`klarna` stöder bara `auto`/`never`). Stöds inte i in-app-webviews (Instagram m.fl.). |
 
-Därför har kassan en **garanti-fallback**: när Klarna-expressknappen inte får
-visas renderar `apps/web/app/cart/page.tsx` ViaEats egen rosa Klarna-rad
-(`renderKlarnaFallbackChoice` → `startKlarnaFallbackCheckout`), som kör samma
-inbäddade deferred-flöde men bekräftar via `stripe.confirmKlarnaPayment` →
-helsidesredirect till Klarna → tillbaka till `/cart?payment_return=…` där
-befintlig statuspollning tar över. Klarna kan alltså aldrig saknas i listan.
-Wallets har kortfältet som permanent fallback.
+Det var därför webbkassan bytte till **hosted Checkout för allt utom Swish**:
+på `checkout.stripe.com` avgör Stripe själva visningen på en alltid verifierad
+domän, så Apple Pay/Google Pay/Klarna kan aldrig "försvinna" ur vår kassa —
+raden "Fler betalmetoder" utlovar innehållet i förväg och Stripe levererar
+det som enhetens miljö stödjer.
 
 ## Felsökning i kassan
 

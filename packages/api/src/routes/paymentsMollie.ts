@@ -49,6 +49,7 @@ import {
   inspectSwishTlsConfiguration,
   swishCallbackSecretIssue,
 } from '../lib/payments/swishTls';
+import { syncStripeDisputeById } from '../lib/stripeFinance';
 
 const router = Router();
 
@@ -331,8 +332,15 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
         res.status(400).json({ error: 'checkoutExperience måste vara embedded eller hosted för Stripe' });
         return;
       }
-      if (!['klarna', 'apple_pay', 'google_pay', 'card'].includes(String(checkoutMethod || ''))) {
+      const validStripeMethods = ['klarna', 'apple_pay', 'google_pay', 'card'];
+      if (checkoutExperience === 'embedded' && !validStripeMethods.includes(String(checkoutMethod || ''))) {
         res.status(400).json({ error: 'Ogiltig eller saknad checkoutMethod för Stripe' });
+        return;
+      }
+      // Hosted utan checkoutMethod = hela den konfigurerade uppsättningen
+      // (card + klarna) i en och samma Checkout-session.
+      if (checkoutExperience === 'hosted' && checkoutMethod != null && !validStripeMethods.includes(String(checkoutMethod))) {
+        res.status(400).json({ error: 'Ogiltig checkoutMethod för Stripe' });
         return;
       }
     }
@@ -792,6 +800,22 @@ router.post('/webhooks/stripe', async (req, res) => {
   }
 
   try {
+    const disputeEvent = [
+      'charge.dispute.created',
+      'charge.dispute.updated',
+      'charge.dispute.closed',
+      'charge.dispute.funds_withdrawn',
+      'charge.dispute.funds_reinstated',
+    ].includes(event.type);
+    if (disputeEvent) {
+      const disputeId = String(event.data?.object?.id || '').trim();
+      if (!disputeId.startsWith('dp_')) {
+        throw new Error('Stripe dispute-event saknar canonical dispute-id');
+      }
+      // The signed event is only a wake-up signal. The canonical dispute,
+      // Charge, PaymentIntent and stored order reference are reread server-side.
+      await syncStripeDisputeById(disputeId);
+    }
     const refreshable =
       event.type === 'checkout.session.completed' ||
       event.type === 'checkout.session.async_payment_succeeded' ||
@@ -804,7 +828,7 @@ router.post('/webhooks/stripe', async (req, res) => {
       event.type === 'refund.created' ||
       event.type === 'refund.updated' ||
       event.type === 'refund.failed';
-    if (refreshable) {
+    if (!disputeEvent && refreshable) {
       const refreshed = await canonicalStripeWebhookOrder(event);
       if (refreshed) {
         const { order, storedRef, remote } = refreshed;

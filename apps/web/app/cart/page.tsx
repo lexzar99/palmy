@@ -35,17 +35,10 @@ import { EMBED_PARENT_ORIGIN_PARAM, readEmbedParentOrigin, trustedPartnerOrigin 
 import { useCartStore } from "@/store/cartStore";
 import BogoPickerModal from "@/components/BogoPickerModal";
 import { rememberActiveOrder } from "@/lib/activeOrder";
-import StripeWalletButtons, {
-  preloadStripeWallets,
-  type PreparedStripePayment,
-  type StripeWalletMethod,
-} from "@/components/StripeWalletButtons";
-import StripeCardForm from "@/components/StripeCardForm";
-import StripeKlarnaButton from "@/components/StripeKlarnaButton";
-// Betalning sker via ett provider-neutralt checkout-flöde. Direkt Swish visas
-// separat, Apple Pay/Google Pay använder Stripes riktiga Express Checkout-
-// knappar, Klarna använder sin riktiga Stripe Express-knapp och kort anges
-// säkert i ViaEats med Stripe Elements.
+// Betalning sker via ett provider-neutralt checkout-flöde med exakt två val:
+// direkt Swish (native app-hopp/QR) och EN hosted Stripe Checkout-sida som
+// visar hela uppsättningen — Apple Pay, Klarna, kort och Google Pay — på
+// Stripes egen, alltid domänverifierade, betalsida.
 import ProductModal from "@/components/ProductModal";
 import { saveOrderToHistory } from "@/lib/orderHistory";
 import {
@@ -110,9 +103,14 @@ type HostedPaymentContext = {
 
 type CheckoutPaymentProvider = "mollie" | "swish" | "stripe" | "adyen";
 type StripeCheckoutMethod = "klarna" | "apple_pay" | "google_pay" | "card";
-type CheckoutMethod = "swish" | StripeCheckoutMethod;
+// "stripe_all" = den samlade hosted-sidan; backend får ingen checkoutMethod
+// och skapar EN Checkout-session med alla konfigurerade metoder.
+type CheckoutMethod = "swish" | "stripe_all" | StripeCheckoutMethod;
 type CheckoutExperience = "hosted" | "embedded";
 type StartCheckoutOptions = { checkoutExperience?: CheckoutExperience };
+type PreparedStripePayment =
+  | { status: "prepared"; orderId: string; clientSecret: string; returnUrl: string }
+  | { status: "paid"; orderId: string };
 
 function checkoutPaymentProvider(value: unknown): CheckoutPaymentProvider | null {
   const provider = String(value || "").toLowerCase();
@@ -364,25 +362,6 @@ export default function CartPage() {
   // skapar/bekräftar PaymentIntenten.
   const [embeddedStripeOrderId, setEmbeddedStripeOrderId] = useState<string | null>(null);
   const [embeddedStripeProcessing, setEmbeddedStripeProcessing] = useState(false);
-  const [walletAvailable, setWalletAvailable] = useState(false);
-  const [klarnaAvailable, setKlarnaAvailable] = useState(false);
-  // Klarna får aldrig försvinna tyst: Stripes express-knapp avgör sin egen
-  // synlighet (kan inte tvingas med "always"), så vi spårar det DEFINITIVA
-  // beskedet från onReady/onLoadError separat. "pending" = ännu inget besked
-  // (visa ingen fallback, annars blinkar den), "unavailable" = visa ViaEats
-  // egen Klarna-rad som kör samma inbäddade flöde via confirmKlarnaPayment.
-  const [klarnaEceStatus, setKlarnaEceStatus] = useState<"pending" | "ready" | "unavailable">("pending");
-  // Sista skyddsnätet: om Stripe.js aldrig levererar något besked alls
-  // (blockerat nätverk, script-fel) får "pending" inte gömma Klarna för evigt.
-  // Efter 8 s utan besked visas fallbacken; ett sent "ready" tar över igen.
-  useEffect(() => {
-    if (!paymentStepOpen || klarnaEceStatus !== "pending") return;
-    if (!stripePublishableKey || embedMode) return;
-    const timer = window.setTimeout(() => {
-      setKlarnaEceStatus((current) => (current === "pending" ? "unavailable" : current));
-    }, 8000);
-    return () => window.clearTimeout(timer);
-  }, [paymentStepOpen, klarnaEceStatus, stripePublishableKey, embedMode]);
   // ?paydebug=1 visar en diagnosrad i betalsteget — svarar på "varför syns
   // inte knappen?" utan devtools. Läses efter mount (SSR saknar query).
   const [payDebug, setPayDebug] = useState(false);
@@ -438,9 +417,6 @@ export default function CartPage() {
         const publishableKey = String(response.data?.stripePublishableKey || "").trim();
         if (/^pk_(?:live|test)_[A-Za-z0-9]+$/.test(publishableKey)) {
           setStripePublishableKey(publishableKey);
-          // Stripe.js laddas parallellt medan kunden fortfarande granskar sin
-          // varukorg; betalvyn behöver därför inte börja med ett kallt script.
-          void preloadStripeWallets(publishableKey);
         }
       })
       .catch(() => { /* fail closed: visa inga metoder utan serverbesked */ })
@@ -2621,7 +2597,9 @@ export default function CartPage() {
         returnUrl,
         channel: "Web",
         checkoutExperience,
-        checkoutMethod: checkoutProvider === "stripe" ? checkoutMethod : undefined,
+        // "stripe_all" skickar ingen metod — backend skapar då EN hosted
+        // Checkout-session med hela den konfigurerade uppsättningen.
+        checkoutMethod: checkoutProvider === "stripe" && checkoutMethod !== "stripe_all" ? checkoutMethod : undefined,
       });
       if (payRes.data?.alreadyPaid === true || String(payRes.data?.paymentStatus || "").toUpperCase() === "PAID") {
         if (deferredStripePayment) {
@@ -3137,13 +3115,16 @@ export default function CartPage() {
       setEmbeddedStripeOrderId(null);
       setEmbeddedStripeProcessing(false);
     }
-    // Nytt betalsteg = nytt ECE-mount = nytt tillgänglighetsbesked. Nollställ
-    // så en gammal "unavailable" inte blinkar fram en fallback i onödan.
-    setKlarnaEceStatus("pending");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const returnFromPayment = () => {
+    // En väntande Swish-request ska avbrytas säkert även från Tillbaka-knappen
+    // — kunden ska inte behöva hitta den separata Avbryt-knappen.
+    if (swishCheckout) {
+      void handlePaymentCancelled(swishCheckout.orderId);
+      return;
+    }
     if (embeddedStripeOrderId) {
       void handlePaymentCancelled(embeddedStripeOrderId);
       return;
@@ -3170,8 +3151,7 @@ export default function CartPage() {
     provider: "swish" | "stripe";
   }> = [
     { id: "swish", label: "Swish", hint: "Betala med Swish smidigt och enkelt", provider: "swish" },
-    { id: "klarna", label: "Klarna", hint: "Betala direkt, senare eller dela upp", provider: "stripe" },
-    { id: "card", label: "Kort", hint: "Kortfält direkt här – utan e-post eller Link", provider: "stripe" },
+    { id: "stripe_all", label: "Fler betalmetoder", hint: "Apple Pay, Klarna, kort, Google Pay", provider: "stripe" },
   ];
 
   const renderMethodMark = (method: CheckoutMethod) => {
@@ -3182,27 +3162,23 @@ export default function CartPage() {
         </span>
       );
     }
-    if (method === "klarna") {
-      return (
-        <span aria-hidden="true" className="grid h-10 w-[94px] shrink-0 place-items-center rounded-xl bg-[#FFB3C7] text-[16px] font-black tracking-[-0.04em] text-black">
-          Klarna.
-        </span>
-      );
-    }
+    // Samlade hosted-sidan: loggorna visar i förväg exakt vad som väntar —
+    // Apple Pay och Klarna först (mest eftersökta), sedan kort och Google Pay.
     return (
-      <span aria-hidden="true" className="flex h-11 w-[132px] shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-2 sm:w-[148px] sm:gap-2.5" style={{ border: "1px solid rgba(23,26,27,0.10)" }}>
+      <span aria-hidden="true" className="flex h-11 w-[164px] shrink-0 items-center justify-center gap-1.5 rounded-xl bg-white px-2 sm:w-[180px] sm:gap-2" style={{ border: "1px solid rgba(23,26,27,0.10)" }}>
         <span className="flex items-center gap-0.5 text-[8px] font-semibold tracking-[-0.03em] text-black">
           <svg viewBox="0 0 384 512" focusable="false" className="h-[14px] w-[11px] fill-current" role="presentation">
             <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5c0 26.2 4.8 53.3 14.4 81.2 12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.7-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.6-90-61.6-91.9zm-57.5-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
           </svg>
           <span>Pay</span>
         </span>
-        <span className="whitespace-nowrap text-[8px] font-semibold tracking-[-0.04em] text-[#3C4043]"><span className="text-[#4285F4]">G</span> Pay</span>
+        <span className="rounded-[5px] bg-[#FFB3C7] px-1 py-0.5 text-[7.5px] font-black tracking-[-0.04em] text-black">Klarna.</span>
         <span className="text-[10px] font-black italic tracking-[-0.08em] text-[#1434CB]">VISA</span>
         <span className="relative h-[15px] w-[24px]">
           <span className="absolute left-0 top-0 h-[15px] w-[15px] rounded-full bg-[#EB001B]" />
           <span className="absolute right-0 top-0 h-[15px] w-[15px] rounded-full bg-[#F79E1B] opacity-90" />
         </span>
+        <span className="whitespace-nowrap text-[8px] font-semibold tracking-[-0.04em] text-[#3C4043]"><span className="text-[#4285F4]">G</span> Pay</span>
       </span>
     );
   };
@@ -3211,96 +3187,7 @@ export default function CartPage() {
     event: { preventDefault: () => void },
     method: CheckoutMethod,
   ) => {
-    if (method === "card") {
-      event.preventDefault();
-      setError(null);
-      setHostedCheckoutUrl(null);
-      setSwishCheckout(null);
-      setSelectedCheckoutMethod("card");
-      setPaymentStepOpen(true);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      return;
-    }
     void startCheckout(event, method);
-  };
-
-  // Fallback när Stripes Klarna-expressknapp inte är tillgänglig (webview,
-  // browser utan stöd eller Stripe-gating): samma inbäddade deferred-flöde,
-  // men bekräftelsen görs via confirmKlarnaPayment som helsidesredirectar
-  // till Klarna och återvänder till return_url där befintlig polling tar vid.
-  const startKlarnaFallbackCheckout = async () => {
-    if (loading || embeddedStripeProcessing || verifyingPayment) return;
-    setError(null);
-    setEmbeddedStripeProcessing(true);
-    try {
-      const stripeClient = await preloadStripeWallets(stripePublishableKey);
-      if (!stripeClient) {
-        throw new Error("Klarna kunde inte laddas. Försök igen om en stund.");
-      }
-      const prepared = await startCheckout(
-        { preventDefault: () => undefined },
-        "klarna",
-        { checkoutExperience: "embedded" },
-      );
-      if (!prepared) {
-        throw new Error("Klarna-betalningen kunde inte förberedas. Kontrollera uppgifterna och försök igen.");
-      }
-      if (prepared.status === "paid") {
-        setEmbeddedStripeOrderId(null);
-        setPendingOrderId(prepared.orderId);
-        await finishHostedPayment(prepared.orderId, hostedPaymentContext("stripe"));
-        return;
-      }
-      const emailValue = formData.customerEmail.trim();
-      const result = await stripeClient.confirmKlarnaPayment(prepared.clientSecret, {
-        payment_method: {
-          billing_details: {
-            ...(emailValue ? { email: emailValue } : {}),
-            address: { country: "SE" },
-          },
-        },
-        return_url: prepared.returnUrl,
-      });
-      if (result.error) {
-        throw new Error(result.error.message || "Klarna-betalningen kunde inte genomföras. Försök igen eller välj ett annat betalsätt.");
-      }
-      // Ingen redirect behövdes (intent redan bekräftad) — verifiera direkt.
-      setEmbeddedStripeOrderId(null);
-      setPendingOrderId(prepared.orderId);
-      await finishHostedPayment(prepared.orderId, hostedPaymentContext("stripe"));
-    } catch (err) {
-      setError(
-        err instanceof Error && err.message
-          ? err.message
-          : "Klarna-betalningen kunde inte genomföras. Försök igen eller välj ett annat betalsätt.",
-      );
-    } finally {
-      setEmbeddedStripeProcessing(false);
-    }
-  };
-
-  // Egen knapp-shell (inte renderPaymentMethodChoice via .map) eftersom
-  // fallbacken kör det inbäddade flödet, inte choosePaymentMethods hosted-väg.
-  const renderKlarnaFallbackChoice = () => {
-    const method = paymentMethods.find((entry) => entry.id === "klarna");
-    if (!method) return null;
-    return (
-      <button
-        key="klarna-fallback"
-        type="button"
-        onClick={() => { void startKlarnaFallbackCheckout(); }}
-        disabled={loading || embeddedStripeProcessing || verifyingPayment}
-        className="flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 disabled:opacity-50"
-        style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-primary)" }}
-      >
-        {renderMethodMark("klarna")}
-        <span className="min-w-0 flex-1">
-          <span className="block text-[15px] font-semibold" style={{ color: "var(--text-primary)" }}>{method.label}</span>
-          <span className="mt-0.5 block text-[12.5px] leading-4" style={{ color: "var(--text-secondary)" }}>{method.hint}</span>
-        </span>
-        <ArrowRight size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
-      </button>
-    );
   };
 
   const renderPaymentMethodChoice = (method: (typeof paymentMethods)[number]) => (
@@ -3322,16 +3209,20 @@ export default function CartPage() {
   );
 
   const renderPaymentStep = () => {
+    // Hosted-sidan behöver ingen publishable key i klienten — Stripe äger
+    // hela betalsidan. Endast providerlistan från servern styr synligheten.
     const methods = paymentMethods.filter((method) =>
-      availablePaymentProviders.includes(method.provider) &&
-      (method.id !== "card" || Boolean(stripePublishableKey)),
+      availablePaymentProviders.includes(method.provider),
     );
     return (
       <div className="mx-auto w-full max-w-2xl px-1 sm:px-4">
         <button
           type="button"
           onClick={returnFromPayment}
-          disabled={loading || verifyingPayment || embeddedStripeProcessing}
+          // Under en väntande Swish-request pågår statuspollning
+          // (verifyingPayment) — då ska Tillbaka ändå fungera och göra samma
+          // säkra avbryt som Avbryt-knappen, inte vara en död knapp.
+          disabled={loading || embeddedStripeProcessing || cancellingPayment || (verifyingPayment && !swishCheckout)}
           className="mb-6 inline-flex items-center gap-1.5 text-[13.5px] font-semibold transition-opacity hover:opacity-70 disabled:opacity-50"
           style={{ color: "var(--text-secondary)" }}
         >
@@ -3399,40 +3290,6 @@ export default function CartPage() {
               <p className="text-[13.5px] leading-5" style={{ color: "var(--text-secondary)" }}>Betalningen måste öppnas på den översta sidan för att fungera i restaurangens inbäddade kassa.</p>
               <a href={hostedCheckoutUrl} target="_top" rel="noopener" className="mt-5 flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-gold-500 px-4 text-[15px] font-semibold text-white">Öppna säker betalning <ArrowRight size={18} /></a>
             </div>
-          ) : selectedCheckoutMethod === "card" && stripePublishableKey ? (
-            <div className="mt-6">
-              <p className="mb-4 text-[13px] leading-5" style={{ color: "var(--text-secondary)" }}>
-                Kortuppgifterna krypteras av Stripe och lämnar aldrig det säkra kortfältet. Ingen e-post eller Link behövs.
-              </p>
-              <StripeCardForm
-                publishableKey={stripePublishableKey}
-                amountOre={Math.round(total * 100)}
-                amountLabel={`${formatSekAmount(total)} SEK`}
-                billingDetails={{
-                  name: formData.customerName,
-                  email: formData.customerEmail,
-                  phone: formData.customerPhone,
-                }}
-                disabled={verifyingPayment}
-                createPayment={async () => {
-                  const prepared = await startCheckout(
-                    { preventDefault: () => undefined },
-                    "card",
-                    { checkoutExperience: "embedded" },
-                  );
-                  if (!prepared) {
-                    throw new Error("Kortbetalningen kunde inte förberedas. Kontrollera uppgifterna och försök igen.");
-                  }
-                  return prepared;
-                }}
-                onConfirmed={async (orderId) => {
-                  setEmbeddedStripeOrderId(null);
-                  setPendingOrderId(orderId);
-                  await finishHostedPayment(orderId, hostedPaymentContext("stripe"));
-                }}
-                onProcessingChange={setEmbeddedStripeProcessing}
-              />
-            </div>
           ) : selectedCheckoutMethod && loading ? (
             <div className="flex min-h-56 flex-col items-center justify-center gap-3 py-8 text-center">
               <Loader2 size={28} className="animate-spin" style={{ color: "var(--gold-ink)" }} />
@@ -3446,73 +3303,10 @@ export default function CartPage() {
             </div>
           ) : (
             <div className="mt-6 space-y-3">
-              {methods.filter((method) => method.id === "swish").map(renderPaymentMethodChoice)}
-              {availablePaymentProviders.includes("stripe") && stripePublishableKey && !embedMode && (
-                <div className="space-y-3">
-                  {/* Garanti: när Stripes Klarna-expressknapp inte är
-                      tillgänglig visas ViaEats egen Klarna-rad i stället —
-                      Klarna får aldrig saknas i listan. Aldrig under
-                      "pending" (ingen flash medan ECE laddar). */}
-                  {klarnaEceStatus === "unavailable" && renderKlarnaFallbackChoice()}
-                  {(walletAvailable || klarnaAvailable) && (
-                    <div className="flex items-center gap-3" aria-hidden="true">
-                      <span className="h-px flex-1" style={{ backgroundColor: "var(--border-muted)" }} />
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.1em]" style={{ color: "var(--text-secondary)" }}>Betala direkt</span>
-                      <span className="h-px flex-1" style={{ backgroundColor: "var(--border-muted)" }} />
-                    </div>
-                  )}
-                  <StripeKlarnaButton
-                    publishableKey={stripePublishableKey}
-                    amountOre={Math.round(total * 100)}
-                    disabled={loading || verifyingPayment || embeddedStripeProcessing}
-                    createPayment={async () => {
-                      const prepared = await startCheckout(
-                        { preventDefault: () => undefined },
-                        "klarna",
-                        { checkoutExperience: "embedded" },
-                      );
-                      if (!prepared) {
-                        throw new Error("Klarna-betalningen kunde inte förberedas. Kontrollera uppgifterna och försök igen.");
-                      }
-                      return prepared;
-                    }}
-                    onConfirmed={async (orderId) => {
-                      setEmbeddedStripeOrderId(null);
-                      setPendingOrderId(orderId);
-                      await finishHostedPayment(orderId, hostedPaymentContext("stripe"));
-                    }}
-                    onProcessingChange={setEmbeddedStripeProcessing}
-                    onAvailabilityChange={setKlarnaAvailable}
-                    onAvailabilityResolved={(available) => {
-                      setKlarnaEceStatus(available ? "ready" : "unavailable");
-                    }}
-                  />
-                  <StripeWalletButtons
-                    publishableKey={stripePublishableKey}
-                    amountOre={Math.round(total * 100)}
-                    disabled={loading || verifyingPayment}
-                    createPayment={async (method: StripeWalletMethod) => {
-                      const prepared = await startCheckout(
-                        { preventDefault: () => undefined },
-                        method,
-                        { checkoutExperience: "embedded" },
-                      );
-                      if (!prepared) {
-                        throw new Error("Betalningen kunde inte förberedas. Kontrollera dina uppgifter och försök igen.");
-                      }
-                      return prepared;
-                    }}
-                    onConfirmed={async (orderId) => {
-                      setEmbeddedStripeOrderId(null);
-                      setPendingOrderId(orderId);
-                      await finishHostedPayment(orderId, hostedPaymentContext("stripe"));
-                    }}
-                    onProcessingChange={setEmbeddedStripeProcessing}
-                    onAvailabilityChange={setWalletAvailable}
-                  />
-                </div>
-              )}
-              {methods.filter((method) => method.id !== "swish" && method.id !== "klarna").map(renderPaymentMethodChoice)}
+              {/* Exakt två val: Swish native överst (svensk debet-först-regel),
+                  därefter EN samlad hosted Stripe-sida med alla övriga metoder.
+                  Loggorna + undertexten visar i förväg vad som väntar. */}
+              {methods.map(renderPaymentMethodChoice)}
               {!paymentProvidersLoaded && (
                 <p className="flex items-center justify-center gap-2 rounded-2xl border p-4 text-[13.5px]" style={{ borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}>
                   <Loader2 size={17} className="animate-spin" /> Hämtar säkra betalsätt…
@@ -3521,13 +3315,11 @@ export default function CartPage() {
               {paymentProvidersLoaded && methods.length === 0 && (
                 <p className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-[13.5px] text-rose-600">Inget betalsätt är tillgängligt just nu. Försök igen om en stund.</p>
               )}
-              <p className="pt-2 text-center text-[11.5px] leading-4" style={{ color: "var(--text-secondary)" }}>Apple Pay, Google Pay och Klarna öppnas direkt på kompatibla enheter. Kort fylls i säkert här.</p>
+              <p className="pt-2 text-center text-[11.5px] leading-4" style={{ color: "var(--text-secondary)" }}>Swish öppnas direkt. Övriga betalsätt öppnas på Stripes säkra betalsida — kortuppgifter hanteras aldrig av ViaEats.</p>
               {payDebug && (
                 <p className="rounded-lg px-2 py-1.5 text-center font-mono text-[10.5px]" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-secondary)" }}>
                   paydebug · pk: {stripePublishableKey ? (stripePublishableKey.startsWith("pk_live_") ? "live" : "test") : "saknas"}
                   {" · "}providers: {availablePaymentProviders.join("+") || "inga"}
-                  {" · "}wallets: {walletAvailable ? "ja" : "nej"}
-                  {" · "}klarnaECE: {klarnaEceStatus}
                   {" · "}embed: {embedMode ? "ja" : "nej"}
                 </p>
               )}

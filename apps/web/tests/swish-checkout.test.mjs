@@ -18,9 +18,6 @@ import { formatCheckoutSek } from "../lib/checkoutMoney.ts";
 
 const cart = fs.readFileSync(new URL("../app/cart/page.tsx", import.meta.url), "utf8");
 const menu = fs.readFileSync(new URL("../components/MenuContent.tsx", import.meta.url), "utf8");
-const wallets = fs.readFileSync(new URL("../components/StripeWalletButtons.tsx", import.meta.url), "utf8");
-const klarnaButton = fs.readFileSync(new URL("../components/StripeKlarnaButton.tsx", import.meta.url), "utf8");
-const cardForm = fs.readFileSync(new URL("../components/StripeCardForm.tsx", import.meta.url), "utf8");
 
 test("direct Swish checkout uses the server app link and Commerce QR", () => {
   assert.match(cart, /choosePaymentMethod\(event, method\.id\)/);
@@ -155,83 +152,40 @@ test("same checkout attempt resumes safely and recovers a lost Swish create resp
   assert.match(cart, /role="alert"[\s\S]*?\{error\}/);
 });
 
-test("payment methods use direct wallets, native Klarna and embedded card", () => {
-  for (const method of ["swish", "klarna", "card"]) {
-    assert.match(cart, new RegExp(`id: "${method}"`));
-  }
+test("payment methods are native Swish plus one hosted Stripe page", () => {
+  assert.match(cart, /\{ id: "swish", label: "Swish"/);
+  // Den samlade hosted-raden lovar innehållet i förväg — label + undertext
+  // är en del av kontraktet (Apple Pay och Klarna först, mest eftersökta).
+  assert.match(cart, /\{ id: "stripe_all", label: "Fler betalmetoder", hint: "Apple Pay, Klarna, kort, Google Pay", provider: "stripe" \}/);
   assert.doesNotMatch(cart, /\{ id: "apple_pay"/);
   assert.doesNotMatch(cart, /\{ id: "google_pay"/);
+  assert.doesNotMatch(cart, /\{ id: "klarna"/);
+  assert.doesNotMatch(cart, /\{ id: "card"/);
   assert.match(cart, /\{paymentStepOpen \? renderPaymentStep\(\) : \(/);
+  // Allt utom Swish går till Stripes hosted Checkout (default-upplevelsen)
+  // i EN session utan explicit metod — backend lägger hela uppsättningen.
   assert.match(cart, /const checkoutExperience = options\.checkoutExperience \|\| "hosted"/);
-  assert.match(cart, /\{ checkoutExperience: "embedded" \}/);
-  assert.match(cart, /checkoutMethod: checkoutProvider === "stripe" \? checkoutMethod : undefined/);
+  assert.match(cart, /checkoutMethod: checkoutProvider === "stripe" && checkoutMethod !== "stripe_all" \? checkoutMethod : undefined/);
   assert.match(cart, /window\.location\.assign\(checkoutUrl\)/);
   assert.match(cart, /STRIPE_HOSTED_FLOW_VERSION = "stripe-hosted-v1"/);
-  assert.match(cart, /STRIPE_DEFERRED_FLOW_VERSION = "stripe-elements-deferred-v2"/);
-  assert.match(cart, /method === "card"[\s\S]*?setSelectedCheckoutMethod\("card"\)/);
-  assert.match(cart, /<StripeCardForm/);
-  assert.match(cart, /<StripeKlarnaButton/);
-  assert.match(cart, /"klarna",\s*\{ checkoutExperience: "embedded" \}/);
-  assert.match(cart, /method\.id !== "swish" && method\.id !== "klarna"/);
-  // Ordningen är en del av kontraktet: Swish överst (svensk debet-först-regel),
-  // sedan Klarna som första Stripe-metod, därefter wallets, sist kortet.
-  assert.match(cart, /method\.id === "swish"\)\.map\(renderPaymentMethodChoice\)[\s\S]*?<StripeKlarnaButton[\s\S]*?<StripeWalletButtons/);
+  assert.match(cart, /\{methods\.map\(renderPaymentMethodChoice\)\}/);
   assert.match(cart, /preserveLoadingForNavigation = true;[\s\S]*?window\.location\.assign\(checkoutUrl\)/);
   assert.match(cart, /!preserveLoadingForNavigation\) setLoading\(false\)/);
   assert.doesNotMatch(cart, /renderPayMenu|payMenuOpen|mollieOptionsOpen/);
   assert.doesNotMatch(cart, /aria-modal|role="dialog"/);
   assert.doesNotMatch(cart, />Mollie</);
-  assert.doesNotMatch(cart, /StripeInlineCheckout|preloadStripeCheckout/);
+  // Inga inbäddade Stripe-ytor får smyga tillbaka i kassan.
+  assert.doesNotMatch(cart, /StripeWalletButtons|StripeKlarnaButton|StripeCardForm|StripeInlineCheckout|ExpressCheckoutElement|confirmKlarnaPayment|preloadStripeWallets|loadStripe/);
 });
 
-test("method choices show wallet and card marks with a genuine Stripe Klarna button", () => {
+test("the hosted row's mark shows Apple Pay and Klarna first, then card and Google Pay", () => {
   assert.match(cart, /src="\/swish-logo\.svg" alt=""/);
-  assert.match(cart, /viewBox="0 0 384 512"/);
-  assert.match(cart, />G<\/span> Pay/);
-  assert.match(cart, />VISA<\/span>/);
-  assert.match(cart, /bg-\[#EB001B\][\s\S]*?bg-\[#F79E1B\]/);
+  // Loggordningen i märket: Apple Pay → Klarna → VISA/Mastercard → G Pay,
+  // precis som undertexten utlovar.
+  assert.match(cart, /viewBox="0 0 384 512"[\s\S]*?>Klarna\.<[\s\S]*?>VISA<\/span>[\s\S]*?bg-\[#EB001B\][\s\S]*?bg-\[#F79E1B\][\s\S]*?>G<\/span> Pay/);
+  assert.match(cart, /bg-\[#FFB3C7\][\s\S]*?Klarna\./);
   assert.match(cart, /aria-hidden="true"/);
-  assert.match(cart, /<StripeWalletButtons/);
-  assert.match(wallets, /<ExpressCheckoutElement/);
-  assert.match(klarnaButton, /<ExpressCheckoutElement/);
-  assert.match(klarnaButton, /paymentMethodTypes: \["klarna"\]/);
-  assert.match(klarnaButton, /event\.expressPaymentType !== "klarna"/);
-  assert.match(klarnaButton, /paymentMethods: \{[\s\S]*?klarna: "auto"/);
-  assert.match(klarnaButton, /const submitted = await elements\.submit\(\);[\s\S]*?await createPayment\(\)[\s\S]*?stripe\.confirmPayment\(\{/);
-  // Rosa Klarna-märket är fallback-radens ansikte — det får inte försvinna igen.
-  assert.match(cart, /method === "klarna"[\s\S]*?bg-\[#FFB3C7\][\s\S]*?Klarna\./);
   assert.doesNotMatch(cart, /method === "apple_pay"|method === "google_pay"|/);
-});
-
-test("embedded card form is card-only, modern and collects no email or Link", () => {
-  assert.match(cardForm, /mode: "payment"/);
-  assert.match(cardForm, /paymentMethodTypes: \["card"\]/);
-  assert.match(cardForm, /paymentMethodOrder: \["card"\]/);
-  assert.match(cardForm, /email: "never"/);
-  assert.match(cardForm, /phone: "never"/);
-  assert.match(cardForm, /applePay: "never"/);
-  assert.match(cardForm, /googlePay: "never"/);
-  assert.match(cardForm, /link: "never"/);
-  assert.match(cardForm, /theme: "flat"/);
-  assert.match(cardForm, /const submitted = await elements\.submit\(\);[\s\S]*?await createPayment\(\)[\s\S]*?stripe\.confirmPayment\(\{/);
-  assert.doesNotMatch(cardForm, /customer_email|Link Authentication|emailRequired/);
-});
-
-test("wallet buttons mount before click and create the bound Intent only after native authorization", () => {
-  assert.match(cart, /void preloadStripeWallets\(publishableKey\)/);
-  assert.match(wallets, /mode: "payment"/);
-  assert.match(wallets, /paymentMethodTypes: \["card"\]/);
-  assert.match(wallets, /buttonHeight: 55/);
-  assert.doesNotMatch(wallets, /buttonHeight: 56/);
-  assert.match(wallets, /billingAddressRequired: false/);
-  assert.match(wallets, /paymentMethods: \{[\s\S]*?applePay: "auto"[\s\S]*?googlePay: "auto"/);
-  assert.match(wallets, /const submitted = await elements\.submit\(\);[\s\S]*?await createPayment\(event\.expressPaymentType\)[\s\S]*?stripe\.confirmPayment\(\{/);
-  assert.match(wallets, /prepared\.status === "paid"[\s\S]*?await onConfirmed\(prepared\.orderId\)/);
-  assert.match(wallets, /clientSecret: prepared\.clientSecret/);
-  assert.match(wallets, /onCancel=\{\(\) => \{[\s\S]*?setBusy\(false\);/);
-  assert.doesNotMatch(wallets, /timed_out|svarade inte inom|invisible|PaymentElement/);
-  assert.doesNotMatch(cart, /Kontrollerar plånboken|Förbereder säker betalning/);
-  assert.doesNotMatch(cart, /Kort, Link/);
 });
 
 test("payment methods never render inside the mobile sticky layer", () => {
@@ -246,38 +200,14 @@ test("an authorization-shaped 404 preserves recovery proof", () => {
   assert.doesNotMatch(unauthorizedBranch, /clearPendingPaymentStorage/);
 });
 
-test("Klarna never disappears silently: ECE-unavailable renders the branded native fallback", () => {
-  // Fallback-raden visas ENDAST på ett definitivt "unavailable" — aldrig under
-  // "pending" (skulle blinka medan Stripes iframe laddar).
-  assert.match(cart, /"pending" \| "ready" \| "unavailable"/);
-  assert.match(cart, /klarnaEceStatus === "unavailable" && renderKlarnaFallbackChoice\(\)/);
-  assert.match(cart, /setKlarnaEceStatus\("pending"\)/);
-  // Fallbacken kör samma inbäddade deferred-flöde och bekräftar via Klarnas
-  // riktiga redirect — den skiljer sig bara i bekräftelsesteget.
-  assert.match(cart, /startKlarnaFallbackCheckout = async \(\) => \{[\s\S]*?"klarna",\s*\{ checkoutExperience: "embedded" \}/);
-  assert.match(cart, /confirmKlarnaPayment\(prepared\.clientSecret/);
-  assert.match(cart, /address: \{ country: "SE" \}/);
-  assert.match(cart, /return_url: prepared\.returnUrl/);
-  // Det definitiva beskedet kommer från onReady/onLoadError — inte från
-  // unmount-cleanup som annars skulle trigga en falsk fallback.
-  assert.match(cart, /onAvailabilityResolved=\{\(available\) => \{[\s\S]*?setKlarnaEceStatus\(available \? "ready" : "unavailable"\)/);
-  assert.match(klarnaButton, /onReady=\{\(event\) => \{[\s\S]*?onAvailabilityResolved\?\.\(nextAvailable\)/);
-  assert.match(klarnaButton, /onLoadError=\{\(event\) => \{[\s\S]*?onAvailabilityResolved\?\.\(false\)/);
-  const klarnaCleanupEffect = klarnaButton.match(/useEffect\(\(\) => \(\) => \{([\s\S]*?)\}, \[/)?.[1] || "";
-  assert.ok(klarnaCleanupEffect.length > 0, "unmount-cleanup-effekten ska finnas kvar");
-  assert.doesNotMatch(klarnaCleanupEffect, /onAvailabilityResolved/);
-  // ECE-elementet får aldrig gate:as bakom availability — permanent mount är
-  // det som bevarar user-gesture-kedjan in i Klarna-sheeten.
-  assert.doesNotMatch(cart, /klarnaEceStatus === "ready" && <StripeKlarnaButton/);
-  // Watchdog: uteblivet besked från Stripe.js får inte gömma Klarna för evigt.
-  assert.match(cart, /klarnaEceStatus !== "pending"\) return;[\s\S]*?8000/);
+test("the back button safely cancels a waiting Swish payment", () => {
+  // Tillbaka-knappen får inte vara död under Swish-väntan — den gör samma
+  // säkra avbryt som den dedikerade Avbryt-knappen.
+  assert.match(cart, /const returnFromPayment = \(\) => \{[\s\S]*?if \(swishCheckout\) \{\s*void handlePaymentCancelled\(swishCheckout\.orderId\);/);
+  assert.match(cart, /disabled=\{loading \|\| embeddedStripeProcessing \|\| cancellingPayment \|\| \(verifyingPayment && !swishCheckout\)\}/);
 });
 
-test("silent payment-button hiding is logged for diagnosis", () => {
-  assert.match(klarnaButton, /onLoadError=\{\(event\) => \{\s*console\.warn/);
-  assert.match(wallets, /onLoadError=\{\(event\) => \{\s*console\.warn/);
-  assert.match(wallets, /console\.info\(\s*"\[stripe\] Inga wallets tillgängliga/);
-  // ?paydebug=1 ger en läsbar diagnosrad i betalsteget.
+test("paydebug diagnostics stay available in the payment step", () => {
   assert.match(cart, /paydebug/);
-  assert.match(cart, /klarnaECE: \{klarnaEceStatus\}/);
+  assert.match(cart, /providers: \{availablePaymentProviders\.join/);
 });
