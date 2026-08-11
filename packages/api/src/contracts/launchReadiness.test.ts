@@ -197,4 +197,44 @@ for (const legacyProvider of ['stripe', 'adyen']) {
   }));
 }
 
+const directSwishProduction = {
+  ...healthy,
+  PAYMENT_PROVIDERS: 'mollie,swish',
+  SWISH_ENVIRONMENT: 'PRODUCTION',
+  SWISH_PAYEE_ALIAS: '1231234567',
+  SWISH_CERT_PEM: 'certificate',
+  SWISH_KEY_PEM: 'private-key',
+  SWISH_CALLBACK_SECRET: '0123456789abcdef0123456789abcdef',
+};
+// Egen Swish Handel med eget certifikat är produktionsgodkänd. En komplett
+// uppsättning ska varken ge readiness-fel eller stoppa starten.
+assert.deepEqual(
+  getLaunchConfigIssues(directSwishProduction).filter((issue) => issue.key.startsWith('swish')),
+  [],
+);
+assert.doesNotThrow(() => assertRuntimeCriticalConfiguration(directSwishProduction));
+
+// Men en halv uppsättning får aldrig starta: utan callback-hemlighet går det
+// inte att skilja en äkta Swish-callback från en påhittad.
+assert.throws(
+  () => assertRuntimeCriticalConfiguration({
+    ...directSwishProduction,
+    SWISH_CALLBACK_SECRET: '',
+  }),
+  /Aktiv Swish Handel saknar/,
+);
+// Testmiljön får inte råka ligga kvar när riktiga pengar rör sig.
+assert.throws(
+  () => assertRuntimeCriticalConfiguration({
+    ...directSwishProduction,
+    SWISH_ENVIRONMENT: 'MSS',
+  }),
+  /PRODUCTION-miljön/,
+);
+assert.doesNotThrow(() => assertRuntimeCriticalConfiguration({
+  ...directSwishProduction,
+  NODE_ENV: 'development',
+  SWISH_ENVIRONMENT: 'MSS',
+}));
+
 console.log('launch readiness contracts: ok');

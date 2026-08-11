@@ -92,8 +92,10 @@ builds/
 
 # Common secret files
 **/*.pem
+**/*.key
 **/*.p8
 **/*.p12
+**/.swish/
 **/serviceAccountKey*.json
 **/firebase-adminsdk-*.json
 **/google-services.json

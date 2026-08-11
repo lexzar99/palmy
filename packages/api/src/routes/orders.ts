@@ -38,7 +38,7 @@ import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
 import { moneyDto, nullableMoneyDto } from '../utils/money';
 import { referralPhoneVariants } from '../lib/referralRules';
 import { notifyPartnerDevicesOfNewOrder } from '../lib/partnerFcm';
-import { getPaymentProvider, getPaymentProviderByName } from '../lib/payments';
+import { getCheckoutPaymentProvider, getPaymentProviderByName } from '../lib/payments';
 import { finalizePaymentFailed, finalizePaymentSuccess } from '../lib/payments/finalize';
 import type { PaymentProviderName } from '../lib/payments/finalize';
 import {
@@ -239,6 +239,7 @@ const CreateOrderSchema = z.object({
   restaurantSlug: z.string().min(1).optional(),
   type: z.enum(['PICKUP', 'DELIVERY']),
   paymentMethod: z.string().nullable().optional(),
+  paymentProvider: z.enum(['mollie', 'swish', 'stripe', 'adyen']).optional(),
   customerName: z.string().min(2).max(100),
   customerPhone: z.string().min(6).max(20),
   customerEmail: z.string().email().nullable().or(z.literal('')).optional(),
@@ -414,6 +415,9 @@ router.post('/', async (req: Request, res: Response) => {
 
     const data = CreateOrderSchema.parse(req.body);
     const isPendingPayment = data.pendingPayment === true;
+    const pendingPaymentProvider = isPendingPayment
+      ? getCheckoutPaymentProvider(data.paymentProvider)
+      : null;
     const hasPaymentIntent = Boolean(data.stripePaymentIntentId);
 
     // Launch checkout is Mollie-only. The direct Stripe-intent order path is
@@ -1561,7 +1565,7 @@ router.post('/', async (req: Request, res: Response) => {
         // Sätt provider redan när den obetalda ordern skapas. Då kan abandon,
         // recovery och reconcile aldrig misstolka en ny Mollie-order som den
         // historiska schema-defaulten "stripe" innan PSP-referensen har länkats.
-        paymentProvider: isPendingPayment ? getPaymentProvider().name : 'stripe',
+        paymentProvider: pendingPaymentProvider?.name || 'stripe',
         paymentStatus: isPendingPayment ? 'PENDING' : 'PAID',
         // paymentMethod är non-nullable i schemat (default 'ONLINE'). Den
         // tidigare `isPendingPayment ? null : 'ONLINE'` orsakade Prisma-
@@ -2787,6 +2791,7 @@ router.post('/:id/abandon', async (req: Request, res: Response) => {
         createdAt: true,
         paymentProvider: true,
         molliePaymentId: true,
+        swishPaymentId: true,
         stripePaymentIntentId: true,
         adyenSessionId: true,
       },
@@ -2830,7 +2835,7 @@ router.post('/:id/abandon', async (req: Request, res: Response) => {
       return res.json({ success: true, skipped: 'not-awaiting' });
     }
 
-    if (!['mollie', 'stripe', 'adyen'].includes(order.paymentProvider)) {
+    if (!['mollie', 'stripe', 'adyen', 'swish'].includes(order.paymentProvider)) {
       await finalizePaymentFailed(order.id, { provider: 'stripe', reason: 'unknown-provider' });
       return res.json({ success: true, failed: true });
     }
@@ -2838,6 +2843,8 @@ router.post('/:id/abandon', async (req: Request, res: Response) => {
     const ref =
       provider.name === 'mollie'
         ? order.molliePaymentId
+        : provider.name === 'swish'
+          ? order.swishPaymentId
         : provider.name === 'stripe'
           ? order.stripePaymentIntentId
           : order.adyenSessionId;
@@ -2856,6 +2863,7 @@ router.post('/:id/abandon', async (req: Request, res: Response) => {
           provider: provider.name,
           ref: remote.paymentIntentId || ref,
           amountReceivedOre: remote.amountReceivedOre ?? 0,
+          method: remote.method,
         });
         return res.json({ success: true, paid: true });
       }

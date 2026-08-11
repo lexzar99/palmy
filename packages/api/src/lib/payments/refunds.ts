@@ -8,19 +8,21 @@ export type RefundPaymentOrder = {
   id: string;
   paymentProvider: string | null;
   molliePaymentId: string | null;
+  swishPaymentId?: string | null;
   stripePaymentIntentId: string | null;
   adyenPspReference: string | null;
 };
 
 function supportedProvider(value: unknown): PaymentProviderName | null {
   const normalized = String(value || '').trim().toLowerCase();
-  return normalized === 'mollie' || normalized === 'stripe' || normalized === 'adyen'
+  return normalized === 'mollie' || normalized === 'stripe' || normalized === 'adyen' || normalized === 'swish'
     ? normalized
     : null;
 }
 
 function refForProvider(order: RefundPaymentOrder, provider: PaymentProviderName): string | null {
   if (provider === 'mollie') return order.molliePaymentId;
+  if (provider === 'swish') return order.swishPaymentId;
   if (provider === 'stripe') return order.stripePaymentIntentId;
   return order.adyenPspReference;
 }
@@ -41,6 +43,7 @@ export function resolveRefundPayment(
   const candidates = (
     [
       ['mollie', order.molliePaymentId],
+      ['swish', order.swishPaymentId],
       ['stripe', order.stripePaymentIntentId],
       ['adyen', order.adyenPspReference],
     ] as const

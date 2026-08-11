@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import prisma from '../prisma';
 import type { RemoteRefundState, RemoteRefundStatus } from './types';
 
-export type RefundLedgerProvider = 'mollie' | 'stripe' | 'adyen';
+export type RefundLedgerProvider = 'mollie' | 'stripe' | 'adyen' | 'swish';
 export type RefundLedgerSource =
   | 'ADMIN'
   | 'WEBHOOK'

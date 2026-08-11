@@ -14,7 +14,7 @@ import { getIO } from '../socket';
 import { incrementDiscountUsageIfNotCounted } from '../discountUsage';
 import { notifyPartnerDevicesOfNewOrder } from '../partnerFcm';
 
-export type PaymentProviderName = 'mollie' | 'stripe' | 'adyen';
+export type PaymentProviderName = 'mollie' | 'stripe' | 'adyen' | 'swish';
 
 export type FinalizeResult = {
   ok: boolean;
@@ -80,6 +80,7 @@ export async function repairPaymentBusinessEffects(orderId: string): Promise<boo
 /** Skriver PSP-referensen till rätt kolumn beroende på provider. */
 function refColumn(provider: PaymentProviderName, ref: string) {
   if (provider === 'mollie') return { molliePaymentId: ref };
+  if (provider === 'swish') return { swishPaymentId: ref };
   if (provider === 'stripe') return { stripePaymentIntentId: ref };
   if (provider === 'adyen') return { adyenPspReference: ref }; // pspReference (för refund)
   return {};
@@ -111,7 +112,8 @@ export async function finalizePaymentSuccess(
   // the customer may have been charged twice and the row needs human review.
   const providerMatches = order.paymentProvider === input.provider;
   const mollieRefMatches = input.provider !== 'mollie' || order.molliePaymentId === input.ref;
-  if (!providerMatches || !mollieRefMatches) {
+  const swishRefMatches = input.provider !== 'swish' || order.swishPaymentId === input.ref;
+  if (!providerMatches || !mollieRefMatches || !swishRefMatches) {
     console.error('[finalize] provider/ref binding mismatch — order flagged for review', {
       orderId: order.id,
       orderNumber: order.orderNumber,

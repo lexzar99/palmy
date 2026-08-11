@@ -7,6 +7,7 @@ import type { PaymentProvider } from './types';
 import { mollieProvider } from './mollie';
 import { adyenProvider } from './adyen';
 import { stripeProvider } from './stripe';
+import { swishProvider } from './swish';
 import type { PaymentProviderName } from './finalize';
 
 export type { PaymentProvider } from './types';
@@ -20,6 +21,8 @@ export function getPaymentProviderByName(name: PaymentProviderName): PaymentProv
       return adyenProvider;
     case 'stripe':
       return stripeProvider;
+    case 'swish':
+      return swishProvider;
   }
 }
 
@@ -38,4 +41,23 @@ export function getPaymentProvider(): PaymentProvider {
     default:
       throw new Error(`Okänd PAYMENT_PROVIDER: ${name}`);
   }
+}
+
+export function configuredCheckoutProviderNames(): PaymentProviderName[] {
+  const fallback = String(process.env.PAYMENT_PROVIDER || 'mollie').toLowerCase();
+  const configured = String(process.env.PAYMENT_PROVIDERS || fallback)
+    .split(',')
+    .map((name) => name.trim().toLowerCase())
+    .filter((name): name is PaymentProviderName =>
+      name === 'mollie' || name === 'stripe' || name === 'adyen' || name === 'swish');
+  return [...new Set(configured)];
+}
+
+export function getCheckoutPaymentProvider(name?: unknown): PaymentProvider {
+  const requested = String(name || process.env.PAYMENT_PROVIDER || 'mollie').trim().toLowerCase();
+  const allowed = configuredCheckoutProviderNames();
+  if (!allowed.includes(requested as PaymentProviderName)) {
+    throw new Error(`Betalningsleverantören ${requested} är inte aktiverad`);
+  }
+  return getPaymentProviderByName(requested as PaymentProviderName);
 }

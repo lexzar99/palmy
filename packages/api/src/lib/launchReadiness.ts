@@ -94,6 +94,25 @@ export function getLaunchConfigIssues(
     }
   }
 
+  const checkoutProviders = String(env.PAYMENT_PROVIDERS || provider)
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  for (const enabled of checkoutProviders) {
+    if (!['mollie', 'stripe', 'adyen', 'swish'].includes(enabled)) {
+      add('payment_providers', 'error', `Okänd provider i PAYMENT_PROVIDERS: ${enabled}`);
+    }
+  }
+  if (checkoutProviders.includes('swish')) {
+    if (!present(env, 'SWISH_PAYEE_ALIAS')) add('swish_payee_alias', 'error', 'SWISH_PAYEE_ALIAS saknas');
+    if (!present(env, 'SWISH_CERT_PEM') && !present(env, 'SWISH_CERT_PATH')) add('swish_cert', 'error', 'Swish klientcertifikat saknas');
+    if (!present(env, 'SWISH_KEY_PEM') && !present(env, 'SWISH_KEY_PATH')) add('swish_key', 'error', 'Swish privatnyckel saknas');
+    if (!present(env, 'SWISH_CALLBACK_SECRET')) add('swish_callback_secret', 'error', 'SWISH_CALLBACK_SECRET saknas');
+    if (production && String(env.SWISH_ENVIRONMENT || '').toUpperCase() !== 'PRODUCTION') {
+      add('swish_mode', 'error', 'Swish använder inte produktionsmiljön');
+    }
+  }
+
   const publicApi = getPublicApiBaseUrl(env);
   if (!validHttpsUrl(publicApi)) {
     add('public_api_url', 'error', 'API_PUBLIC_URL/PUBLIC_API_URL måste vara en publik HTTPS-adress');
@@ -231,6 +250,27 @@ export function assertRuntimeCriticalConfiguration(
   const missing = required.filter((name) => !present(env, name));
   if (missing.length) {
     throw new Error(`Aktiv betalprovider saknar: ${missing.join(', ')}`);
+  }
+
+  const checkoutProviders = String(env.PAYMENT_PROVIDERS || provider)
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  const unknownCheckoutProvider = checkoutProviders.find(
+    (value) => !['mollie', 'stripe', 'adyen', 'swish'].includes(value),
+  );
+  if (unknownCheckoutProvider) throw new Error(`Okänd provider i PAYMENT_PROVIDERS: ${unknownCheckoutProvider}`);
+  if (checkoutProviders.includes('swish')) {
+    const swishMissing = [
+      !present(env, 'SWISH_PAYEE_ALIAS') && 'SWISH_PAYEE_ALIAS',
+      !present(env, 'SWISH_CERT_PEM') && !present(env, 'SWISH_CERT_PATH') && 'SWISH_CERT_PEM/SWISH_CERT_PATH',
+      !present(env, 'SWISH_KEY_PEM') && !present(env, 'SWISH_KEY_PATH') && 'SWISH_KEY_PEM/SWISH_KEY_PATH',
+      !present(env, 'SWISH_CALLBACK_SECRET') && 'SWISH_CALLBACK_SECRET',
+    ].filter(Boolean);
+    if (swishMissing.length) throw new Error(`Aktiv Swish Handel saknar: ${swishMissing.join(', ')}`);
+    if (env.NODE_ENV === 'production' && String(env.SWISH_ENVIRONMENT || '').toUpperCase() !== 'PRODUCTION') {
+      throw new Error('Swish måste använda PRODUCTION-miljön i produktion');
+    }
   }
 
   if (env.NODE_ENV === 'production') {

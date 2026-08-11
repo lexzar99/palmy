@@ -14,6 +14,7 @@ for (const path of [
   '/api/payments/webhooks/stripe',
   '/api/payments/webhooks/mollie?retry=1',
   '/api/payments/webhooks/adyen/',
+  '/api/payments/webhooks/swish',
 ]) {
   assert.equal(isPaymentWebhookRequest('POST', path), true, path);
 }

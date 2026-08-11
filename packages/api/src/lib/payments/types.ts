@@ -63,6 +63,12 @@ export interface CreatePaymentResult {
   clientSecret?: string;
   /** Stripe native: publishable key klienten monterar PaymentSheet med. */
   publishableKey?: string;
+  /** Direkt Swish M-commerce: token som öppnar Swish-appen eller kodas som QR. */
+  swishToken?: string;
+  /** Färdig M-commerce-länk för Swish-appen. */
+  swishUrl?: string;
+  /** QR-bild (data URL) för desktopflödet; innehåller samma kortlivade token. */
+  swishQrCode?: string;
 }
 
 export type RemotePaymentState = 'paid' | 'failed' | 'canceled' | 'expired' | 'open' | 'pending';

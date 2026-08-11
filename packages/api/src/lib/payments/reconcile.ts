@@ -33,10 +33,11 @@ type MollieRefundAuditOrder = {
 
 /** PSP-referensen för en order beror på providern. */
 function refOf(
-  order: { molliePaymentId: string | null; stripePaymentIntentId: string | null; adyenSessionId: string | null },
+  order: { molliePaymentId: string | null; swishPaymentId: string | null; stripePaymentIntentId: string | null; adyenSessionId: string | null },
   providerName: string,
 ) {
   if (providerName === 'mollie') return order.molliePaymentId;
+  if (providerName === 'swish') return order.swishPaymentId;
   if (providerName === 'stripe') return order.stripePaymentIntentId;
   if (providerName === 'adyen') return order.adyenSessionId; // Adyen finaliserar via webhook; getRemoteStatus = 'pending'
   return null;
@@ -57,6 +58,7 @@ export async function reconcilePendingPayments(): Promise<void> {
       orderNumber: true,
       paymentProvider: true,
       molliePaymentId: true,
+      swishPaymentId: true,
       stripePaymentIntentId: true,
       adyenSessionId: true,
     },
@@ -64,7 +66,7 @@ export async function reconcilePendingPayments(): Promise<void> {
     take: 50,
   });
   for (const order of pending) {
-    if (!['mollie', 'stripe', 'adyen'].includes(order.paymentProvider)) continue;
+    if (!['mollie', 'stripe', 'adyen', 'swish'].includes(order.paymentProvider)) continue;
     const provider = getPaymentProviderByName(order.paymentProvider as PaymentProviderName);
     const ref = refOf(order, provider.name);
     if (!ref) continue;
