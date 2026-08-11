@@ -25,6 +25,12 @@ type StripeKlarnaButtonProps = {
   onConfirmed: (orderId: string) => Promise<void> | void;
   onProcessingChange?: (processing: boolean) => void;
   onAvailabilityChange?: (available: boolean) => void;
+  /**
+   * Definitivt besked från Stripe (onReady/onLoadError) — till skillnad från
+   * onAvailabilityChange anropas den ALDRIG från unmount-cleanup, så mottagaren
+   * kan tryggt visa en fallback på `false` utan att den blinkar vid re-mounts.
+   */
+  onAvailabilityResolved?: (available: boolean) => void;
 };
 
 function validPublishableKey(value: string): boolean {
@@ -45,6 +51,7 @@ function DeferredKlarnaButton({
   onConfirmed,
   onProcessingChange,
   onAvailabilityChange,
+  onAvailabilityResolved,
 }: Omit<StripeKlarnaButtonProps, "publishableKey" | "amountOre">) {
   const stripe = useStripe();
   const elements = useElements();
@@ -136,12 +143,22 @@ function DeferredKlarnaButton({
         }}
         onReady={(event) => {
           const nextAvailable = Boolean(event.availablePaymentMethods?.klarna);
+          if (!nextAvailable) {
+            // Tyst gömd knapp är odebugbar — logga varför fallbacken tar över.
+            console.warn(
+              "[stripe] Klarna-expressknappen är inte tillgänglig här (webview, webbläsare utan stöd eller Stripe-gating) — ViaEats Klarna-fallback visas i stället.",
+              event.availablePaymentMethods ?? null,
+            );
+          }
           setAvailable(nextAvailable);
           onAvailabilityChange?.(nextAvailable);
+          onAvailabilityResolved?.(nextAvailable);
         }}
-        onLoadError={() => {
+        onLoadError={(event) => {
+          console.warn("[stripe] Klarna Express Checkout kunde inte laddas:", event.error);
           setAvailable(false);
           onAvailabilityChange?.(false);
+          onAvailabilityResolved?.(false);
         }}
         onConfirm={(event) => { void handleConfirm(event); }}
         onCancel={() => setBusy(false)}
@@ -190,6 +207,7 @@ export default function StripeKlarnaButton(props: StripeKlarnaButtonProps) {
         onConfirmed={props.onConfirmed}
         onProcessingChange={props.onProcessingChange}
         onAvailabilityChange={props.onAvailabilityChange}
+        onAvailabilityResolved={props.onAvailabilityResolved}
       />
     </Elements>
   );

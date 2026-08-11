@@ -173,6 +173,9 @@ test("payment methods use direct wallets, native Klarna and embedded card", () =
   assert.match(cart, /<StripeKlarnaButton/);
   assert.match(cart, /"klarna",\s*\{ checkoutExperience: "embedded" \}/);
   assert.match(cart, /method\.id !== "swish" && method\.id !== "klarna"/);
+  // Ordningen är en del av kontraktet: Swish överst (svensk debet-först-regel),
+  // sedan Klarna som första Stripe-metod, därefter wallets, sist kortet.
+  assert.match(cart, /method\.id === "swish"\)\.map\(renderPaymentMethodChoice\)[\s\S]*?<StripeKlarnaButton[\s\S]*?<StripeWalletButtons/);
   assert.match(cart, /preserveLoadingForNavigation = true;[\s\S]*?window\.location\.assign\(checkoutUrl\)/);
   assert.match(cart, /!preserveLoadingForNavigation\) setLoading\(false\)/);
   assert.doesNotMatch(cart, /renderPayMenu|payMenuOpen|mollieOptionsOpen/);
@@ -195,6 +198,8 @@ test("method choices show wallet and card marks with a genuine Stripe Klarna but
   assert.match(klarnaButton, /event\.expressPaymentType !== "klarna"/);
   assert.match(klarnaButton, /paymentMethods: \{[\s\S]*?klarna: "auto"/);
   assert.match(klarnaButton, /const submitted = await elements\.submit\(\);[\s\S]*?await createPayment\(\)[\s\S]*?stripe\.confirmPayment\(\{/);
+  // Rosa Klarna-märket är fallback-radens ansikte — det får inte försvinna igen.
+  assert.match(cart, /method === "klarna"[\s\S]*?bg-\[#FFB3C7\][\s\S]*?Klarna\./);
   assert.doesNotMatch(cart, /method === "apple_pay"|method === "google_pay"|/);
 });
 
@@ -239,4 +244,40 @@ test("an authorization-shaped 404 preserves recovery proof", () => {
   const unauthorizedBranch = cart.match(/if \(Number\(responseStatus\) === 404\) \{([\s\S]*?)\n\s*\}/)?.[1] || "";
   assert.match(unauthorizedBranch, /inte bevis på terminal PSP-status/);
   assert.doesNotMatch(unauthorizedBranch, /clearPendingPaymentStorage/);
+});
+
+test("Klarna never disappears silently: ECE-unavailable renders the branded native fallback", () => {
+  // Fallback-raden visas ENDAST på ett definitivt "unavailable" — aldrig under
+  // "pending" (skulle blinka medan Stripes iframe laddar).
+  assert.match(cart, /"pending" \| "ready" \| "unavailable"/);
+  assert.match(cart, /klarnaEceStatus === "unavailable" && renderKlarnaFallbackChoice\(\)/);
+  assert.match(cart, /setKlarnaEceStatus\("pending"\)/);
+  // Fallbacken kör samma inbäddade deferred-flöde och bekräftar via Klarnas
+  // riktiga redirect — den skiljer sig bara i bekräftelsesteget.
+  assert.match(cart, /startKlarnaFallbackCheckout = async \(\) => \{[\s\S]*?"klarna",\s*\{ checkoutExperience: "embedded" \}/);
+  assert.match(cart, /confirmKlarnaPayment\(prepared\.clientSecret/);
+  assert.match(cart, /address: \{ country: "SE" \}/);
+  assert.match(cart, /return_url: prepared\.returnUrl/);
+  // Det definitiva beskedet kommer från onReady/onLoadError — inte från
+  // unmount-cleanup som annars skulle trigga en falsk fallback.
+  assert.match(cart, /onAvailabilityResolved=\{\(available\) => \{[\s\S]*?setKlarnaEceStatus\(available \? "ready" : "unavailable"\)/);
+  assert.match(klarnaButton, /onReady=\{\(event\) => \{[\s\S]*?onAvailabilityResolved\?\.\(nextAvailable\)/);
+  assert.match(klarnaButton, /onLoadError=\{\(event\) => \{[\s\S]*?onAvailabilityResolved\?\.\(false\)/);
+  const klarnaCleanupEffect = klarnaButton.match(/useEffect\(\(\) => \(\) => \{([\s\S]*?)\}, \[/)?.[1] || "";
+  assert.ok(klarnaCleanupEffect.length > 0, "unmount-cleanup-effekten ska finnas kvar");
+  assert.doesNotMatch(klarnaCleanupEffect, /onAvailabilityResolved/);
+  // ECE-elementet får aldrig gate:as bakom availability — permanent mount är
+  // det som bevarar user-gesture-kedjan in i Klarna-sheeten.
+  assert.doesNotMatch(cart, /klarnaEceStatus === "ready" && <StripeKlarnaButton/);
+  // Watchdog: uteblivet besked från Stripe.js får inte gömma Klarna för evigt.
+  assert.match(cart, /klarnaEceStatus !== "pending"\) return;[\s\S]*?8000/);
+});
+
+test("silent payment-button hiding is logged for diagnosis", () => {
+  assert.match(klarnaButton, /onLoadError=\{\(event\) => \{\s*console\.warn/);
+  assert.match(wallets, /onLoadError=\{\(event\) => \{\s*console\.warn/);
+  assert.match(wallets, /console\.info\(\s*"\[stripe\] Inga wallets tillgängliga/);
+  // ?paydebug=1 ger en läsbar diagnosrad i betalsteget.
+  assert.match(cart, /paydebug/);
+  assert.match(cart, /klarnaECE: \{klarnaEceStatus\}/);
 });

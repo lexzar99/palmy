@@ -179,10 +179,20 @@ function DeferredWalletElement({
             event.availablePaymentMethods?.applePay ||
             event.availablePaymentMethods?.googlePay,
           );
+          if (!nextAvailable) {
+            // Wallets styrs av enhet/webbläsare (Apple Pay: Safari + kort i
+            // Wallet; Google Pay: Chrome). Logga beskedet så "knappen syns
+            // inte" går att felsöka utan gissningar.
+            console.info(
+              "[stripe] Inga wallets tillgängliga på den här enheten/webbläsaren — kortfältet är kvar som alternativ.",
+              event.availablePaymentMethods ?? null,
+            );
+          }
           setAvailable(nextAvailable);
           onAvailabilityChange?.(nextAvailable);
         }}
-        onLoadError={() => {
+        onLoadError={(event) => {
+          console.warn("[stripe] Express Checkout (Apple Pay/Google Pay) kunde inte laddas:", event.error);
           setAvailable(false);
           onAvailabilityChange?.(false);
         }}

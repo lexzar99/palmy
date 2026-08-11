@@ -366,6 +366,31 @@ export default function CartPage() {
   const [embeddedStripeProcessing, setEmbeddedStripeProcessing] = useState(false);
   const [walletAvailable, setWalletAvailable] = useState(false);
   const [klarnaAvailable, setKlarnaAvailable] = useState(false);
+  // Klarna får aldrig försvinna tyst: Stripes express-knapp avgör sin egen
+  // synlighet (kan inte tvingas med "always"), så vi spårar det DEFINITIVA
+  // beskedet från onReady/onLoadError separat. "pending" = ännu inget besked
+  // (visa ingen fallback, annars blinkar den), "unavailable" = visa ViaEats
+  // egen Klarna-rad som kör samma inbäddade flöde via confirmKlarnaPayment.
+  const [klarnaEceStatus, setKlarnaEceStatus] = useState<"pending" | "ready" | "unavailable">("pending");
+  // Sista skyddsnätet: om Stripe.js aldrig levererar något besked alls
+  // (blockerat nätverk, script-fel) får "pending" inte gömma Klarna för evigt.
+  // Efter 8 s utan besked visas fallbacken; ett sent "ready" tar över igen.
+  useEffect(() => {
+    if (!paymentStepOpen || klarnaEceStatus !== "pending") return;
+    if (!stripePublishableKey || embedMode) return;
+    const timer = window.setTimeout(() => {
+      setKlarnaEceStatus((current) => (current === "pending" ? "unavailable" : current));
+    }, 8000);
+    return () => window.clearTimeout(timer);
+  }, [paymentStepOpen, klarnaEceStatus, stripePublishableKey, embedMode]);
+  // ?paydebug=1 visar en diagnosrad i betalsteget — svarar på "varför syns
+  // inte knappen?" utan devtools. Läses efter mount (SSR saknar query).
+  const [payDebug, setPayDebug] = useState(false);
+  useEffect(() => {
+    try {
+      setPayDebug(new URLSearchParams(window.location.search).get("paydebug") === "1");
+    } catch { /* noop */ }
+  }, []);
   // Sätts först efter mount — user agent finns inte vid SSR och skulle annars
   // ge hydration mismatch.
   const [isHandheld, setIsHandheld] = useState(false);
@@ -3112,6 +3137,9 @@ export default function CartPage() {
       setEmbeddedStripeOrderId(null);
       setEmbeddedStripeProcessing(false);
     }
+    // Nytt betalsteg = nytt ECE-mount = nytt tillgänglighetsbesked. Nollställ
+    // så en gammal "unavailable" inte blinkar fram en fallback i onödan.
+    setKlarnaEceStatus("pending");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -3154,6 +3182,13 @@ export default function CartPage() {
         </span>
       );
     }
+    if (method === "klarna") {
+      return (
+        <span aria-hidden="true" className="grid h-10 w-[94px] shrink-0 place-items-center rounded-xl bg-[#FFB3C7] text-[16px] font-black tracking-[-0.04em] text-black">
+          Klarna.
+        </span>
+      );
+    }
     return (
       <span aria-hidden="true" className="flex h-11 w-[132px] shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-2 sm:w-[148px] sm:gap-2.5" style={{ border: "1px solid rgba(23,26,27,0.10)" }}>
         <span className="flex items-center gap-0.5 text-[8px] font-semibold tracking-[-0.03em] text-black">
@@ -3187,6 +3222,85 @@ export default function CartPage() {
       return;
     }
     void startCheckout(event, method);
+  };
+
+  // Fallback när Stripes Klarna-expressknapp inte är tillgänglig (webview,
+  // browser utan stöd eller Stripe-gating): samma inbäddade deferred-flöde,
+  // men bekräftelsen görs via confirmKlarnaPayment som helsidesredirectar
+  // till Klarna och återvänder till return_url där befintlig polling tar vid.
+  const startKlarnaFallbackCheckout = async () => {
+    if (loading || embeddedStripeProcessing || verifyingPayment) return;
+    setError(null);
+    setEmbeddedStripeProcessing(true);
+    try {
+      const stripeClient = await preloadStripeWallets(stripePublishableKey);
+      if (!stripeClient) {
+        throw new Error("Klarna kunde inte laddas. Försök igen om en stund.");
+      }
+      const prepared = await startCheckout(
+        { preventDefault: () => undefined },
+        "klarna",
+        { checkoutExperience: "embedded" },
+      );
+      if (!prepared) {
+        throw new Error("Klarna-betalningen kunde inte förberedas. Kontrollera uppgifterna och försök igen.");
+      }
+      if (prepared.status === "paid") {
+        setEmbeddedStripeOrderId(null);
+        setPendingOrderId(prepared.orderId);
+        await finishHostedPayment(prepared.orderId, hostedPaymentContext("stripe"));
+        return;
+      }
+      const emailValue = formData.customerEmail.trim();
+      const result = await stripeClient.confirmKlarnaPayment(prepared.clientSecret, {
+        payment_method: {
+          billing_details: {
+            ...(emailValue ? { email: emailValue } : {}),
+            address: { country: "SE" },
+          },
+        },
+        return_url: prepared.returnUrl,
+      });
+      if (result.error) {
+        throw new Error(result.error.message || "Klarna-betalningen kunde inte genomföras. Försök igen eller välj ett annat betalsätt.");
+      }
+      // Ingen redirect behövdes (intent redan bekräftad) — verifiera direkt.
+      setEmbeddedStripeOrderId(null);
+      setPendingOrderId(prepared.orderId);
+      await finishHostedPayment(prepared.orderId, hostedPaymentContext("stripe"));
+    } catch (err) {
+      setError(
+        err instanceof Error && err.message
+          ? err.message
+          : "Klarna-betalningen kunde inte genomföras. Försök igen eller välj ett annat betalsätt.",
+      );
+    } finally {
+      setEmbeddedStripeProcessing(false);
+    }
+  };
+
+  // Egen knapp-shell (inte renderPaymentMethodChoice via .map) eftersom
+  // fallbacken kör det inbäddade flödet, inte choosePaymentMethods hosted-väg.
+  const renderKlarnaFallbackChoice = () => {
+    const method = paymentMethods.find((entry) => entry.id === "klarna");
+    if (!method) return null;
+    return (
+      <button
+        key="klarna-fallback"
+        type="button"
+        onClick={() => { void startKlarnaFallbackCheckout(); }}
+        disabled={loading || embeddedStripeProcessing || verifyingPayment}
+        className="flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 disabled:opacity-50"
+        style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-primary)" }}
+      >
+        {renderMethodMark("klarna")}
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-semibold" style={{ color: "var(--text-primary)" }}>{method.label}</span>
+          <span className="mt-0.5 block text-[12.5px] leading-4" style={{ color: "var(--text-secondary)" }}>{method.hint}</span>
+        </span>
+        <ArrowRight size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
+      </button>
+    );
   };
 
   const renderPaymentMethodChoice = (method: (typeof paymentMethods)[number]) => (
@@ -3335,6 +3449,11 @@ export default function CartPage() {
               {methods.filter((method) => method.id === "swish").map(renderPaymentMethodChoice)}
               {availablePaymentProviders.includes("stripe") && stripePublishableKey && !embedMode && (
                 <div className="space-y-3">
+                  {/* Garanti: när Stripes Klarna-expressknapp inte är
+                      tillgänglig visas ViaEats egen Klarna-rad i stället —
+                      Klarna får aldrig saknas i listan. Aldrig under
+                      "pending" (ingen flash medan ECE laddar). */}
+                  {klarnaEceStatus === "unavailable" && renderKlarnaFallbackChoice()}
                   {(walletAvailable || klarnaAvailable) && (
                     <div className="flex items-center gap-3" aria-hidden="true">
                       <span className="h-px flex-1" style={{ backgroundColor: "var(--border-muted)" }} />
@@ -3342,6 +3461,32 @@ export default function CartPage() {
                       <span className="h-px flex-1" style={{ backgroundColor: "var(--border-muted)" }} />
                     </div>
                   )}
+                  <StripeKlarnaButton
+                    publishableKey={stripePublishableKey}
+                    amountOre={Math.round(total * 100)}
+                    disabled={loading || verifyingPayment || embeddedStripeProcessing}
+                    createPayment={async () => {
+                      const prepared = await startCheckout(
+                        { preventDefault: () => undefined },
+                        "klarna",
+                        { checkoutExperience: "embedded" },
+                      );
+                      if (!prepared) {
+                        throw new Error("Klarna-betalningen kunde inte förberedas. Kontrollera uppgifterna och försök igen.");
+                      }
+                      return prepared;
+                    }}
+                    onConfirmed={async (orderId) => {
+                      setEmbeddedStripeOrderId(null);
+                      setPendingOrderId(orderId);
+                      await finishHostedPayment(orderId, hostedPaymentContext("stripe"));
+                    }}
+                    onProcessingChange={setEmbeddedStripeProcessing}
+                    onAvailabilityChange={setKlarnaAvailable}
+                    onAvailabilityResolved={(available) => {
+                      setKlarnaEceStatus(available ? "ready" : "unavailable");
+                    }}
+                  />
                   <StripeWalletButtons
                     publishableKey={stripePublishableKey}
                     amountOre={Math.round(total * 100)}
@@ -3365,29 +3510,6 @@ export default function CartPage() {
                     onProcessingChange={setEmbeddedStripeProcessing}
                     onAvailabilityChange={setWalletAvailable}
                   />
-                  <StripeKlarnaButton
-                    publishableKey={stripePublishableKey}
-                    amountOre={Math.round(total * 100)}
-                    disabled={loading || verifyingPayment || embeddedStripeProcessing}
-                    createPayment={async () => {
-                      const prepared = await startCheckout(
-                        { preventDefault: () => undefined },
-                        "klarna",
-                        { checkoutExperience: "embedded" },
-                      );
-                      if (!prepared) {
-                        throw new Error("Klarna-betalningen kunde inte förberedas. Kontrollera uppgifterna och försök igen.");
-                      }
-                      return prepared;
-                    }}
-                    onConfirmed={async (orderId) => {
-                      setEmbeddedStripeOrderId(null);
-                      setPendingOrderId(orderId);
-                      await finishHostedPayment(orderId, hostedPaymentContext("stripe"));
-                    }}
-                    onProcessingChange={setEmbeddedStripeProcessing}
-                    onAvailabilityChange={setKlarnaAvailable}
-                  />
                 </div>
               )}
               {methods.filter((method) => method.id !== "swish" && method.id !== "klarna").map(renderPaymentMethodChoice)}
@@ -3400,6 +3522,15 @@ export default function CartPage() {
                 <p className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-[13.5px] text-rose-600">Inget betalsätt är tillgängligt just nu. Försök igen om en stund.</p>
               )}
               <p className="pt-2 text-center text-[11.5px] leading-4" style={{ color: "var(--text-secondary)" }}>Apple Pay, Google Pay och Klarna öppnas direkt på kompatibla enheter. Kort fylls i säkert här.</p>
+              {payDebug && (
+                <p className="rounded-lg px-2 py-1.5 text-center font-mono text-[10.5px]" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-secondary)" }}>
+                  paydebug · pk: {stripePublishableKey ? (stripePublishableKey.startsWith("pk_live_") ? "live" : "test") : "saknas"}
+                  {" · "}providers: {availablePaymentProviders.join("+") || "inga"}
+                  {" · "}wallets: {walletAvailable ? "ja" : "nej"}
+                  {" · "}klarnaECE: {klarnaEceStatus}
+                  {" · "}embed: {embedMode ? "ja" : "nej"}
+                </p>
+              )}
             </div>
           )}
         </section>
