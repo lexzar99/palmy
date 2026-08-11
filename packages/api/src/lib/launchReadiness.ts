@@ -29,6 +29,27 @@ const validHttpsUrl = (value: string | undefined): boolean => {
   }
 };
 
+const PAYMENT_PROVIDER_NAMES = ['mollie', 'stripe', 'adyen', 'swish'] as const;
+
+function checkoutProviderNames(env: NodeJS.ProcessEnv): string[] {
+  const fallback = String(env.PAYMENT_PROVIDER || 'mollie').trim().toLowerCase();
+  return [...new Set(
+    String(env.PAYMENT_PROVIDERS || fallback)
+      .split(',')
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean),
+  )];
+}
+
+function stripePaymentMethodTypes(env: NodeJS.ProcessEnv): string[] {
+  return [...new Set(
+    String(env.STRIPE_PAYMENT_METHOD_TYPES || '')
+      .split(',')
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean),
+  )];
+}
+
 export function getPublicApiBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
   const configured = String(env.API_PUBLIC_URL || env.PUBLIC_API_URL || '').trim();
   if (configured) return configured.replace(/\/$/, '');
@@ -59,16 +80,25 @@ export function getLaunchConfigIssues(
   if (!present(env, 'DATABASE_URL')) add('database_url', 'error', 'DATABASE_URL saknas');
   if (!present(env, 'DIRECT_URL')) add('direct_url', 'warning', 'DIRECT_URL saknas för säkra migreringar');
 
-  const provider = String(env.PAYMENT_PROVIDER || 'mollie').toLowerCase();
-  if (!['mollie', 'stripe', 'adyen'].includes(provider)) {
+  const provider = String(env.PAYMENT_PROVIDER || 'mollie').trim().toLowerCase();
+  if (!PAYMENT_PROVIDER_NAMES.includes(provider as any)) {
     add('payment_provider', 'error', `Okänd PAYMENT_PROVIDER: ${provider}`);
-  } else if (production && provider !== 'mollie') {
-    add(
-      'payment_provider_launch',
-      'error',
-      'Mollie måste vara aktiv betalprovider vid produktionslaunch; Stripe och Adyen är endast legacy-stöd',
-    );
-  } else if (provider === 'mollie') {
+  }
+
+  const checkoutProviders = checkoutProviderNames(env);
+  if (checkoutProviders.length === 0) {
+    add('payment_providers', 'error', 'PAYMENT_PROVIDERS måste innehålla minst en provider');
+  }
+  for (const enabled of checkoutProviders) {
+    if (!PAYMENT_PROVIDER_NAMES.includes(enabled as any)) {
+      add('payment_providers', 'error', `Okänd provider i PAYMENT_PROVIDERS: ${enabled}`);
+    }
+  }
+  if (!checkoutProviders.includes(provider)) {
+    add('payment_provider_default', 'error', 'PAYMENT_PROVIDER måste också finnas i PAYMENT_PROVIDERS');
+  }
+
+  if (checkoutProviders.includes('mollie')) {
     if (!present(env, 'MOLLIE_API_KEY')) {
       add('mollie_key', 'error', 'MOLLIE_API_KEY saknas');
     } else if (production && !String(env.MOLLIE_API_KEY).startsWith('live_')) {
@@ -84,13 +114,40 @@ export function getLaunchConfigIssues(
     if (!present(env, 'MOLLIE_PROFILE_ID')) {
       add('mollie_profile_id', 'error', 'MOLLIE_PROFILE_ID saknas för ekonomirapporter');
     }
-  } else if (provider === 'stripe') {
+  }
+  if (checkoutProviders.includes('stripe')) {
     if (!present(env, 'STRIPE_SECRET_KEY')) add('stripe_key', 'error', 'STRIPE_SECRET_KEY saknas');
-    if (!present(env, 'STRIPE_WEBHOOK_SECRET')) add('stripe_webhook', 'error', 'STRIPE_WEBHOOK_SECRET saknas');
+    if (!String(env.STRIPE_WEBHOOK_SECRET || '').startsWith('whsec_')) {
+      add('stripe_webhook', 'error', 'STRIPE_WEBHOOK_SECRET saknas eller är ogiltig');
+    }
+    if (!present(env, 'STRIPE_PUBLISHABLE_KEY')) {
+      add('stripe_publishable_key', 'error', 'STRIPE_PUBLISHABLE_KEY saknas');
+    }
     if (production && present(env, 'STRIPE_SECRET_KEY') && !String(env.STRIPE_SECRET_KEY).startsWith('sk_live_')) {
       add('stripe_mode', 'error', 'Stripe använder inte en live-nyckel');
     }
-  } else if (provider === 'adyen') {
+    if (production && present(env, 'STRIPE_PUBLISHABLE_KEY') && !String(env.STRIPE_PUBLISHABLE_KEY).startsWith('pk_live_')) {
+      add('stripe_publishable_mode', 'error', 'Stripe använder inte en live publishable key');
+    }
+    const stripeMethods = stripePaymentMethodTypes(env);
+    if (stripeMethods.length === 0) {
+      add('stripe_payment_methods', 'error', 'STRIPE_PAYMENT_METHOD_TYPES måste explicit ange card och/eller klarna');
+    }
+    const invalidStripeMethod = stripeMethods.find((method) => method !== 'card' && method !== 'klarna');
+    if (invalidStripeMethod) {
+      add('stripe_payment_methods', 'error', `Ogiltig Stripe-metod i STRIPE_PAYMENT_METHOD_TYPES: ${invalidStripeMethod}`);
+    }
+    if (production && String(env.STRIPE_STRICT_PAYMENT_METHODS || '').toLowerCase() !== 'true') {
+      add('stripe_payment_methods_strict', 'error', 'STRIPE_STRICT_PAYMENT_METHODS måste vara true i produktion');
+    }
+    if (String(env.STRIPE_PAYOUT_FEE_POLICY || '').trim() !== 'actual_balance_transactions') {
+      add('stripe_payout_fee_policy', 'error', 'STRIPE_PAYOUT_FEE_POLICY måste vara actual_balance_transactions');
+    }
+  }
+  if (checkoutProviders.includes('adyen')) {
+    if (production) {
+      add('adyen_legacy', 'error', 'Adyen får inte aktiveras för nya produktionsbetalningar');
+    }
     for (const name of ['ADYEN_API_KEY', 'ADYEN_MERCHANT_ACCOUNT', 'ADYEN_HMAC_KEY']) {
       if (!present(env, name)) add(name.toLowerCase(), 'error', `${name} saknas`);
     }
@@ -99,15 +156,6 @@ export function getLaunchConfigIssues(
     }
   }
 
-  const checkoutProviders = String(env.PAYMENT_PROVIDERS || provider)
-    .split(',')
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean);
-  for (const enabled of checkoutProviders) {
-    if (!['mollie', 'stripe', 'adyen', 'swish'].includes(enabled)) {
-      add('payment_providers', 'error', `Okänd provider i PAYMENT_PROVIDERS: ${enabled}`);
-    }
-  }
   if (checkoutProviders.includes('swish')) {
     const callbackSecretIssue = swishCallbackSecretIssue(env);
     if (callbackSecretIssue) add('swish_callback_secret', 'error', callbackSecretIssue);
@@ -119,6 +167,24 @@ export function getLaunchConfigIssues(
       add('swish_tls', 'error', tls.error);
     } else {
       for (const warning of tls.warnings) add('swish_tls_deprecated', 'warning', warning);
+    }
+    const swishPayoutsDisabled = String(env.SWISH_PAYOUTS_DISABLED || '').trim().toLowerCase() === 'true';
+    if (swishPayoutsDisabled) {
+      add(
+        'swish_payouts_disabled',
+        'warning',
+        'Swish-kundbetalningar är aktiva men restaurangutbetalningar med Swish är hårt blockerade',
+      );
+    } else {
+      const swishFeePolicy = String(env.SWISH_PAYOUT_FEE_POLICY || '').trim();
+      if (swishFeePolicy !== 'external' && swishFeePolicy !== 'fixed_per_payment') {
+        add('swish_payout_fee_policy', 'error', 'SWISH_PAYOUT_FEE_POLICY måste vara external eller fixed_per_payment');
+      } else if (swishFeePolicy === 'fixed_per_payment') {
+        const feeOre = String(env.SWISH_PAYOUT_FEE_ORE || '').trim();
+        if (!/^\d+$/.test(feeOre)) {
+          add('swish_payout_fee_ore', 'error', 'SWISH_PAYOUT_FEE_ORE måste vara ett icke-negativt heltal');
+        }
+      }
     }
   }
 
@@ -235,40 +301,63 @@ export function assertRuntimeCriticalConfiguration(
     throw new Error('SUPER_ADMIN_EMAIL måste sättas explicit i produktion');
   }
 
-  const provider = String(env.PAYMENT_PROVIDER || 'mollie').toLowerCase();
-  if (!['mollie', 'stripe', 'adyen'].includes(provider)) {
+  const provider = String(env.PAYMENT_PROVIDER || 'mollie').trim().toLowerCase();
+  if (!PAYMENT_PROVIDER_NAMES.includes(provider as any)) {
     throw new Error(`Okänd PAYMENT_PROVIDER: ${provider}`);
   }
-  if (env.NODE_ENV === 'production' && provider !== 'mollie') {
-    throw new Error('Mollie måste vara aktiv PAYMENT_PROVIDER i produktion');
-  }
-  // Bara det som gör checkout farlig eller omöjlig får stoppa starten.
-  //
-  // MOLLIE_REPORTING_ACCESS_TOKEN och MOLLIE_PROFILE_ID driver
-  // ekonomirapporterna, inte betalningen. Saknas de går det fortfarande att
-  // ta betalt — kortavgiften blir bara okänd och visas som "hämtas" i
-  // ekonomin. Som startkrav satte de i stället API:t i en restart-loop, vilket
-  // är precis vad den här funktionen ska undvika. De rapporteras som fel på
-  // /ready i stället, se getLaunchConfigIssues.
-  const required =
-    provider === 'mollie'
-      ? ['MOLLIE_API_KEY']
-      : provider === 'stripe'
-        ? ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET']
-        : ['ADYEN_API_KEY', 'ADYEN_MERCHANT_ACCOUNT', 'ADYEN_HMAC_KEY'];
-  const missing = required.filter((name) => !present(env, name));
-  if (missing.length) {
-    throw new Error(`Aktiv betalprovider saknar: ${missing.join(', ')}`);
-  }
-
-  const checkoutProviders = String(env.PAYMENT_PROVIDERS || provider)
-    .split(',')
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean);
+  const checkoutProviders = checkoutProviderNames(env);
+  if (checkoutProviders.length === 0) throw new Error('PAYMENT_PROVIDERS måste innehålla minst en provider');
   const unknownCheckoutProvider = checkoutProviders.find(
-    (value) => !['mollie', 'stripe', 'adyen', 'swish'].includes(value),
+    (value) => !PAYMENT_PROVIDER_NAMES.includes(value as any),
   );
   if (unknownCheckoutProvider) throw new Error(`Okänd provider i PAYMENT_PROVIDERS: ${unknownCheckoutProvider}`);
+  if (!checkoutProviders.includes(provider)) {
+    throw new Error('PAYMENT_PROVIDER måste också finnas i PAYMENT_PROVIDERS');
+  }
+
+  if (checkoutProviders.includes('mollie')) {
+    if (!present(env, 'MOLLIE_API_KEY')) throw new Error('Aktiv Mollie saknar MOLLIE_API_KEY');
+    if (env.NODE_ENV === 'production' && !String(env.MOLLIE_API_KEY).startsWith('live_')) {
+      throw new Error('Mollie måste använda en live-nyckel i produktion');
+    }
+  }
+  if (checkoutProviders.includes('stripe')) {
+    const required = ['STRIPE_SECRET_KEY', 'STRIPE_PUBLISHABLE_KEY', 'STRIPE_WEBHOOK_SECRET'];
+    const missing = required.filter((name) => !present(env, name));
+    if (missing.length) throw new Error(`Aktiv Stripe saknar: ${missing.join(', ')}`);
+    if (!String(env.STRIPE_WEBHOOK_SECRET).startsWith('whsec_')) {
+      throw new Error('STRIPE_WEBHOOK_SECRET är ogiltig');
+    }
+    const methods = stripePaymentMethodTypes(env);
+    if (methods.length === 0 || methods.some((method) => method !== 'card' && method !== 'klarna')) {
+      throw new Error('STRIPE_PAYMENT_METHOD_TYPES får bara innehålla card och/eller klarna');
+    }
+    if (String(env.STRIPE_PAYOUT_FEE_POLICY || '').trim() !== 'actual_balance_transactions') {
+      throw new Error('STRIPE_PAYOUT_FEE_POLICY måste vara actual_balance_transactions');
+    }
+    if (env.NODE_ENV === 'production') {
+      if (!String(env.STRIPE_SECRET_KEY).startsWith('sk_live_')) {
+        throw new Error('Stripe måste använda en live secret key i produktion');
+      }
+      if (!String(env.STRIPE_PUBLISHABLE_KEY).startsWith('pk_live_')) {
+        throw new Error('Stripe måste använda en live publishable key i produktion');
+      }
+      if (String(env.STRIPE_STRICT_PAYMENT_METHODS || '').toLowerCase() !== 'true') {
+        throw new Error('STRIPE_STRICT_PAYMENT_METHODS måste vara true i produktion');
+      }
+    }
+  }
+  if (checkoutProviders.includes('adyen')) {
+    if (env.NODE_ENV === 'production') {
+      throw new Error('Adyen får inte aktiveras för nya produktionsbetalningar');
+    }
+    const required = ['ADYEN_API_KEY', 'ADYEN_MERCHANT_ACCOUNT', 'ADYEN_HMAC_KEY'];
+    const missing = required.filter((name) => !present(env, name));
+    if (missing.length) throw new Error(`Aktiv Adyen saknar: ${missing.join(', ')}`);
+    if (env.NODE_ENV === 'production' && String(env.ADYEN_ENVIRONMENT || '').toLowerCase() !== 'live') {
+      throw new Error('Adyen måste använda live-miljön i produktion');
+    }
+  }
   if (checkoutProviders.includes('swish')) {
     const callbackSecretIssue = swishCallbackSecretIssue(env);
     if (callbackSecretIssue) throw new Error(`Aktiv Swish Handel är felkonfigurerad: ${callbackSecretIssue}`);
@@ -280,11 +369,18 @@ export function assertRuntimeCriticalConfiguration(
     } catch (error) {
       throw new Error(`Ogiltig Swish TLS-konfiguration: ${(error as Error).message}`);
     }
-  }
-
-  if (env.NODE_ENV === 'production') {
-    if (provider === 'mollie' && !String(env.MOLLIE_API_KEY).startsWith('live_')) {
-      throw new Error('Mollie måste använda en live-nyckel i produktion');
+    const swishPayoutsDisabled = String(env.SWISH_PAYOUTS_DISABLED || '').trim().toLowerCase() === 'true';
+    if (!swishPayoutsDisabled) {
+      const feePolicy = String(env.SWISH_PAYOUT_FEE_POLICY || '').trim();
+      if (feePolicy !== 'external' && feePolicy !== 'fixed_per_payment') {
+        throw new Error(
+          'SWISH_PAYOUT_FEE_POLICY måste vara external eller fixed_per_payment, ' +
+          'eller SWISH_PAYOUTS_DISABLED=true',
+        );
+      }
+      if (feePolicy === 'fixed_per_payment' && !/^\d+$/.test(String(env.SWISH_PAYOUT_FEE_ORE || '').trim())) {
+        throw new Error('SWISH_PAYOUT_FEE_ORE måste vara ett icke-negativt heltal');
+      }
     }
   }
 

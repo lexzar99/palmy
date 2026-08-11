@@ -8,6 +8,9 @@
  */
 import type { PaymentProviderName } from './finalize';
 
+export type StripeCheckoutMethod = 'klarna' | 'apple_pay' | 'google_pay' | 'card';
+export type CheckoutExperience = 'embedded' | 'hosted';
+
 /** Minimal order-vy som en provider behöver för att skapa en betalning. */
 export interface OrderForPayment {
   id: string;
@@ -34,11 +37,8 @@ export interface OrderForPayment {
 
 export interface CreatePaymentArgs {
   order: OrderForPayment;
-  /**
-   * Provider reference reserved atomically on the order before a non-hosted
-   * request is sent. Direct Swish uses this to recover safely when a 201
-   * response/token is lost without reusing an already-created UUID (RP09).
-   */
+  /** Existing/reserved provider reference bound to this order. Direct Swish
+   * reserves it before PUT; Stripe reuses and verifies an existing pi_/cs_. */
   paymentReference?: string;
   /**
    * Stabil nyckel per order/betalningsförsök. PSP:n använder den för att
@@ -54,6 +54,11 @@ export interface CreatePaymentArgs {
    *  MÅSTE skapas med samma kanal som klienten använder — annars failar setup
    *  (native iOS-SDK mot en Web-session → AdyenNetworking EmptyErrorResponse). */
   channel?: 'Web' | 'iOS' | 'Android';
+  /** Web Stripe is inline by default. Partner iframes may explicitly request
+   * hosted Checkout so the parent can perform a top-level navigation. */
+  checkoutExperience?: CheckoutExperience;
+  /** Explicit customer choice. Wallets use Stripe's `card` API type. */
+  checkoutMethod?: StripeCheckoutMethod;
   /** Shopper explicitly consented to store card details with Adyen for faster future checkout. */
   storePaymentMethod?: boolean;
 }

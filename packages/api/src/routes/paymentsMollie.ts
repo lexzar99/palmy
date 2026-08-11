@@ -25,8 +25,8 @@ import { finalizePaymentSuccess, finalizePaymentFailed } from '../lib/payments/f
 import type { PaymentProviderName } from '../lib/payments/finalize';
 import { verifyAdyenHmac } from '../lib/payments/adyen';
 import {
+  assertStripePaymentReferenceBinding,
   constructStripeWebhookEvent,
-  retrieveStripeCheckoutStatus,
 } from '../lib/payments/stripe';
 import { getAllowedOrigins } from '../lib/config';
 import { getPublicApiBaseUrl } from '../lib/launchReadiness';
@@ -248,7 +248,15 @@ function providerForStoredName(name: string | null | undefined) {
 router.post('/create', createLimiter, authenticateUserOptional, async (req: any, res) => {
   try {
     res.setHeader('Cache-Control', 'no-store');
-    const { orderId, returnUrl, channel, storePaymentMethod, accessToken } = req.body || {};
+    const {
+      orderId,
+      returnUrl,
+      channel,
+      storePaymentMethod,
+      accessToken,
+      checkoutExperience,
+      checkoutMethod,
+    } = req.body || {};
     if (!orderId || typeof orderId !== 'string') {
       res.status(400).json({ error: 'orderId krävs' });
       return;
@@ -313,6 +321,16 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
     }
 
     const provider = getCheckoutPaymentProvider(order.paymentProvider);
+    if (provider.name === 'stripe' && adyenChannel === 'Web') {
+      if (checkoutExperience !== 'embedded' && checkoutExperience !== 'hosted') {
+        res.status(400).json({ error: 'checkoutExperience måste vara embedded eller hosted för Stripe' });
+        return;
+      }
+      if (!['klarna', 'apple_pay', 'google_pay', 'card'].includes(String(checkoutMethod || ''))) {
+        res.status(400).json({ error: 'Ogiltig eller saknad checkoutMethod för Stripe' });
+        return;
+      }
+    }
     const storedRefs = {
       mollie: order.molliePaymentId,
       swish: order.swishPaymentId,
@@ -327,6 +345,45 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
         code: 'PAYMENT_PROVIDER_CONFLICT',
       });
       return;
+    }
+    if (provider.name === 'stripe' && order.stripePaymentIntentId) {
+      const remote = await provider.getRemoteStatus(order.stripePaymentIntentId);
+      if (remote.state === 'paid') {
+        const finalized = await finalizePaymentSuccess(order.id, {
+          provider: 'stripe',
+          ref: order.stripePaymentIntentId,
+          amountReceivedOre: remote.amountReceivedOre ?? 0,
+          method: remote.method,
+        });
+        if (finalized.ok) {
+          res.json({ alreadyPaid: true, paymentStatus: 'PAID', provider: 'stripe' });
+        } else {
+          res.status(409).json({
+            error: 'Stripe-betalningen kräver manuell kontroll innan ordern kan fortsätta.',
+            code: 'STRIPE_PAYMENT_REVIEW_REQUIRED',
+          });
+        }
+        return;
+      }
+      if (remote.state === 'canceled' || remote.state === 'expired' || remote.state === 'failed') {
+        await finalizePaymentFailed(order.id, {
+          provider: 'stripe',
+          ref: order.stripePaymentIntentId,
+          reason: remote.state,
+        });
+        res.status(409).json({
+          error: 'Stripe-betalningsförsöket är avslutat. Starta en ny beställning.',
+          code: 'STRIPE_PAYMENT_TERMINAL',
+        });
+        return;
+      }
+      if (remote.state === 'pending') {
+        res.status(409).json({
+          error: 'Stripe-betalningen behandlas fortfarande. Vänta på bekräftelse.',
+          code: 'STRIPE_PAYMENT_STILL_PENDING',
+        });
+        return;
+      }
     }
     let reservedSwishPaymentRef: string | undefined;
     if (provider.name === 'swish') {
@@ -437,10 +494,14 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
     const result = await provider.createPayment({
       order: toOrderForPayment(order),
       idempotencyKey: paymentIdempotencyKey(provider.name, order.id),
-      paymentReference: reservedSwishPaymentRef,
+      paymentReference: provider.name === 'stripe'
+        ? order.stripePaymentIntentId || undefined
+        : reservedSwishPaymentRef,
       returnUrl: providerReturnUrl,
       webhookUrl: publicWebhookUrl(provider.name),
       channel: adyenChannel,
+      checkoutExperience,
+      checkoutMethod,
       storePaymentMethod: !!storePaymentMethod,
     });
 
@@ -455,7 +516,7 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
           : provider.name === 'stripe'
             ? { stripePaymentIntentId: result.paymentRef }
           : {};
-    // DB-länkningen är obligatorisk: utan den kan Mollie-webhooken inte hitta
+    // DB-länkningen är obligatorisk: utan den kan providerwebhooken inte hitta
     // ordern. PSP-anropet är idempotent, så ett DB-fel kan tryggt retry:as.
     const linked = await prisma.order.updateMany({
       where: {
@@ -607,7 +668,99 @@ router.post('/webhooks/swish-refund', async (req, res) => {
   }
 });
 
-// POST /api/payments/webhooks/stripe — Stripe Checkout/PaymentIntent events.
+type StripeWebhookBinding = {
+  orderId: string | null;
+  sessionRef: string | null;
+  paymentIntentRef: string | null;
+};
+
+function stripeWebhookBinding(event: any): StripeWebhookBinding {
+  const object: any = event?.data?.object || {};
+  if (String(event?.type || '').startsWith('checkout.session.')) {
+    return {
+      orderId: object.metadata?.orderId || object.client_reference_id || null,
+      sessionRef: typeof object.id === 'string' ? object.id : null,
+      paymentIntentRef: typeof object.payment_intent === 'string'
+        ? object.payment_intent
+        : object.payment_intent?.id || null,
+    };
+  }
+  if (String(event?.type || '').startsWith('payment_intent.')) {
+    return {
+      orderId: object.metadata?.orderId || null,
+      sessionRef: null,
+      paymentIntentRef: typeof object.id === 'string' ? object.id : null,
+    };
+  }
+  const paymentIntentRef = typeof object.payment_intent === 'string'
+    ? object.payment_intent
+    : object.payment_intent?.id || null;
+  return {
+    orderId: object.metadata?.orderId || null,
+    sessionRef: null,
+    paymentIntentRef,
+  };
+}
+
+async function canonicalStripeWebhookOrder(event: any) {
+  if (process.env.NODE_ENV === 'production' && event.livemode !== true) {
+    throw new Error('Stripe testevent blockerades i produktion');
+  }
+  const binding = stripeWebhookBinding(event);
+  let order = binding.orderId
+    ? await prisma.order.findUnique({
+        where: { id: binding.orderId },
+        select: {
+          id: true,
+          orderNumber: true,
+          total: true,
+          paymentProvider: true,
+          stripePaymentIntentId: true,
+        },
+      })
+    : null;
+  if (!order) {
+    const directRef = binding.sessionRef || binding.paymentIntentRef;
+    if (directRef) {
+      const candidates = await prisma.order.findMany({
+        where: { paymentProvider: 'stripe', stripePaymentIntentId: directRef },
+        select: {
+          id: true,
+          orderNumber: true,
+          total: true,
+          paymentProvider: true,
+          stripePaymentIntentId: true,
+        },
+        take: 2,
+      });
+      if (candidates.length === 1) order = candidates[0];
+      if (candidates.length > 1) throw new Error('Flera order delar samma Stripe-referens');
+    }
+  }
+  if (!order) return null;
+  if (order.paymentProvider !== 'stripe' || !order.stripePaymentIntentId) {
+    throw new Error('Stripe-eventets order har ingen exakt Stripe-bindning');
+  }
+  if (binding.orderId && binding.orderId !== order.id) {
+    throw new Error('Stripe-eventets metadata pekar på fel order');
+  }
+
+  const storedRef = order.stripePaymentIntentId;
+  const proof = await assertStripePaymentReferenceBinding(storedRef, order);
+  if (binding.sessionRef && binding.sessionRef !== storedRef) {
+    throw new Error('Stripe-eventets Checkout Session matchar inte lagrad referens');
+  }
+  if (binding.paymentIntentRef && binding.paymentIntentRef !== proof.paymentIntentId) {
+    throw new Error('Stripe-eventets PaymentIntent matchar inte lagrad referens');
+  }
+
+  const provider = getPaymentProviderByName('stripe');
+  const remote = await provider.getRemoteStatus(storedRef);
+  return { order, storedRef, remote };
+}
+
+// POST /api/payments/webhooks/stripe — signed events are wake-up signals only;
+// the exact stored pi_/cs_ is refreshed from Stripe before local state changes.
 router.post('/webhooks/stripe', async (req, res) => {
   let event;
   try {
@@ -619,74 +772,50 @@ router.post('/webhooks/stripe', async (req, res) => {
   }
 
   try {
-    if (
+    const refreshable =
       event.type === 'checkout.session.completed' ||
-      event.type === 'checkout.session.async_payment_succeeded'
-    ) {
-      const session = event.data.object as any;
-      const orderId = session.metadata?.orderId || session.client_reference_id;
-      if (orderId && session.id) {
-        const remote = await retrieveStripeCheckoutStatus(session.id);
+      event.type === 'checkout.session.async_payment_succeeded' ||
+      event.type === 'checkout.session.async_payment_failed' ||
+      event.type === 'checkout.session.expired' ||
+      event.type === 'payment_intent.succeeded' ||
+      event.type === 'payment_intent.payment_failed' ||
+      event.type === 'payment_intent.canceled' ||
+      event.type === 'charge.refunded' ||
+      event.type === 'refund.created' ||
+      event.type === 'refund.updated' ||
+      event.type === 'refund.failed';
+    if (refreshable) {
+      const refreshed = await canonicalStripeWebhookOrder(event);
+      if (refreshed) {
+        const { order, storedRef, remote } = refreshed;
         if (remote.state === 'paid') {
-          await finalizePaymentSuccess(orderId, {
+          await finalizePaymentSuccess(order.id, {
             provider: 'stripe',
-            ref: remote.paymentIntentId || session.id,
+            ref: storedRef,
             amountReceivedOre: remote.amountReceivedOre ?? 0,
+            method: remote.method,
+          });
+        } else if (
+          remote.state === 'canceled' ||
+          remote.state === 'expired' ||
+          event.type === 'checkout.session.async_payment_failed'
+        ) {
+          await finalizePaymentFailed(order.id, {
+            provider: 'stripe',
+            ref: storedRef,
+            reason: event.type,
           });
         }
-      }
-    } else if (event.type === 'checkout.session.expired' || event.type === 'checkout.session.async_payment_failed') {
-      const session = event.data.object as any;
-      const orderId = session.metadata?.orderId || session.client_reference_id;
-      if (orderId) {
-        await finalizePaymentFailed(orderId, { provider: 'stripe', ref: session.id, reason: event.type });
-      }
-    } else if (event.type === 'payment_intent.succeeded') {
-      const intent = event.data.object as any;
-      const orderId = intent.metadata?.orderId;
-      if (orderId) {
-        await finalizePaymentSuccess(orderId, {
-          provider: 'stripe',
-          ref: intent.id,
-          amountReceivedOre: intent.amount_received ?? intent.amount ?? 0,
-        });
-      }
-    } else if (event.type === 'payment_intent.payment_failed' || event.type === 'payment_intent.canceled') {
-      const intent = event.data.object as any;
-      const orderId = intent.metadata?.orderId;
-      if (orderId) {
-        await finalizePaymentFailed(orderId, { provider: 'stripe', ref: intent.id, reason: event.type });
-      }
-    } else if (event.type === 'charge.refunded') {
-      const charge = event.data.object as any;
-      const intentId = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
-      if (intentId) {
-        const refundedOre = Number(charge.amount_refunded ?? 0);
-        const chargedOre = Number(charge.amount ?? 0);
-        const order = await prisma.order.findFirst({
-          where: { stripePaymentIntentId: intentId },
-          select: { id: true },
-        });
-        if (order) {
+        // payment_intent.payment_failed/requires_payment_method is retryable.
+        if ((remote.amountRefundedOre ?? 0) > 0 || (remote.refunds?.length ?? 0) > 0) {
           const sync = await syncRemoteRefundOutcome({
             orderId: order.id,
-            paymentRef: intentId,
-            paidAmountOre: chargedOre,
-            cumulativeRefundOre: refundedOre,
+            paymentRef: storedRef,
+            paidAmountOre: remote.amountReceivedOre ?? order.total,
+            cumulativeRefundOre: remote.amountRefundedOre ?? 0,
             provider: 'stripe',
             source: 'WEBHOOK',
-            refunds: charge.refunds?.data?.map((refund: any) => ({
-              refundRef: String(refund.id),
-              state: refund.status === 'succeeded'
-                ? 'refunded' as const
-                : refund.status === 'pending'
-                  ? 'pending' as const
-                  : refund.status === 'failed'
-                    ? 'failed' as const
-                    : 'unknown' as const,
-              amountOre: Number(refund.amount || 0),
-              createdAt: refund.created ? new Date(refund.created * 1000) : null,
-            })),
+            refunds: remote.refunds,
           });
           if (sync.changed && sync.fullRefund) {
             await announceFullRefund(
@@ -711,10 +840,10 @@ router.post('/webhooks/stripe', async (req, res) => {
 
 // Pensionerad klientfinalisering. Adyens webhook finns kvar för att stämma av
 // historiska betalningar, men en klient får aldrig använda ett sessionResult
-// för att göra en ny order betald. Launch-checkout är Mollie-only.
+// för att göra en ny order betald. Nya betalningar startas från providerflödet.
 router.post('/adyen/verify', (_req, res) => {
   res.status(410).json({
-    error: 'Adyen-klientverifiering är avstängd. Starta en ny Mollie-betalning.',
+    error: 'Adyen-klientverifiering är avstängd. Starta en ny betalning från kassan.',
     code: 'LEGACY_PAYMENT_VERIFICATION_DISABLED',
   });
 });

@@ -10,6 +10,7 @@ import {
   validSwishCallbackIdentifier,
   validateSwishCallbackUrl,
 } from '../lib/payments/swish';
+import { directSwishFeeSnapshot } from '../lib/directSwishFinance';
 
 const instructionId = swishInstructionId('checkout-order-1');
 assert.match(instructionId, /^[0-9A-F]{32}$/);
@@ -77,8 +78,20 @@ const orderRouteSource = readFileSync(path.resolve(__dirname, '../routes/orders.
 const abandonRoute = orderRouteSource.match(
   /router\.post\('\/:id\/abandon'[\s\S]*?\n\}\);/,
 )?.[0] || '';
-assert.match(abandonRoute, /provider\.cancelPayment/);
-assert.match(abandonRoute, /remote = await provider\.getRemoteStatus\(ref\)/);
+assert.match(abandonRoute, /cancelPaymentWithCanonicalRetry\(provider, ref, 3\)/);
+assert.match(
+  abandonRoute,
+  /paymentStatus === 'PAID'[\s\S]*?paid: true, alreadyTerminal: true/,
+  'stale abandon calls must report an already-paid order as paid',
+);
+assert.match(
+  abandonRoute,
+  /terminalPaymentStatuses\.has\(paymentStatus\)[\s\S]*?failed: true, alreadyTerminal: true/,
+  'stale abandon calls must report failed/cancelled orders as terminal',
+);
+const paymentProviderSource = readFileSync(path.resolve(__dirname, '../lib/payments/index.ts'), 'utf8');
+assert.match(paymentProviderSource, /provider\.cancelPayment\(paymentRef\)/);
+assert.match(paymentProviderSource, /provider\.getRemoteStatus\(paymentRef\)/);
 
 const paymentRouteSource = readFileSync(path.resolve(__dirname, '../routes/paymentsMollie.ts'), 'utf8');
 assert.match(paymentRouteSource, /inspectSwishTlsConfiguration\(\)\.ok/);
@@ -89,7 +102,11 @@ assert.match(
 );
 assert.match(paymentRouteSource, /randomBytes\(16\)\.toString\('hex'\)\.toUpperCase\(\)/);
 assert.match(paymentRouteSource, /data: \{ swishPaymentId: reusableRef \}/);
-assert.match(paymentRouteSource, /paymentReference: reservedSwishPaymentRef/);
+assert.match(
+  paymentRouteSource,
+  /paymentReference: provider\.name === 'stripe'[\s\S]*?: reservedSwishPaymentRef/,
+  'create must preserve the reserved Swish reference while allowing exact Stripe reuse',
+);
 assert.match(paymentRouteSource, /await provider\.cancelPayment\(previousRef\)/);
 assert.match(paymentRouteSource, /SWISH_PAYMENT_STILL_PENDING/);
 assert.match(paymentRouteSource, /issueOrderPaymentResumeProof\(order\.id, order\.accessToken\)/);
@@ -99,5 +116,20 @@ assert.match(swishSource, /refundOre < 100/);
 assert.match(swishSource, /QRCode\.toDataURL\(swishCommerceQrPayload\(token\)/);
 assert.match(swishSource, /paymentReference \|\| swishInstructionId\(idempotencyKey\)/);
 assert.match(swishSource, /assertSwishPaymentIdentity\(response\.data\)/);
+
+assert.deepEqual(
+  directSwishFeeSnapshot(
+    [{ paymentProvider: 'swish', paymentStatus: 'PAID', swishPaymentId: 'swish-payment-1' }],
+    { SWISH_PAYOUTS_DISABLED: 'true', SWISH_PAYOUT_FEE_POLICY: 'external' },
+  ),
+  {
+    status: 'unavailable',
+    policy: null,
+    paymentCount: 1,
+    feePerPaymentOre: null,
+    totalFeesOre: null,
+    error: 'Restaurangutbetalningar med Swish är blockerade av SWISH_PAYOUTS_DISABLED.',
+  },
+);
 
 console.log('Swish contracts: mTLS chain, app switch, QR, callbacks and cleanup are guarded');

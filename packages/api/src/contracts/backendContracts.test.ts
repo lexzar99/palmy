@@ -267,19 +267,22 @@ assert.match(adminRouteSource, /ORDER_HARD_DELETE_DISABLED/);
 assert.match(adminRouteSource, /ORDER_WIPE_DISABLED/);
 assert.doesNotMatch(adminRouteSource, /prisma\.order\.(?:delete|deleteMany)\s*\(/);
 
-// New production checkouts must use the pending-order -> Mollie flow. Legacy
-// provider code may still reconcile/refund already-existing Stripe/Adyen rows.
+// New production checkouts use the pending-order -> explicitly enabled PSP
+// flow. Provider/ref bindings remain immutable after the order is created.
 const orderRouteSource = fs.readFileSync(path.join(__dirname, '../routes/orders.ts'), 'utf8');
 const paymentProviderSource = fs.readFileSync(path.join(__dirname, '../lib/payments/index.ts'), 'utf8');
 const paymentRouteSource = fs.readFileSync(path.join(__dirname, '../routes/paymentsMollie.ts'), 'utf8');
 assert.match(orderRouteSource, /MOLLIE_CHECKOUT_REQUIRED/);
-assert.match(paymentProviderSource, /Mollie måste vara aktiv PAYMENT_PROVIDER i produktion/);
+assert.match(paymentProviderSource, /case 'stripe'/);
+assert.match(paymentProviderSource, /case 'swish'/);
+assert.match(paymentProviderSource, /configuredCheckoutProviderNames/);
 assert.match(paymentRouteSource, /PAYMENT_PROVIDER_CONFLICT/);
 assert.match(paymentRouteSource, /PAYMENT_BINDING_CHANGED/);
 const finalizePaymentSource = fs.readFileSync(path.join(__dirname, '../lib/payments/finalize.ts'), 'utf8');
 assert.match(finalizePaymentSource, /provider\/ref binding mismatch/);
 assert.match(finalizePaymentSource, /order\.paymentProvider === input\.provider/);
 assert.match(finalizePaymentSource, /order\.molliePaymentId === input\.ref/);
+assert.match(finalizePaymentSource, /order\.stripePaymentIntentId === input\.ref/);
 const retiredAdyenVerify = paymentRouteSource.match(
   /router\.post\('\/adyen\/verify',[\s\S]*?\n}\);/,
 )?.[0] || '';

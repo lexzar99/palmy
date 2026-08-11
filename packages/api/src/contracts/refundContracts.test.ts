@@ -68,7 +68,7 @@ assert.equal(refundLifecycleAction('mollie', 'processing'), 'wait');
 assert.equal(refundLifecycleAction('mollie', 'refunded'), 'complete');
 assert.equal(refundLifecycleAction('mollie', 'failed'), 'release');
 assert.equal(refundLifecycleAction('mollie', undefined), 'wait');
-assert.equal(refundLifecycleAction('stripe', undefined), 'complete');
+assert.equal(refundLifecycleAction('stripe', undefined), 'wait');
 
 function mockRefundWorkflow(refundStatus: any, restaurantId = 'restaurant-a') {
   let current: any = {
@@ -291,8 +291,8 @@ async function runAsyncRefundContracts() {
   assert.equal(inconsistentMollie.ledgerRequestCalls, 0);
   assert.equal(inconsistentMollie.refundCalls, 0);
 
-  // Stripe/Adyen are accounting-only legacy providers at launch. Their
-  // incomplete async refund paths must fail before any PSP call or DB lock.
+  // Adyen remains accounting-only legacy support. Its incomplete async refund
+  // path must fail before any PSP call or DB lock.
   const legacyProvider = mockRefundWorkflow('refunded');
   const mollieMock = legacyProvider.dependencies.resolveRefundPayment().provider;
   legacyProvider.dependencies.resolveRefundPayment = () => ({
@@ -306,8 +306,7 @@ async function runAsyncRefundContracts() {
   assert.equal(legacyProvider.refundCalls, 0);
 
   // Direkt Swish har en härdad async-livscykel (deterministisk refund-referens
-  // + server-till-server-status) och ska därför gå hela vägen igenom, till
-  // skillnad från Stripe/Adyen ovan.
+  // + server-till-server-status) och ska därför gå hela vägen igenom.
   const swishProviderMock = mockRefundWorkflow('refunded');
   const swishBase = swishProviderMock.dependencies.resolveRefundPayment().provider;
   swishProviderMock.dependencies.resolveRefundPayment = () => ({
@@ -322,6 +321,23 @@ async function runAsyncRefundContracts() {
   );
   assert.equal(swishOutcome.status, 'refunded');
   assert.equal(swishProviderMock.refundCalls, 1);
+
+  // Stripe exposes the same authoritative status/list lifecycle; a succeeded
+  // provider response may complete while unknown/pending remains locked.
+  const stripeProviderMock = mockRefundWorkflow('refunded');
+  const stripeBase = stripeProviderMock.dependencies.resolveRefundPayment().provider;
+  stripeProviderMock.dependencies.resolveRefundPayment = () => ({
+    provider: { ...stripeBase, name: 'stripe' },
+    ref: 'pi_bound_order_1',
+  });
+  const stripeOutcome = await refundOrderForAdmin(
+    'order-1',
+    'stripe-refund',
+    {},
+    stripeProviderMock.dependencies,
+  );
+  assert.equal(stripeOutcome.status, 'refunded');
+  assert.equal(stripeProviderMock.refundCalls, 1);
 
   // Lock + durable intent share one DB transaction. If the ledger write
   // fails, the payment lock is rolled back before any irreversible PSP call.

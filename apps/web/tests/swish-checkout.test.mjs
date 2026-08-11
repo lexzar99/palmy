@@ -14,18 +14,21 @@ import {
   writePendingPaymentProvider,
   writePersistedSwishCheckout,
 } from "../lib/swishCheckoutRecovery.ts";
+import { formatCheckoutSek } from "../lib/checkoutMoney.ts";
 
 const cart = fs.readFileSync(new URL("../app/cart/page.tsx", import.meta.url), "utf8");
 const menu = fs.readFileSync(new URL("../components/MenuContent.tsx", import.meta.url), "utf8");
+const stripeInline = fs.readFileSync(new URL("../components/StripeInlineCheckout.tsx", import.meta.url), "utf8");
 
 test("direct Swish checkout uses the server app link and Commerce QR", () => {
-  assert.match(cart, /payWith\(event, "swish"\)/);
+  assert.match(cart, /startCheckout\(event, method\.id\)/);
+  assert.match(cart, /\{ id: "swish", label: "Swish"/);
   assert.match(cart, /payRes\.data\?\.swishUrl/);
   assert.match(cart, /payRes\.data\?\.swishQrCode/);
   assert.match(cart, /href=\{swishCheckout\.appUrl\}/);
   assert.match(cart, /writePersistedSwishCheckout\(localStorage, checkout\)/);
-  assert.match(cart, /\{!isHandheld && \([\s\S]*?src=\{swishCheckout\.qrCode\}/);
-  assert.match(cart, /Öppna Swish manuellt/);
+  assert.match(cart, /\{!isHandheld && <img src=\{swishCheckout\.qrCode\}/);
+  assert.match(cart, /isHandheld \? "Öppna Swish" : "Öppna Swish på den här enheten"/);
 });
 
 test("Swish payment choice uses the official logo and requested copy", () => {
@@ -98,7 +101,24 @@ test("explicit cancel is fail-closed and paid always wins", () => {
   assert.equal(classifyAbandonResponse({ success: false }), "pending");
   assert.equal(classifyPaymentStatus("PAID"), "paid");
   assert.equal(classifyPaymentStatus("CANCELLED"), "terminal");
+  assert.equal(classifyPaymentStatus("DECLINED"), "terminal");
+  assert.equal(classifyPaymentStatus("ERROR"), "terminal");
   assert.equal(classifyPaymentStatus("PENDING"), "pending");
+  assert.equal(classifyPaymentStatus("REQUIRES_PAYMENT_METHOD"), "pending");
+  assert.match(cart, /Dölj alla återöppnings-[\s\S]*?setVerifyingPayment\(true\);[\s\S]*?setSwishCheckout\(null\);/);
+  assert.match(cart, /försök automatiskt[\s\S]*?paymentCancelRetryRef[\s\S]*?handlePaymentCancelled\(orderId\)/);
+  assert.match(cart, /setPendingOrderId\(null\);\n\s*setError\(null\);/);
+  assert.match(cart, /retur eller kvarlämnad recovery[\s\S]*?await handlePaymentCancelled\(orderId\)/);
+  assert.match(cart, /\) : pendingOrderId \? \([\s\S]*?Öppningslänken är dold/);
+});
+
+test("checkout SEK amounts always use two Swedish decimals", () => {
+  assert.equal(formatCheckoutSek(0), "0,00");
+  assert.equal(formatCheckoutSek(10), "10,00");
+  assert.equal(formatCheckoutSek(12.5), "12,50");
+  assert.equal(formatCheckoutSek(1234.56).replace(/\u00a0/g, " "), "1 234,56");
+  assert.match(cart, /formatSekAmount\(vatAmount\)/);
+  assert.match(cart, /formatSekAmount\(total\)/);
 });
 
 test("return recovery consumes the one-time session token and strips sensitive query state", () => {
@@ -111,11 +131,9 @@ test("return recovery consumes the one-time session token and strips sensitive q
   assert.match(cart, /localStorage\.setItem\("pending_order_id", returnOrderId\)/);
 });
 
-test("passive recovery preserves pending proof and never calls abandon", () => {
-  const passiveBranch = cart.match(/if \(passive\) \{([\s\S]*?)\n\s*\}/)?.[1] || "";
-  assert.match(passiveBranch, /får aldrig PSP-cancella/);
-  assert.doesNotMatch(passiveBranch, /abandonPendingOrder/);
-  assert.doesNotMatch(passiveBranch, /clearPendingPaymentStorage/);
+test("passive recovery verifies once and then safely cancels the stale provider request", () => {
+  assert.match(cart, /const maxAttempts = passive && opts\.provider !== "swish" \? 1/);
+  assert.match(cart, /retur eller kvarlämnad recovery[\s\S]*?await handlePaymentCancelled\(orderId\)/);
   assert.match(cart, /const pollGeneration = \+\+paymentPollGenerationRef\.current/);
   assert.match(cart, /if \(!isCurrentPoll\(\)\) return/);
 });
@@ -130,7 +148,29 @@ test("same checkout attempt resumes safely and recovers a lost Swish create resp
   assert.match(cart, /const cancellation = await abandonPendingOrder\(previousOrderId\)/);
   assert.match(cart, /if \(cancellation === "pending"\)[\s\S]*?return;/);
   assert.match(cart, /Avbryt väntande betalning säkert/);
-  assert.match(cart, /role="status"[\s\S]*?\{error\}/);
+  assert.match(cart, /role="alert"[\s\S]*?\{error\}/);
+});
+
+test("payment methods use a stable same-route step with separate Stripe choices", () => {
+  for (const method of ["swish", "klarna", "apple_pay", "google_pay", "card"]) {
+    assert.match(cart, new RegExp(`id: "${method}"`));
+  }
+  assert.match(cart, /\{paymentStepOpen \? renderPaymentStep\(\) : \(/);
+  assert.match(cart, /checkoutExperience: checkoutProvider === "stripe"[\s\S]*?"embedded"/);
+  assert.match(cart, /checkoutMethod: checkoutProvider === "stripe" \? checkoutMethod : undefined/);
+  assert.doesNotMatch(cart, /renderPayMenu|payMenuOpen|mollieOptionsOpen/);
+  assert.doesNotMatch(cart, /aria-modal|role="dialog"/);
+  assert.doesNotMatch(cart, />Mollie</);
+  assert.match(stripeInline, /<PaymentElement/);
+  assert.match(stripeInline, /<ExpressCheckoutElement/);
+  assert.match(stripeInline, /redirect: "if_required"/);
+  assert.match(stripeInline, /await onVerified\(\)/);
+});
+
+test("payment methods never render inside the mobile sticky layer", () => {
+  const stickyBlock = cart.match(/className="sticky z-\[90\][\s\S]*?<\/div>\n\s*<\/div>\n\s*<\/motion\.div>/)?.[0] || "";
+  assert.match(stickyBlock, /onClick=\{openPaymentStep\}/);
+  assert.doesNotMatch(stickyBlock, /paymentMethods\.map|renderPaymentStep|StripeInlineCheckout|swishCheckout/);
 });
 
 test("an authorization-shaped 404 preserves recovery proof", () => {

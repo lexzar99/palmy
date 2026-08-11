@@ -38,7 +38,11 @@ import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
 import { moneyDto, nullableMoneyDto } from '../utils/money';
 import { referralPhoneVariants } from '../lib/referralRules';
 import { notifyPartnerDevicesOfNewOrder } from '../lib/partnerFcm';
-import { getCheckoutPaymentProvider, getPaymentProviderByName } from '../lib/payments';
+import {
+  cancelPaymentWithCanonicalRetry,
+  getCheckoutPaymentProvider,
+  getPaymentProviderByName,
+} from '../lib/payments';
 import { finalizePaymentFailed, finalizePaymentSuccess } from '../lib/payments/finalize';
 import type { PaymentProviderName } from '../lib/payments/finalize';
 import {
@@ -287,7 +291,7 @@ const CreateOrderSchema = z.object({
   // order.total + Stripe-belopp.
   tip: z.number().nonnegative().optional(),
   // Kassans egen visade slutsumma i kr. Servern är fortsatt prissanning, men
-  // avvikelser större än 1 kr stoppas innan en Mollie-order kan skapas.
+  // avvikelser större än 1 kr stoppas innan en PSP-betalning kan skapas.
   expectedTotalKr: z.number().nonnegative().optional(),
 }).refine((val) => Boolean(val.restaurantId || val.restaurantSlug), {
   message: 'restaurantId eller restaurantSlug krävs',
@@ -421,13 +425,12 @@ router.post('/', async (req: Request, res: Response) => {
       : null;
     const hasPaymentIntent = Boolean(data.stripePaymentIntentId);
 
-    // Launch checkout is Mollie-only. The direct Stripe-intent order path is
-    // retained in non-production solely for legacy testing and reconciliation;
-    // new production clients must create an unpaid order and start Mollie via
-    // the payment endpoint.
+    // Den äldre klientvägen som skickade ett färdigt Stripe-intent direkt till
+    // order-POST:en är pensionerad. Nya klienter skapar en obetald order och
+    // startar den uttryckligen aktiverade providern via betalningsendpointen.
     if (process.env.NODE_ENV === 'production' && !isPendingPayment) {
       res.status(410).json({
-        error: 'Den äldre betalningsvägen är avstängd. Starta betalningen med Mollie.',
+        error: 'Den äldre betalningsvägen är avstängd. Starta en ny betalning från kassan.',
         code: 'MOLLIE_CHECKOUT_REQUIRED',
       });
       return;
@@ -1564,7 +1567,7 @@ router.post('/', async (req: Request, res: Response) => {
         total,
         stripePaymentIntentId: isPendingPayment ? null : confirmedPayment.id,
         // Sätt provider redan när den obetalda ordern skapas. Då kan abandon,
-        // recovery och reconcile aldrig misstolka en ny Mollie-order som den
+        // recovery och reconcile aldrig misstolka en ny providerorder som den
         // historiska schema-defaulten "stripe" innan PSP-referensen har länkats.
         paymentProvider: pendingPaymentProvider?.name || 'stripe',
         paymentStatus: isPendingPayment ? 'PENDING' : 'PAID',
@@ -2837,8 +2840,29 @@ router.post('/:id/abandon', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Order hittades inte' });
     }
 
-    // Bara en obetald AWAITING_PAYMENT-order kan överges.
-    if (order.status !== 'AWAITING_PAYMENT' || (order as any).paymentStatus === 'PAID') {
+    // Svara med det redan kända terminala utfallet. PAID måste vinna även om
+    // orderstatusen hann ändras samtidigt som klientens abandon-anrop kom in.
+    const paymentStatus = String(order.paymentStatus || '').toUpperCase();
+    if (paymentStatus === 'PAID') {
+      return res.json({ success: true, paid: true, alreadyTerminal: true });
+    }
+    const terminalPaymentStatuses = new Set([
+      'FAILED',
+      'REFUNDED',
+      'PARTIALLY_REFUNDED',
+      'CANCELED',
+      'CANCELLED',
+    ]);
+    if (
+      terminalPaymentStatuses.has(paymentStatus) ||
+      order.status === 'CANCELLED' ||
+      order.status === 'REJECTED'
+    ) {
+      return res.json({ success: true, failed: true, alreadyTerminal: true });
+    }
+
+    // Bara en fortfarande obetald AWAITING_PAYMENT-order kan överges.
+    if (order.status !== 'AWAITING_PAYMENT') {
       return res.json({ success: true, skipped: 'not-awaiting' });
     }
 
@@ -2864,23 +2888,7 @@ router.post('/:id/abandon', async (req: Request, res: Response) => {
     }
 
     try {
-      let remote = await provider.getRemoteStatus(ref);
-      if (
-        (remote.state === 'open' || remote.state === 'pending') &&
-        provider.cancelPayment
-      ) {
-        try {
-          remote = await provider.cancelPayment(ref);
-        } catch (cancelError) {
-          // Kunden kan hinna godkänna precis samtidigt som cancel skickas.
-          // Läs då sanningen igen i stället för att felmarkera en betald order.
-          console.warn(
-            '[orders/abandon] PSP-cancel kunde inte slutföras, läser status igen:',
-            (cancelError as Error)?.message,
-          );
-          remote = await provider.getRemoteStatus(ref);
-        }
-      }
+      const remote = await cancelPaymentWithCanonicalRetry(provider, ref, 3);
       if (remote.state === 'paid') {
         await finalizePaymentSuccess(order.id, {
           provider: provider.name,

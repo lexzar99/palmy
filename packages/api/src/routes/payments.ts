@@ -14,6 +14,10 @@ import {
   finalizePaymentFailed,
   finalizePaymentSuccess,
 } from '../lib/payments/finalize';
+import {
+  assertStripePaymentReferenceBinding,
+  retrieveStripeCheckoutStatus,
+} from '../lib/payments/stripe';
 import { syncRemoteRefundOutcome } from '../lib/payments/refundPersistence';
 import { announceFullRefund } from '../lib/payments/refundNotifications';
 
@@ -52,6 +56,34 @@ function stripeIntentOrderId(intent: Stripe.PaymentIntent): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
+async function refreshLegacyStripeIntent(intent: Stripe.PaymentIntent) {
+  const orderId = stripeIntentOrderId(intent);
+  if (!orderId) return null;
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      orderNumber: true,
+      total: true,
+      paymentProvider: true,
+      stripePaymentIntentId: true,
+    },
+  });
+  if (!order) return null;
+  if (order.paymentProvider !== 'stripe' || !order.stripePaymentIntentId) {
+    throw new Error('Stripe-eventets order har ingen exakt Stripe-bindning');
+  }
+  const proof = await assertStripePaymentReferenceBinding(order.stripePaymentIntentId, order);
+  if (proof.paymentIntentId !== intent.id) {
+    throw new Error('Stripe-eventets PaymentIntent matchar inte lagrad referens');
+  }
+  return {
+    order,
+    storedRef: order.stripePaymentIntentId,
+    remote: await retrieveStripeCheckoutStatus(order.stripePaymentIntentId),
+  };
+}
+
 /**
  * Gammal webhook-URL, kvar som säker övergång. Den använder exakt samma
  * provider-neutrala finalisering som den nya URL:en och kan därför köras
@@ -74,29 +106,38 @@ router.post('/webhook', async (req, res) => {
   }
 
   try {
+    if (process.env.NODE_ENV === 'production' && event.livemode !== true) {
+      throw new Error('Stripe testevent blockerades i produktion');
+    }
     if (event.type === 'payment_intent.succeeded') {
       const intent = event.data.object as Stripe.PaymentIntent;
-      const orderId = stripeIntentOrderId(intent);
-      if (orderId) {
-        await finalizePaymentSuccess(orderId, {
+      const refreshed = await refreshLegacyStripeIntent(intent);
+      if (refreshed?.remote.state === 'paid') {
+        await finalizePaymentSuccess(refreshed.order.id, {
           provider: 'stripe',
-          ref: intent.id,
-          amountReceivedOre: intent.amount_received ?? intent.amount,
+          ref: refreshed.storedRef,
+          amountReceivedOre: refreshed.remote.amountReceivedOre ?? 0,
+          method: refreshed.remote.method,
         });
       }
-    } else if (
-      event.type === 'payment_intent.payment_failed' ||
-      event.type === 'payment_intent.canceled'
-    ) {
+    } else if (event.type === 'payment_intent.payment_failed' || event.type === 'payment_intent.canceled') {
       const intent = event.data.object as Stripe.PaymentIntent;
-      const orderId = stripeIntentOrderId(intent);
-      if (orderId) {
-        await finalizePaymentFailed(orderId, {
+      const refreshed = await refreshLegacyStripeIntent(intent);
+      if (refreshed?.remote.state === 'paid') {
+        await finalizePaymentSuccess(refreshed.order.id, {
           provider: 'stripe',
-          ref: intent.id,
+          ref: refreshed.storedRef,
+          amountReceivedOre: refreshed.remote.amountReceivedOre ?? 0,
+          method: refreshed.remote.method,
+        });
+      } else if (event.type === 'payment_intent.canceled' && refreshed?.remote.state === 'canceled') {
+        await finalizePaymentFailed(refreshed.order.id, {
+          provider: 'stripe',
+          ref: refreshed.storedRef,
           reason: event.type,
         });
       }
+      // payment_intent.payment_failed is retryable; preserve the binding/deal.
     } else if (event.type === 'charge.refunded') {
       const charge = event.data.object as Stripe.Charge;
       const intentId =
@@ -104,30 +145,45 @@ router.post('/webhook', async (req, res) => {
           ? charge.payment_intent
           : charge.payment_intent?.id;
       if (intentId) {
-        const order = await prisma.order.findFirst({
-          where: { stripePaymentIntentId: intentId },
-          select: { id: true },
-        });
+        const metadataOrderId = typeof charge.metadata?.orderId === 'string' ? charge.metadata.orderId : null;
+        const order = metadataOrderId
+          ? await prisma.order.findUnique({
+              where: { id: metadataOrderId },
+              select: {
+                id: true,
+                orderNumber: true,
+                total: true,
+                paymentProvider: true,
+                stripePaymentIntentId: true,
+              },
+            })
+          : await prisma.order.findFirst({
+              where: { paymentProvider: 'stripe', stripePaymentIntentId: intentId },
+              select: {
+                id: true,
+                orderNumber: true,
+                total: true,
+                paymentProvider: true,
+                stripePaymentIntentId: true,
+              },
+            });
         if (order) {
+          if (order.paymentProvider !== 'stripe' || !order.stripePaymentIntentId) {
+            throw new Error('Stripe-refundens order har ingen exakt Stripe-bindning');
+          }
+          const proof = await assertStripePaymentReferenceBinding(order.stripePaymentIntentId, order);
+          if (proof.paymentIntentId !== intentId) {
+            throw new Error('Stripe-refundens PaymentIntent matchar inte lagrad referens');
+          }
+          const remote = await retrieveStripeCheckoutStatus(order.stripePaymentIntentId);
           const sync = await syncRemoteRefundOutcome({
             orderId: order.id,
-            paymentRef: intentId,
-            paidAmountOre: charge.amount,
-            cumulativeRefundOre: charge.amount_refunded,
+            paymentRef: order.stripePaymentIntentId,
+            paidAmountOre: remote.amountReceivedOre ?? order.total,
+            cumulativeRefundOre: remote.amountRefundedOre ?? 0,
             provider: 'stripe',
             source: 'WEBHOOK',
-            refunds: charge.refunds?.data.map((refund) => ({
-              refundRef: refund.id,
-              state: refund.status === 'succeeded'
-                ? 'refunded' as const
-                : refund.status === 'pending'
-                  ? 'pending' as const
-                  : refund.status === 'failed'
-                    ? 'failed' as const
-                    : 'unknown' as const,
-              amountOre: refund.amount,
-              createdAt: new Date(refund.created * 1000),
-            })),
+            refunds: remote.refunds,
           });
           if (sync.needsRetry) throw new Error('refund_in_progress');
           if (sync.changed && sync.fullRefund) await announceFullRefund(order.id, sync.restaurantId);

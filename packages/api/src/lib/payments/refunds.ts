@@ -101,7 +101,7 @@ export function refundRestaurantScope(admin: RefundAdmin | null | undefined): {
 
 export type RefundLifecycleAction = 'complete' | 'wait' | 'release';
 
-/** Unknown Mollie responses remain locked until reconciliation can prove an outcome. */
+/** Unknown provider responses remain locked until reconciliation proves an outcome. */
 export function refundLifecycleAction(
   provider: string,
   state: RemoteRefundState | undefined,
@@ -109,7 +109,7 @@ export function refundLifecycleAction(
   if (state === 'refunded') return 'complete';
   if (state === 'failed' || state === 'canceled') return 'release';
   if (state === 'queued' || state === 'pending' || state === 'processing') return 'wait';
-  return provider === 'mollie' ? 'wait' : 'complete';
+  return 'wait';
 }
 
 export function hasActiveRemoteRefund(refunds: RemoteRefundStatus[] | undefined): boolean {

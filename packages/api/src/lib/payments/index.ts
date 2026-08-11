@@ -1,9 +1,8 @@
 /**
- * Provider-väljare. Nya produktionsbetalningar är låsta till Mollie.
- * Stripe/Adyen finns kvar enbart för att läsa, stämma av och återbetala äldre
- * order via orderns sparade provider.
+ * Provider selector. New checkouts are restricted to PAYMENT_PROVIDERS;
+ * historical rows always resolve through their frozen provider.
  */
-import type { PaymentProvider } from './types';
+import type { PaymentProvider, RemotePaymentStatus } from './types';
 import { mollieProvider } from './mollie';
 import { adyenProvider } from './adyen';
 import { stripeProvider } from './stripe';
@@ -28,9 +27,6 @@ export function getPaymentProviderByName(name: PaymentProviderName): PaymentProv
 
 export function getPaymentProvider(): PaymentProvider {
   const name = (process.env.PAYMENT_PROVIDER || 'mollie').toLowerCase();
-  if (process.env.NODE_ENV === 'production' && name !== 'mollie') {
-    throw new Error('Mollie måste vara aktiv PAYMENT_PROVIDER i produktion');
-  }
   switch (name) {
     case 'mollie':
       return getPaymentProviderByName('mollie');
@@ -38,6 +34,8 @@ export function getPaymentProvider(): PaymentProvider {
       return getPaymentProviderByName('adyen'); // ligger kvar för jämförelse/återgång, ej aktiv vid lansering
     case 'stripe':
       return getPaymentProviderByName('stripe');
+    case 'swish':
+      return getPaymentProviderByName('swish');
     default:
       throw new Error(`Okänd PAYMENT_PROVIDER: ${name}`);
   }
@@ -60,4 +58,69 @@ export function getCheckoutPaymentProvider(name?: unknown): PaymentProvider {
     throw new Error(`Betalningsleverantören ${requested} är inte aktiverad`);
   }
   return getPaymentProviderByName(requested as PaymentProviderName);
+}
+
+/**
+ * Cancel an open PSP attempt with bounded canonical rereads. Cancel endpoints
+ * are idempotent; PAID and terminal states always win, while an unknown state
+ * is propagated so callers preserve the order instead of guessing FAILED.
+ */
+export async function cancelPaymentWithCanonicalRetry(
+  provider: PaymentProvider,
+  paymentRef: string,
+  maxAttempts = 3,
+): Promise<RemotePaymentStatus> {
+  const terminal = (state: RemotePaymentStatus['state']) =>
+    state === 'paid' || state === 'failed' || state === 'canceled' || state === 'expired';
+  const attempts = Math.max(1, Math.min(3, Math.floor(maxAttempts) || 1));
+  let lastKnown: RemotePaymentStatus | null = null;
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      lastKnown = await provider.getRemoteStatus(paymentRef);
+      if (terminal(lastKnown.state)) return lastKnown;
+    } catch (error) {
+      lastError = error;
+      console.warn('[payments/cancel] Canonical status read failed before cancel', {
+        provider: provider.name,
+        paymentRef,
+        attempt: attempt + 1,
+        error: (error as Error)?.message,
+      });
+    }
+
+    if (!provider.cancelPayment) continue;
+
+    try {
+      lastKnown = await provider.cancelPayment(paymentRef);
+      if (terminal(lastKnown.state)) return lastKnown;
+    } catch (error) {
+      lastError = error;
+      console.warn('[payments/cancel] PSP cancel failed; rereading canonical status', {
+        provider: provider.name,
+        paymentRef,
+        attempt: attempt + 1,
+        error: (error as Error)?.message,
+      });
+    }
+
+    try {
+      lastKnown = await provider.getRemoteStatus(paymentRef);
+      if (terminal(lastKnown.state)) return lastKnown;
+    } catch (error) {
+      lastError = error;
+      console.warn('[payments/cancel] Canonical status reread failed after cancel', {
+        provider: provider.name,
+        paymentRef,
+        attempt: attempt + 1,
+        error: (error as Error)?.message,
+      });
+    }
+  }
+
+  if (lastKnown) return lastKnown;
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`Could not read canonical ${provider.name} payment status`);
 }

@@ -50,6 +50,17 @@ export function directSwishFeeSnapshot(
     };
   }
 
+  if (String(env.SWISH_PAYOUTS_DISABLED || '').trim().toLowerCase() === 'true') {
+    return {
+      status: 'unavailable',
+      policy: null,
+      paymentCount: swishOrders.length,
+      feePerPaymentOre: null,
+      totalFeesOre: null,
+      error: 'Restaurangutbetalningar med Swish är blockerade av SWISH_PAYOUTS_DISABLED.',
+    };
+  }
+
   const refs = swishOrders.map((order) => String(order.swishPaymentId || '').trim());
   if (refs.some((ref) => !ref) || new Set(refs).size !== refs.length) {
     return {

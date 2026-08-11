@@ -226,11 +226,13 @@ test("invite landing uses shared API resolution and server reward copy", () => {
   assert.doesNotMatch(source, /http:\/\/localhost:4000/);
 });
 
-test("launch checklist documents Mollie rather than Stripe", () => {
+test("launch checklist documents Stripe and direct Swish rather than legacy Mollie", () => {
   const source = read("app/launch-checklist/page.tsx");
-  assert.match(source, /MOLLIE_API_KEY=live_/);
-  assert.match(source, /api\/payments\/webhooks\/mollie/);
-  assert.doesNotMatch(source, /Stripe/);
+  assert.match(source, /STRIPE_SECRET_KEY=sk_live_/);
+  assert.match(source, /PAYMENT_PROVIDERS=stripe,swish/);
+  assert.match(source, /api\/payments\/webhooks\/stripe/);
+  assert.match(source, /direkt Swish/);
+  assert.doesNotMatch(source, /Mollie/);
 });
 
 test("unlocked web proxy forwards the signed prelaunch proof", () => {

@@ -162,7 +162,7 @@ const PHASES: ChecklistPhase[] = [
         id: "anteckna-orgnr",
         title: "Anteckna org-nr + adress för senare",
         description:
-          "Kommer användas i: Mollie-onboarding, Terms-sidan, Privacy-sidan, fakturor, alla legal-dokument.",
+          "Kommer användas i: Stripe- och Swish-onboarding, Terms-sidan, Privacy-sidan, fakturor och alla legal-dokument.",
         who: "Du",
         effort: "1 min",
       },
@@ -171,70 +171,70 @@ const PHASES: ChecklistPhase[] = [
   {
     id: "fas-3",
     emoji: "💳",
-    title: "Fas 3 — Mollie + Betalningar",
-    description: "Mollie-konto i företagsnamn, KYC, live-nyckel, webhook och refunds.",
+    title: "Fas 3 — Stripe, Swish + betalningar",
+    description: "Stripe och direkt Swish i företagsnamn: KYC, live-nycklar, betalningsdomän, webhooks och refunds.",
     estimatedDays: "2-4 dagar",
     items: [
       {
-        id: "mollie-konto",
-        title: "Skapa Mollie-konto i företagsnamn",
+        id: "stripe-konto",
+        title: "Skapa Stripe-konto i företagsnamn",
         description:
-          "mollie.com → registrera organisationen med org-nr från Fas 2. Slutför företags- och ägaruppgifter samt identitetskontroll i onboarding-flödet.",
+          "dashboard.stripe.com → registrera organisationen med org-nr från Fas 2. Slutför företags-, ägar- och identitetskontrollen och aktivera livebetalningar.",
         who: "Du",
         effort: "30 min + KYC-väntan",
       },
       {
-        id: "mollie-bank",
+        id: "stripe-bank",
         title: "Koppla bank-konto för utbetalningar",
         description:
-          "Mollie Dashboard → Organization settings/Bank accounts. Lägg in och verifiera företagskontot från Fas 2; kontrollera även utbetalningsfrekvens och kontouppgifter.",
+          "Stripe Dashboard → Settings → Bank accounts. Lägg in och verifiera företagskontot från Fas 2; kontrollera även utbetalningsfrekvens och kontouppgifter.",
         who: "Du",
         effort: "15 min + 1-2 dagar verifiering",
       },
       {
-        id: "mollie-payment-methods",
+        id: "stripe-payment-methods",
         title: "Aktivera betalmetoder",
         description:
-          "Mollie Dashboard → Settings → Payment methods. Aktivera de metoder ViaEats ska erbjuda och invänta eventuell extra granskning innan live-test.",
+          "Stripe Dashboard → Settings → Payment methods. Aktivera kort och Klarna. Kontrollera att Apple Pay och Google Pay är aktiva för www.viaeats.se.",
         who: "Du",
         effort: "5 min",
       },
       {
-        id: "mollie-live-key-railway",
-        title: "Sätt Mollie live key i Railway env (API-tjänsten)",
+        id: "stripe-live-key-railway",
+        title: "Sätt Stripe live keys i Railway env (API-tjänsten)",
         description:
-          "Sätt MOLLIE_API_KEY=live_... och säkerställ att PAYMENT_PROVIDER=mollie. Behåll testnyckeln utanför produktion och exponera aldrig API-nyckeln i Vercel/webbklienten.",
+          "Sätt STRIPE_SECRET_KEY=sk_live_..., STRIPE_PUBLISHABLE_KEY=pk_live_... och PAYMENT_PROVIDER=stripe med PAYMENT_PROVIDERS=stripe,swish. Exponera aldrig secret key i webbklienten.",
         who: "Du",
         effort: "5 min",
       },
       {
-        id: "mollie-live-readiness",
+        id: "stripe-live-readiness",
         title: "Verifiera live-readiness i produktion",
-        description: "Kontrollera API:ts launch-readiness/health med PAYMENT_PROVIDER=mollie och en live_ MOLLIE_API_KEY innan riktig trafik släpps på.",
+        description: "Kontrollera API:ts launch-readiness/health med Stripe live keys, signerad webhook och direkt Swish mTLS innan riktig trafik släpps på.",
         who: "Du",
         effort: "5 min",
       },
       {
-        id: "mollie-webhook",
-        title: "Verifiera Mollie-webhooken end-to-end",
+        id: "stripe-webhook",
+        title: "Verifiera Stripe-webhooken end-to-end",
         description:
-          "Integrationen skickar webhookUrl per betalning: https://api.viaeats.se/api/payments/webhooks/mollie. Bekräfta att endpointen tar emot Mollies form-POST med payment-id, hämtar status från Mollie och svarar 200.",
+          "Stripe Dashboard ska skicka signerade events till https://api.viaeats.se/api/payments/webhooks/stripe. Bekräfta PaymentIntent-, refund- och dispute-events och att backend alltid hämtar canonical status innan ordern muteras.",
         who: "Du",
         effort: "10 min",
       },
       {
-        id: "mollie-live-key-fail-fast",
-        title: "Force-fail boot om Mollie live key saknas (kod)",
+        id: "stripe-live-key-fail-fast",
+        title: "Force-fail boot om Stripe live-konfiguration saknas (kod)",
         description:
-          "I produktion ska API:t vägra starta om PAYMENT_PROVIDER=mollie men MOLLIE_API_KEY saknas eller inte börjar med live_. Verifiera detta före deploy.",
+          "I produktion ska API:t vägra starta om Stripe är aktivt men sk_live_, pk_live_ eller webhook-hemligheten saknas. Verifiera detta före deploy.",
         who: "Jag",
         effort: "5 min",
       },
       {
-        id: "mollie-test-purchase",
+        id: "stripe-test-purchase",
         title: "Gör en test-purchase live",
         description:
-          "Gör ett riktigt köp med låg summa. Verifiera i Mollie Dashboard att betalningen blir paid, webhooken når API:t och ordern går från AWAITING_PAYMENT till PAID utan manuell åtgärd.",
+          "Gör ett riktigt köp med låg summa. Verifiera i Stripe Dashboard att PaymentIntent blir succeeded, webhooken når API:t och ordern går från AWAITING_PAYMENT till PAID utan manuell åtgärd.",
         who: "Du",
         effort: "15 min",
       },
@@ -242,7 +242,7 @@ const PHASES: ChecklistPhase[] = [
         id: "refund-test",
         title: "Test refund end-to-end",
         description:
-          "Admin → öppna ordern → klicka refund. Verifiera i Mollie Dashboard att refunden registreras, att webhook/reconcile synkar utfallet, att kunden får notifiering och att orderns refund-status uppdateras.",
+          "Admin → öppna ordern → klicka refund. Verifiera i Stripe/Swish att refunden registreras, att webhook/reconcile synkar utfallet, att kunden får notifiering och att orderns refund-status uppdateras.",
         who: "Båda",
         effort: "30 min",
       },
@@ -575,7 +575,7 @@ const PHASES: ChecklistPhase[] = [
         id: "support-redo",
         title: "Support redo att svara",
         description:
-          "E-post + telefon. Förvänta dig första 24h: 'SMS-koden kommer inte', 'Mollie-betalningen fastnar', 'min adress hittas inte'. Ha runbook redo.",
+          "E-post + telefon. Förvänta dig första 24h: 'SMS-koden kommer inte', 'betalningen fastnar', 'min adress hittas inte'. Ha runbook redo.",
         who: "Du",
         effort: "Löpande",
       },

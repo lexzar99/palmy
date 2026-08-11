@@ -113,7 +113,8 @@ export async function finalizePaymentSuccess(
   const providerMatches = order.paymentProvider === input.provider;
   const mollieRefMatches = input.provider !== 'mollie' || order.molliePaymentId === input.ref;
   const swishRefMatches = input.provider !== 'swish' || order.swishPaymentId === input.ref;
-  if (!providerMatches || !mollieRefMatches || !swishRefMatches) {
+  const stripeRefMatches = input.provider !== 'stripe' || order.stripePaymentIntentId === input.ref;
+  if (!providerMatches || !mollieRefMatches || !swishRefMatches || !stripeRefMatches) {
     console.error('[finalize] provider/ref binding mismatch — order flagged for review', {
       orderId: order.id,
       orderNumber: order.orderNumber,
@@ -251,7 +252,12 @@ export async function finalizePaymentFailed(
 ): Promise<void> {
   const failedOrder = await prisma.order.findUnique({
     where: { id: orderId },
-    select: { userDealId: true, paymentStatus: true },
+    select: {
+      userDealId: true,
+      paymentStatus: true,
+      paymentProvider: true,
+      stripePaymentIntentId: true,
+    },
   });
   // Redan betald? Rör inte (en sen FAILED-webhook får aldrig nolla en PAID order).
   if (
@@ -260,6 +266,25 @@ export async function finalizePaymentFailed(
     failedOrder?.paymentStatus === 'PARTIALLY_REFUNDED' ||
     failedOrder?.paymentStatus === 'REFUNDING'
   ) return;
+
+  // A Stripe decline is retryable and a terminal webhook is only allowed to
+  // release reservations for the exact PaymentIntent/Checkout Session frozen
+  // on this order. Metadata alone is never a binding proof.
+  if (input.provider === 'stripe') {
+    const storedRef = String(failedOrder?.stripePaymentIntentId || '').trim();
+    const receivedRef = String(input.ref || '').trim();
+    const bindingMatches = failedOrder?.paymentProvider === 'stripe' &&
+      (storedRef ? receivedRef === storedRef : !receivedRef);
+    if (!bindingMatches) {
+      console.error('[finalize] ignored unbound Stripe failure', {
+        orderId,
+        storedProvider: failedOrder?.paymentProvider,
+        storedRef: storedRef || null,
+        receivedRef: receivedRef || null,
+      });
+      return;
+    }
+  }
 
   const failed = await prisma.order.updateMany({
     where: {

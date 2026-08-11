@@ -177,31 +177,37 @@ assert.throws(
   /Okänd PAYMENT_PROVIDER/,
 );
 
-for (const legacyProvider of ['stripe', 'adyen']) {
-  const legacyProduction = {
-    ...healthy,
-    PAYMENT_PROVIDER: legacyProvider,
-    STRIPE_SECRET_KEY: 'sk_live_legacy',
-    STRIPE_WEBHOOK_SECRET: 'whsec_legacy',
-    ADYEN_API_KEY: 'legacy',
-    ADYEN_MERCHANT_ACCOUNT: 'legacy',
-    ADYEN_HMAC_KEY: 'legacy',
-    ADYEN_ENVIRONMENT: 'live',
-  };
-  assert(
-    getLaunchConfigIssues(legacyProduction).some(
-      (issue) => issue.key === 'payment_provider_launch' && issue.severity === 'error',
-    ),
-  );
-  assert.throws(
-    () => assertRuntimeCriticalConfiguration(legacyProduction),
-    /Mollie måste vara aktiv PAYMENT_PROVIDER/,
-  );
-  assert.doesNotThrow(() => assertRuntimeCriticalConfiguration({
-    ...legacyProduction,
-    NODE_ENV: 'development',
-  }));
+const stripeProduction = {
+  ...healthy,
+  PAYMENT_PROVIDER: 'stripe',
+  PAYMENT_PROVIDERS: 'stripe',
+  STRIPE_SECRET_KEY: 'sk_live_example',
+  STRIPE_PUBLISHABLE_KEY: 'pk_live_example',
+  STRIPE_WEBHOOK_SECRET: 'whsec_example',
+  STRIPE_PAYMENT_METHOD_TYPES: 'card,klarna',
+  STRIPE_STRICT_PAYMENT_METHODS: 'true',
+  STRIPE_PAYOUT_FEE_POLICY: 'actual_balance_transactions',
+};
+assert.deepEqual(
+  getLaunchConfigIssues(stripeProduction).filter((issue) => issue.key.startsWith('stripe')),
+  [],
+);
+assert.doesNotThrow(() => assertRuntimeCriticalConfiguration(stripeProduction));
+
+for (const [override, message] of [
+  [{ STRIPE_SECRET_KEY: 'sk_test_example' }, /live secret key/],
+  [{ STRIPE_PUBLISHABLE_KEY: 'pk_test_example' }, /live publishable key/],
+  [{ STRIPE_WEBHOOK_SECRET: 'bad' }, /WEBHOOK_SECRET/],
+  [{ STRIPE_PAYMENT_METHOD_TYPES: 'card,swish' }, /bara innehålla card/],
+  [{ STRIPE_STRICT_PAYMENT_METHODS: 'false' }, /STRICT_PAYMENT_METHODS/],
+  [{ STRIPE_PAYOUT_FEE_POLICY: 'estimated' }, /PAYOUT_FEE_POLICY/],
+] as const) {
+  assert.throws(() => assertRuntimeCriticalConfiguration({ ...stripeProduction, ...override }), message);
 }
+assert.throws(
+  () => assertRuntimeCriticalConfiguration({ ...stripeProduction, PAYMENT_PROVIDERS: 'swish' }),
+  /PAYMENT_PROVIDER måste också finnas/,
+);
 
 const directSwishProduction = {
   ...healthy,
@@ -211,6 +217,7 @@ const directSwishProduction = {
   SWISH_CLIENT_CERT_CHAIN_PEM: swishFullChain,
   SWISH_KEY_PEM: swishPrivateKey,
   SWISH_CALLBACK_SECRET: '0123456789abcdef0123456789abcdef',
+  SWISH_PAYOUT_FEE_POLICY: 'external',
 };
 // Egen Swish Handel med eget certifikat är produktionsgodkänd. En komplett
 // uppsättning ska varken ge readiness-fel eller stoppa starten.
@@ -219,6 +226,33 @@ assert.deepEqual(
   [],
 );
 assert.doesNotThrow(() => assertRuntimeCriticalConfiguration(directSwishProduction));
+
+const directSwishWithoutPayoutFeePolicy = {
+  ...directSwishProduction,
+  SWISH_PAYOUT_FEE_POLICY: '',
+};
+assert(getLaunchConfigIssues(directSwishWithoutPayoutFeePolicy).some(
+  (issue) => issue.key === 'swish_payout_fee_policy' && issue.severity === 'error',
+));
+assert.throws(
+  () => assertRuntimeCriticalConfiguration(directSwishWithoutPayoutFeePolicy),
+  /SWISH_PAYOUT_FEE_POLICY/,
+);
+
+const directSwishWithPayoutsDisabled = {
+  ...directSwishWithoutPayoutFeePolicy,
+  SWISH_PAYOUTS_DISABLED: 'true',
+};
+assert(getLaunchConfigIssues(directSwishWithPayoutsDisabled).some(
+  (issue) => issue.key === 'swish_payouts_disabled' && issue.severity === 'warning',
+));
+assert.equal(
+  getLaunchConfigIssues(directSwishWithPayoutsDisabled).some(
+    (issue) => issue.key === 'swish_payout_fee_policy',
+  ),
+  false,
+);
+assert.doesNotThrow(() => assertRuntimeCriticalConfiguration(directSwishWithPayoutsDisabled));
 
 const leafOnlySwishProduction = {
   ...directSwishProduction,

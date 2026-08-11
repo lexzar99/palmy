@@ -66,6 +66,7 @@ export const cartPagePending = {
 
     // Discount / rewards summary line
     "cart.summary.reward": "Belöning",
+    "cart.summary.discountPendingMin": "Aktiveras vid {amount} kr",
 
     // BOGO banner copy
     "cart.bogo.pickFree": "1+1 · välj gratisprodukt",
@@ -174,6 +175,7 @@ export const cartPagePending = {
 
     // Discount / rewards summary line
     "cart.summary.reward": "Reward",
+    "cart.summary.discountPendingMin": "Activates at {amount} kr",
 
     // BOGO banner copy
     "cart.bogo.pickFree": "BOGO — pick your free item",

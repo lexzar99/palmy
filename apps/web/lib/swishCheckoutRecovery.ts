@@ -64,7 +64,14 @@ export function classifyAbandonResponse(data: unknown): AbandonOutcome {
 export function classifyPaymentStatus(value: unknown): AbandonOutcome {
   const status = String(value || "").toUpperCase();
   if (status === "PAID") return "paid";
-  if (["FAILED", "EXPIRED", "CANCELED", "CANCELLED", "REQUIRES_PAYMENT_METHOD"].includes(status)) {
+  if ([
+    "FAILED",
+    "DECLINED",
+    "ERROR",
+    "EXPIRED",
+    "CANCELED",
+    "CANCELLED",
+  ].includes(status)) {
     return "terminal";
   }
   return "pending";

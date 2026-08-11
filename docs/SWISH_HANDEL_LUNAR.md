@@ -18,8 +18,9 @@ direkt för vårt eget nummer, vilket gör mellanhanden onödig.
 | Utfärdare | `Lunar Customer CA1 v2 for Swish` |
 | Giltigt | 2026-08-11 → 2031-08-11 |
 
-Mollie finns kvar parallellt för kort, Klarna, Apple Pay och Google Pay.
-Kunden väljer själv i betalmenyn i kassan.
+Stripe kör parallellt för kort, Klarna, Apple Pay och Google Pay. Direkt Swish
+går fortsatt med ViaEats eget Lunar-certifikat. Kunden väljer varje metod som
+ett separat val i kassans fasta betalsteg.
 
 ## 1. Certifikat och privat nyckel
 
@@ -68,7 +69,8 @@ server-trust override.
 ## 2. Miljövariabler
 
 ```dotenv
-PAYMENT_PROVIDERS=mollie,swish     # kassan visar båda; PAYMENT_PROVIDER=mollie är default
+PAYMENT_PROVIDER=stripe
+PAYMENT_PROVIDERS=stripe,swish     # Stripe Elements + direkt Swish
 SWISH_ENVIRONMENT=PRODUCTION
 SWISH_PAYEE_ALIAS=1235309380
 SWISH_CLIENT_CERT_CHAIN_PEM=<base64 av hela kedjan: leaf + Lunar Customer CA + Lunar Root CA>
@@ -76,6 +78,7 @@ SWISH_KEY_PEM=<base64 av swish-key.pem>
 SWISH_CALLBACK_SECRET=<minst 32 slumpade tecken, stabilt mellan deployer>
 SWISH_PAYOUT_FEE_POLICY=<external eller fixed_per_payment enligt bankavtalet>
 SWISH_PAYOUT_FEE_ORE=<heltal i öre, endast om fixed_per_payment>
+SWISH_PAYOUTS_DISABLED=<true för kundcheckout med hårdblockerade restaurangutbetalningar>
 ```
 
 `SWISH_CALLBACK_URL` och `SWISH_REFUND_CALLBACK_URL` byggs automatiskt från
@@ -83,7 +86,8 @@ SWISH_PAYOUT_FEE_ORE=<heltal i öre, endast om fixed_per_payment>
 
 ## 3. Betalflödet
 
-1. Kunden trycker **Betala** → betalknappen fälls ut till en meny.
+1. Kunden trycker **Betala** → samma `/cart`-route visar ett fast betalsteg med
+   separata val för Swish, Klarna, Apple Pay, Google Pay och kort.
 2. **Betala med Swish** → `POST /api/payments/create` skapar ordern och en
    Payment Request med `PUT /swish-cpcapi/api/v2/paymentrequests/{id}`.
 3. Svarets `paymentrequesttoken` blir en M-commerce-länk:
@@ -98,7 +102,8 @@ SWISH_PAYOUT_FEE_ORE=<heltal i öre, endast om fixed_per_payment>
 
 ## 4. Återbetalningar
 
-Refunds går via samma certifikat och samma refund-ledger som Mollie:
+Refunds går via samma certifikat och samma provider-neutrala refund-ledger som
+Stripe och övriga PSP-flöden:
 
 - `PUT /swish-cpcapi/api/v2/refunds/{instructionId}` där `instructionId` är
   **härlett ur refund-ledgerns idempotency-nyckel**. Referensen är alltså känd

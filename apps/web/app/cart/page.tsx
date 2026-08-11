@@ -35,8 +35,11 @@ import { EMBED_PARENT_ORIGIN_PARAM, readEmbedParentOrigin, trustedPartnerOrigin 
 import { useCartStore } from "@/store/cartStore";
 import BogoPickerModal from "@/components/BogoPickerModal";
 import { rememberActiveOrder } from "@/lib/activeOrder";
-// Betalning sker via provider-neutralt hosted checkout-flöde.
+// Betalning sker via ett provider-neutralt checkout-flöde. Direkt Swish och
+// Stripe Elements stannar i samma stabila betalsteg; partner-embed kan använda
+// en säker hosted fallback när top-level navigation krävs.
 import ProductModal from "@/components/ProductModal";
+import StripeInlineCheckout, { type StripeCheckoutMethod } from "@/components/StripeInlineCheckout";
 import { saveOrderToHistory } from "@/lib/orderHistory";
 import {
   type QuickAddress,
@@ -47,7 +50,7 @@ import {
   rememberQuickAddress,
   writeQuickAddresses,
 } from "@/lib/quickAddresses";
-import { PublicDeal, pickBestDeal, formatDealReward } from "@/lib/deals";
+import { PublicDeal, pickBestDeal } from "@/lib/deals";
 import {
   ACTIVE_USER_DEAL_ID_KEY,
   ACTIVE_USER_DEAL_SNAPSHOT_KEY,
@@ -59,6 +62,7 @@ import {
 import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import { LAST_CUSTOMER_ID_KEY } from "@/lib/platformSessionClient";
+import { formatCheckoutSek as formatSekAmount } from "@/lib/checkoutMoney";
 import {
   SWISH_POLLING_POLICY,
   classifyAbandonResponse,
@@ -94,6 +98,7 @@ type HostedPaymentContext = {
 };
 
 type CheckoutPaymentProvider = "mollie" | "swish" | "stripe" | "adyen";
+type CheckoutMethod = "swish" | StripeCheckoutMethod;
 
 function checkoutPaymentProvider(value: unknown): CheckoutPaymentProvider | null {
   const provider = String(value || "").toLowerCase();
@@ -200,10 +205,16 @@ function formatDealLabel(deal: UserAccountDeal, t: (key: string, vars?: Record<s
   const parts: string[] = [];
   if (!isLegacyFreeDel) {
     if (deal.discountPercent && deal.discountPercent > 0) parts.push(`${deal.discountPercent}%`);
-    else if (deal.amountKr && deal.amountKr > 0) parts.push(`${deal.amountKr} ${t("common.kr")}`);
+    else if (deal.amountKr && deal.amountKr > 0) parts.push(`${formatSekAmount(deal.amountKr)} ${t("common.kr")}`);
   }
   if (deal.freeDelivery || isLegacyFreeDel) parts.push(t("cart.dealLabel.freeDelivery"));
   return parts.length > 0 ? parts.join(" + ") : t("cart.dealLabel.fallback");
+}
+
+function formatCartDealReward(deal: PublicDeal): string {
+  return deal.discountType === "FIXED"
+    ? `${formatSekAmount(deal.discountValue)} kr rabatt`
+    : `${deal.discountValue.toFixed(0)}% rabatt`;
 }
 
 function dealTypeLabel(type: string, t: (key: string, vars?: Record<string, string | number>) => string): string {
@@ -213,8 +224,8 @@ function dealTypeLabel(type: string, t: (key: string, vars?: Record<string, stri
   return t("cart.dealType.fallback");
 }
 
-// Betalning sker via Mollie hosted checkout (redirect + status-polling vid retur).
-// Provider-väljaren bor i backend (PAYMENT_PROVIDER).
+// Checkouten är provider-neutral. Backend väljer och verifierar den faktiska
+// providern; klienten markerar aldrig en order som betald.
 
 /**
  * CartCollapsibleRow — kollapsad länkrad (mockup): "Rabattkod ›" / "Dricks ·
@@ -329,11 +340,17 @@ export default function CartPage() {
     appUrl: string;
     qrCode: string;
   } | null>(null);
-  const [availablePaymentProviders, setAvailablePaymentProviders] = useState<CheckoutPaymentProvider[]>(["mollie"]);
-  const [selectedPaymentProvider, setSelectedPaymentProvider] = useState<CheckoutPaymentProvider>("mollie");
-  // Betalknappen fälls ut till en meny i stället för att välja åt kunden.
-  const [payMenuOpen, setPayMenuOpen] = useState(false);
-  const [mollieOptionsOpen, setMollieOptionsOpen] = useState(false);
+  const [availablePaymentProviders, setAvailablePaymentProviders] = useState<CheckoutPaymentProvider[]>([]);
+  const [paymentProvidersLoaded, setPaymentProvidersLoaded] = useState(false);
+  const [paymentStepOpen, setPaymentStepOpen] = useState(false);
+  const [selectedCheckoutMethod, setSelectedCheckoutMethod] = useState<CheckoutMethod | null>(null);
+  const [stripeCheckout, setStripeCheckout] = useState<{
+    orderId: string;
+    clientSecret: string;
+    publishableKey: string;
+    returnUrl: string;
+    method: StripeCheckoutMethod;
+  } | null>(null);
   // Sätts först efter mount — user agent finns inte vid SSR och skulle annars
   // ge hydration mismatch.
   const [isHandheld, setIsHandheld] = useState(false);
@@ -356,12 +373,14 @@ export default function CartPage() {
     window.location.href = swishCheckout.appUrl;
   }, [swishCheckout, isHandheld]);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
-  // True när kunden återvänt från Mollie och vi pollar orderns betalstatus.
+  // True när kunden återvänt från en betalprovider och vi verifierar status.
   const [verifyingPayment, setVerifyingPayment] = useState(false);
+  const [cancellingPayment, setCancellingPayment] = useState(false);
   // Varje poll-loop äger en generation. Ny checkout, explicit avbryt eller
   // unmount invaliderar äldre loopar så ett sovande/avslutat anrop aldrig kan
   // skriva stale state eller navigera efteråt.
   const paymentPollGenerationRef = useRef(0);
+  const paymentCancelRetryRef = useRef<{ orderId: string; attempt: number }>({ orderId: "", attempt: 0 });
   useEffect(() => () => { paymentPollGenerationRef.current += 1; }, []);
   const idempotencyKey = useRef<string>("");
   useEffect(() => {
@@ -375,10 +394,12 @@ export default function CartPage() {
             id === "mollie" || id === "swish" || id === "stripe" || id === "adyen");
         if (providers.length > 0) {
           setAvailablePaymentProviders(providers);
-          setSelectedPaymentProvider((current) => providers.includes(current) ? current : providers[0]);
         }
       })
-      .catch(() => { /* behåll säker server-default */ });
+      .catch(() => { /* fail closed: visa inga metoder utan serverbesked */ })
+      .finally(() => {
+        if (active) setPaymentProvidersLoaded(true);
+      });
     return () => { active = false; };
   }, []);
   const [deals, setDeals] = useState<PublicDeal[]>([]);
@@ -1680,7 +1701,7 @@ export default function CartPage() {
   }, [bogoLostNotice]);
 
   // Hosted checkout recovery. Redirect till /cart är INTE bevis på betalning:
-  // Mollie kan returnera hit innan webhooken hunnit fram. Återuppta även en
+  // En betalprovider kan returnera hit innan webhooken hunnit fram. Återuppta även en
   // persisterad pending-order när kunden öppnar /cart igen efter en stängd flik.
   // Bara serverstatus PAID får tömma carten och gå till tracking.
   useEffect(() => {
@@ -1715,8 +1736,17 @@ export default function CartPage() {
     setPendingOrderId(returnOrderId);
     if (recoveryProvider) writePendingPaymentProvider(localStorage, recoveryProvider);
     if (recoveryProvider === "swish") {
-      const restoredCheckout = readPersistedSwishCheckout(localStorage, returnOrderId);
-      if (restoredCheckout) setSwishCheckout(restoredCheckout);
+      setPaymentStepOpen(true);
+      setSelectedCheckoutMethod("swish");
+      // En app-retur betyder inte att requesten fortfarande kan betalas. Dölj
+      // därför den gamla Swish-länken tills backend har verifierat utfallet, så
+      // en DECLINED/CANCELLED request aldrig ligger kvar som en falsk CTA.
+      setSwishCheckout(null);
+    } else if (recoveryProvider === "stripe") {
+      setPaymentStepOpen(true);
+      // Metoden i UI:t är presentation, inte betalbevis. Statusen hämtas alltid
+      // från backend; card ger bara en neutral rubrik under verifieringen.
+      setSelectedCheckoutMethod("card");
     }
 
     // Betalprovidern redirectade tillbaka hit efter kassan. Vi pollar orderns
@@ -1724,7 +1754,7 @@ export default function CartPage() {
     // betalning, så vi litar bara på PAID/FAILED från servern.
     paymentInFlightRef.current = false;
     void (async () => {
-      // Mollie lämnar iframe:n. När kunden kommer tillbaka måste kiosk-proofen
+      // En hosted betalprovider lämnar iframe:n. När kunden kommer tillbaka måste kiosk-proofen
       // därför skapas på nytt innan statusen eller trackingen hämtas.
       if (returnEmbedded && returnRestaurantSlug) {
         await ensureKioskAccess(returnRestaurantSlug);
@@ -1858,30 +1888,58 @@ export default function CartPage() {
 
   const handlePaymentCancelled = async (orderId: string) => {
     const cancelGeneration = ++paymentPollGenerationRef.current;
-    setVerifyingPayment(false);
+    // Dölj alla återöppnings-/confirm-kontroller direkt när cancel börjar. En
+    // användare ska inte kunna starta samma request igen medan backend avgör
+    // om PAID redan hann vinna eller om providern bekräftar avbrottet.
+    setVerifyingPayment(true);
+    setCancellingPayment(true);
+    setSwishCheckout(null);
+    setStripeCheckout(null);
+    setHostedCheckoutUrl(null);
     paymentInFlightRef.current = false;
     clearCartReturnParams();
     const outcome = await abandonPendingOrder(orderId);
     if (cancelGeneration !== paymentPollGenerationRef.current) return;
     if (outcome === "paid") {
+      paymentCancelRetryRef.current = { orderId: "", attempt: 0 };
+      setVerifyingPayment(false);
+      setCancellingPayment(false);
       await goToOrderTracking(orderId);
       return;
     }
     if (outcome === "terminal") {
-      setSwishCheckout(null);
+      paymentCancelRetryRef.current = { orderId: "", attempt: 0 };
+      setVerifyingPayment(false);
+      setCancellingPayment(false);
+      setSelectedCheckoutMethod(null);
+      setPaymentStepOpen(true);
       clearPendingPaymentStorage();
       setPendingOrderId(null);
-      setError("Betalningen avbröts. Din varukorg är kvar, så du kan försöka igen direkt.");
+      setError(null);
       return;
     }
 
-    // PSP:n eller nätet kunde inte bekräfta cancel. Bevara order-id,
-    // idempotency proof och eventuell Swish-länk så ett nytt PUT aldrig görs
-    // mot samma betalningsrequest och orsakar RP09.
-    const restoredCheckout = readPersistedSwishCheckout(localStorage, orderId);
-    if (restoredCheckout) setSwishCheckout(restoredCheckout);
+    // PSP:n eller nätet kunde inte bekräfta cancel i detta anrop. Bevara
+    // underlaget, visa inga gamla betalningskontroller och försök automatiskt
+    // igen med bounded backoff tills Swish/Stripe ger terminal status. Kunden
+    // behöver aldrig öppna den gamla requesten eller manuellt trycka retry.
+    setPaymentStepOpen(true);
     setPendingOrderId(orderId);
-    setError("Vi kunde inte bekräfta att betalningen avbröts. Den kan fortfarande behandlas. Vänta på status eller öppna Swish igen – starta inte en ny betalning ännu.");
+    setError(null);
+    const previousRetry = paymentCancelRetryRef.current.orderId === orderId
+      ? paymentCancelRetryRef.current.attempt
+      : 0;
+    const nextAttempt = previousRetry + 1;
+    paymentCancelRetryRef.current = { orderId, attempt: nextAttempt };
+    const retryDelayMs = Math.min(1_000 * (2 ** Math.min(previousRetry, 4)), 10_000);
+    window.setTimeout(() => {
+      if (
+        cancelGeneration === paymentPollGenerationRef.current &&
+        paymentCancelRetryRef.current.orderId === orderId
+      ) {
+        void handlePaymentCancelled(orderId);
+      }
+    }, retryDelayMs);
   };
 
   // Pollar orderns betalstatus efter provider-returen eller när en persisterad
@@ -1889,10 +1947,12 @@ export default function CartPage() {
   // direkt mot PSP:n, så flödet återhämtar sig även efter en försenad webhook.
   // PAID → tracking.
   // Terminalt fel/cancel → rensa proof + behåll varukorg. Timeout/pending →
-  // bevara proof/order; skicka ALDRIG obetald order till tracking eller PSP-
-  // cancel från passiv recovery.
+  // bevara proof/order tills provider-cancel har bekräftats; skicka ALDRIG en
+  // obetald order till tracking och skapa aldrig ett parallellt betalningsförsök.
   const finishHostedPayment = async (orderId: string, opts: HostedPaymentContext = {}) => {
     const pollGeneration = ++paymentPollGenerationRef.current;
+    paymentCancelRetryRef.current = { orderId: "", attempt: 0 };
+    setCancellingPayment(false);
     const isCurrentPoll = () => pollGeneration === paymentPollGenerationRef.current;
     // Passiv = ingen payment_return-param, bara en kvarlämnad pending_order_id.
     // Icke-Swish gör en snabb engångskoll. Swish behåller alltid sin officiella
@@ -1938,6 +1998,10 @@ export default function CartPage() {
         if (paymentOutcome === "terminal") {
           setVerifyingPayment(false);
           setSwishCheckout(null);
+          setStripeCheckout(null);
+          setHostedCheckoutUrl(null);
+          setSelectedCheckoutMethod(null);
+          setPaymentStepOpen(true);
           clearCartReturnParams();
           clearPendingPaymentStorage();
           setPendingOrderId(null);
@@ -1952,6 +2016,10 @@ export default function CartPage() {
         if (Number(responseStatus) === 410) {
           setVerifyingPayment(false);
           setSwishCheckout(null);
+          setStripeCheckout(null);
+          setHostedCheckoutUrl(null);
+          setSelectedCheckoutMethod(null);
+          setPaymentStepOpen(true);
           clearCartReturnParams();
           clearPendingPaymentStorage();
           setPendingOrderId(null);
@@ -1985,13 +2053,11 @@ export default function CartPage() {
     setVerifyingPayment(false);
     clearCartReturnParams();
     setPendingOrderId(orderId);
-    if (passive) {
-      // Passiv recovery får aldrig PSP-cancella en fortfarande pending order.
-      // Proof och request-id ligger kvar tills explicit cancel eller terminal
-      // status, så nästa besök kan återuppta samma betalning säkert.
-      return;
-    }
-    setError("Vi väntar fortfarande på betalningsbekräftelsen. Din varukorg och betalningsunderlaget är sparade. Öppna Swish igen eller vänta på status – starta inte en ny betalning ännu.");
+    // En retur eller kvarlämnad recovery som fortfarande är okänd efter sitt
+    // poll-fönster ska inte lämna kunden med en återöppningsbar request. Försök därför cancel hos
+    // providern. handlePaymentCancelled öppnar ett nytt försök endast efter
+    // bekräftad terminal status; PAID vinner alltid och okänt förblir blockerat.
+    await handlePaymentCancelled(orderId);
   };
 
   const buildOrderPayload = (paymentIntentId?: string) => {
@@ -2153,9 +2219,8 @@ export default function CartPage() {
   // The persisted attempt is resumed on retry; explicit provider cancel/fail
   // uses handlePaymentCancelled, while backend cleanup handles true orphans.
 
-  // (Stripe-eran: handlePaymentSuccess fanns här och anropade /payments/confirm.
-  //  Med Mollie finaliserar webhook/reconcile ordern; klienten routar bara till
-  //  /order/{id} via redirect-recovery-effekten ovan.)
+  // Webhook/reconcile finaliserar ordern; klienten routar bara till
+  // /order/{id} efter att backend har verifierat betalstatusen.
 
   // Persist guest name/phone/email across sessions
   useEffect(() => {
@@ -2165,17 +2230,18 @@ export default function CartPage() {
     if (formData.customerEmail) localStorage.setItem("guest_email", formData.customerEmail);
   }, [user, formData.customerName, formData.customerPhone, formData.customerEmail]);
 
-  // providerOverride låter betalmenyn skicka med sitt val direkt. Att först
-  // sätta state och sedan läsa selectedPaymentProvider här hade läst det
-  // FÖRRA värdet (setState är asynkron) — dvs kunden hade kunnat trycka Swish
-  // och ändå skickas till Mollie.
-  const startCheckout = async (e: React.FormEvent, providerOverride?: CheckoutPaymentProvider) => {
+  // Metoden skickas explicit från det fasta betalsteget. Swish går till den
+  // direkta Swish-providern; övriga metoder går till Stripe Elements.
+  const startCheckout = async (e: React.FormEvent, checkoutMethod: CheckoutMethod) => {
     e.preventDefault();
     paymentPollGenerationRef.current += 1;
     setError(null);
     setHostedCheckoutUrl(null);
     setSwishCheckout(null);
-    const checkoutProvider = providerOverride ?? selectedPaymentProvider;
+    setStripeCheckout(null);
+    setSelectedCheckoutMethod(checkoutMethod);
+    setPaymentStepOpen(true);
+    const checkoutProvider: CheckoutPaymentProvider = checkoutMethod === "swish" ? "swish" : "stripe";
 
     // Refresh the Palmyra-scoped kiosk credential immediately before the first
     // order/payment request. This also covers browsers that block iframe
@@ -2208,7 +2274,7 @@ export default function CartPage() {
       return;
     }
     // E-post är frivilligt — gäster anger bara namn + telefon. Verifierade profiler har den
-    // förifylld ur profilen. Backend skickar e-posten som valfritt till Mollie.
+    // förifylld ur profilen. Backend skickar e-posten som valfritt till betalprovidern.
     // Anges en e-post måste den vara giltig; tom tillåts och skickas som undefined.
     if (!isTestFlow) {
       const emailValue = formData.customerEmail.trim();
@@ -2232,14 +2298,18 @@ export default function CartPage() {
     // lågt för att klara även den lägre tröskeln.
     if (!isTestFlow) {
       if (activeDealBelowMinimum) {
-        setError(`Den aktiva kupongen kräver en beställning på minst ${activeDealMinOrder} kr. Ta bort kupongen för att använda en annan kod.`);
+        setError(`Den aktiva kupongen kräver en beställning på minst ${formatSekAmount(activeDealMinOrder)} kr. Ta bort kupongen för att använda en annan kod.`);
         return;
       }
       const afterDiscount = Math.max(0, subtotal - foodDiscountComponent);
       if (afterDiscount < effectiveMinOrder && minOrderTopUp === 0) {
         const shortfall = Math.ceil(effectiveMinOrder - afterDiscount);
         setError(
-          t("cart.minOrder.errorWithDiscount", { min: minOrder, effective: effectiveMinOrder, short: shortfall }),
+          t("cart.minOrder.errorWithDiscount", {
+            min: formatSekAmount(minOrder),
+            effective: formatSekAmount(effectiveMinOrder),
+            short: formatSekAmount(shortfall),
+          }),
         );
         return;
       }
@@ -2369,7 +2439,7 @@ export default function CartPage() {
         pendingPayment: true,
         paymentProvider: checkoutProvider,
       };
-      const fingerprint = checkoutFingerprint(pendingPayload);
+      const fingerprint = checkoutFingerprint({ pendingPayload, checkoutMethod });
       const previousAttempt = readCheckoutAttempt();
       const previousOrderId = localStorage.getItem("pending_order_id");
       const previousProvider = readPendingPaymentProvider(localStorage);
@@ -2384,7 +2454,12 @@ export default function CartPage() {
           ? readPersistedSwishCheckout(localStorage, previousOrderId)
           : null;
         if (restoredCheckout) {
-          setSwishCheckout(restoredCheckout);
+          // Länken kan ha blivit terminal medan sidan var borta. Presentera den
+          // inte igen förrän statusen är verifierad; kunden kan avbryta säkert
+          // och skapa ett nytt försök om requesten fortfarande är pending.
+          setSwishCheckout(null);
+          setSelectedCheckoutMethod("swish");
+          setPaymentStepOpen(true);
           setPendingOrderId(previousOrderId);
           await finishHostedPayment(previousOrderId, hostedPaymentContext(previousProvider, {
             embedded: embedMode,
@@ -2407,10 +2482,11 @@ export default function CartPage() {
           return;
         }
         if (cancellation === "pending") {
-          const restoredCheckout = readPersistedSwishCheckout(localStorage, previousOrderId);
-          if (restoredCheckout) setSwishCheckout(restoredCheckout);
+          setSwishCheckout(null);
+          setStripeCheckout(null);
+          setPaymentStepOpen(true);
           setPendingOrderId(previousOrderId);
-          setError("Den tidigare betalningen kan fortfarande behandlas och kunde inte avbrytas säkert. Vänta på status eller öppna Swish igen innan du ändrar betalsätt.");
+          setError("Den tidigare betalningen kan fortfarande behandlas och kunde inte avbrytas säkert. Vänta på status eller avbryt säkert igen innan du ändrar betalsätt.");
           return;
         }
         clearPendingPaymentStorage();
@@ -2441,6 +2517,7 @@ export default function CartPage() {
       const currentParams = new URLSearchParams(window.location.search);
       const checkoutEmbedded = currentParams.get("embed") === "1";
       const returnParams = new URLSearchParams({ payment_return: orderId });
+      returnParams.set("payment_provider", checkoutProvider);
       if (checkoutEmbedded) {
         returnParams.set("embed", "1");
         if (embedRestaurantSlug) returnParams.set("restaurant", embedRestaurantSlug);
@@ -2452,7 +2529,7 @@ export default function CartPage() {
         ? trustedPartnerOrigin(currentParams.get(EMBED_PARENT_ORIGIN_PARAM)) || readEmbedParentOrigin()
         : null;
       if (embedParentOrigin) returnParams.set(EMBED_PARENT_ORIGIN_PARAM, embedParentOrigin);
-      // Mollie ska tillbaka till restaurangens sida, inte lämna kunden på en
+      // Hosted betalning ska tillbaka till restaurangens sida, inte lämna kunden på en
       // fristående ViaEats-cart. Palmyras embed.js läser payment_return och
       // laddar samma säkra statuspollning inuti iframe:n igen.
       const returnUrl = embedParentOrigin
@@ -2462,6 +2539,8 @@ export default function CartPage() {
         orderId,
         returnUrl,
         channel: "Web",
+        checkoutExperience: checkoutProvider === "stripe" && !checkoutEmbedded ? "embedded" : "hosted",
+        checkoutMethod: checkoutProvider === "stripe" ? checkoutMethod : undefined,
       });
       if (payRes.data?.alreadyPaid === true || String(payRes.data?.paymentStatus || "").toUpperCase() === "PAID") {
         clearCartReturnParams();
@@ -2479,6 +2558,8 @@ export default function CartPage() {
         writePersistedSwishCheckout(localStorage, checkout);
         writePendingPaymentProvider(localStorage, "swish");
         setSwishCheckout(checkout);
+        setSelectedCheckoutMethod("swish");
+        setPaymentStepOpen(true);
         void finishHostedPayment(orderId, hostedPaymentContext("swish", {
           embedded: checkoutEmbedded,
           restaurantSlug: embedRestaurantSlug || undefined,
@@ -2489,15 +2570,31 @@ export default function CartPage() {
         }));
         return;
       }
+      if (String(payRes.data?.provider || "").toLowerCase() === "stripe") {
+        const clientSecret = String(payRes.data?.clientSecret || "");
+        const publishableKey = String(payRes.data?.publishableKey || "");
+        if (clientSecret.startsWith("pi_") && clientSecret.includes("_secret_") && /^pk_(?:live|test)_/.test(publishableKey)) {
+          paymentInFlightRef.current = false;
+          setStripeCheckout({
+            orderId,
+            clientSecret,
+            publishableKey,
+            returnUrl,
+            method: checkoutMethod as StripeCheckoutMethod,
+          });
+          setPaymentStepOpen(true);
+          return;
+        }
+      }
       const checkoutUrl: string | undefined = payRes.data?.checkoutUrl;
       if (!checkoutUrl) {
         paymentInFlightRef.current = false;
         throw new Error(payRes.data?.details || payRes.data?.error || t("cart.errors.paymentUnavailable"));
       }
-      // Mollie blocks being rendered inside an iframe. A cross-origin iframe
+      // Hosted provider pages cannot safely be rendered inside our iframe. A cross-origin iframe
       // is also not allowed to navigate window.top after these async API calls,
       // so let the trusted Palmyra parent perform the top-level navigation.
-      // The partner embed validates both this frame's origin and Mollie's host.
+      // The partner embed validates both this frame's origin and the provider host.
       if (embedMode && window.parent !== window) {
         const parentOrigin = embedParentOrigin || "*";
         setHostedCheckoutUrl(checkoutUrl);
@@ -2517,6 +2614,10 @@ export default function CartPage() {
         // abandon the obsolete unpaid order before creating a new attempt.
         clearCheckoutAttempt();
       }
+      setStripeCheckout(null);
+      setSwishCheckout(null);
+      setSelectedCheckoutMethod(null);
+      setPaymentStepOpen(true);
       setError(err.response?.data?.error || t("cart.errors.paymentUnavailable"));
     } finally {
       setLoading(false);
@@ -2650,7 +2751,7 @@ export default function CartPage() {
               <p className="text-[13px] font-medium truncate" style={{ color: "var(--gold-ink)" }}>{activeExternalDeal.title}</p>
               {appDealQuote && !appDealQuote.applicable && appDealQuote.reason === "MIN_ORDER" && (appDealQuote.minOrderKr ?? 0) > 0 && (
                 <p className="text-[11px] mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                  Handla för minst {appDealQuote.minOrderKr} kr
+                  Handla för minst {formatSekAmount(appDealQuote.minOrderKr ?? 0)} kr
                 </p>
               )}
             </div>
@@ -2700,7 +2801,7 @@ export default function CartPage() {
                 </p>
                 {!meetsMin && min > 0 && (
                   <p className="text-[11px] mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                    {t("cart.discount.minOrderRequired", { min })}
+                    {t("cart.discount.minOrderRequired", { min: formatSekAmount(min) })}
                   </p>
                 )}
                 {blockedByPromo && meetsMin && (
@@ -2711,7 +2812,7 @@ export default function CartPage() {
               </div>
             </div>
             <span className="text-[12px] font-medium shrink-0" style={{ color: isActive ? "var(--gold-ink)" : "var(--text-secondary)" }}>
-              {isActive ? t("cart.discount.promoRemove") : `−${computeDealComponentsKr(d, subtotal, deliveryFee).total} ${t("common.kr")}`}
+              {isActive ? t("cart.discount.promoRemove") : `−${formatSekAmount(computeDealComponentsKr(d, subtotal, deliveryFee).total)} ${t("common.kr")}`}
             </span>
           </button>
         );
@@ -2783,7 +2884,7 @@ export default function CartPage() {
                 ? { backgroundColor: "var(--text-primary)", borderColor: "var(--text-primary)", color: "var(--bg-primary)" }
                 : { backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}
             >
-              {amt === 0 ? t("cart.tip.none") : `+${amt}`}
+              {amt === 0 ? t("cart.tip.none") : `+${formatSekAmount(amt)}`}
             </button>
           );
         })}
@@ -2828,7 +2929,7 @@ export default function CartPage() {
   // som "Rabattkod ›"-rader i stället för tre alltid-öppna guldsektioner. De
   // viktiga uppgifterna (namn/adress/telefon/e-post) bor kvar synliga inline.
   const renderCartExtras = (keyPrefix: string) => {
-    const tipHint = effectiveTip > 0 ? `${effectiveTip} ${t("common.kr")}` : null;
+    const tipHint = effectiveTip > 0 ? `${formatSekAmount(effectiveTip)} ${t("common.kr")}` : null;
     // Rabattkod-raden rymmer BÅDE personliga/konto-deals OCH kupong-fältet, så
     // man kan välja en sparad belöning eller skriva en kod i samma expansion.
     const discountHint = selectedPersonalDeal
@@ -2879,9 +2980,11 @@ export default function CartPage() {
             <>
               <div className="flex items-center justify-between gap-2 mb-2">
                 <p className="text-[13px] font-medium" style={{ color: topUpToMinimum ? "var(--text-primary)" : "#E11D48" }}>
-                  {topUpToMinimum ? t("cart.minOrder.banner.topUp", { amount: gapToEffective }) : t("cart.minOrder.banner.short", { amount: gapToEffective })}
+                  {topUpToMinimum
+                    ? t("cart.minOrder.banner.topUp", { amount: formatSekAmount(gapToEffective) })
+                    : t("cart.minOrder.banner.short", { amount: formatSekAmount(gapToEffective) })}
                 </p>
-                <span className="text-[10px] font-bold" style={{ color: topUpToMinimum ? "var(--text-secondary)" : "#E11D48" }}>{subtotal.toFixed(0)} / {minOrder.toFixed(0)} {t("common.kr")}</span>
+                <span className="text-[10px] font-bold" style={{ color: topUpToMinimum ? "var(--text-secondary)" : "#E11D48" }}>{formatSekAmount(subtotal)} / {formatSekAmount(minOrder)} {t("common.kr")}</span>
               </div>
               <div className="h-1.5 w-full rounded-full overflow-hidden mb-3" style={{ background: "var(--border-muted)" }}>
                 <motion.div
@@ -2895,7 +2998,7 @@ export default function CartPage() {
               <label className="flex items-center gap-2.5 cursor-pointer select-none">
                 <input type="checkbox" checked={topUpToMinimum} onChange={(e) => setTopUpToMinimum(e.target.checked)} className="h-4 w-4 accent-gold-500 cursor-pointer" />
                 <span className="text-[10px] font-bold leading-snug" style={{ color: "var(--text-secondary)" }}>
-                  {t("cart.minOrder.toggleLabel", { amount: gapToEffective })}
+                  {t("cart.minOrder.toggleLabel", { amount: formatSekAmount(gapToEffective) })}
                 </span>
               </label>
             </>
@@ -2942,252 +3045,217 @@ export default function CartPage() {
     );
   };
 
-  // Betalsättet väljs i en utfällbar meny under betalknappen. Valet skickas
-  // med explicit till startCheckout så att kundens tryck aldrig kan hamna hos
-  // fel leverantör.
-  const payWith = (event: React.MouseEvent, provider: CheckoutPaymentProvider) => {
-    setSelectedPaymentProvider(provider);
-    setPayMenuOpen(false);
-    void startCheckout(event, provider);
+  const openPaymentStep = () => {
+    setError(null);
+    setPaymentStepOpen(true);
+    if (!pendingOrderId) {
+      setSelectedCheckoutMethod(null);
+      setStripeCheckout(null);
+      setSwishCheckout(null);
+      setHostedCheckoutUrl(null);
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Finns bara ett betalsätt går knappen direkt till kassan — då vore en meny
-  // med ett enda val bara ett extra tryck.
-  const handleCheckoutButton = (event: React.MouseEvent) => {
-    if (availablePaymentProviders.length > 1) {
-      setPayMenuOpen((open) => !open);
+  const returnFromPayment = () => {
+    if (pendingOrderId) {
+      void handlePaymentCancelled(pendingOrderId);
       return;
     }
-    void startCheckout(event);
+    if (selectedCheckoutMethod) {
+      setSelectedCheckoutMethod(null);
+      setStripeCheckout(null);
+      setSwishCheckout(null);
+      setHostedCheckoutUrl(null);
+      setError(null);
+      return;
+    }
+    setPaymentStepOpen(false);
+    setError(null);
   };
 
-  const MOLLIE_WALLETS = [
-    { id: "klarna", label: "Klarna", hint: "Betala senare eller dela upp" },
-    { id: "card", label: "Kort", hint: "Visa, Mastercard" },
-    { id: "applepay", label: "Apple Pay", hint: "Face ID eller Touch ID" },
-    { id: "googlepay", label: "Google Pay", hint: "Sparade kort i Google" },
+  const paymentMethods: Array<{
+    id: CheckoutMethod;
+    label: string;
+    hint: string;
+    provider: "swish" | "stripe";
+  }> = [
+    { id: "swish", label: "Swish", hint: "Betala med Swish smidigt och enkelt", provider: "swish" },
+    { id: "klarna", label: "Klarna", hint: "Betala direkt, senare eller dela upp", provider: "stripe" },
+    { id: "apple_pay", label: "Apple Pay", hint: "Snabbt och säkert med din Apple-enhet", provider: "stripe" },
+    { id: "google_pay", label: "Google Pay", hint: "Betala med ett sparat kort i Google", provider: "stripe" },
+    { id: "card", label: "Kort", hint: "Visa, Mastercard och andra betalkort", provider: "stripe" },
   ];
 
-  const renderPayMenu = () => {
-    if (availablePaymentProviders.length <= 1) return null;
-    const hasSwish = availablePaymentProviders.includes("swish");
-    const hasMollie = availablePaymentProviders.includes("mollie");
+  const renderMethodMark = (method: CheckoutMethod) => {
+    if (method === "swish") {
+      return (
+        <span className="grid h-10 w-[94px] shrink-0 place-items-center rounded-xl bg-white px-2.5" style={{ border: "1px solid rgba(23,26,27,0.10)" }}>
+          <img src="/swish-logo.svg" alt="Swish" className="h-auto w-full" />
+        </span>
+      );
+    }
+    if (method === "klarna") {
+      return <span className="grid h-10 w-[94px] shrink-0 place-items-center rounded-xl bg-[#FFB3C7] text-[15px] font-black text-black">Klarna.</span>;
+    }
+    if (method === "apple_pay") {
+      return <span className="grid h-10 w-[94px] shrink-0 place-items-center rounded-xl bg-black text-[16px] font-semibold text-white"> Pay</span>;
+    }
+    if (method === "google_pay") {
+      return <span className="grid h-10 w-[94px] shrink-0 place-items-center rounded-xl bg-white text-[15px] font-semibold text-[#3C4043]" style={{ border: "1px solid rgba(23,26,27,0.10)" }}><span><span className="text-[#4285F4]">G</span> Pay</span></span>;
+    }
     return (
-      <AnimatePresence initial={false}>
-        {payMenuOpen && (
-          <motion.div
-            key="pay-menu"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.22, ease: "easeOut" }}
-            className="overflow-hidden"
-          >
-            <div
-              className="mb-3 rounded-2xl p-2"
-              style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}
-            >
-              {hasSwish && (
-                <button
-                  type="button"
-                  onClick={(event) => payWith(event, "swish")}
-                  disabled={loading}
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-all active:scale-[0.99] disabled:opacity-50"
-                  style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)" }}
-                >
-                  <span
-                    className="grid h-9 w-[88px] shrink-0 place-items-center rounded-lg bg-white px-2"
-                    style={{ border: "1px solid rgba(23, 26, 27, 0.10)" }}
-                  >
-                    <img src="/swish-logo.svg" alt="Swish" className="h-auto w-full" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[14.5px] font-semibold" style={{ color: "var(--text-primary)" }}>
-                      Betala med Swish
-                    </span>
-                    <span className="block text-[12px]" style={{ color: "var(--text-secondary)" }}>
-                      Betala med Swish smidigt och enkelt
-                    </span>
-                  </span>
-                  <ArrowRight size={17} style={{ color: "var(--text-secondary)" }} />
+      <span className="grid h-10 w-[94px] shrink-0 place-items-center rounded-xl" style={{ backgroundColor: "var(--gold-soft)" }}>
+        <CreditCard size={20} style={{ color: "var(--gold-ink)" }} />
+      </span>
+    );
+  };
+
+  const renderPaymentStep = () => {
+    const methods = paymentMethods.filter((method) => availablePaymentProviders.includes(method.provider));
+    return (
+      <div className="mx-auto w-full max-w-2xl px-1 sm:px-4">
+        <button
+          type="button"
+          onClick={returnFromPayment}
+          disabled={loading || verifyingPayment}
+          className="mb-6 inline-flex items-center gap-1.5 text-[13.5px] font-semibold transition-opacity hover:opacity-70 disabled:opacity-50"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          <ChevronLeft size={17} /> {selectedCheckoutMethod || pendingOrderId ? "Tillbaka till betalsätt" : "Tillbaka till kassan"}
+        </button>
+
+        <section className="rounded-3xl p-5 sm:p-8" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+          <div className="flex items-start justify-between gap-4 border-b pb-5" style={{ borderColor: "var(--border-muted)" }}>
+            <div>
+              <p className="text-[12px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--text-secondary)" }}>Säker betalning</p>
+              <h1 className="mt-1 text-2xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+                {selectedCheckoutMethod ? paymentMethods.find((method) => method.id === selectedCheckoutMethod)?.label || "Betalning" : "Välj betalsätt"}
+              </h1>
+              <p className="mt-1 text-[13px]" style={{ color: "var(--text-secondary)" }}>
+                {cartRestaurantName ? `${cartRestaurantName} · ` : ""}{orderType === "DELIVERY" ? "Leverans" : "Avhämtning"}
+              </p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--text-secondary)" }}>Att betala</p>
+              <p className="mt-1 text-[20px] font-bold" style={{ color: "var(--gold-ink)", fontVariantNumeric: "tabular-nums" }}>{formatSekAmount(total)} SEK</p>
+            </div>
+          </div>
+
+          {error && (
+            <div role="alert" className="mt-5 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-[13.5px] leading-5 text-rose-600">
+              <p>{error}</p>
+              {pendingOrderId && (
+                <button type="button" onClick={() => { void handlePaymentCancelled(pendingOrderId); }} className="mt-3 rounded-xl border border-rose-500/30 px-3 py-2 text-[12.5px] font-semibold">
+                  Avbryt väntande betalning säkert
                 </button>
               )}
-
-              {hasMollie && (
-                <div className={hasSwish ? "mt-2" : undefined}>
-                  <button
-                    type="button"
-                    aria-expanded={mollieOptionsOpen}
-                    onClick={() => setMollieOptionsOpen((open) => !open)}
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-all active:scale-[0.99]"
-                    style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)" }}
-                  >
-                    <span
-                      className="grid h-9 w-9 shrink-0 place-items-center rounded-lg"
-                      style={{ backgroundColor: "var(--gold-soft)" }}
-                    >
-                      <CreditCard size={17} style={{ color: "var(--gold-ink)" }} strokeWidth={2.3} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[14.5px] font-semibold" style={{ color: "var(--text-primary)" }}>
-                        Betala med Mollie
-                      </span>
-                      <span className="block text-[12px]" style={{ color: "var(--text-secondary)" }}>
-                        Klarna, kort, Apple Pay och Google Pay
-                      </span>
-                    </span>
-                    <ChevronDown
-                      size={17}
-                      style={{
-                        color: "var(--text-secondary)",
-                        transform: mollieOptionsOpen ? "rotate(180deg)" : "none",
-                        transition: "transform 0.2s ease",
-                      }}
-                    />
-                  </button>
-
-                  <AnimatePresence initial={false}>
-                    {mollieOptionsOpen && (
-                      <motion.div
-                        key="mollie-options"
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.2, ease: "easeOut" }}
-                        className="overflow-hidden"
-                      >
-                        <div className="mt-2 space-y-1.5 pl-3">
-                          {MOLLIE_WALLETS.map((wallet) => (
-                            <div
-                              key={wallet.id}
-                              className="flex items-center gap-2.5 rounded-lg px-3 py-2"
-                              style={{ backgroundColor: "var(--bg-secondary)" }}
-                            >
-                              <Check size={14} strokeWidth={2.8} style={{ color: "var(--success-ink)" }} />
-                              <span className="text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>
-                                {wallet.label}
-                              </span>
-                              <span className="text-[11.5px]" style={{ color: "var(--text-secondary)" }}>
-                                {wallet.hint}
-                              </span>
-                            </div>
-                          ))}
-                          <p className="px-1 pt-1 text-[11.5px]" style={{ color: "var(--text-secondary)" }}>
-                            Du väljer exakt betalsätt i nästa steg hos Mollie.
-                          </p>
-                          <button
-                            type="button"
-                            onClick={(event) => payWith(event, "mollie")}
-                            disabled={loading}
-                            className="mt-1 flex h-11 w-full items-center justify-center gap-2 rounded-xl text-[14px] font-semibold transition-all active:scale-[0.99] disabled:opacity-50"
-                            style={{ backgroundColor: "var(--gold-soft)", color: "var(--gold-ink)" }}
-                          >
-                            Fortsätt till betalning <ArrowRight size={16} />
-                          </button>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              )}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+
+          {swishCheckout ? (
+            <div className="mt-6 text-center">
+              <div className="mx-auto grid h-12 w-28 place-items-center rounded-xl bg-white px-2.5" style={{ border: "1px solid rgba(23,26,27,0.10)" }}>
+                <img src="/swish-logo.svg" alt="Swish" className="h-auto w-full" />
+              </div>
+              <p className="mx-auto mt-4 max-w-md text-[13.5px] leading-5" style={{ color: "var(--text-secondary)" }}>
+                {isHandheld
+                  ? "Godkänn belopp och mottagare i Swish. Om appen inte öppnades kan du använda knappen nedan."
+                  : "Skanna QR-koden med Swish-appen. Beloppet är redan ifyllt och betalningen verifieras automatiskt."}
+              </p>
+              {!isHandheld && <img src={swishCheckout.qrCode} alt="QR-kod för Swish-betalningen" className="mx-auto mt-5 h-52 w-52 rounded-2xl bg-white p-2" />}
+              <a href={swishCheckout.appUrl} className="mt-5 flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-[#2C2C2C] px-4 text-[15px] font-semibold text-white">
+                {isHandheld ? "Öppna Swish" : "Öppna Swish på den här enheten"} <ArrowRight size={18} />
+              </a>
+              <button type="button" onClick={() => { void handlePaymentCancelled(swishCheckout.orderId); }} className="mt-3 h-10 px-4 text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
+                Avbryt betalningen säkert
+              </button>
+            </div>
+          ) : verifyingPayment ? (
+            <div className="flex min-h-64 flex-col items-center justify-center gap-3 py-10 text-center">
+              <Loader2 size={30} className="animate-spin" style={{ color: "var(--gold-ink)" }} />
+              <h2 className="text-[17px] font-semibold" style={{ color: "var(--text-primary)" }}>{cancellingPayment ? "Avslutar betalningsförsöket" : "Verifierar betalningen"}</h2>
+              <p className="max-w-sm text-[13px] leading-5" style={{ color: "var(--text-secondary)" }}>
+                {cancellingPayment
+                  ? "Vi stänger det gamla försöket automatiskt. När avbrottet är bekräftat visas betalsätten igen med varukorgen kvar."
+                  : "Vi väntar på bankens säkra bekräftelse. Varukorgen töms bara om backend verifierar status PAID."}
+              </p>
+            </div>
+          ) : stripeCheckout ? (
+            <div className="mt-6">
+              <StripeInlineCheckout
+                clientSecret={stripeCheckout.clientSecret}
+                publishableKey={stripeCheckout.publishableKey}
+                method={stripeCheckout.method}
+                returnUrl={stripeCheckout.returnUrl}
+                amountLabel={`${formatSekAmount(total)} SEK`}
+                onSubmitStart={() => { paymentInFlightRef.current = true; }}
+                onSubmitEnd={() => { paymentInFlightRef.current = false; }}
+                onVerified={async () => {
+                  paymentInFlightRef.current = false;
+                  await finishHostedPayment(stripeCheckout.orderId, {
+                    provider: "stripe",
+                    embedded: embedMode,
+                    restaurantSlug: embedRestaurantSlug || undefined,
+                    parentOrigin: embedMode ? readEmbedParentOrigin() : null,
+                  });
+                }}
+              />
+            </div>
+          ) : hostedCheckoutUrl ? (
+            <div className="mt-6 text-center">
+              <p className="text-[13.5px] leading-5" style={{ color: "var(--text-secondary)" }}>Betalningen måste öppnas på den översta sidan för att fungera i restaurangens inbäddade kassa.</p>
+              <a href={hostedCheckoutUrl} target="_top" rel="noopener" className="mt-5 flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-gold-500 px-4 text-[15px] font-semibold text-white">Öppna säker betalning <ArrowRight size={18} /></a>
+            </div>
+          ) : selectedCheckoutMethod && loading ? (
+            <div className="flex min-h-56 flex-col items-center justify-center gap-3 py-8 text-center">
+              <Loader2 size={28} className="animate-spin" style={{ color: "var(--gold-ink)" }} />
+              <p className="text-[13.5px]" style={{ color: "var(--text-secondary)" }}>Förbereder säker betalning…</p>
+            </div>
+          ) : pendingOrderId ? (
+            <div className="flex min-h-56 flex-col items-center justify-center gap-3 py-8 text-center">
+              <AlertCircle size={26} className="text-amber-500" />
+              <p className="max-w-md text-[13.5px] leading-5" style={{ color: "var(--text-secondary)" }}>Det tidigare betalningsförsöket kan fortfarande behandlas. Öppningslänken är dold för att undvika en oavsiktlig debitering. Vänta på status eller avbryt säkert.</p>
+              <button type="button" onClick={() => { void handlePaymentCancelled(pendingOrderId); }} className="mt-2 rounded-xl border px-4 py-2.5 text-[13px] font-semibold" style={{ borderColor: "var(--border-muted)", color: "var(--text-primary)" }}>Avbryt väntande betalning säkert</button>
+            </div>
+          ) : (
+            <div className="mt-6 space-y-3">
+              {methods.map((method) => (
+                <button
+                  key={method.id}
+                  type="button"
+                  onClick={(event) => { void startCheckout(event, method.id); }}
+                  disabled={loading}
+                  className="flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 disabled:opacity-50"
+                  style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-primary)" }}
+                >
+                  {renderMethodMark(method.id)}
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[15px] font-semibold" style={{ color: "var(--text-primary)" }}>{method.label}</span>
+                    <span className="mt-0.5 block text-[12.5px] leading-4" style={{ color: "var(--text-secondary)" }}>{method.hint}</span>
+                  </span>
+                  <ArrowRight size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
+                </button>
+              ))}
+              {!paymentProvidersLoaded && (
+                <p className="flex items-center justify-center gap-2 rounded-2xl border p-4 text-[13.5px]" style={{ borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}>
+                  <Loader2 size={17} className="animate-spin" /> Hämtar säkra betalsätt…
+                </p>
+              )}
+              {paymentProvidersLoaded && methods.length === 0 && (
+                <p className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-[13.5px] text-rose-600">Inget betalsätt är tillgängligt just nu. Försök igen om en stund.</p>
+              )}
+              <p className="pt-2 text-center text-[11.5px] leading-4" style={{ color: "var(--text-secondary)" }}>Klarna, Apple Pay, Google Pay och kort behandlas säkert av Stripe. Tillgängliga plånböcker verifieras på din enhet.</p>
+            </div>
+          )}
+        </section>
+      </div>
     );
   };
 
   return (
     <div className="min-h-screen pt-[calc(env(safe-area-inset-top,0px)+1rem)] sm:pt-12 md:pt-20 pb-36 px-3 sm:px-6 lg:px-10 xl:px-16" style={{ backgroundColor: "var(--bg-primary)" }}>
-      {hostedCheckoutUrl && embedMode && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="hosted-checkout-title"
-          className="fixed inset-0 z-[4000] flex items-center justify-center bg-black/45 p-5"
-        >
-          <div className="w-full max-w-sm rounded-3xl p-6 text-center shadow-2xl" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)" }}>
-            <h2 id="hosted-checkout-title" className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>
-              Fortsätt till säker betalning
-            </h2>
-            <p className="mt-2 text-[13.5px] leading-5" style={{ color: "var(--text-secondary)" }}>
-              Betalningen öppnas hos Mollie och du kommer tillbaka till din order efteråt.
-            </p>
-            <a
-              href={hostedCheckoutUrl}
-              target="_top"
-              rel="noopener"
-              className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gold-500 px-4 text-[15px] font-semibold text-white"
-            >
-              Öppna betalningen <ArrowRight size={18} />
-            </a>
-            <button
-              type="button"
-              onClick={() => {
-                paymentInFlightRef.current = false;
-                setHostedCheckoutUrl(null);
-              }}
-              className="mt-3 h-10 px-4 text-[13px] font-semibold"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              Avbryt
-            </button>
-          </div>
-        </div>
-      )}
-      {swishCheckout && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="swish-checkout-title"
-          className="fixed inset-0 z-[4100] flex items-center justify-center bg-black/55 p-5"
-        >
-          <div className="w-full max-w-sm rounded-3xl p-6 text-center shadow-2xl" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)" }}>
-            <h2 id="swish-checkout-title" className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>
-              Betala med Swish
-            </h2>
-            <p className="mt-2 text-[13.5px] leading-5" style={{ color: "var(--text-secondary)" }}>
-              {isHandheld
-                ? "Swish öppnas med belopp och mottagare ifyllt – godkänn med BankID. Om appen inte öppnas automatiskt använder du knappen nedan."
-                : "Skanna QR-koden med Swish-appen. Beloppet är redan ifyllt och vi verifierar betalningen automatiskt."}
-            </p>
-            {error && (
-              <p role="status" className="mt-3 rounded-xl bg-rose-500/10 px-3 py-2 text-[12.5px] font-medium leading-5 text-rose-600">
-                {error}
-              </p>
-            )}
-            {/* QR-koden är meningslös på telefonen som ska betala — den kan inte
-                skanna sin egen skärm. Där är app-länken hela flödet. */}
-            {!isHandheld && (
-              <img
-                src={swishCheckout.qrCode}
-                alt="QR-kod för Swish-betalningen"
-                className="mx-auto mt-4 h-52 w-52 rounded-2xl bg-white p-2"
-              />
-            )}
-            <a
-              href={swishCheckout.appUrl}
-              aria-label="Öppna Swish manuellt för att godkänna betalningen"
-              className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl px-4 text-[15px] font-semibold text-white"
-              style={{ backgroundColor: "#2C2C2C" }}
-            >
-              {isHandheld ? "Öppna Swish manuellt" : "Öppna Swish på den här enheten"} <ArrowRight size={18} />
-            </a>
-            <button
-              type="button"
-              onClick={() => {
-                const orderId = swishCheckout.orderId;
-                paymentInFlightRef.current = false;
-                void handlePaymentCancelled(orderId);
-              }}
-              className="mt-3 h-10 px-4 text-[13px] font-semibold"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              Avbryt
-            </button>
-          </div>
-        </div>
-      )}
+      {paymentStepOpen ? renderPaymentStep() : (
       <div className="max-w-[1400px] mx-auto">
         <div className="flex items-end justify-between mb-4 lg:mb-8 px-1 sm:px-4">
            <div className="min-w-0">
@@ -3323,14 +3391,14 @@ export default function CartPage() {
                     ) : item.catalogDiscountApplied && typeof item.originalPrice === "number" && item.originalPrice > item.price ? (
                       <div className="flex flex-col items-end gap-0.5" style={{ fontVariantNumeric: "tabular-nums" }}>
                         <div className="text-[14.5px] font-extrabold leading-none" style={{ color: "var(--orange, #F04F1A)" }}>
-                          {(item.price * item.quantity).toFixed(0)} kr
+                          {formatSekAmount(item.price * item.quantity)} kr
                         </div>
                         <div className="text-[11.5px] font-semibold line-through leading-none" style={{ color: "var(--text-secondary)" }}>
-                          {(item.originalPrice * item.quantity).toFixed(0)} kr
+                          {formatSekAmount(item.originalPrice * item.quantity)} kr
                         </div>
                       </div>
                     ) : (
-                      <div className="text-[14.5px] font-semibold leading-none" style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{(item.price * item.quantity).toFixed(0)} kr</div>
+                      <div className="text-[14.5px] font-semibold leading-none" style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{formatSekAmount(item.price * item.quantity)} kr</div>
                     )}
                   </div>
                 </motion.div>
@@ -3348,19 +3416,19 @@ export default function CartPage() {
 
                 {/* Totals */}
                 <div className="pt-6 space-y-4" style={{ borderTop: "1px solid var(--border-muted)" }}>
-                  <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.subtotal")}</span><span>{subtotal.toFixed(0)} {t("common.sek")}</span></div>
+                  <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.subtotal")}</span><span>{formatSekAmount(subtotal)} {t("common.sek")}</span></div>
                   {orderType === 'DELIVERY' && (
                     <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
                       <span>{t("cart.summary.deliveryFee")}</span>
-                      <span style={{ color: "var(--text-primary)" }}>{addressZoneStatus === "checking" ? t("cart.summary.deliveryCalculating") : `${deliveryFee.toFixed(0)} ${t("common.sek")}`}</span>
+                      <span style={{ color: "var(--text-primary)" }}>{addressZoneStatus === "checking" ? t("cart.summary.deliveryCalculating") : `${formatSekAmount(deliveryFee)} ${t("common.sek")}`}</span>
                     </div>
                   )}
-                  {effectiveTip > 0 && <div className="flex justify-between text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.tip")}</span><span style={{ color: "var(--text-primary)" }}>+{effectiveTip.toFixed(0)} {t("common.sek")}</span></div>}
-                  {minOrderTopUp > 0 && <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.minOrderTopUp")}</span><span style={{ color: "var(--text-primary)" }}>+{minOrderTopUp.toFixed(0)} {t("common.sek")}</span></div>}
+                  {effectiveTip > 0 && <div className="flex justify-between text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.tip")}</span><span style={{ color: "var(--text-primary)" }}>+{formatSekAmount(effectiveTip)} {t("common.sek")}</span></div>}
+                  {minOrderTopUp > 0 && <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.minOrderTopUp")}</span><span style={{ color: "var(--text-primary)" }}>+{formatSekAmount(minOrderTopUp)} {t("common.sek")}</span></div>}
                   {finalDiscount > 0 && (
                     <div className="flex justify-between text-[13px] font-semibold text-emerald-600">
                       <span>{t("cart.summary.discount")}</span>
-                      <span>-{finalDiscount.toFixed(0)} {t("common.sek")}</span>
+                      <span>-{formatSekAmount(finalDiscount)} {t("common.sek")}</span>
                     </div>
                   )}
                   {/* Promo applied men inte aktiverad än (subtotal under deal:s min-order).
@@ -3369,24 +3437,24 @@ export default function CartPage() {
                   {finalDiscount === 0 && selectedPersonalDeal && (selectedPersonalDeal.campaign.minOrder || 0) > subtotal && (
                     <div className="flex justify-between text-[12.5px] font-medium text-amber-600 leading-snug">
                       <span>{selectedPersonalDeal.code}</span>
-                      <span>{t("cart.summary.discountPendingMin", { defaultValue: "Aktiveras vid {{amount}} kr", amount: (selectedPersonalDeal.campaign.minOrder || 0).toFixed(0) })}</span>
+                      <span>{t("cart.summary.discountPendingMin", { amount: formatSekAmount(selectedPersonalDeal.campaign.minOrder || 0) })}</span>
                     </div>
                   )}
                   {finalDiscount === 0 && selectedAccountDeal && (selectedAccountDeal.minOrderKr ?? 0) > subtotal && (
                     <div className="flex justify-between text-[12.5px] font-medium text-amber-600 leading-snug">
                       <span>{formatDealLabel(selectedAccountDeal, t)}</span>
-                      <span>{t("cart.summary.discountPendingMin", { defaultValue: "Aktiveras vid {{amount}} kr", amount: (selectedAccountDeal.minOrderKr ?? 0).toFixed(0) })}</span>
+                      <span>{t("cart.summary.discountPendingMin", { amount: formatSekAmount(selectedAccountDeal.minOrderKr ?? 0) })}</span>
                     </div>
                   )}
                   {typeof vatPercent === "number" && (
                     <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
                       <span>{t("cart.summary.vat", { percent: vatPercent })}</span>
-                      <span>{vatAmount.toFixed(0)} {t("common.sek")}</span>
+                      <span>{formatSekAmount(vatAmount)} {t("common.sek")}</span>
                     </div>
                   )}
                   <div className="flex justify-between items-center mt-5 pt-4" style={{ borderTop: "1px solid var(--border-muted)" }}>
                     <span className="text-[16px] font-bold" style={{ color: "var(--text-primary)" }}>{t("cart.summary.total")}</span>
-                    <span className="text-[20px] font-bold" style={{ color: "var(--gold-ink)", fontVariantNumeric: "tabular-nums" }}>{total.toFixed(0)} {t("common.sek")}</span>
+                    <span className="text-[20px] font-bold" style={{ color: "var(--gold-ink)", fontVariantNumeric: "tabular-nums" }}>{formatSekAmount(total)} {t("common.sek")}</span>
                   </div>
                 </div>
 
@@ -3417,12 +3485,9 @@ export default function CartPage() {
                   </div>
                 )}
 
-                {renderPayMenu()}
-
                 {/* Checkout button */}
                 <button
-                  onClick={handleCheckoutButton}
-                  aria-expanded={availablePaymentProviders.length > 1 ? payMenuOpen : undefined}
+                  onClick={openPaymentStep}
                   disabled={
                     loading
                     || bogoMustPick
@@ -3441,14 +3506,12 @@ export default function CartPage() {
                       : addressZoneStatus === "checking"
                         ? <><Loader2 className="animate-spin" size={20} /> {t("cart.submit.checking")}</>
                         : (Math.max(0, subtotal - foodDiscountComponent) < effectiveMinOrder && !topUpToMinimum)
-                          ? t("cart.submit.short", { amount: Math.ceil(effectiveMinOrder - Math.max(0, subtotal - foodDiscountComponent)) })
+                          ? t("cart.submit.short", { amount: formatSekAmount(Math.ceil(effectiveMinOrder - Math.max(0, subtotal - foodDiscountComponent))) })
                           : addressZoneStatus === "error"
                             ? t("cart.submit.zoneError")
                             : <span className="w-full flex items-center justify-between gap-3">
-                                <span className="flex items-center gap-2">{t("cart.submit")} {availablePaymentProviders.length > 1
-                                  ? <ChevronDown size={18} style={{ transform: payMenuOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s ease" }} />
-                                  : <ArrowRight size={18} className="group-hover:translate-x-1.5 transition-transform" />}</span>
-                                <span style={{ fontVariantNumeric: "tabular-nums" }}>{total.toFixed(0)} {t("common.sek")}</span>
+                                <span className="flex items-center gap-2">{t("cart.submit")} <ArrowRight size={18} className="group-hover:translate-x-1.5 transition-transform" /></span>
+                                <span style={{ fontVariantNumeric: "tabular-nums" }}>{formatSekAmount(total)} {t("common.sek")}</span>
                               </span>}
                 </button>
               </div>
@@ -3676,7 +3739,7 @@ export default function CartPage() {
                        >
                          <div className="flex items-center justify-between gap-2 mb-2">
                            <p className="text-[13px] font-medium" style={{ color: "var(--text-primary)" }}>
-                             {t("cart.dealNudge.remaining", { amount: dealNudge.missing.toFixed(0), reward: formatDealReward(dealNudge.deal) })}
+                             {t("cart.dealNudge.remaining", { amount: formatSekAmount(dealNudge.missing), reward: formatCartDealReward(dealNudge.deal) })}
                            </p>
                            <Tag size={12} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
                          </div>
@@ -3706,17 +3769,17 @@ export default function CartPage() {
                      {renderMinOrderBanner("mt-6")}
 
                      <div className="mt-6 pt-5 space-y-3" style={{ borderTop: "1px solid var(--border-muted)" }}>
-                        <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.subtotal")}</span><span>{subtotal.toFixed(0)} {t("common.sek")}</span></div>
+                        <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.subtotal")}</span><span>{formatSekAmount(subtotal)} {t("common.sek")}</span></div>
                         {orderType === 'DELIVERY' && (
                           <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
                             <span>{t("cart.summary.deliveryFee")}</span>
                             <span style={{ color: "var(--text-primary)" }}>
-                              {addressZoneStatus === "checking" ? t("cart.summary.deliveryCalculating") : `${deliveryFee.toFixed(0)} ${t("common.sek")}`}
+                              {addressZoneStatus === "checking" ? t("cart.summary.deliveryCalculating") : `${formatSekAmount(deliveryFee)} ${t("common.sek")}`}
                             </span>
                           </div>
                         )}
-                        {effectiveTip > 0 && <div className="flex justify-between text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.tip")}</span><span style={{ color: "var(--text-primary)" }}>+{effectiveTip.toFixed(0)} {t("common.sek")}</span></div>}
-                        {minOrderTopUp > 0 && <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.minOrderTopUp")}</span><span style={{ color: "var(--text-primary)" }}>+{minOrderTopUp.toFixed(0)} {t("common.sek")}</span></div>}
+                        {effectiveTip > 0 && <div className="flex justify-between text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.tip")}</span><span style={{ color: "var(--text-primary)" }}>+{formatSekAmount(effectiveTip)} {t("common.sek")}</span></div>}
+                        {minOrderTopUp > 0 && <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.minOrderTopUp")}</span><span style={{ color: "var(--text-primary)" }}>+{formatSekAmount(minOrderTopUp)} {t("common.sek")}</span></div>}
                         {(() => {
                           // Display-källan ska matcha vad som FAKTISKT appliceras
                           // på totalen. Tidigare visades bogoPreview-raden så
@@ -3739,7 +3802,7 @@ export default function CartPage() {
                             return (
                               <div className="flex justify-between text-[13px] font-semibold text-emerald-600">
                                 <span>{t("cart.summary.coupon", { code: selectedPersonalDeal.code })}</span>
-                                <span>-{personalDiscount.toFixed(0)} {t("common.sek")}</span>
+                                <span>-{formatSekAmount(personalDiscount)} {t("common.sek")}</span>
                               </div>
                             );
                           }
@@ -3748,7 +3811,7 @@ export default function CartPage() {
                             return (
                               <div className="flex justify-between text-[13px] font-semibold text-emerald-600">
                                 <span>{selectedAccountDeal ? dealTypeLabel(selectedAccountDeal.type, t) : t("cart.summary.reward")}</span>
-                                <span>-{accountDealDiscount.toFixed(0)} {t("common.sek")}</span>
+                                <span>-{formatSekAmount(accountDealDiscount)} {t("common.sek")}</span>
                               </div>
                             );
                           }
@@ -3764,7 +3827,7 @@ export default function CartPage() {
                             return (
                               <div className="flex justify-between text-[13px] font-semibold text-emerald-600">
                                 <span>{welcomeOffer?.title}</span>
-                                <span>-{welcomeDiscount.toFixed(0)} {t("common.sek")}</span>
+                                <span>-{formatSekAmount(welcomeDiscount)} {t("common.sek")}</span>
                               </div>
                             );
                           }
@@ -3777,7 +3840,7 @@ export default function CartPage() {
                             return (
                               <div className="flex justify-between text-[13px] font-semibold text-emerald-600">
                                 <span>{bogoIsPureDiscount ? "" : "🎁 "}{bogoChoice && !bogoIsPureDiscount ? bogoChoice.product.name : bogoPreview.dealTitle}</span>
-                                <span>-{bogoDiscount.toFixed(0)} {t("common.sek")}</span>
+                                <span>-{formatSekAmount(bogoDiscount)} {t("common.sek")}</span>
                               </div>
                             );
                           }
@@ -3785,7 +3848,7 @@ export default function CartPage() {
                             return (
                               <div className="flex justify-between text-[13px] font-semibold text-emerald-600">
                                 <span>{automaticDeal.deal.title}</span>
-                                <span>-{automaticDeal.discountAmount.toFixed(0)} {t("common.sek")}</span>
+                                <span>-{formatSekAmount(automaticDeal.discountAmount)} {t("common.sek")}</span>
                               </div>
                             );
                           }
@@ -3794,12 +3857,12 @@ export default function CartPage() {
                         {typeof vatPercent === "number" && (
                           <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
                             <span>{t("cart.summary.vat", { percent: vatPercent })}</span>
-                            <span>{vatAmount.toFixed(0)} {t("common.sek")}</span>
+                            <span>{formatSekAmount(vatAmount)} {t("common.sek")}</span>
                           </div>
                         )}
                         <div className="flex justify-between items-center mt-6">
                            <span className="text-[16px] font-bold" style={{ color: "var(--text-primary)" }}>{t("cart.summary.total")}</span>
-                           <span className="text-[22px] font-bold tracking-tight leading-none" style={{ color: "var(--gold-ink)", fontVariantNumeric: "tabular-nums" }}>{total.toFixed(0)} <span className="text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>{t("common.sek")}</span></span>
+                           <span className="text-[22px] font-bold tracking-tight leading-none" style={{ color: "var(--gold-ink)", fontVariantNumeric: "tabular-nums" }}>{formatSekAmount(total)} <span className="text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>{t("common.sek")}</span></span>
                         </div>
                      </div>
 
@@ -3834,19 +3897,14 @@ export default function CartPage() {
                          </motion.div>
                        )}
 
-                       {/* Sticky på mobil: knappen följer med ovanför bottennaven
-                           tills man scrollat ner till dess naturliga plats —
-                           kunden behöver aldrig leta efter "Slutför köp".
-                           Betalmenyn ligger i samma sticky-container så att den
-                           fälls ut precis ovanför knappen som trycktes. */}
+                       {/* Mobilknappen öppnar ett eget stabilt betalsteg i samma
+                           route. Inget betalval renderas i sticky-lagret. */}
                        <div
                           className="sticky z-[90] mt-8"
                           style={{ bottom: "max(calc(env(safe-area-inset-bottom, 0px) + 64px), 86px)" }}
                        >
-                       {renderPayMenu()}
                        <button
-                          onClick={handleCheckoutButton}
-                          aria-expanded={availablePaymentProviders.length > 1 ? payMenuOpen : undefined}
+                          onClick={openPaymentStep}
                           disabled={
                             loading
                             || bogoMustPick
@@ -3865,14 +3923,12 @@ export default function CartPage() {
                               : addressZoneStatus === "checking"
                                 ? <><Loader2 className="animate-spin" size={20} /> {t("cart.submit.checking")}</>
                                 : (Math.max(0, subtotal - foodDiscountComponent) < effectiveMinOrder && !topUpToMinimum)
-                                  ? t("cart.submit.short", { amount: Math.ceil(effectiveMinOrder - Math.max(0, subtotal - foodDiscountComponent)) })
+                                  ? t("cart.submit.short", { amount: formatSekAmount(Math.ceil(effectiveMinOrder - Math.max(0, subtotal - foodDiscountComponent))) })
                                   : addressZoneStatus === "error"
                                     ? t("cart.submit.zoneError")
                                     : <span className="w-full flex items-center justify-between gap-3">
-                                <span className="flex items-center gap-2">{t("cart.submit")} {availablePaymentProviders.length > 1
-                                  ? <ChevronDown size={18} style={{ transform: payMenuOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s ease" }} />
-                                  : <ArrowRight size={18} className="group-hover:translate-x-1.5 transition-transform" />}</span>
-                                <span style={{ fontVariantNumeric: "tabular-nums" }}>{total.toFixed(0)} {t("common.sek")}</span>
+                                <span className="flex items-center gap-2">{t("cart.submit")} <ArrowRight size={18} className="group-hover:translate-x-1.5 transition-transform" /></span>
+                                <span style={{ fontVariantNumeric: "tabular-nums" }}>{formatSekAmount(total)} {t("common.sek")}</span>
                               </span>}
                        </button>
                        </div>
@@ -3883,6 +3939,7 @@ export default function CartPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Cart item edit */}
       <AnimatePresence>
