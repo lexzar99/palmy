@@ -79,6 +79,7 @@ export default function RootLayout({
     <html lang="sv" data-scroll-behavior="smooth">
       <head>
         <link rel="preconnect" href="https://api.viaeats.se" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://js.stripe.com" crossOrigin="anonymous" />
         <link rel="preconnect" href={imageBaseUrl} crossOrigin="anonymous" />
       </head>
       <body className={`${baloo.className} min-h-screen antialiased`}>

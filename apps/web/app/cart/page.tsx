@@ -35,9 +35,14 @@ import { EMBED_PARENT_ORIGIN_PARAM, readEmbedParentOrigin, trustedPartnerOrigin 
 import { useCartStore } from "@/store/cartStore";
 import BogoPickerModal from "@/components/BogoPickerModal";
 import { rememberActiveOrder } from "@/lib/activeOrder";
+import StripeWalletButtons, {
+  preloadStripeWallets,
+  type PreparedStripeWalletPayment,
+  type StripeWalletMethod,
+} from "@/components/StripeWalletButtons";
 // Betalning sker via ett provider-neutralt checkout-flöde. Direkt Swish visas
-// i samma stabila betalsteg; Stripe öppnar sin hostade Checkout där Stripe
-// omedelbart visar de plånböcker och betalmetoder som är möjliga på enheten.
+// separat, Apple Pay/Google Pay använder Stripes riktiga Express Checkout-
+// knappar och kort/Klarna öppnar Stripe-hostad Checkout.
 import ProductModal from "@/components/ProductModal";
 import { saveOrderToHistory } from "@/lib/orderHistory";
 import {
@@ -81,9 +86,10 @@ const TEST_ORDERS_ENABLED =
   process.env.NEXT_PUBLIC_ALLOW_TEST_ORDERS === "true";
 
 const CHECKOUT_ATTEMPT_KEY = "viaeats.checkout.attempt.v1";
-// Rotera en tidigare inline Stripe-order till en ny hosted Checkout-session.
-// Nyckeln ingår i fingerprinten så en gammal pi_ aldrig återanvänds som cs_.
-const STRIPE_CHECKOUT_FLOW_VERSION = "stripe-hosted-v1";
+// Versionsnycklarna ingår i fingerprinten så en gammal pi_ aldrig återanvänds
+// som cs_ (eller tvärtom) när kunden byter checkout-upplevelse.
+const STRIPE_HOSTED_FLOW_VERSION = "stripe-hosted-v1";
+const STRIPE_WALLET_FLOW_VERSION = "stripe-wallet-deferred-v1";
 
 type CheckoutAttempt = { key: string; fingerprint: string };
 type HostedPaymentContext = {
@@ -102,6 +108,8 @@ type HostedPaymentContext = {
 type CheckoutPaymentProvider = "mollie" | "swish" | "stripe" | "adyen";
 type StripeCheckoutMethod = "klarna" | "apple_pay" | "google_pay" | "card";
 type CheckoutMethod = "swish" | StripeCheckoutMethod;
+type CheckoutExperience = "hosted" | "embedded";
+type StartCheckoutOptions = { checkoutExperience?: CheckoutExperience };
 
 function checkoutPaymentProvider(value: unknown): CheckoutPaymentProvider | null {
   const provider = String(value || "").toLowerCase();
@@ -344,9 +352,16 @@ export default function CartPage() {
     qrCode: string;
   } | null>(null);
   const [availablePaymentProviders, setAvailablePaymentProviders] = useState<CheckoutPaymentProvider[]>([]);
+  const [stripePublishableKey, setStripePublishableKey] = useState("");
   const [paymentProvidersLoaded, setPaymentProvidersLoaded] = useState(false);
   const [paymentStepOpen, setPaymentStepOpen] = useState(false);
   const [selectedCheckoutMethod, setSelectedCheckoutMethod] = useState<CheckoutMethod | null>(null);
+  // En wallet-order skapas först efter att kunden godkänt i Apple Pay/Google
+  // Pay. Håll den separat så Express Checkout Element förblir monterat medan
+  // vi skapar/bekräftar PaymentIntenten.
+  const [walletPendingOrderId, setWalletPendingOrderId] = useState<string | null>(null);
+  const [walletProcessing, setWalletProcessing] = useState(false);
+  const [walletAvailable, setWalletAvailable] = useState(false);
   // Sätts först efter mount — user agent finns inte vid SSR och skulle annars
   // ge hydration mismatch.
   const [isHandheld, setIsHandheld] = useState(false);
@@ -390,6 +405,13 @@ export default function CartPage() {
             id === "mollie" || id === "swish" || id === "stripe" || id === "adyen");
         if (providers.length > 0) {
           setAvailablePaymentProviders(providers);
+        }
+        const publishableKey = String(response.data?.stripePublishableKey || "").trim();
+        if (/^pk_(?:live|test)_[A-Za-z0-9]+$/.test(publishableKey)) {
+          setStripePublishableKey(publishableKey);
+          // Stripe.js laddas parallellt medan kunden fortfarande granskar sin
+          // varukorg; betalvyn behöver därför inte börja med ett kallt script.
+          void preloadStripeWallets(publishableKey);
         }
       })
       .catch(() => { /* fail closed: visa inga metoder utan serverbesked */ })
@@ -1892,6 +1914,8 @@ export default function CartPage() {
     setCancellingPayment(true);
     setSwishCheckout(null);
     setHostedCheckoutUrl(null);
+    setWalletPendingOrderId(null);
+    setWalletProcessing(false);
     paymentInFlightRef.current = false;
     clearCartReturnParams();
     const outcome = await abandonPendingOrder(orderId);
@@ -2000,6 +2024,7 @@ export default function CartPage() {
           clearCartReturnParams();
           clearPendingPaymentStorage();
           setPendingOrderId(null);
+          setWalletPendingOrderId(null);
           // En gammal order som städas bort passivt ska inte skrämmas upp som
           // ett färskt betalfel.
           if (!passive) setError("Betalningen genomfördes inte. Din varukorg är kvar, försök igen eller välj ett annat betalsätt.");
@@ -2017,6 +2042,7 @@ export default function CartPage() {
           clearCartReturnParams();
           clearPendingPaymentStorage();
           setPendingOrderId(null);
+          setWalletPendingOrderId(null);
           if (!passive) setError("Den tidigare betalningen kunde inte återställas. Din varukorg är kvar, så du kan försöka igen.");
           return;
         }
@@ -2223,17 +2249,32 @@ export default function CartPage() {
     if (formData.customerEmail) localStorage.setItem("guest_email", formData.customerEmail);
   }, [user, formData.customerName, formData.customerPhone, formData.customerEmail]);
 
-  // Metoden skickas explicit från det fasta betalsteget. Swish går direkt till
-  // Swish-providern; övriga val öppnar Stripe-hostad Checkout utan att ladda
-  // Stripe.js eller Elements i vår egen kassa.
-  const startCheckout = async (e: React.FormEvent, checkoutMethod: CheckoutMethod) => {
+  // Swish och hosted Stripe startar på kundens metodknapp. Wallets använder
+  // däremot Stripes redan monterade Express Checkout Element: den öppnar den
+  // native sheeten först och anropar denna funktion från onConfirm för att
+  // skapa den frysta ordern + PaymentIntenten efter kundens godkännande.
+  const startCheckout = async (
+    e: { preventDefault: () => void },
+    checkoutMethod: CheckoutMethod,
+    options: StartCheckoutOptions = {},
+  ): Promise<PreparedStripeWalletPayment | void> => {
     e.preventDefault();
+    const checkoutExperience = options.checkoutExperience || "hosted";
+    const deferredWallet = checkoutExperience === "embedded" &&
+      (checkoutMethod === "apple_pay" || checkoutMethod === "google_pay");
+    const rejectCheckout = (message: string) => {
+      if (deferredWallet) throw new Error(message);
+      setError(message);
+    };
+    let preserveLoadingForNavigation = false;
     paymentPollGenerationRef.current += 1;
-    setError(null);
-    setHostedCheckoutUrl(null);
-    setSwishCheckout(null);
-    setSelectedCheckoutMethod(checkoutMethod);
-    setPaymentStepOpen(true);
+    if (!deferredWallet) {
+      setError(null);
+      setHostedCheckoutUrl(null);
+      setSwishCheckout(null);
+      setSelectedCheckoutMethod(checkoutMethod);
+      setPaymentStepOpen(true);
+    }
     const checkoutProvider: CheckoutPaymentProvider = checkoutMethod === "swish" ? "swish" : "stripe";
 
     // Refresh the Palmyra-scoped kiosk credential immediately before the first
@@ -2242,7 +2283,7 @@ export default function CartPage() {
     if (embedMode) {
       const kioskReady = await ensureKioskAccess(embedRestaurantSlug || cartRestaurantSlug || "");
       if (!kioskReady) {
-        setError("Embedded beställningsåtkomst saknas. Ladda om menyn och försök igen.");
+        rejectCheckout("Embedded beställningsåtkomst saknas. Ladda om menyn och försök igen.");
         return;
       }
     }
@@ -2251,6 +2292,7 @@ export default function CartPage() {
     // betalning (annars betalar kunden och missar gratisen). Öppna pickern.
     if (bogoMustPick) {
       setShowBogoPicker(true);
+      if (deferredWallet) throw new Error("Välj din kostnadsfria vara innan du betalar.");
       return;
     }
 
@@ -2263,7 +2305,7 @@ export default function CartPage() {
     // submit-knappens disabled-villkor också.
 
     if (!formData.customerName.trim() || !formData.customerPhone.trim()) {
-      setError(t("cart.errors.namePhoneRequired"));
+      rejectCheckout(t("cart.errors.namePhoneRequired"));
       return;
     }
     // E-post är frivilligt — gäster anger bara namn + telefon. Verifierade profiler har den
@@ -2272,7 +2314,7 @@ export default function CartPage() {
     if (!isTestFlow) {
       const emailValue = formData.customerEmail.trim();
       if (emailValue && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
-        setError(t("cart.errors.invalidEmail"));
+        rejectCheckout(t("cart.errors.invalidEmail"));
         return;
       }
     }
@@ -2280,7 +2322,7 @@ export default function CartPage() {
       const hasStreet = !!formData.deliveryStreet.trim();
 
       if (!hasStreet) {
-        setError(t("cart.errors.streetRequired"));
+        rejectCheckout(t("cart.errors.streetRequired"));
         return;
       }
     }
@@ -2291,13 +2333,13 @@ export default function CartPage() {
     // lågt för att klara även den lägre tröskeln.
     if (!isTestFlow) {
       if (activeDealBelowMinimum) {
-        setError(`Den aktiva kupongen kräver en beställning på minst ${formatSekAmount(activeDealMinOrder)} kr. Ta bort kupongen för att använda en annan kod.`);
+        rejectCheckout(`Den aktiva kupongen kräver en beställning på minst ${formatSekAmount(activeDealMinOrder)} kr. Ta bort kupongen för att använda en annan kod.`);
         return;
       }
       const afterDiscount = Math.max(0, subtotal - foodDiscountComponent);
       if (afterDiscount < effectiveMinOrder && minOrderTopUp === 0) {
         const shortfall = Math.ceil(effectiveMinOrder - afterDiscount);
-        setError(
+        rejectCheckout(
           t("cart.minOrder.errorWithDiscount", {
             min: formatSekAmount(minOrder),
             effective: formatSekAmount(effectiveMinOrder),
@@ -2316,9 +2358,9 @@ export default function CartPage() {
       if (isPaused && pausedUntilDate) {
         const h = pausedUntilDate.getHours().toString().padStart(2, "0");
         const m = pausedUntilDate.getMinutes().toString().padStart(2, "0");
-        setError(t("cart.errors.restaurantPaused", { time: `${h}:${m}` }));
+        rejectCheckout(t("cart.errors.restaurantPaused", { time: `${h}:${m}` }));
       } else {
-        setError(t("cart.errors.restaurantClosed"));
+        rejectCheckout(t("cart.errors.restaurantClosed"));
       }
       return;
     }
@@ -2327,7 +2369,7 @@ export default function CartPage() {
     // Skippas för test-flödet så vi kan testa till adresser utanför zone.
     if (!isTestFlow && orderType === "DELIVERY" && currentRestaurantId) {
       if (addressZoneStatus === "checking") {
-        setError(t("cart.errors.zoneChecking"));
+        rejectCheckout(t("cart.errors.zoneChecking"));
         return;
       }
 
@@ -2347,8 +2389,10 @@ export default function CartPage() {
 
       // If still no coords but we have a street, try one last time to get them
       if ((!lat || !lng) && formData.deliveryStreet) {
-        setLoading(true);
-        setError(t("cart.errors.verifyingAddress"));
+        if (!deferredWallet) {
+          setLoading(true);
+          setError(t("cart.errors.verifyingAddress"));
+        }
         try {
           const aRes = await fetch(`/api/places/autocomplete?input=${encodeURIComponent(formData.deliveryStreet)}&sessiontoken=${sessionToken.current}`);
           const aData = await aRes.json();
@@ -2374,8 +2418,8 @@ export default function CartPage() {
           });
           if (!zRes.data.available) {
             setAddressZoneStatus("error");
-            setError(t("cart.errors.zoneNotCovered"));
-            setLoading(false);
+            rejectCheckout(t("cart.errors.zoneNotCovered"));
+            if (!deferredWallet) setLoading(false);
             return;
           }
           // ALWAYS update the fee from the fresh zone check result
@@ -2397,8 +2441,8 @@ export default function CartPage() {
           // sanningskällan för zone-täckning.
           console.warn("[cart] zone check failed:", zoneErr?.message || zoneErr);
           setAddressZoneStatus("error");
-          setError(t("cart.errors.zoneCheckFailed"));
-          setLoading(false);
+          rejectCheckout(t("cart.errors.zoneCheckFailed"));
+          if (!deferredWallet) setLoading(false);
           return;
         }
       } else if (formData.deliveryStreet) {
@@ -2407,18 +2451,19 @@ export default function CartPage() {
         // betyder det att autocomplete inte hittade någon match alls — vägledning
         // till kunden behöver vara konkret, inte "välj från listan" eftersom
         // ingen lista visades.
-        setError(t("cart.errors.addressNotFound"));
-        setLoading(false);
+        rejectCheckout(t("cart.errors.addressNotFound"));
+        if (!deferredWallet) setLoading(false);
         return;
       }
     }
     // ────────────────────────────────────────────────────────────────────────
 
-    setLoading(true);
+    if (!deferredWallet) setLoading(true);
     try {
       // isTestFlow är redan beräknad ovan — testa-koden gör att vi
       // direktpostar order utan att gå via Stripe.
       if (isTestFlow) {
+        if (deferredWallet) throw new Error("Wallet-betalning används inte i testläget.");
         await submitOrder("FREE_PROMO");
         return;
       }
@@ -2436,7 +2481,11 @@ export default function CartPage() {
         pendingPayload,
         checkoutMethod,
         ...(checkoutProvider === "stripe"
-          ? { checkoutFlowVersion: STRIPE_CHECKOUT_FLOW_VERSION }
+          ? {
+              checkoutFlowVersion: deferredWallet
+                ? STRIPE_WALLET_FLOW_VERSION
+                : STRIPE_HOSTED_FLOW_VERSION,
+            }
           : {}),
       });
       const previousAttempt = readCheckoutAttempt();
@@ -2477,18 +2526,23 @@ export default function CartPage() {
         // cancel. PAID vinner alltid; pending/nätfel bevarar original-proof.
         const cancellation = await abandonPendingOrder(previousOrderId);
         if (cancellation === "paid") {
+          if (deferredWallet) {
+            return { status: "paid", orderId: previousOrderId };
+          }
           await goToOrderTracking(previousOrderId);
           return;
         }
         if (cancellation === "pending") {
           setSwishCheckout(null);
           setPaymentStepOpen(true);
-          setPendingOrderId(previousOrderId);
-          setError("Den tidigare betalningen kan fortfarande behandlas och kunde inte avbrytas säkert. Vänta på status eller avbryt säkert igen innan du ändrar betalsätt.");
+          if (deferredWallet) setWalletPendingOrderId(previousOrderId);
+          else setPendingOrderId(previousOrderId);
+          rejectCheckout("Den tidigare betalningen kan fortfarande behandlas och kunde inte avbrytas säkert. Vänta på status eller avbryt säkert igen innan du ändrar betalsätt.");
           return;
         }
         clearPendingPaymentStorage();
         setPendingOrderId(null);
+        setWalletPendingOrderId(null);
       }
       const attempt = writeCheckoutAttempt(fingerprint);
       idempotencyKey.current = attempt.key;
@@ -2504,14 +2558,15 @@ export default function CartPage() {
       localStorage.setItem("pending_order_id", orderId);
       localStorage.setItem("pending_order_phone", (formData.customerPhone || "").trim());
       writePendingPaymentProvider(localStorage, checkoutProvider);
-      setPendingOrderId(orderId);
+      if (deferredWallet) setWalletPendingOrderId(orderId);
+      else setPendingOrderId(orderId);
 
       // Step 2: Skapa hosted checkout och skicka kunden dit. Providern
       // redirectar tillbaka till returnUrl (?payment_return=orderId) efter
       // betalningen, där vi pollar orderstatus. Webhooken finaliserar ordern,
       // klienten flippar aldrig status själv. paymentInFlight hindrar pagehide
       // från att abandona ordern under redirect-flödet.
-      paymentInFlightRef.current = true;
+      if (!deferredWallet) paymentInFlightRef.current = true;
       const currentParams = new URLSearchParams(window.location.search);
       const checkoutEmbedded = currentParams.get("embed") === "1";
       const returnParams = new URLSearchParams({ payment_return: orderId });
@@ -2537,13 +2592,23 @@ export default function CartPage() {
         orderId,
         returnUrl,
         channel: "Web",
-        checkoutExperience: "hosted",
+        checkoutExperience,
         checkoutMethod: checkoutProvider === "stripe" ? checkoutMethod : undefined,
       });
       if (payRes.data?.alreadyPaid === true || String(payRes.data?.paymentStatus || "").toUpperCase() === "PAID") {
+        if (deferredWallet) {
+          return { status: "paid", orderId };
+        }
         clearCartReturnParams();
         await goToOrderTracking(orderId);
         return;
+      }
+      if (deferredWallet) {
+        const clientSecret = String(payRes.data?.clientSecret || "");
+        if (!clientSecret.startsWith("pi_") || !clientSecret.includes("_secret_")) {
+          throw new Error("Stripe-betalningen saknar en giltig bekräftelsenyckel");
+        }
+        return { status: "prepared", orderId, clientSecret, returnUrl };
       }
       if (String(payRes.data?.provider || "").toLowerCase() === "swish") {
         const appUrl = String(payRes.data?.swishUrl || "");
@@ -2586,6 +2651,10 @@ export default function CartPage() {
         );
         return;
       }
+      // `finally` körs direkt efter location.assign, innan browsern hinner
+      // lämna sidan. Behåll därför laddningsläget tills navigationen sker så
+      // den gamla "väntande betalning"-varningen aldrig blinkar fram.
+      preserveLoadingForNavigation = true;
       window.location.assign(checkoutUrl);
       return;
     } catch (err: any) {
@@ -2596,12 +2665,16 @@ export default function CartPage() {
         // abandon the obsolete unpaid order before creating a new attempt.
         clearCheckoutAttempt();
       }
+      if (deferredWallet) {
+        const message = err.response?.data?.error || err.message || t("cart.errors.paymentUnavailable");
+        throw new Error(message);
+      }
       setSwishCheckout(null);
       setSelectedCheckoutMethod(null);
       setPaymentStepOpen(true);
       setError(err.response?.data?.error || t("cart.errors.paymentUnavailable"));
     } finally {
-      setLoading(false);
+      if (!deferredWallet && !preserveLoadingForNavigation) setLoading(false);
     }
   };
 
@@ -3033,11 +3106,17 @@ export default function CartPage() {
       setSelectedCheckoutMethod(null);
       setSwishCheckout(null);
       setHostedCheckoutUrl(null);
+      setWalletPendingOrderId(null);
+      setWalletProcessing(false);
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const returnFromPayment = () => {
+    if (walletPendingOrderId) {
+      void handlePaymentCancelled(walletPendingOrderId);
+      return;
+    }
     if (pendingOrderId) {
       void handlePaymentCancelled(pendingOrderId);
       return;
@@ -3061,9 +3140,7 @@ export default function CartPage() {
   }> = [
     { id: "swish", label: "Swish", hint: "Betala med Swish smidigt och enkelt", provider: "swish" },
     { id: "klarna", label: "Klarna", hint: "Betala direkt, senare eller dela upp", provider: "stripe" },
-    { id: "apple_pay", label: "Apple Pay", hint: "Snabbt och säkert med din Apple-enhet", provider: "stripe" },
-    { id: "google_pay", label: "Google Pay", hint: "Betala med ett sparat kort i Google", provider: "stripe" },
-    { id: "card", label: "Kort", hint: "Visa, Mastercard och andra betalkort", provider: "stripe" },
+    { id: "card", label: "Kort", hint: "Visa, Mastercard och tillgängliga wallets hos Stripe", provider: "stripe" },
   ];
 
   const renderMethodMark = (method: CheckoutMethod) => {
@@ -3077,23 +3154,6 @@ export default function CartPage() {
     if (method === "klarna") {
       return <span aria-hidden="true" className="grid h-10 w-[94px] shrink-0 place-items-center rounded-xl bg-[#FFB3C7] text-[16px] font-black tracking-[-0.04em] text-black">Klarna.</span>;
     }
-    if (method === "apple_pay") {
-      return (
-        <span aria-hidden="true" className="flex h-10 w-[94px] shrink-0 items-center justify-center gap-1.5 rounded-xl bg-black text-[17px] font-semibold tracking-[-0.03em] text-white">
-          <svg viewBox="0 0 384 512" focusable="false" className="h-[21px] w-4 fill-current" role="presentation">
-            <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5c0 26.2 4.8 53.3 14.4 81.2 12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.7-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.6-90-61.6-91.9zm-57.5-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
-          </svg>
-          <span>Pay</span>
-        </span>
-      );
-    }
-    if (method === "google_pay") {
-      return (
-        <span aria-hidden="true" className="grid h-10 w-[94px] shrink-0 place-items-center rounded-xl bg-white text-[16px] font-semibold tracking-[-0.03em] text-[#3C4043]" style={{ border: "1px solid rgba(23,26,27,0.10)" }}>
-          <span><span className="text-[#4285F4]">G</span><span className="text-[#EA4335]">o</span><span className="text-[#FBBC04]">o</span><span className="text-[#4285F4]">g</span><span className="text-[#34A853]">l</span><span className="text-[#EA4335]">e</span> Pay</span>
-        </span>
-      );
-    }
     return (
       <span aria-hidden="true" className="flex h-10 w-[94px] shrink-0 items-center justify-center gap-2 rounded-xl bg-white" style={{ border: "1px solid rgba(23,26,27,0.10)" }}>
         <span className="text-[12px] font-black italic tracking-[-0.08em] text-[#1434CB]">VISA</span>
@@ -3105,6 +3165,24 @@ export default function CartPage() {
     );
   };
 
+  const renderPaymentMethodChoice = (method: (typeof paymentMethods)[number]) => (
+    <button
+      key={method.id}
+      type="button"
+      onClick={(event) => { void startCheckout(event, method.id); }}
+      disabled={loading || walletProcessing}
+      className="flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 disabled:opacity-50"
+      style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-primary)" }}
+    >
+      {renderMethodMark(method.id)}
+      <span className="min-w-0 flex-1">
+        <span className="block text-[15px] font-semibold" style={{ color: "var(--text-primary)" }}>{method.label}</span>
+        <span className="mt-0.5 block text-[12.5px] leading-4" style={{ color: "var(--text-secondary)" }}>{method.hint}</span>
+      </span>
+      <ArrowRight size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
+    </button>
+  );
+
   const renderPaymentStep = () => {
     const methods = paymentMethods.filter((method) => availablePaymentProviders.includes(method.provider));
     return (
@@ -3112,7 +3190,7 @@ export default function CartPage() {
         <button
           type="button"
           onClick={returnFromPayment}
-          disabled={loading || verifyingPayment}
+          disabled={loading || verifyingPayment || walletProcessing}
           className="mb-6 inline-flex items-center gap-1.5 text-[13.5px] font-semibold transition-opacity hover:opacity-70 disabled:opacity-50"
           style={{ color: "var(--text-secondary)" }}
         >
@@ -3193,23 +3271,42 @@ export default function CartPage() {
             </div>
           ) : (
             <div className="mt-6 space-y-3">
-              {methods.map((method) => (
-                <button
-                  key={method.id}
-                  type="button"
-                  onClick={(event) => { void startCheckout(event, method.id); }}
-                  disabled={loading}
-                  className="flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 disabled:opacity-50"
-                  style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-primary)" }}
-                >
-                  {renderMethodMark(method.id)}
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] font-semibold" style={{ color: "var(--text-primary)" }}>{method.label}</span>
-                    <span className="mt-0.5 block text-[12.5px] leading-4" style={{ color: "var(--text-secondary)" }}>{method.hint}</span>
-                  </span>
-                  <ArrowRight size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
-                </button>
-              ))}
+              {methods.filter((method) => method.id === "swish").map(renderPaymentMethodChoice)}
+              {availablePaymentProviders.includes("stripe") && stripePublishableKey && !embedMode && (
+                <div>
+                  {walletAvailable && (
+                    <div className="mb-3 flex items-center gap-3" aria-hidden="true">
+                      <span className="h-px flex-1" style={{ backgroundColor: "var(--border-muted)" }} />
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.1em]" style={{ color: "var(--text-secondary)" }}>Betala direkt</span>
+                      <span className="h-px flex-1" style={{ backgroundColor: "var(--border-muted)" }} />
+                    </div>
+                  )}
+                  <StripeWalletButtons
+                    publishableKey={stripePublishableKey}
+                    amountOre={Math.round(total * 100)}
+                    disabled={loading || verifyingPayment}
+                    createPayment={async (method: StripeWalletMethod) => {
+                      const prepared = await startCheckout(
+                        { preventDefault: () => undefined },
+                        method,
+                        { checkoutExperience: "embedded" },
+                      );
+                      if (!prepared) {
+                        throw new Error("Betalningen kunde inte förberedas. Kontrollera dina uppgifter och försök igen.");
+                      }
+                      return prepared;
+                    }}
+                    onConfirmed={async (orderId) => {
+                      setWalletPendingOrderId(null);
+                      setPendingOrderId(orderId);
+                      await finishHostedPayment(orderId, hostedPaymentContext("stripe"));
+                    }}
+                    onProcessingChange={setWalletProcessing}
+                    onAvailabilityChange={setWalletAvailable}
+                  />
+                </div>
+              )}
+              {methods.filter((method) => method.id !== "swish").map(renderPaymentMethodChoice)}
               {!paymentProvidersLoaded && (
                 <p className="flex items-center justify-center gap-2 rounded-2xl border p-4 text-[13.5px]" style={{ borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}>
                   <Loader2 size={17} className="animate-spin" /> Hämtar säkra betalsätt…
@@ -3218,7 +3315,7 @@ export default function CartPage() {
               {paymentProvidersLoaded && methods.length === 0 && (
                 <p className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-[13.5px] text-rose-600">Inget betalsätt är tillgängligt just nu. Försök igen om en stund.</p>
               )}
-              <p className="pt-2 text-center text-[11.5px] leading-4" style={{ color: "var(--text-secondary)" }}>Klarna, Apple Pay, Google Pay och kort öppnas direkt i Stripe Checkout. Stripe visar automatiskt det som fungerar på din enhet.</p>
+              <p className="pt-2 text-center text-[11.5px] leading-4" style={{ color: "var(--text-secondary)" }}>Apple Pay och Google Pay öppnas direkt på kompatibla enheter. Kort och Klarna öppnas säkert hos Stripe.</p>
             </div>
           )}
         </section>
