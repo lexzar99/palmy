@@ -19,6 +19,7 @@ import { formatCheckoutSek } from "../lib/checkoutMoney.ts";
 const cart = fs.readFileSync(new URL("../app/cart/page.tsx", import.meta.url), "utf8");
 const menu = fs.readFileSync(new URL("../components/MenuContent.tsx", import.meta.url), "utf8");
 const wallets = fs.readFileSync(new URL("../components/StripeWalletButtons.tsx", import.meta.url), "utf8");
+const klarnaButton = fs.readFileSync(new URL("../components/StripeKlarnaButton.tsx", import.meta.url), "utf8");
 const cardForm = fs.readFileSync(new URL("../components/StripeCardForm.tsx", import.meta.url), "utf8");
 
 test("direct Swish checkout uses the server app link and Commerce QR", () => {
@@ -154,7 +155,7 @@ test("same checkout attempt resumes safely and recovers a lost Swish create resp
   assert.match(cart, /role="alert"[\s\S]*?\{error\}/);
 });
 
-test("payment methods use direct wallets, embedded card and hosted Klarna", () => {
+test("payment methods use direct wallets, native Klarna and embedded card", () => {
   for (const method of ["swish", "klarna", "card"]) {
     assert.match(cart, new RegExp(`id: "${method}"`));
   }
@@ -169,6 +170,9 @@ test("payment methods use direct wallets, embedded card and hosted Klarna", () =
   assert.match(cart, /STRIPE_DEFERRED_FLOW_VERSION = "stripe-elements-deferred-v2"/);
   assert.match(cart, /method === "card"[\s\S]*?setSelectedCheckoutMethod\("card"\)/);
   assert.match(cart, /<StripeCardForm/);
+  assert.match(cart, /<StripeKlarnaButton/);
+  assert.match(cart, /"klarna",\s*\{ checkoutExperience: "embedded" \}/);
+  assert.match(cart, /method\.id !== "swish" && method\.id !== "klarna"/);
   assert.match(cart, /preserveLoadingForNavigation = true;[\s\S]*?window\.location\.assign\(checkoutUrl\)/);
   assert.match(cart, /!preserveLoadingForNavigation\) setLoading\(false\)/);
   assert.doesNotMatch(cart, /renderPayMenu|payMenuOpen|mollieOptionsOpen/);
@@ -177,9 +181,8 @@ test("payment methods use direct wallets, embedded card and hosted Klarna", () =
   assert.doesNotMatch(cart, /StripeInlineCheckout|preloadStripeCheckout/);
 });
 
-test("method choices show Swish, Klarna, Apple Pay, Google Pay, Visa and Mastercard marks", () => {
+test("method choices show wallet and card marks with a genuine Stripe Klarna button", () => {
   assert.match(cart, /src="\/swish-logo\.svg" alt=""/);
-  assert.match(cart, /method === "klarna"[\s\S]*?Klarna\./);
   assert.match(cart, /viewBox="0 0 384 512"/);
   assert.match(cart, />G<\/span> Pay/);
   assert.match(cart, />VISA<\/span>/);
@@ -187,6 +190,11 @@ test("method choices show Swish, Klarna, Apple Pay, Google Pay, Visa and Masterc
   assert.match(cart, /aria-hidden="true"/);
   assert.match(cart, /<StripeWalletButtons/);
   assert.match(wallets, /<ExpressCheckoutElement/);
+  assert.match(klarnaButton, /<ExpressCheckoutElement/);
+  assert.match(klarnaButton, /paymentMethodTypes: \["klarna"\]/);
+  assert.match(klarnaButton, /event\.expressPaymentType !== "klarna"/);
+  assert.match(klarnaButton, /paymentMethods: \{[\s\S]*?klarna: "auto"/);
+  assert.match(klarnaButton, /const submitted = await elements\.submit\(\);[\s\S]*?await createPayment\(\)[\s\S]*?stripe\.confirmPayment\(\{/);
   assert.doesNotMatch(cart, /method === "apple_pay"|method === "google_pay"|/);
 });
 

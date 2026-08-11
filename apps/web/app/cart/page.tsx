@@ -41,10 +41,11 @@ import StripeWalletButtons, {
   type StripeWalletMethod,
 } from "@/components/StripeWalletButtons";
 import StripeCardForm from "@/components/StripeCardForm";
+import StripeKlarnaButton from "@/components/StripeKlarnaButton";
 // Betalning sker via ett provider-neutralt checkout-flöde. Direkt Swish visas
 // separat, Apple Pay/Google Pay använder Stripes riktiga Express Checkout-
-// knappar, kort anges säkert i ViaEats med Stripe Elements och Klarna öppnar
-// Stripe-hostad Checkout.
+// knappar, Klarna använder sin riktiga Stripe Express-knapp och kort anges
+// säkert i ViaEats med Stripe Elements.
 import ProductModal from "@/components/ProductModal";
 import { saveOrderToHistory } from "@/lib/orderHistory";
 import {
@@ -364,6 +365,7 @@ export default function CartPage() {
   const [embeddedStripeOrderId, setEmbeddedStripeOrderId] = useState<string | null>(null);
   const [embeddedStripeProcessing, setEmbeddedStripeProcessing] = useState(false);
   const [walletAvailable, setWalletAvailable] = useState(false);
+  const [klarnaAvailable, setKlarnaAvailable] = useState(false);
   // Sätts först efter mount — user agent finns inte vid SSR och skulle annars
   // ge hydration mismatch.
   const [isHandheld, setIsHandheld] = useState(false);
@@ -2251,8 +2253,8 @@ export default function CartPage() {
     if (formData.customerEmail) localStorage.setItem("guest_email", formData.customerEmail);
   }, [user, formData.customerName, formData.customerPhone, formData.customerEmail]);
 
-  // Swish och hosted Klarna startar på kundens metodknapp. Stripes inbäddade
-  // wallets/kortfält validerar däremot först och anropar sedan denna funktion
+  // Swish startar på kundens metodknapp. Stripes inbäddade wallets, Klarna och
+  // kortfält validerar däremot först och anropar sedan denna funktion
   // för att skapa den frysta ordern + PaymentIntenten. Det gör att native
   // wallet-sheet och kortfält visas direkt, utan en tom förberedelsevy.
   const startCheckout = async (
@@ -3152,9 +3154,6 @@ export default function CartPage() {
         </span>
       );
     }
-    if (method === "klarna") {
-      return <span aria-hidden="true" className="grid h-10 w-[94px] shrink-0 place-items-center rounded-xl bg-[#FFB3C7] text-[16px] font-black tracking-[-0.04em] text-black">Klarna.</span>;
-    }
     return (
       <span aria-hidden="true" className="flex h-11 w-[132px] shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-2 sm:w-[148px] sm:gap-2.5" style={{ border: "1px solid rgba(23,26,27,0.10)" }}>
         <span className="flex items-center gap-0.5 text-[8px] font-semibold tracking-[-0.03em] text-black">
@@ -3335,9 +3334,9 @@ export default function CartPage() {
             <div className="mt-6 space-y-3">
               {methods.filter((method) => method.id === "swish").map(renderPaymentMethodChoice)}
               {availablePaymentProviders.includes("stripe") && stripePublishableKey && !embedMode && (
-                <div>
-                  {walletAvailable && (
-                    <div className="mb-3 flex items-center gap-3" aria-hidden="true">
+                <div className="space-y-3">
+                  {(walletAvailable || klarnaAvailable) && (
+                    <div className="flex items-center gap-3" aria-hidden="true">
                       <span className="h-px flex-1" style={{ backgroundColor: "var(--border-muted)" }} />
                       <span className="text-[11px] font-semibold uppercase tracking-[0.1em]" style={{ color: "var(--text-secondary)" }}>Betala direkt</span>
                       <span className="h-px flex-1" style={{ backgroundColor: "var(--border-muted)" }} />
@@ -3366,9 +3365,32 @@ export default function CartPage() {
                     onProcessingChange={setEmbeddedStripeProcessing}
                     onAvailabilityChange={setWalletAvailable}
                   />
+                  <StripeKlarnaButton
+                    publishableKey={stripePublishableKey}
+                    amountOre={Math.round(total * 100)}
+                    disabled={loading || verifyingPayment || embeddedStripeProcessing}
+                    createPayment={async () => {
+                      const prepared = await startCheckout(
+                        { preventDefault: () => undefined },
+                        "klarna",
+                        { checkoutExperience: "embedded" },
+                      );
+                      if (!prepared) {
+                        throw new Error("Klarna-betalningen kunde inte förberedas. Kontrollera uppgifterna och försök igen.");
+                      }
+                      return prepared;
+                    }}
+                    onConfirmed={async (orderId) => {
+                      setEmbeddedStripeOrderId(null);
+                      setPendingOrderId(orderId);
+                      await finishHostedPayment(orderId, hostedPaymentContext("stripe"));
+                    }}
+                    onProcessingChange={setEmbeddedStripeProcessing}
+                    onAvailabilityChange={setKlarnaAvailable}
+                  />
                 </div>
               )}
-              {methods.filter((method) => method.id !== "swish").map(renderPaymentMethodChoice)}
+              {methods.filter((method) => method.id !== "swish" && method.id !== "klarna").map(renderPaymentMethodChoice)}
               {!paymentProvidersLoaded && (
                 <p className="flex items-center justify-center gap-2 rounded-2xl border p-4 text-[13.5px]" style={{ borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}>
                   <Loader2 size={17} className="animate-spin" /> Hämtar säkra betalsätt…
@@ -3377,7 +3399,7 @@ export default function CartPage() {
               {paymentProvidersLoaded && methods.length === 0 && (
                 <p className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-[13.5px] text-rose-600">Inget betalsätt är tillgängligt just nu. Försök igen om en stund.</p>
               )}
-              <p className="pt-2 text-center text-[11.5px] leading-4" style={{ color: "var(--text-secondary)" }}>Apple Pay och Google Pay öppnas direkt på kompatibla enheter. Kort fylls i här och Klarna öppnas säkert hos Stripe.</p>
+              <p className="pt-2 text-center text-[11.5px] leading-4" style={{ color: "var(--text-secondary)" }}>Apple Pay, Google Pay och Klarna öppnas direkt på kompatibla enheter. Kort fylls i säkert här.</p>
             </div>
           )}
         </section>
