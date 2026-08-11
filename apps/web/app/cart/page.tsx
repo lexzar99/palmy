@@ -3178,7 +3178,7 @@ export default function CartPage() {
               <p className="max-w-sm text-[13px] leading-5" style={{ color: "var(--text-secondary)" }}>
                 {cancellingPayment
                   ? "Vi stänger det gamla försöket automatiskt. När avbrottet är bekräftat visas betalsätten igen med varukorgen kvar."
-                  : "Vi väntar på bankens säkra bekräftelse. Varukorgen töms bara om backend verifierar status PAID."}
+                  : "Väntar på betalningsbekräftelse."}
               </p>
             </div>
           ) : stripeCheckout ? (

@@ -76,8 +76,8 @@ SWISH_PAYEE_ALIAS=1235309380
 SWISH_CLIENT_CERT_CHAIN_PEM=<base64 av hela kedjan: leaf + Lunar Customer CA + Lunar Root CA>
 SWISH_KEY_PEM=<base64 av swish-key.pem>
 SWISH_CALLBACK_SECRET=<minst 32 slumpade tecken, stabilt mellan deployer>
-SWISH_PAYOUT_FEE_POLICY=<external eller fixed_per_payment enligt bankavtalet>
-SWISH_PAYOUT_FEE_ORE=<heltal i öre, endast om fixed_per_payment>
+SWISH_PAYOUT_FEE_POLICY=fixed_per_payment
+SWISH_PAYOUT_FEE_ORE=149
 SWISH_PAYOUTS_DISABLED=<true för kundcheckout med hårdblockerade restaurangutbetalningar>
 ```
 
@@ -154,7 +154,7 @@ Innan `SWISH_ENVIRONMENT=PRODUCTION` slås på:
 - [x] Swish produktions-API accepterar mTLS-identiteten för `1235309380`.
 - [ ] En liten skarp betalning och en full återbetalning är genomförda.
 - [x] `SWISH_CALLBACK_SECRET` är satt i hemlighetslagret.
-- [ ] Ekonomiägaren har godkänt och satt `SWISH_PAYOUT_FEE_POLICY`.
+- [x] Ekonomiägaren har godkänt `fixed_per_payment` med `149` öre enligt Lunar-avtalet.
 
 ## Officiella källor
 
