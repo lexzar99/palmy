@@ -155,7 +155,9 @@ function DeferredWalletElement({
           phoneNumberRequired: false,
           shippingAddressRequired: false,
           business: { name: "ViaEats" },
-          buttonHeight: 56,
+          // Stripe Express Checkout accepts 40–55 px. Going one pixel above
+          // that range throws synchronously and takes down the whole cart.
+          buttonHeight: 55,
           buttonType: { applePay: "plain", googlePay: "pay" },
           buttonTheme: { applePay: "black", googlePay: "black" },
           layout: { maxColumns: 1, maxRows: 2, overflow: "never" },

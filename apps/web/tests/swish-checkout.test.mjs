@@ -188,6 +188,8 @@ test("wallet buttons mount before click and create the bound Intent only after n
   assert.match(cart, /void preloadStripeWallets\(publishableKey\)/);
   assert.match(wallets, /mode: "payment"/);
   assert.match(wallets, /paymentMethodTypes: \["card"\]/);
+  assert.match(wallets, /buttonHeight: 55/);
+  assert.doesNotMatch(wallets, /buttonHeight: 56/);
   assert.match(wallets, /billingAddressRequired: false/);
   assert.match(wallets, /paymentMethods: \{[\s\S]*?applePay: "auto"[\s\S]*?googlePay: "auto"/);
   assert.match(wallets, /const submitted = await elements\.submit\(\);[\s\S]*?await createPayment\(event\.expressPaymentType\)[\s\S]*?stripe\.confirmPayment\(\{/);
