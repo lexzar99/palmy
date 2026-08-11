@@ -28,6 +28,7 @@ import {
   Check,
   ChevronDown,
   ChevronLeft,
+  Smartphone,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { ensureKioskAccess } from "@/lib/kioskAccessClient";
@@ -72,7 +73,10 @@ type HostedPaymentContext = {
   embedded?: boolean;
   restaurantSlug?: string;
   parentOrigin?: string | null;
+  pollAttempts?: number;
 };
+
+type CheckoutPaymentProvider = "mollie" | "swish" | "stripe" | "adyen";
 
 function createCheckoutKey(): string {
   return typeof crypto !== "undefined" && crypto.randomUUID
@@ -284,10 +288,54 @@ export default function CartPage() {
   // Ett användarklick på länken får lämna en cross-origin iframe, till skillnad
   // från en script-navigation efter asynkrona API-anrop.
   const [hostedCheckoutUrl, setHostedCheckoutUrl] = useState<string | null>(null);
+  const [swishCheckout, setSwishCheckout] = useState<{
+    orderId: string;
+    appUrl: string;
+    qrCode: string;
+  } | null>(null);
+  const [availablePaymentProviders, setAvailablePaymentProviders] = useState<CheckoutPaymentProvider[]>(["mollie"]);
+  const [selectedPaymentProvider, setSelectedPaymentProvider] = useState<CheckoutPaymentProvider>("mollie");
+  // Betalknappen fälls ut till en meny i stället för att välja åt kunden.
+  const [payMenuOpen, setPayMenuOpen] = useState(false);
+  const [mollieOptionsOpen, setMollieOptionsOpen] = useState(false);
+  // Sätts först efter mount — user agent finns inte vid SSR och skulle annars
+  // ge hydration mismatch.
+  const [isHandheld, setIsHandheld] = useState(false);
+  useEffect(() => {
+    setIsHandheld(/iphone|ipad|ipod|android/i.test(navigator.userAgent));
+  }, []);
+  // M-commerce: token-länken öppnar Swish-appen med belopp och mottagare redan
+  // ifyllt. Kunden ska aldrig behöva knappa in ett Swish-nummer, så på mobil
+  // hoppar vi direkt till appen i stället för att visa en QR-kod som ändå inte
+  // går att skanna med samma telefon.
+  const swishAutoOpenedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!swishCheckout || !isHandheld) return;
+    if (swishAutoOpenedRef.current === swishCheckout.orderId) return;
+    swishAutoOpenedRef.current = swishCheckout.orderId;
+    window.location.href = swishCheckout.appUrl;
+  }, [swishCheckout, isHandheld]);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   // True när kunden återvänt från Mollie och vi pollar orderns betalstatus.
   const [verifyingPayment, setVerifyingPayment] = useState(false);
   const idempotencyKey = useRef<string>("");
+  useEffect(() => {
+    let active = true;
+    axios.get(`/api/platform/payments/methods`)
+      .then((response) => {
+        if (!active) return;
+        const providers = (Array.isArray(response.data?.methods) ? response.data.methods : [])
+          .map((method: any) => String(method?.id || "").toLowerCase())
+          .filter((id: string): id is CheckoutPaymentProvider =>
+            id === "mollie" || id === "swish" || id === "stripe" || id === "adyen");
+        if (providers.length > 0) {
+          setAvailablePaymentProviders(providers);
+          setSelectedPaymentProvider((current) => providers.includes(current) ? current : providers[0]);
+        }
+      })
+      .catch(() => { /* behåll säker server-default */ });
+    return () => { active = false; };
+  }, []);
   const [deals, setDeals] = useState<PublicDeal[]>([]);
   const [personalDeals, setPersonalDeals] = useState<any[]>([]);
   const [selectedPersonalDeal, setSelectedPersonalDeal] = useState<any>(null);
@@ -1733,6 +1781,7 @@ export default function CartPage() {
 
   const handlePaymentCancelled = async (orderId: string) => {
     setVerifyingPayment(false);
+    setSwishCheckout(null);
     paymentInFlightRef.current = false;
     clearCartReturnParams();
     await abandonPendingOrder(orderId);
@@ -1765,7 +1814,7 @@ export default function CartPage() {
         // otherwise it reports a recoverable timeout without leaking a token.
       }
     }
-    const maxAttempts = passive ? 1 : 8;
+    const maxAttempts = passive ? 1 : (opts.pollAttempts ?? 8);
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         const res = await axios.get(`/api/platform/payments/status/${orderId}`);
@@ -1777,6 +1826,7 @@ export default function CartPage() {
         }
         if (["FAILED", "EXPIRED", "CANCELED", "CANCELLED", "REQUIRES_PAYMENT_METHOD"].includes(ps)) {
           setVerifyingPayment(false);
+          setSwishCheckout(null);
           clearCartReturnParams();
           await abandonPendingOrder(orderId);
           clearPendingPaymentStorage();
@@ -1790,6 +1840,7 @@ export default function CartPage() {
         const responseStatus = (err as { response?: { status?: unknown } } | null)?.response?.status;
         if ([404, 410].includes(Number(responseStatus))) {
           setVerifyingPayment(false);
+          setSwishCheckout(null);
           clearCartReturnParams();
           clearPendingPaymentStorage();
           setPendingOrderId(null);
@@ -1801,6 +1852,7 @@ export default function CartPage() {
       if (attempt < maxAttempts - 1) await new Promise((r) => setTimeout(r, 2000));
     }
     setVerifyingPayment(false);
+    setSwishCheckout(null);
     clearCartReturnParams();
     if (passive) {
       // Ordern är varken betald eller terminal — kunden lämnade kassan. Släpp
@@ -1972,10 +2024,16 @@ export default function CartPage() {
     if (formData.customerEmail) localStorage.setItem("guest_email", formData.customerEmail);
   }, [user, formData.customerName, formData.customerPhone, formData.customerEmail]);
 
-  const startCheckout = async (e: React.FormEvent) => {
+  // providerOverride låter betalmenyn skicka med sitt val direkt. Att först
+  // sätta state och sedan läsa selectedPaymentProvider här hade läst det
+  // FÖRRA värdet (setState är asynkron) — dvs kunden hade kunnat trycka Swish
+  // och ändå skickas till Mollie.
+  const startCheckout = async (e: React.FormEvent, providerOverride?: CheckoutPaymentProvider) => {
     e.preventDefault();
     setError(null);
     setHostedCheckoutUrl(null);
+    setSwishCheckout(null);
+    const checkoutProvider = providerOverride ?? selectedPaymentProvider;
 
     // Refresh the Palmyra-scoped kiosk credential immediately before the first
     // order/payment request. This also covers browsers that block iframe
@@ -2167,6 +2225,7 @@ export default function CartPage() {
       const pendingPayload = {
         ...buildOrderPayload(),
         pendingPayment: true,
+        paymentProvider: checkoutProvider,
       };
       const fingerprint = checkoutFingerprint(pendingPayload);
       const previousAttempt = readCheckoutAttempt();
@@ -2225,6 +2284,22 @@ export default function CartPage() {
       if (payRes.data?.alreadyPaid === true || String(payRes.data?.paymentStatus || "").toUpperCase() === "PAID") {
         clearCartReturnParams();
         await goToOrderTracking(orderId);
+        return;
+      }
+      if (String(payRes.data?.provider || "").toLowerCase() === "swish") {
+        const appUrl = String(payRes.data?.swishUrl || "");
+        const qrCode = String(payRes.data?.swishQrCode || "");
+        if (!appUrl.startsWith("swish://") || !qrCode.startsWith("data:image/")) {
+          paymentInFlightRef.current = false;
+          throw new Error("Swish-betalningen saknar öppningslänk eller QR-kod");
+        }
+        setSwishCheckout({ orderId, appUrl, qrCode });
+        void finishHostedPayment(orderId, {
+          embedded: checkoutEmbedded,
+          restaurantSlug: embedRestaurantSlug || undefined,
+          parentOrigin: embedParentOrigin,
+          pollAttempts: 90,
+        });
         return;
       }
       const checkoutUrl: string | undefined = payRes.data?.checkoutUrl;
@@ -2680,6 +2755,161 @@ export default function CartPage() {
     );
   };
 
+  // Betalsättet väljs i en utfällbar meny under betalknappen. Valet skickas
+  // med explicit till startCheckout så att kundens tryck aldrig kan hamna hos
+  // fel leverantör.
+  const payWith = (event: React.MouseEvent, provider: CheckoutPaymentProvider) => {
+    setSelectedPaymentProvider(provider);
+    setPayMenuOpen(false);
+    void startCheckout(event, provider);
+  };
+
+  // Finns bara ett betalsätt går knappen direkt till kassan — då vore en meny
+  // med ett enda val bara ett extra tryck.
+  const handleCheckoutButton = (event: React.MouseEvent) => {
+    if (availablePaymentProviders.length > 1) {
+      setPayMenuOpen((open) => !open);
+      return;
+    }
+    void startCheckout(event);
+  };
+
+  const MOLLIE_WALLETS = [
+    { id: "klarna", label: "Klarna", hint: "Betala senare eller dela upp" },
+    { id: "card", label: "Kort", hint: "Visa, Mastercard" },
+    { id: "applepay", label: "Apple Pay", hint: "Face ID eller Touch ID" },
+    { id: "googlepay", label: "Google Pay", hint: "Sparade kort i Google" },
+  ];
+
+  const renderPayMenu = () => {
+    if (availablePaymentProviders.length <= 1) return null;
+    const hasSwish = availablePaymentProviders.includes("swish");
+    const hasMollie = availablePaymentProviders.includes("mollie");
+    return (
+      <AnimatePresence initial={false}>
+        {payMenuOpen && (
+          <motion.div
+            key="pay-menu"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+            className="overflow-hidden"
+          >
+            <div
+              className="mb-3 rounded-2xl p-2"
+              style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}
+            >
+              {hasSwish && (
+                <button
+                  type="button"
+                  onClick={(event) => payWith(event, "swish")}
+                  disabled={loading}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-all active:scale-[0.99] disabled:opacity-50"
+                  style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)" }}
+                >
+                  <span
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-lg"
+                    style={{ backgroundColor: "#1A1A1A" }}
+                  >
+                    <Smartphone size={17} color="#FFFFFF" strokeWidth={2.3} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[14.5px] font-semibold" style={{ color: "var(--text-primary)" }}>
+                      Betala med Swish
+                    </span>
+                    <span className="block text-[12px]" style={{ color: "var(--text-secondary)" }}>
+                      Öppnar Swish direkt – inget nummer behövs
+                    </span>
+                  </span>
+                  <ArrowRight size={17} style={{ color: "var(--text-secondary)" }} />
+                </button>
+              )}
+
+              {hasMollie && (
+                <div className={hasSwish ? "mt-2" : undefined}>
+                  <button
+                    type="button"
+                    aria-expanded={mollieOptionsOpen}
+                    onClick={() => setMollieOptionsOpen((open) => !open)}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-all active:scale-[0.99]"
+                    style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)" }}
+                  >
+                    <span
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-lg"
+                      style={{ backgroundColor: "var(--gold-soft)" }}
+                    >
+                      <CreditCard size={17} style={{ color: "var(--gold-ink)" }} strokeWidth={2.3} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[14.5px] font-semibold" style={{ color: "var(--text-primary)" }}>
+                        Betala med Mollie
+                      </span>
+                      <span className="block text-[12px]" style={{ color: "var(--text-secondary)" }}>
+                        Klarna, kort, Apple Pay och Google Pay
+                      </span>
+                    </span>
+                    <ChevronDown
+                      size={17}
+                      style={{
+                        color: "var(--text-secondary)",
+                        transform: mollieOptionsOpen ? "rotate(180deg)" : "none",
+                        transition: "transform 0.2s ease",
+                      }}
+                    />
+                  </button>
+
+                  <AnimatePresence initial={false}>
+                    {mollieOptionsOpen && (
+                      <motion.div
+                        key="mollie-options"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-2 space-y-1.5 pl-3">
+                          {MOLLIE_WALLETS.map((wallet) => (
+                            <div
+                              key={wallet.id}
+                              className="flex items-center gap-2.5 rounded-lg px-3 py-2"
+                              style={{ backgroundColor: "var(--bg-secondary)" }}
+                            >
+                              <Check size={14} strokeWidth={2.8} style={{ color: "var(--success-ink)" }} />
+                              <span className="text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>
+                                {wallet.label}
+                              </span>
+                              <span className="text-[11.5px]" style={{ color: "var(--text-secondary)" }}>
+                                {wallet.hint}
+                              </span>
+                            </div>
+                          ))}
+                          <p className="px-1 pt-1 text-[11.5px]" style={{ color: "var(--text-secondary)" }}>
+                            Du väljer exakt betalsätt i nästa steg hos Mollie.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={(event) => payWith(event, "mollie")}
+                            disabled={loading}
+                            className="mt-1 flex h-11 w-full items-center justify-center gap-2 rounded-xl text-[14px] font-semibold transition-all active:scale-[0.99] disabled:opacity-50"
+                            style={{ backgroundColor: "var(--gold-soft)", color: "var(--gold-ink)" }}
+                          >
+                            Fortsätt till betalning <ArrowRight size={16} />
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    );
+  };
+
   return (
     <div className="min-h-screen pt-[calc(env(safe-area-inset-top,0px)+1rem)] sm:pt-12 md:pt-20 pb-36 px-3 sm:px-6 lg:px-10 xl:px-16" style={{ backgroundColor: "var(--bg-primary)" }}>
       {hostedCheckoutUrl && embedMode && (
@@ -2709,6 +2939,54 @@ export default function CartPage() {
               onClick={() => {
                 paymentInFlightRef.current = false;
                 setHostedCheckoutUrl(null);
+              }}
+              className="mt-3 h-10 px-4 text-[13px] font-semibold"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Avbryt
+            </button>
+          </div>
+        </div>
+      )}
+      {swishCheckout && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="swish-checkout-title"
+          className="fixed inset-0 z-[4100] flex items-center justify-center bg-black/55 p-5"
+        >
+          <div className="w-full max-w-sm rounded-3xl p-6 text-center shadow-2xl" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)" }}>
+            <h2 id="swish-checkout-title" className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>
+              Betala med Swish
+            </h2>
+            <p className="mt-2 text-[13.5px] leading-5" style={{ color: "var(--text-secondary)" }}>
+              {isHandheld
+                ? "Swish öppnas med belopp och mottagare ifyllt – godkänn med BankID. Vi verifierar betalningen automatiskt."
+                : "Skanna QR-koden med Swish-appen. Beloppet är redan ifyllt och vi verifierar betalningen automatiskt."}
+            </p>
+            {/* QR-koden är meningslös på telefonen som ska betala — den kan inte
+                skanna sin egen skärm. Där är app-länken hela flödet. */}
+            {!isHandheld && (
+              <img
+                src={swishCheckout.qrCode}
+                alt="QR-kod för Swish-betalningen"
+                className="mx-auto mt-4 h-52 w-52 rounded-2xl bg-white p-2"
+              />
+            )}
+            <a
+              href={swishCheckout.appUrl}
+              className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl px-4 text-[15px] font-semibold text-white"
+              style={{ backgroundColor: "#2C2C2C" }}
+            >
+              {isHandheld ? "Öppna Swish igen" : "Öppna Swish"} <ArrowRight size={18} />
+            </a>
+            <button
+              type="button"
+              onClick={() => {
+                const orderId = swishCheckout.orderId;
+                paymentInFlightRef.current = false;
+                setSwishCheckout(null);
+                void handlePaymentCancelled(orderId);
               }}
               className="mt-3 h-10 px-4 text-[13px] font-semibold"
               style={{ color: "var(--text-secondary)" }}
@@ -2934,9 +3212,12 @@ export default function CartPage() {
 
                 {error && <div className="p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[13.5px] font-medium text-center leading-snug">{error}</div>}
 
+                {renderPayMenu()}
+
                 {/* Checkout button */}
                 <button
-                  onClick={startCheckout}
+                  onClick={handleCheckoutButton}
+                  aria-expanded={availablePaymentProviders.length > 1 ? payMenuOpen : undefined}
                   disabled={
                     loading
                     || bogoMustPick
@@ -2959,7 +3240,9 @@ export default function CartPage() {
                           : addressZoneStatus === "error"
                             ? t("cart.submit.zoneError")
                             : <span className="w-full flex items-center justify-between gap-3">
-                                <span className="flex items-center gap-2">{t("cart.submit")} <ArrowRight size={18} className="group-hover:translate-x-1.5 transition-transform" /></span>
+                                <span className="flex items-center gap-2">{t("cart.submit")} {availablePaymentProviders.length > 1
+                                  ? <ChevronDown size={18} style={{ transform: payMenuOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s ease" }} />
+                                  : <ArrowRight size={18} className="group-hover:translate-x-1.5 transition-transform" />}</span>
                                 <span style={{ fontVariantNumeric: "tabular-nums" }}>{total.toFixed(0)} {t("common.sek")}</span>
                               </span>}
                 </button>
@@ -3335,13 +3618,17 @@ export default function CartPage() {
 
                        {/* Sticky på mobil: knappen följer med ovanför bottennaven
                            tills man scrollat ner till dess naturliga plats —
-                           kunden behöver aldrig leta efter "Slutför köp". */}
+                           kunden behöver aldrig leta efter "Slutför köp".
+                           Betalmenyn ligger i samma sticky-container så att den
+                           fälls ut precis ovanför knappen som trycktes. */}
                        <div
                           className="sticky z-[90] mt-8"
                           style={{ bottom: "max(calc(env(safe-area-inset-bottom, 0px) + 64px), 86px)" }}
                        >
+                       {renderPayMenu()}
                        <button
-                          onClick={startCheckout}
+                          onClick={handleCheckoutButton}
+                          aria-expanded={availablePaymentProviders.length > 1 ? payMenuOpen : undefined}
                           disabled={
                             loading
                             || bogoMustPick
@@ -3364,7 +3651,9 @@ export default function CartPage() {
                                   : addressZoneStatus === "error"
                                     ? t("cart.submit.zoneError")
                                     : <span className="w-full flex items-center justify-between gap-3">
-                                <span className="flex items-center gap-2">{t("cart.submit")} <ArrowRight size={18} className="group-hover:translate-x-1.5 transition-transform" /></span>
+                                <span className="flex items-center gap-2">{t("cart.submit")} {availablePaymentProviders.length > 1
+                                  ? <ChevronDown size={18} style={{ transform: payMenuOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s ease" }} />
+                                  : <ArrowRight size={18} className="group-hover:translate-x-1.5 transition-transform" />}</span>
                                 <span style={{ fontVariantNumeric: "tabular-nums" }}>{total.toFixed(0)} {t("common.sek")}</span>
                               </span>}
                        </button>

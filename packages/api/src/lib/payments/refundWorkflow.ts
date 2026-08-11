@@ -120,10 +120,11 @@ export async function refundOrderForAdmin(
   }
   const { provider, ref: paymentRef } = payment;
 
-  // Launch refunds are Mollie-only. Stripe/Adyen rows may still be read and
-  // reconciled for accounting, but initiating a legacy-provider refund here
-  // stays fail-closed until its full async lifecycle has been hardened.
-  if (provider.name !== 'mollie') {
+  // Mollie och direkt Swish har båda en härdad async-livscykel: deterministisk
+  // refund-referens, callback som bara är en signal, och status som alltid
+  // hämtas server-till-server. Stripe/Adyen-rader får fortfarande läsas och
+  // stämmas av för bokföring, men att initiera en refund där är fail-closed.
+  if (provider.name !== 'mollie' && provider.name !== 'swish') {
     throw new RefundWorkflowError(
       'legacy_provider_refund_disabled',
       `Refund via ${provider.name} är avstängd. Hantera legacybetalningen enligt den manuella PSP-runbooken.`,

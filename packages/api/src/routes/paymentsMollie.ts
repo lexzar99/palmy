@@ -16,7 +16,8 @@ import { createHash } from 'crypto';
 import prisma from '../lib/prisma';
 import { authenticateUserOptional } from './auth';
 import {
-  getPaymentProvider,
+  getCheckoutPaymentProvider,
+  configuredCheckoutProviderNames,
   getPaymentProviderByName,
   type OrderForPayment,
 } from '../lib/payments';
@@ -41,8 +42,22 @@ import {
 } from '../lib/orderAccess';
 import { KIOSK_ACCESS_HEADER, validKioskAccessProof } from '../lib/kioskAccess';
 import { validateFrozenOrderPricing } from '../lib/checkoutIntegrity';
+import { validSwishCallbackIdentifier, swishRefundInstructionId } from '../lib/payments/swish';
 
 const router = Router();
+
+router.get('/methods', (_req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=60');
+  const providers = configuredCheckoutProviderNames();
+  res.json({
+    methods: [
+      ...(providers.includes('swish') ? [{ id: 'swish', label: 'Swish', direct: true }] : []),
+      ...(providers.includes('mollie') ? [{ id: 'mollie', label: 'Kort, Klarna och fler', direct: false }] : []),
+      ...(providers.includes('stripe') ? [{ id: 'stripe', label: 'Kort och Klarna', direct: false }] : []),
+      ...(providers.includes('adyen') ? [{ id: 'adyen', label: 'Kort, Klarna och wallets', direct: false }] : []),
+    ],
+  });
+});
 
 const createLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -66,6 +81,7 @@ function publicWebhookUrl(providerName: string): string | undefined {
   if (!base || !/^https:\/\//i.test(base) || /localhost|127\.0\.0\.1/.test(base)) return undefined;
   if (providerName === 'stripe') return `${base.replace(/\/$/, '')}/api/payments/webhooks/stripe`;
   if (providerName === 'adyen') return `${base.replace(/\/$/, '')}/api/payments/webhooks/adyen`;
+  if (providerName === 'swish') return `${base.replace(/\/$/, '')}/api/payments/webhooks/swish`;
   return `${base.replace(/\/$/, '')}/api/payments/webhooks/mollie`;
 }
 
@@ -102,10 +118,12 @@ function toOrderForPayment(order: any): OrderForPayment {
 function paymentRefForOrder(order: {
   paymentProvider: string | null;
   molliePaymentId: string | null;
+  swishPaymentId: string | null;
   stripePaymentIntentId: string | null;
   adyenSessionId: string | null;
 }) {
   if (order.paymentProvider === 'mollie') return order.molliePaymentId;
+  if (order.paymentProvider === 'swish') return order.swishPaymentId;
   if (order.paymentProvider === 'stripe') return order.stripePaymentIntentId;
   if (order.paymentProvider === 'adyen') return order.adyenSessionId;
   return null;
@@ -212,7 +230,7 @@ function paymentIdempotencyKey(provider: string, orderId: string): string {
 }
 
 function providerForStoredName(name: string | null | undefined) {
-  if (name === 'mollie' || name === 'stripe' || name === 'adyen') {
+  if (name === 'mollie' || name === 'stripe' || name === 'adyen' || name === 'swish') {
     return getPaymentProviderByName(name as PaymentProviderName);
   }
   return null;
@@ -286,9 +304,10 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
       return;
     }
 
-    const provider = getPaymentProvider();
+    const provider = getCheckoutPaymentProvider(order.paymentProvider);
     const storedRefs = {
       mollie: order.molliePaymentId,
+      swish: order.swishPaymentId,
       stripe: order.stripePaymentIntentId,
       adyen: order.adyenSessionId || order.adyenPspReference,
     } as const;
@@ -316,6 +335,8 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
         ? { adyenSessionId: result.paymentRef }
         : provider.name === 'mollie'
           ? { molliePaymentId: result.paymentRef }
+          : provider.name === 'swish'
+            ? { swishPaymentId: result.paymentRef }
           : provider.name === 'stripe'
             ? { stripePaymentIntentId: result.paymentRef }
           : {};
@@ -328,6 +349,7 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
         paymentStatus: order.paymentStatus,
         paymentProvider: provider.name,
         molliePaymentId: order.molliePaymentId,
+        swishPaymentId: order.swishPaymentId,
         stripePaymentIntentId: order.stripePaymentIntentId,
         adyenSessionId: order.adyenSessionId,
         adyenPspReference: order.adyenPspReference,
@@ -349,6 +371,9 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
       session: result.session, // Adyen: { id, sessionData } för Drop-in
       clientSecret: result.clientSecret, // Stripe native: PaymentSheet
       publishableKey: result.publishableKey, // Stripe native: PaymentSheet
+      swishToken: result.swishToken,
+      swishUrl: result.swishUrl,
+      swishQrCode: result.swishQrCode,
       total: order.total / 100,
       discountAmount: (order.discountAmount ?? 0) / 100,
     });
@@ -361,6 +386,109 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
       error: 'Kunde inte initiera betalning',
       ...(process.env.NODE_ENV !== 'production' ? { details: msg } : {}),
     });
+  }
+});
+
+// POST /api/payments/webhooks/swish — Swish callbackar ett Payment Request-objekt.
+// Callbacken är bara en väcksignal: identifieraren verifieras och aktuell status
+// hämtas därefter med vårt mTLS-certifikat innan ordern muteras.
+router.post('/webhooks/swish', async (req, res) => {
+  const paymentId = typeof req.body?.id === 'string' ? req.body.id.trim().toUpperCase() : '';
+  const callbackIdentifier = req.headers.callbackidentifier;
+  if (!/^[0-9A-F]{32}$/.test(paymentId) || !validSwishCallbackIdentifier(paymentId, callbackIdentifier)) {
+    res.status(401).json({ error: 'Ogiltig Swish-callback' });
+    return;
+  }
+  try {
+    const order = await prisma.order.findFirst({
+      where: { paymentProvider: 'swish', swishPaymentId: paymentId },
+      select: { id: true },
+    });
+    if (order) {
+      const provider = getPaymentProviderByName('swish');
+      const status = await provider.getRemoteStatus(paymentId);
+      if (status.state === 'paid') {
+        await finalizePaymentSuccess(order.id, {
+          provider: 'swish',
+          ref: paymentId,
+          amountReceivedOre: status.amountReceivedOre ?? 0,
+          method: 'swish',
+        });
+      } else if (status.state === 'failed' || status.state === 'canceled' || status.state === 'expired') {
+        await finalizePaymentFailed(order.id, { provider: 'swish', ref: paymentId, reason: status.state });
+      }
+      await syncSwishRefunds(order.id, paymentId, status);
+    }
+    res.status(200).json({ received: true });
+  } catch (err: any) {
+    console.error('[payments/webhook swish] error:', err?.message || err);
+    res.status(500).json({ error: 'Webhook kunde inte behandlas' });
+  }
+});
+
+/** Bokför Swish-refunds som PSP:n redan bekräftat. Delas av båda callbackarna. */
+async function syncSwishRefunds(
+  orderId: string,
+  paymentRef: string,
+  status: { amountReceivedOre?: number; amountRefundedOre?: number; refunds?: any[] },
+) {
+  if ((status.amountRefundedOre ?? 0) <= 0 && (status.refunds?.length ?? 0) === 0) return;
+  const sync = await syncRemoteRefundOutcome({
+    orderId,
+    paymentRef,
+    paidAmountOre: status.amountReceivedOre ?? 0,
+    cumulativeRefundOre: status.amountRefundedOre ?? 0,
+    provider: 'swish',
+    source: 'WEBHOOK',
+    refunds: status.refunds,
+  });
+  if (sync.changed && sync.fullRefund) {
+    await announceFullRefund(
+      orderId,
+      sync.restaurantId,
+      sync.orderStatus === 'REJECTED' ? 'REJECTED' : 'CANCELLED',
+    );
+  }
+}
+
+// POST /api/payments/webhooks/swish-refund — Swish callbackar ett Refund-objekt.
+// Precis som betal-callbacken är den bara en väcksignal: identifieraren
+// verifieras och hela betalningens refundbild hämtas därefter med certifikatet.
+router.post('/webhooks/swish-refund', async (req, res) => {
+  const refundId = typeof req.body?.id === 'string' ? req.body.id.trim().toUpperCase() : '';
+  const callbackIdentifier = req.headers.callbackidentifier;
+  if (!/^[0-9A-F]{32}$/.test(refundId) || !validSwishCallbackIdentifier(refundId, callbackIdentifier)) {
+    res.status(401).json({ error: 'Ogiltig Swish-callback' });
+    return;
+  }
+  try {
+    let row = await prisma.paymentRefund.findFirst({
+      where: { provider: 'swish', refundRef: refundId },
+      select: { orderId: true, paymentRef: true },
+    });
+    if (!row) {
+      // PUT:en gick igenom men svaret tappades innan refundRef hann sparas.
+      // Instruktions-ID:t är härlett ur idempotency-nyckeln, så raden går
+      // fortfarande att återfinna i stället för att callbacken tappas.
+      const pending = await prisma.paymentRefund.findMany({
+        where: { provider: 'swish', refundRef: null },
+        select: { orderId: true, paymentRef: true, idempotencyKey: true },
+        orderBy: { createdAt: 'desc' },
+        take: 200,
+      });
+      row = pending.find(
+        (candidate) => swishRefundInstructionId(candidate.idempotencyKey) === refundId,
+      ) ?? null;
+    }
+    if (row) {
+      const provider = getPaymentProviderByName('swish');
+      const status = await provider.getRemoteStatus(row.paymentRef);
+      await syncSwishRefunds(row.orderId, row.paymentRef, status);
+    }
+    res.status(200).json({ received: true });
+  } catch (err: any) {
+    console.error('[payments/webhook swish-refund] error:', err?.message || err);
+    res.status(500).json({ error: 'Webhook kunde inte behandlas' });
   }
 });
 
@@ -730,6 +858,7 @@ router.get('/status/:orderId', statusLimiter, authenticateUserOptional, async (r
       paymentStatus: true,
       paymentProvider: true,
       molliePaymentId: true,
+      swishPaymentId: true,
       stripePaymentIntentId: true,
       adyenSessionId: true,
       userId: true,
@@ -760,6 +889,7 @@ router.get('/status/:orderId', statusLimiter, authenticateUserOptional, async (r
           provider: provider.name,
           ref: remote.paymentIntentId || ref,
           amountReceivedOre: remote.amountReceivedOre ?? 0,
+          method: remote.method,
         });
       } else if (remote.state === 'failed' || remote.state === 'canceled' || remote.state === 'expired') {
         await finalizePaymentFailed(order.id, { provider: provider.name, ref, reason: remote.state });
@@ -790,6 +920,7 @@ router.get('/status/:orderId', statusLimiter, authenticateUserOptional, async (r
           paymentStatus: true,
           paymentProvider: true,
           molliePaymentId: true,
+          swishPaymentId: true,
           stripePaymentIntentId: true,
           adyenSessionId: true,
           userId: true,

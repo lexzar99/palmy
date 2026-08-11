@@ -305,6 +305,24 @@ async function runAsyncRefundContracts() {
   );
   assert.equal(legacyProvider.refundCalls, 0);
 
+  // Direkt Swish har en härdad async-livscykel (deterministisk refund-referens
+  // + server-till-server-status) och ska därför gå hela vägen igenom, till
+  // skillnad från Stripe/Adyen ovan.
+  const swishProviderMock = mockRefundWorkflow('refunded');
+  const swishBase = swishProviderMock.dependencies.resolveRefundPayment().provider;
+  swishProviderMock.dependencies.resolveRefundPayment = () => ({
+    provider: { ...swishBase, name: 'swish' },
+    ref: 'A1B2C3D4E5F60718293A4B5C6D7E8F90',
+  });
+  const swishOutcome = await refundOrderForAdmin(
+    'order-1',
+    'swish-refund',
+    {},
+    swishProviderMock.dependencies,
+  );
+  assert.equal(swishOutcome.status, 'refunded');
+  assert.equal(swishProviderMock.refundCalls, 1);
+
   // Lock + durable intent share one DB transaction. If the ledger write
   // fails, the payment lock is rolled back before any irreversible PSP call.
   const ledgerUnavailable = mockRefundWorkflow('refunded');
