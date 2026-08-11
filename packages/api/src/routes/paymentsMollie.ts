@@ -54,6 +54,7 @@ const router = Router();
 router.get('/methods', (_req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=60');
   const providers = configuredCheckoutProviderNames();
+  const stripePublishableKey = String(process.env.STRIPE_PUBLISHABLE_KEY || '').trim();
   const swishReady = !providers.includes('swish') || (
     inspectSwishTlsConfiguration().ok && !swishCallbackSecretIssue()
   );
@@ -64,6 +65,9 @@ router.get('/methods', (_req, res) => {
       ...(providers.includes('stripe') ? [{ id: 'stripe', label: 'Kort och Klarna', direct: false }] : []),
       ...(providers.includes('adyen') ? [{ id: 'adyen', label: 'Kort, Klarna och wallets', direct: false }] : []),
     ],
+    ...(providers.includes('stripe') && /^pk_(?:live|test)_[A-Za-z0-9]+$/.test(stripePublishableKey)
+      ? { stripePublishableKey }
+      : {}),
   });
 });
 

@@ -48,6 +48,10 @@ assert.match(paymentRouteSource, /paymentReference: provider\.name === 'stripe'[
   'create retries must pass the exact stored Stripe reference back to the provider');
 assert.match(paymentRouteSource, /payment_intent\.payment_failed[\s\S]*retryable/,
   'declines must remain retryable and preserve reservations');
+assert.match(paymentRouteSource, /\^pk_\(\?:live\|test\)_[\s\S]*stripePublishableKey/,
+  'methods endpoint may preload Stripe only with an explicitly publishable pk_ key');
+assert.doesNotMatch(paymentRouteSource, /stripeSecretKey[\s\S]*res\.json/,
+  'methods endpoint must never expose Stripe secret material');
 assert.match(finalizeSource, /stripeRefMatches[\s\S]*order\.stripePaymentIntentId === input\.ref/,
   'Stripe success finalization must require the exact stored reference');
 

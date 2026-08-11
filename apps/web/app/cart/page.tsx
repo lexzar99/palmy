@@ -39,7 +39,7 @@ import { rememberActiveOrder } from "@/lib/activeOrder";
 // Stripe Elements stannar i samma stabila betalsteg; partner-embed kan använda
 // en säker hosted fallback när top-level navigation krävs.
 import ProductModal from "@/components/ProductModal";
-import StripeInlineCheckout, { type StripeCheckoutMethod } from "@/components/StripeInlineCheckout";
+import StripeInlineCheckout, { preloadStripeCheckout, type StripeCheckoutMethod } from "@/components/StripeInlineCheckout";
 import { saveOrderToHistory } from "@/lib/orderHistory";
 import {
   type QuickAddress,
@@ -394,6 +394,12 @@ export default function CartPage() {
             id === "mollie" || id === "swish" || id === "stripe" || id === "adyen");
         if (providers.length > 0) {
           setAvailablePaymentProviders(providers);
+        }
+        const stripePublishableKey = String(response.data?.stripePublishableKey || "").trim();
+        if (providers.includes("stripe") && /^pk_(?:live|test)_[A-Za-z0-9]+$/.test(stripePublishableKey)) {
+          // Starta Stripe.js medan kunden fortfarande granskar varukorgen.
+          // Samma cacheade instans återanvänds när Payment Element öppnas.
+          void preloadStripeCheckout(stripePublishableKey).catch(() => { /* UI visar en begränsad retry när Stripe väljs */ });
         }
       })
       .catch(() => { /* fail closed: visa inga metoder utan serverbesked */ })

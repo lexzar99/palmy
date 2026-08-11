@@ -167,6 +167,20 @@ test("payment methods use a stable same-route step with separate Stripe choices"
   assert.match(stripeInline, /await onVerified\(\)/);
 });
 
+test("Stripe Elements preloads and never leaves payment fields in an unbounded loading state", () => {
+  assert.match(cart, /stripePublishableKey[\s\S]*?preloadStripeCheckout\(stripePublishableKey\)/);
+  assert.match(stripeInline, /export function preloadStripeCheckout/);
+  assert.match(stripeInline, /stripePromiseCache/);
+  assert.match(stripeInline, /stripeJsMs:\s*6_000/);
+  assert.match(stripeInline, /walletMs:\s*4_000/);
+  assert.match(stripeInline, /paymentElementMs:\s*6_000/);
+  assert.match(stripeInline, /setReadiness\(\(current\) => current === "loading" \? "timed_out" : current\)/);
+  assert.match(stripeInline, /<ExpressCheckoutElement[\s\S]*?onReady=[\s\S]*?onLoadError=/);
+  assert.match(stripeInline, /<PaymentElement[\s\S]*?onReady=[\s\S]*?onLoadError=/);
+  assert.match(stripeInline, /> Försök igen/);
+  assert.doesNotMatch(stripeInline, /Kontrollerar plånboken/);
+});
+
 test("payment methods never render inside the mobile sticky layer", () => {
   const stickyBlock = cart.match(/className="sticky z-\[90\][\s\S]*?<\/div>\n\s*<\/div>\n\s*<\/motion\.div>/)?.[0] || "";
   assert.match(stickyBlock, /onClick=\{openPaymentStep\}/);
