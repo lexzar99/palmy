@@ -35,11 +35,10 @@ import { EMBED_PARENT_ORIGIN_PARAM, readEmbedParentOrigin, trustedPartnerOrigin 
 import { useCartStore } from "@/store/cartStore";
 import BogoPickerModal from "@/components/BogoPickerModal";
 import { rememberActiveOrder } from "@/lib/activeOrder";
-// Betalning sker via ett provider-neutralt checkout-flöde. Direkt Swish och
-// Stripe Elements stannar i samma stabila betalsteg; partner-embed kan använda
-// en säker hosted fallback när top-level navigation krävs.
+// Betalning sker via ett provider-neutralt checkout-flöde. Direkt Swish visas
+// i samma stabila betalsteg; Stripe öppnar sin hostade Checkout där Stripe
+// omedelbart visar de plånböcker och betalmetoder som är möjliga på enheten.
 import ProductModal from "@/components/ProductModal";
-import StripeInlineCheckout, { preloadStripeCheckout, type StripeCheckoutMethod } from "@/components/StripeInlineCheckout";
 import { saveOrderToHistory } from "@/lib/orderHistory";
 import {
   type QuickAddress,
@@ -82,6 +81,9 @@ const TEST_ORDERS_ENABLED =
   process.env.NEXT_PUBLIC_ALLOW_TEST_ORDERS === "true";
 
 const CHECKOUT_ATTEMPT_KEY = "viaeats.checkout.attempt.v1";
+// Rotera en tidigare inline Stripe-order till en ny hosted Checkout-session.
+// Nyckeln ingår i fingerprinten så en gammal pi_ aldrig återanvänds som cs_.
+const STRIPE_CHECKOUT_FLOW_VERSION = "stripe-hosted-v1";
 
 type CheckoutAttempt = { key: string; fingerprint: string };
 type HostedPaymentContext = {
@@ -98,6 +100,7 @@ type HostedPaymentContext = {
 };
 
 type CheckoutPaymentProvider = "mollie" | "swish" | "stripe" | "adyen";
+type StripeCheckoutMethod = "klarna" | "apple_pay" | "google_pay" | "card";
 type CheckoutMethod = "swish" | StripeCheckoutMethod;
 
 function checkoutPaymentProvider(value: unknown): CheckoutPaymentProvider | null {
@@ -344,13 +347,6 @@ export default function CartPage() {
   const [paymentProvidersLoaded, setPaymentProvidersLoaded] = useState(false);
   const [paymentStepOpen, setPaymentStepOpen] = useState(false);
   const [selectedCheckoutMethod, setSelectedCheckoutMethod] = useState<CheckoutMethod | null>(null);
-  const [stripeCheckout, setStripeCheckout] = useState<{
-    orderId: string;
-    clientSecret: string;
-    publishableKey: string;
-    returnUrl: string;
-    method: StripeCheckoutMethod;
-  } | null>(null);
   // Sätts först efter mount — user agent finns inte vid SSR och skulle annars
   // ge hydration mismatch.
   const [isHandheld, setIsHandheld] = useState(false);
@@ -394,12 +390,6 @@ export default function CartPage() {
             id === "mollie" || id === "swish" || id === "stripe" || id === "adyen");
         if (providers.length > 0) {
           setAvailablePaymentProviders(providers);
-        }
-        const stripePublishableKey = String(response.data?.stripePublishableKey || "").trim();
-        if (providers.includes("stripe") && /^pk_(?:live|test)_[A-Za-z0-9]+$/.test(stripePublishableKey)) {
-          // Starta Stripe.js medan kunden fortfarande granskar varukorgen.
-          // Samma cacheade instans återanvänds när Payment Element öppnas.
-          void preloadStripeCheckout(stripePublishableKey).catch(() => { /* UI visar en begränsad retry när Stripe väljs */ });
         }
       })
       .catch(() => { /* fail closed: visa inga metoder utan serverbesked */ })
@@ -1886,6 +1876,7 @@ export default function CartPage() {
       next.searchParams.delete("payment_return");
       next.searchParams.delete("payment_cancelled");
       next.searchParams.delete("redirect_status");
+      next.searchParams.delete("stripe_session_id");
       next.searchParams.delete("payment_resume");
       next.searchParams.delete("payment_provider");
       window.history.replaceState({}, "", `${next.pathname}${next.search}`);
@@ -1900,7 +1891,6 @@ export default function CartPage() {
     setVerifyingPayment(true);
     setCancellingPayment(true);
     setSwishCheckout(null);
-    setStripeCheckout(null);
     setHostedCheckoutUrl(null);
     paymentInFlightRef.current = false;
     clearCartReturnParams();
@@ -2004,7 +1994,6 @@ export default function CartPage() {
         if (paymentOutcome === "terminal") {
           setVerifyingPayment(false);
           setSwishCheckout(null);
-          setStripeCheckout(null);
           setHostedCheckoutUrl(null);
           setSelectedCheckoutMethod(null);
           setPaymentStepOpen(true);
@@ -2022,7 +2011,6 @@ export default function CartPage() {
         if (Number(responseStatus) === 410) {
           setVerifyingPayment(false);
           setSwishCheckout(null);
-          setStripeCheckout(null);
           setHostedCheckoutUrl(null);
           setSelectedCheckoutMethod(null);
           setPaymentStepOpen(true);
@@ -2215,9 +2203,8 @@ export default function CartPage() {
   }, []);
 
   // ── Tracka pågående betalning så pagehide-handlern inte abandonar ─────────
-  // Sätts till true precis innan stripe.confirmPayment() körs (Stripe kan
-  // synchronously redirecta browsern till Klarna/Swish/3DS). Återställs vid
-  // success/error eller när kunden kommer tillbaka via return_url.
+  // Sätts till true precis innan browsern lämnar sidan för en hosted provider.
+  // Återställs vid fel eller när kunden kommer tillbaka via return_url.
   const paymentInFlightRef = useRef(false);
 
   // Do not abandon on pagehide/reload. Hosted checkouts legitimately leave
@@ -2236,15 +2223,15 @@ export default function CartPage() {
     if (formData.customerEmail) localStorage.setItem("guest_email", formData.customerEmail);
   }, [user, formData.customerName, formData.customerPhone, formData.customerEmail]);
 
-  // Metoden skickas explicit från det fasta betalsteget. Swish går till den
-  // direkta Swish-providern; övriga metoder går till Stripe Elements.
+  // Metoden skickas explicit från det fasta betalsteget. Swish går direkt till
+  // Swish-providern; övriga val öppnar Stripe-hostad Checkout utan att ladda
+  // Stripe.js eller Elements i vår egen kassa.
   const startCheckout = async (e: React.FormEvent, checkoutMethod: CheckoutMethod) => {
     e.preventDefault();
     paymentPollGenerationRef.current += 1;
     setError(null);
     setHostedCheckoutUrl(null);
     setSwishCheckout(null);
-    setStripeCheckout(null);
     setSelectedCheckoutMethod(checkoutMethod);
     setPaymentStepOpen(true);
     const checkoutProvider: CheckoutPaymentProvider = checkoutMethod === "swish" ? "swish" : "stripe";
@@ -2445,7 +2432,13 @@ export default function CartPage() {
         pendingPayment: true,
         paymentProvider: checkoutProvider,
       };
-      const fingerprint = checkoutFingerprint({ pendingPayload, checkoutMethod });
+      const fingerprint = checkoutFingerprint({
+        pendingPayload,
+        checkoutMethod,
+        ...(checkoutProvider === "stripe"
+          ? { checkoutFlowVersion: STRIPE_CHECKOUT_FLOW_VERSION }
+          : {}),
+      });
       const previousAttempt = readCheckoutAttempt();
       const previousOrderId = localStorage.getItem("pending_order_id");
       const previousProvider = readPendingPaymentProvider(localStorage);
@@ -2489,7 +2482,6 @@ export default function CartPage() {
         }
         if (cancellation === "pending") {
           setSwishCheckout(null);
-          setStripeCheckout(null);
           setPaymentStepOpen(true);
           setPendingOrderId(previousOrderId);
           setError("Den tidigare betalningen kan fortfarande behandlas och kunde inte avbrytas säkert. Vänta på status eller avbryt säkert igen innan du ändrar betalsätt.");
@@ -2545,7 +2537,7 @@ export default function CartPage() {
         orderId,
         returnUrl,
         channel: "Web",
-        checkoutExperience: checkoutProvider === "stripe" && !checkoutEmbedded ? "embedded" : "hosted",
+        checkoutExperience: "hosted",
         checkoutMethod: checkoutProvider === "stripe" ? checkoutMethod : undefined,
       });
       if (payRes.data?.alreadyPaid === true || String(payRes.data?.paymentStatus || "").toUpperCase() === "PAID") {
@@ -2576,22 +2568,6 @@ export default function CartPage() {
         }));
         return;
       }
-      if (String(payRes.data?.provider || "").toLowerCase() === "stripe") {
-        const clientSecret = String(payRes.data?.clientSecret || "");
-        const publishableKey = String(payRes.data?.publishableKey || "");
-        if (clientSecret.startsWith("pi_") && clientSecret.includes("_secret_") && /^pk_(?:live|test)_/.test(publishableKey)) {
-          paymentInFlightRef.current = false;
-          setStripeCheckout({
-            orderId,
-            clientSecret,
-            publishableKey,
-            returnUrl,
-            method: checkoutMethod as StripeCheckoutMethod,
-          });
-          setPaymentStepOpen(true);
-          return;
-        }
-      }
       const checkoutUrl: string | undefined = payRes.data?.checkoutUrl;
       if (!checkoutUrl) {
         paymentInFlightRef.current = false;
@@ -2620,7 +2596,6 @@ export default function CartPage() {
         // abandon the obsolete unpaid order before creating a new attempt.
         clearCheckoutAttempt();
       }
-      setStripeCheckout(null);
       setSwishCheckout(null);
       setSelectedCheckoutMethod(null);
       setPaymentStepOpen(true);
@@ -3056,7 +3031,6 @@ export default function CartPage() {
     setPaymentStepOpen(true);
     if (!pendingOrderId) {
       setSelectedCheckoutMethod(null);
-      setStripeCheckout(null);
       setSwishCheckout(null);
       setHostedCheckoutUrl(null);
     }
@@ -3070,7 +3044,6 @@ export default function CartPage() {
     }
     if (selectedCheckoutMethod) {
       setSelectedCheckoutMethod(null);
-      setStripeCheckout(null);
       setSwishCheckout(null);
       setHostedCheckoutUrl(null);
       setError(null);
@@ -3096,23 +3069,38 @@ export default function CartPage() {
   const renderMethodMark = (method: CheckoutMethod) => {
     if (method === "swish") {
       return (
-        <span className="grid h-10 w-[94px] shrink-0 place-items-center rounded-xl bg-white px-2.5" style={{ border: "1px solid rgba(23,26,27,0.10)" }}>
-          <img src="/swish-logo.svg" alt="Swish" className="h-auto w-full" />
+        <span aria-hidden="true" className="grid h-10 w-[94px] shrink-0 place-items-center rounded-xl bg-white px-2.5" style={{ border: "1px solid rgba(23,26,27,0.10)" }}>
+          <img src="/swish-logo.svg" alt="" className="h-auto w-full" />
         </span>
       );
     }
     if (method === "klarna") {
-      return <span className="grid h-10 w-[94px] shrink-0 place-items-center rounded-xl bg-[#FFB3C7] text-[15px] font-black text-black">Klarna.</span>;
+      return <span aria-hidden="true" className="grid h-10 w-[94px] shrink-0 place-items-center rounded-xl bg-[#FFB3C7] text-[16px] font-black tracking-[-0.04em] text-black">Klarna.</span>;
     }
     if (method === "apple_pay") {
-      return <span className="grid h-10 w-[94px] shrink-0 place-items-center rounded-xl bg-black text-[16px] font-semibold text-white"> Pay</span>;
+      return (
+        <span aria-hidden="true" className="flex h-10 w-[94px] shrink-0 items-center justify-center gap-1.5 rounded-xl bg-black text-[17px] font-semibold tracking-[-0.03em] text-white">
+          <svg viewBox="0 0 384 512" focusable="false" className="h-[21px] w-4 fill-current" role="presentation">
+            <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5c0 26.2 4.8 53.3 14.4 81.2 12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.7-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.6-90-61.6-91.9zm-57.5-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
+          </svg>
+          <span>Pay</span>
+        </span>
+      );
     }
     if (method === "google_pay") {
-      return <span className="grid h-10 w-[94px] shrink-0 place-items-center rounded-xl bg-white text-[15px] font-semibold text-[#3C4043]" style={{ border: "1px solid rgba(23,26,27,0.10)" }}><span><span className="text-[#4285F4]">G</span> Pay</span></span>;
+      return (
+        <span aria-hidden="true" className="grid h-10 w-[94px] shrink-0 place-items-center rounded-xl bg-white text-[16px] font-semibold tracking-[-0.03em] text-[#3C4043]" style={{ border: "1px solid rgba(23,26,27,0.10)" }}>
+          <span><span className="text-[#4285F4]">G</span><span className="text-[#EA4335]">o</span><span className="text-[#FBBC04]">o</span><span className="text-[#4285F4]">g</span><span className="text-[#34A853]">l</span><span className="text-[#EA4335]">e</span> Pay</span>
+        </span>
+      );
     }
     return (
-      <span className="grid h-10 w-[94px] shrink-0 place-items-center rounded-xl" style={{ backgroundColor: "var(--gold-soft)" }}>
-        <CreditCard size={20} style={{ color: "var(--gold-ink)" }} />
+      <span aria-hidden="true" className="flex h-10 w-[94px] shrink-0 items-center justify-center gap-2 rounded-xl bg-white" style={{ border: "1px solid rgba(23,26,27,0.10)" }}>
+        <span className="text-[12px] font-black italic tracking-[-0.08em] text-[#1434CB]">VISA</span>
+        <span className="relative h-[18px] w-[29px]">
+          <span className="absolute left-0 top-0 h-[18px] w-[18px] rounded-full bg-[#EB001B]" />
+          <span className="absolute right-0 top-0 h-[18px] w-[18px] rounded-full bg-[#F79E1B] opacity-90" />
+        </span>
       </span>
     );
   };
@@ -3187,27 +3175,6 @@ export default function CartPage() {
                   : "Väntar på betalningsbekräftelse."}
               </p>
             </div>
-          ) : stripeCheckout ? (
-            <div className="mt-6">
-              <StripeInlineCheckout
-                clientSecret={stripeCheckout.clientSecret}
-                publishableKey={stripeCheckout.publishableKey}
-                method={stripeCheckout.method}
-                returnUrl={stripeCheckout.returnUrl}
-                amountLabel={`${formatSekAmount(total)} SEK`}
-                onSubmitStart={() => { paymentInFlightRef.current = true; }}
-                onSubmitEnd={() => { paymentInFlightRef.current = false; }}
-                onVerified={async () => {
-                  paymentInFlightRef.current = false;
-                  await finishHostedPayment(stripeCheckout.orderId, {
-                    provider: "stripe",
-                    embedded: embedMode,
-                    restaurantSlug: embedRestaurantSlug || undefined,
-                    parentOrigin: embedMode ? readEmbedParentOrigin() : null,
-                  });
-                }}
-              />
-            </div>
           ) : hostedCheckoutUrl ? (
             <div className="mt-6 text-center">
               <p className="text-[13.5px] leading-5" style={{ color: "var(--text-secondary)" }}>Betalningen måste öppnas på den översta sidan för att fungera i restaurangens inbäddade kassa.</p>
@@ -3216,7 +3183,7 @@ export default function CartPage() {
           ) : selectedCheckoutMethod && loading ? (
             <div className="flex min-h-56 flex-col items-center justify-center gap-3 py-8 text-center">
               <Loader2 size={28} className="animate-spin" style={{ color: "var(--gold-ink)" }} />
-              <p className="text-[13.5px]" style={{ color: "var(--text-secondary)" }}>Förbereder säker betalning…</p>
+              <p className="text-[13.5px]" style={{ color: "var(--text-secondary)" }}>Öppnar säker betalning…</p>
             </div>
           ) : pendingOrderId ? (
             <div className="flex min-h-56 flex-col items-center justify-center gap-3 py-8 text-center">
@@ -3251,7 +3218,7 @@ export default function CartPage() {
               {paymentProvidersLoaded && methods.length === 0 && (
                 <p className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-[13.5px] text-rose-600">Inget betalsätt är tillgängligt just nu. Försök igen om en stund.</p>
               )}
-              <p className="pt-2 text-center text-[11.5px] leading-4" style={{ color: "var(--text-secondary)" }}>Klarna, Apple Pay, Google Pay och kort behandlas säkert av Stripe. Tillgängliga plånböcker verifieras på din enhet.</p>
+              <p className="pt-2 text-center text-[11.5px] leading-4" style={{ color: "var(--text-secondary)" }}>Klarna, Apple Pay, Google Pay och kort öppnas direkt i Stripe Checkout. Stripe visar automatiskt det som fungerar på din enhet.</p>
             </div>
           )}
         </section>

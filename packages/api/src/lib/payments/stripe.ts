@@ -425,7 +425,6 @@ async function createHostedCheckoutSession(args: CreatePaymentArgs): Promise<Cre
     client_reference_id: order.id,
     customer_email: order.customerEmail || undefined,
     billing_address_collection: 'auto',
-    phone_number_collection: { enabled: true },
     line_items: buildLineItems(order),
     success_url: appendQuery(returnUrl, 'stripe_session_id', '{CHECKOUT_SESSION_ID}'),
     cancel_url: appendQuery(returnUrl, 'payment_cancelled', '1'),

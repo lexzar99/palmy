@@ -18,7 +18,6 @@ import { formatCheckoutSek } from "../lib/checkoutMoney.ts";
 
 const cart = fs.readFileSync(new URL("../app/cart/page.tsx", import.meta.url), "utf8");
 const menu = fs.readFileSync(new URL("../components/MenuContent.tsx", import.meta.url), "utf8");
-const stripeInline = fs.readFileSync(new URL("../components/StripeInlineCheckout.tsx", import.meta.url), "utf8");
 
 test("direct Swish checkout uses the server app link and Commerce QR", () => {
   assert.match(cart, /startCheckout\(event, method\.id\)/);
@@ -127,6 +126,7 @@ test("return recovery consumes the one-time session token and strips sensitive q
   assert.match(cart, /orders\/\$\{returnOrderId\}\/session/);
   assert.match(cart, /next\.searchParams\.delete\("payment_resume"\)/);
   assert.match(cart, /next\.searchParams\.delete\("payment_provider"\)/);
+  assert.match(cart, /next\.searchParams\.delete\("stripe_session_id"\)/);
   assert.match(cart, /returnProvider \|\| persistedProvider/);
   assert.match(cart, /localStorage\.setItem\("pending_order_id", returnOrderId\)/);
 });
@@ -151,34 +151,38 @@ test("same checkout attempt resumes safely and recovers a lost Swish create resp
   assert.match(cart, /role="alert"[\s\S]*?\{error\}/);
 });
 
-test("payment methods use a stable same-route step with separate Stripe choices", () => {
+test("payment methods use a stable choice step and hosted Stripe Checkout", () => {
   for (const method of ["swish", "klarna", "apple_pay", "google_pay", "card"]) {
     assert.match(cart, new RegExp(`id: "${method}"`));
   }
   assert.match(cart, /\{paymentStepOpen \? renderPaymentStep\(\) : \(/);
-  assert.match(cart, /checkoutExperience: checkoutProvider === "stripe"[\s\S]*?"embedded"/);
+  assert.match(cart, /checkoutExperience: "hosted"/);
   assert.match(cart, /checkoutMethod: checkoutProvider === "stripe" \? checkoutMethod : undefined/);
+  assert.match(cart, /window\.location\.assign\(checkoutUrl\)/);
+  assert.match(cart, /STRIPE_CHECKOUT_FLOW_VERSION = "stripe-hosted-v1"/);
+  assert.match(cart, /checkoutFlowVersion: STRIPE_CHECKOUT_FLOW_VERSION/);
   assert.doesNotMatch(cart, /renderPayMenu|payMenuOpen|mollieOptionsOpen/);
   assert.doesNotMatch(cart, /aria-modal|role="dialog"/);
   assert.doesNotMatch(cart, />Mollie</);
-  assert.match(stripeInline, /<PaymentElement/);
-  assert.match(stripeInline, /<ExpressCheckoutElement/);
-  assert.match(stripeInline, /redirect: "if_required"/);
-  assert.match(stripeInline, /await onVerified\(\)/);
+  assert.doesNotMatch(cart, /StripeInlineCheckout|preloadStripeCheckout|clientSecret/);
 });
 
-test("Stripe Elements preloads and never leaves payment fields in an unbounded loading state", () => {
-  assert.match(cart, /stripePublishableKey[\s\S]*?preloadStripeCheckout\(stripePublishableKey\)/);
-  assert.match(stripeInline, /export function preloadStripeCheckout/);
-  assert.match(stripeInline, /stripePromiseCache/);
-  assert.match(stripeInline, /stripeJsMs:\s*6_000/);
-  assert.match(stripeInline, /walletMs:\s*4_000/);
-  assert.match(stripeInline, /paymentElementMs:\s*6_000/);
-  assert.match(stripeInline, /setReadiness\(\(current\) => current === "loading" \? "timed_out" : current\)/);
-  assert.match(stripeInline, /<ExpressCheckoutElement[\s\S]*?onReady=[\s\S]*?onLoadError=/);
-  assert.match(stripeInline, /<PaymentElement[\s\S]*?onReady=[\s\S]*?onLoadError=/);
-  assert.match(stripeInline, /> Försök igen/);
-  assert.doesNotMatch(stripeInline, /Kontrollerar plånboken/);
+test("every payment choice has a recognizable, decorative payment mark", () => {
+  assert.match(cart, /src="\/swish-logo\.svg" alt=""/);
+  assert.match(cart, /method === "klarna"[\s\S]*?Klarna\./);
+  assert.match(cart, /method === "apple_pay"[\s\S]*?<svg viewBox="0 0 384 512"[\s\S]*?<span>Pay<\/span>/);
+  assert.doesNotMatch(cart, //);
+  assert.match(cart, /method === "google_pay"[\s\S]*?text-\[#4285F4\][\s\S]*?text-\[#EA4335\][\s\S]*? Pay/);
+  assert.match(cart, />VISA<\/span>/);
+  assert.match(cart, /bg-\[#EB001B\][\s\S]*?bg-\[#F79E1B\]/);
+  assert.match(cart, /aria-hidden="true"/);
+});
+
+test("wallets never wait for Stripe.js inside ViaEats", () => {
+  assert.match(cart, /Öppnar säker betalning…/);
+  assert.match(cart, /Apple Pay, Google Pay och kort öppnas direkt i Stripe Checkout/);
+  assert.doesNotMatch(cart, /Kontrollerar plånboken|Förbereder säker betalning/);
+  assert.doesNotMatch(cart, /loadStripe|PaymentElement|ExpressCheckoutElement/);
 });
 
 test("payment methods never render inside the mobile sticky layer", () => {

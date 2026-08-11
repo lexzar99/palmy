@@ -42,6 +42,8 @@ assert.match(stripeSource, /paymentIntentId: _canonicalIntentId, \.\.\.sessionBo
   'historical cs_ status must retain the stored session binding instead of leaking pi_ as finalization ref');
 assert.match(stripeSource, /checkout\.sessions\.expire/,
   'hosted Checkout abandonment must expire the remote session');
+assert.doesNotMatch(stripeSource, /phone_number_collection/,
+  'hosted Checkout must not ask for the phone number already collected by ViaEats');
 assert.match(stripeSource, /paymentIntents\.cancel/,
   'inline PaymentIntent abandonment must cancel the remote intent');
 assert.match(paymentRouteSource, /paymentReference: provider\.name === 'stripe'[\s\S]*order\.stripePaymentIntentId/,
