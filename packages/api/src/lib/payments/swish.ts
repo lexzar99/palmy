@@ -7,11 +7,19 @@
  * signal och sanningen hämtas alltid server-till-server från Swish.
  */
 import axios, { type AxiosInstance } from 'axios';
-import { createHash, createHmac, timingSafeEqual } from 'crypto';
-import { readFileSync } from 'fs';
-import { Agent as HttpsAgent } from 'https';
+import {
+  createHash,
+  createHmac,
+  timingSafeEqual,
+} from 'crypto';
 import QRCode from 'qrcode';
 import { getPublicApiBaseUrl } from '../launchReadiness';
+import {
+  createSwishHttpsAgent,
+  loadSwishTlsConfiguration,
+  swishApiBaseUrl,
+  swishPayeeAlias,
+} from './swishTls';
 import type {
   CreatePaymentArgs,
   CreatePaymentResult,
@@ -22,12 +30,12 @@ import type {
   RemoteRefundStatus,
 } from './types';
 
-type SwishEnvironment = 'MSS' | 'SANDBOX' | 'PRODUCTION';
-
 type SwishPayment = {
   id?: unknown;
   paymentReference?: unknown;
+  payeeAlias?: unknown;
   amount?: unknown;
+  currency?: unknown;
   status?: unknown;
   errorCode?: unknown;
 };
@@ -45,45 +53,12 @@ type SwishRefund = {
 
 let cachedClient: AxiosInstance | null = null;
 
-function environment(): SwishEnvironment {
-  const value = String(process.env.SWISH_ENVIRONMENT || 'MSS').trim().toUpperCase();
-  if (value === 'MSS' || value === 'SANDBOX' || value === 'PRODUCTION') return value;
-  throw new Error(`Ogiltig SWISH_ENVIRONMENT: ${value}`);
-}
-
-function baseUrl(): string {
-  if (process.env.SWISH_API_BASE_URL) return process.env.SWISH_API_BASE_URL.replace(/\/$/, '');
-  switch (environment()) {
-    case 'MSS': return 'https://mss.cpc.getswish.net';
-    case 'SANDBOX': return 'https://staging.getswish.pub.tds.tieto.com';
-    case 'PRODUCTION': return 'https://cpc.getswish.net';
-  }
-}
-
-function credential(pemName: string, pathName: string, required = true): Buffer | undefined {
-  const inline = process.env[pemName];
-  if (inline) {
-    const normalized = inline.includes('-----BEGIN') ? inline.replace(/\\n/g, '\n') : Buffer.from(inline, 'base64');
-    return Buffer.isBuffer(normalized) ? normalized : Buffer.from(normalized);
-  }
-  const path = process.env[pathName];
-  if (path) return readFileSync(path);
-  if (required) throw new Error(`${pemName} eller ${pathName} saknas`);
-  return undefined;
-}
-
 function client(): AxiosInstance {
   if (cachedClient) return cachedClient;
-  const httpsAgent = new HttpsAgent({
-    cert: credential('SWISH_CERT_PEM', 'SWISH_CERT_PATH'),
-    key: credential('SWISH_KEY_PEM', 'SWISH_KEY_PATH'),
-    ca: credential('SWISH_CA_PEM', 'SWISH_CA_PATH', false),
-    passphrase: process.env.SWISH_KEY_PASSPHRASE || undefined,
-    minVersion: 'TLSv1.2',
-    keepAlive: true,
-  });
+  const tls = loadSwishTlsConfiguration();
+  const httpsAgent = createSwishHttpsAgent(tls);
   cachedClient = axios.create({
-    baseURL: baseUrl(),
+    baseURL: swishApiBaseUrl(),
     httpsAgent,
     timeout: 15_000,
     headers: { 'Content-Type': 'application/json' },
@@ -93,12 +68,7 @@ function client(): AxiosInstance {
   return cachedClient;
 }
 
-function payeeAlias(): string {
-  const alias = String(process.env.SWISH_PAYEE_ALIAS || (environment() === 'MSS' ? '1234679304' : ''))
-    .replace(/\D/g, '');
-  if (!/^\d{8,15}$/.test(alias)) throw new Error('SWISH_PAYEE_ALIAS saknas eller är ogiltigt');
-  return alias;
-}
+export { mergeSwishClientCertificate } from './swishTls';
 
 /** Swish v2 kräver exakt 32 versala hextecken, utan UUID-bindestreck. */
 export function swishInstructionId(idempotencyKey: string): string {
@@ -153,15 +123,15 @@ function mapRefundStatus(value: unknown): RemoteRefundState {
 
 function refundCallbackUrl(): string {
   const explicit = String(process.env.SWISH_REFUND_CALLBACK_URL || '').trim();
-  if (explicit) {
-    if (!/^https:\/\//i.test(explicit)) throw new Error('SWISH_REFUND_CALLBACK_URL måste vara https');
-    return explicit;
-  }
+  if (explicit) return validateSwishCallbackUrl(explicit, 'SWISH_REFUND_CALLBACK_URL');
   const base = getPublicApiBaseUrl();
   if (!base || !/^https:\/\//i.test(base) || /localhost|127\.0\.0\.1/.test(base)) {
     throw new Error('Publik https-bas-URL krävs för Swish refund-callback');
   }
-  return `${base.replace(/\/$/, '')}/api/payments/webhooks/swish-refund`;
+  return validateSwishCallbackUrl(
+    `${base.replace(/\/$/, '')}/api/payments/webhooks/swish-refund`,
+    'Swish refund-callback',
+  );
 }
 
 function mapStatus(value: unknown): RemotePaymentState {
@@ -183,10 +153,60 @@ function exactOre(value: unknown): number {
   return ore;
 }
 
+function assertSwishPaymentIdentity(payment: SwishPayment): void {
+  if (String(payment.currency || '').toUpperCase() !== 'SEK') {
+    throw new Error('Swish-betalningen har oväntad valuta');
+  }
+  const returnedPayee = String(payment.payeeAlias || '').replace(/\D/g, '');
+  if (!returnedPayee || returnedPayee !== swishPayeeAlias()) {
+    throw new Error('Swish-betalningen tillhör ett annat betalnummer');
+  }
+}
+
 function callbackUrl(webhookUrl?: string): string {
   const url = webhookUrl || process.env.SWISH_CALLBACK_URL;
-  if (!url || !/^https:\/\//i.test(url)) throw new Error('Publik SWISH_CALLBACK_URL med HTTPS krävs');
-  return url;
+  return validateSwishCallbackUrl(url, 'SWISH_CALLBACK_URL');
+}
+
+export function validateSwishCallbackUrl(value: unknown, name = 'Swish callbackUrl'): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`Publik ${name} med HTTPS på port 443 krävs`);
+  }
+  try {
+    const url = new URL(value.trim());
+    if (
+      url.protocol !== 'https:' ||
+      (url.port && url.port !== '443') ||
+      url.username ||
+      url.password ||
+      url.hash ||
+      ['localhost', '127.0.0.1', '::1'].includes(url.hostname)
+    ) {
+      throw new Error('invalid');
+    }
+    return url.toString();
+  } catch {
+    throw new Error(`Publik ${name} med HTTPS på port 443 krävs`);
+  }
+}
+
+/** Swish Commerce-QR är bokstaven D följd av PaymentRequestToken. */
+export function swishCommerceQrPayload(token: string): string {
+  const normalized = token.trim();
+  if (!normalized || normalized.length > 512 || /[\s\u0000-\u001F\u007F]/.test(normalized)) {
+    throw new Error('Swish returnerade en ogiltig M-commerce-token');
+  }
+  return `D${normalized}`;
+}
+
+/**
+ * En browser avkodar URL-parametrar en gång när custom-schemat öppnas. Swish
+ * kräver därför att callbackurl är dubbelkodad i browserns app-switch-länk.
+ */
+export function swishPaymentRequestUrl(token: string, returnUrl: string): string {
+  const normalized = swishCommerceQrPayload(token).slice(1);
+  const encodedCallbackUrl = encodeURIComponent(encodeURIComponent(returnUrl));
+  return `swish://paymentrequest?token=${encodeURIComponent(normalized)}&callbackurl=${encodedCallbackUrl}`;
 }
 
 async function fetchRefund(instructionId: string): Promise<SwishRefund | null> {
@@ -262,14 +282,17 @@ export async function getSwishRefundStatus(instructionId: string): Promise<Remot
 export const swishProvider: PaymentProvider = {
   name: 'swish',
 
-  async createPayment({ order, returnUrl, webhookUrl, idempotencyKey }: CreatePaymentArgs): Promise<CreatePaymentResult> {
-    const paymentRef = swishInstructionId(idempotencyKey);
+  async createPayment({ order, returnUrl, webhookUrl, idempotencyKey, paymentReference }: CreatePaymentArgs): Promise<CreatePaymentResult> {
+    const paymentRef = paymentReference || swishInstructionId(idempotencyKey);
+    if (!/^[0-9A-F]{32}$/.test(paymentRef)) {
+      throw new Error('Swish paymentReference måste vara 32 versala hextecken');
+    }
     const response = await client().put(
       `/swish-cpcapi/api/v2/paymentrequests/${paymentRef}`,
       {
         payeePaymentReference: order.orderNumber.replace(/[^a-zA-Z0-9-]/g, '').slice(0, 35),
         callbackUrl: callbackUrl(webhookUrl),
-        payeeAlias: payeeAlias(),
+        payeeAlias: swishPayeeAlias(),
         amount: (order.total / 100).toFixed(2),
         currency: 'SEK',
         message: `ViaEats ${order.orderNumber}`.slice(0, 50),
@@ -279,8 +302,12 @@ export const swishProvider: PaymentProvider = {
     );
     const token = String(response.headers.paymentrequesttoken || '').trim();
     if (!token) throw new Error('Swish skapade betalningen men returnerade ingen M-commerce-token');
-    const swishUrl = `swish://paymentrequest?token=${encodeURIComponent(token)}&callbackurl=${encodeURIComponent(returnUrl)}`;
-    const swishQrCode = await QRCode.toDataURL(swishUrl, { width: 480, margin: 2, errorCorrectionLevel: 'M' });
+    const swishUrl = swishPaymentRequestUrl(token, returnUrl);
+    const swishQrCode = await QRCode.toDataURL(swishCommerceQrPayload(token), {
+      width: 480,
+      margin: 2,
+      errorCorrectionLevel: 'M',
+    });
     return { paymentRef, swishToken: token, swishUrl, swishQrCode };
   },
 
@@ -288,6 +315,7 @@ export const swishProvider: PaymentProvider = {
     const response = await client().get<SwishPayment>(
       `/swish-cpcapi/api/v1/paymentrequests/${paymentRef}`,
     );
+    assertSwishPaymentIdentity(response.data);
     const state = mapStatus(response.data.status);
     // Refunds finns bara på en betald betalning; hoppa över rundturen annars.
     const refundAudit = state === 'paid'
@@ -308,7 +336,13 @@ export const swishProvider: PaymentProvider = {
       [{ op: 'replace', path: '/status', value: 'cancelled' }],
       { headers: { 'Content-Type': 'application/json-patch+json' } },
     );
-    return { state: mapStatus(response.data.status), method: 'swish' };
+    const state = mapStatus(response.data.status);
+    if (state === 'paid') assertSwishPaymentIdentity(response.data);
+    return {
+      state,
+      amountReceivedOre: state === 'paid' ? exactOre(response.data.amount) : undefined,
+      method: 'swish',
+    };
   },
 
   async refund(paymentRef: string, amountOre?: number, idempotencyKey?: string) {
@@ -320,6 +354,7 @@ export const swishProvider: PaymentProvider = {
     const payment = await client().get<SwishPayment>(
       `/swish-cpcapi/api/v1/paymentrequests/${paymentRef}`,
     );
+    assertSwishPaymentIdentity(payment.data);
     if (mapStatus(payment.data.status) !== 'paid') {
       throw new Error('Swish-betalningen är inte betald och kan inte återbetalas');
     }
@@ -329,7 +364,8 @@ export const swishProvider: PaymentProvider = {
     }
     const paidOre = exactOre(payment.data.amount);
     const refundOre = amountOre ?? paidOre;
-    if (!Number.isInteger(refundOre) || refundOre <= 0 || refundOre > paidOre) {
+    // Swish Handel accepterar minst 1,00 SEK per återbetalning.
+    if (!Number.isInteger(refundOre) || refundOre < 100 || refundOre > paidOre) {
       throw new Error('Ogiltigt Swish-refundbelopp');
     }
 
@@ -338,7 +374,7 @@ export const swishProvider: PaymentProvider = {
       {
         originalPaymentReference,
         callbackUrl: refundCallbackUrl(),
-        payerAlias: payeeAlias(),
+        payerAlias: swishPayeeAlias(),
         amount: (refundOre / 100).toFixed(2),
         currency: 'SEK',
         message: 'ViaEats retur',

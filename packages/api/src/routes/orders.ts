@@ -44,6 +44,7 @@ import type { PaymentProviderName } from '../lib/payments/finalize';
 import {
   allowLegacyOrderPhoneProof,
   exchangeOrderAccessForHttpSession,
+  exchangeOrderPaymentResumeForHttpSession,
   issueOrderAccessProof,
   issueOrderHttpSession,
   issueOrderNativeSession,
@@ -1988,12 +1989,18 @@ router.get('/status-batch', async (req: Request, res: Response) => {
 // it is never exposed to application JavaScript.
 router.post('/:id/session', async (req: Request, res: Response) => {
   const orderId = req.params.id;
-  const allowed = await exchangeOrderAccessForHttpSession({
-    orderId,
-    accessToken: req.body?.accessToken,
-    orderSession: req.headers[ORDER_HTTP_SESSION_HEADER],
-    authorization: req.headers.authorization,
-  }).catch(() => false);
+  const paymentResumeToken = req.body?.paymentResumeToken;
+  let allowed = typeof paymentResumeToken === 'string' && paymentResumeToken.length <= 4096
+    ? await exchangeOrderPaymentResumeForHttpSession(orderId, paymentResumeToken).catch(() => false)
+    : false;
+  if (!allowed) {
+    allowed = await exchangeOrderAccessForHttpSession({
+      orderId,
+      accessToken: req.body?.accessToken,
+      orderSession: req.headers[ORDER_HTTP_SESSION_HEADER],
+      authorization: req.headers.authorization,
+    }).catch(() => false);
+  }
 
   if (!allowed || !validOrderId(orderId)) {
     return res.status(404).json({ error: 'Order hittades inte' });
@@ -2845,9 +2852,9 @@ router.post('/:id/abandon', async (req: Request, res: Response) => {
         ? order.molliePaymentId
         : provider.name === 'swish'
           ? order.swishPaymentId
-        : provider.name === 'stripe'
-          ? order.stripePaymentIntentId
-          : order.adyenSessionId;
+          : provider.name === 'stripe'
+            ? order.stripePaymentIntentId
+            : order.adyenSessionId;
     if (!ref) {
       await finalizePaymentFailed(order.id, {
         provider: provider.name,
@@ -2857,7 +2864,23 @@ router.post('/:id/abandon', async (req: Request, res: Response) => {
     }
 
     try {
-      const remote = await provider.getRemoteStatus(ref);
+      let remote = await provider.getRemoteStatus(ref);
+      if (
+        (remote.state === 'open' || remote.state === 'pending') &&
+        provider.cancelPayment
+      ) {
+        try {
+          remote = await provider.cancelPayment(ref);
+        } catch (cancelError) {
+          // Kunden kan hinna godkänna precis samtidigt som cancel skickas.
+          // Läs då sanningen igen i stället för att felmarkera en betald order.
+          console.warn(
+            '[orders/abandon] PSP-cancel kunde inte slutföras, läser status igen:',
+            (cancelError as Error)?.message,
+          );
+          remote = await provider.getRemoteStatus(ref);
+        }
+      }
       if (remote.state === 'paid') {
         await finalizePaymentSuccess(order.id, {
           provider: provider.name,
@@ -2875,8 +2898,8 @@ router.post('/:id/abandon', async (req: Request, res: Response) => {
         });
         return res.json({ success: true, failed: true });
       }
-      // Fortfarande open/pending: bevara order, reservation och PSP-ref. En
-      // webhook eller reconcile kan fortfarande bekräfta betalningen säkert.
+      // Fortfarande open/pending: provider-cancel gick inte att bekräfta.
+      // Bevara order, reservation och PSP-ref så webhook/reconcile kan avgöra.
       return res.json({ success: true, pending: true, preserved: true });
     } catch (error) {
       console.error(

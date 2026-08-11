@@ -1459,7 +1459,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, embed
 
       {/* DealSpotlight på restaurang-sidan borttagen — användaren ska bara
           se discountade priser direkt i menyn, inte en separat banner. */}
-      {embedMode && <FloatingCartButton />}
+      <FloatingCartButton />
     </div>
   );
 };

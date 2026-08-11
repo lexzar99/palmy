@@ -35,6 +35,12 @@ export interface OrderForPayment {
 export interface CreatePaymentArgs {
   order: OrderForPayment;
   /**
+   * Provider reference reserved atomically on the order before a non-hosted
+   * request is sent. Direct Swish uses this to recover safely when a 201
+   * response/token is lost without reusing an already-created UUID (RP09).
+   */
+  paymentReference?: string;
+  /**
    * Stabil nyckel per order/betalningsförsök. PSP:n använder den för att
    * returnera samma session när klienten retry:ar efter timeout, app-restart
    * eller dubbelt tryck i stället för att skapa två debiterbara betalningar.

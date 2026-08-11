@@ -17,6 +17,9 @@ const ORDER_HTTP_SESSION_AUDIENCE = 'viaeats-order-http';
 const ORDER_HTTP_SESSION_SCOPE = 'order:http';
 const ORDER_NATIVE_SESSION_AUDIENCE = 'viaeats-order-native-http';
 const ORDER_NATIVE_SESSION_SCOPE = 'order:native-http';
+const ORDER_PAYMENT_RESUME_AUDIENCE = 'viaeats-order-payment-resume';
+const ORDER_PAYMENT_RESUME_SCOPE = 'order:payment-resume';
+const ORDER_PAYMENT_RESUME_TTL_SECONDS = 15 * 60;
 
 // A raw checkout secret is only an exchange credential. It remains available
 // briefly for native-client compatibility and hosted-payment recovery, but it
@@ -31,6 +34,7 @@ export const ORDER_NATIVE_SESSION_HEADER = 'x-viaeats-order-native-session';
 type OrderAccessProofPayload = jwt.JwtPayload & {
   orderId?: string;
   scope?: string;
+  credentialHash?: string;
 };
 
 type ResolveOrderAccessInput = {
@@ -231,6 +235,73 @@ export function verifyOrderNativeSession(
   }
 }
 
+/**
+ * Short-lived return capability for Swish app/browser hand-offs. The raw
+ * checkout secret never enters a URL: only its SHA-256 digest is embedded in
+ * a signed, order-bound JWT. Exchanging the proof clears the underlying raw
+ * secret atomically, which makes the return capability one-time.
+ */
+export function issueOrderPaymentResumeProof(
+  orderId: string,
+  rawAccessToken: string,
+  secret = JWT_SECRET,
+  expiresInSeconds = ORDER_PAYMENT_RESUME_TTL_SECONDS,
+): string {
+  if (!validOrderId(orderId) || typeof rawAccessToken !== 'string' || rawAccessToken.length < 20) {
+    throw new Error('Invalid payment resume input');
+  }
+  return jwt.sign(
+    {
+      orderId,
+      scope: ORDER_PAYMENT_RESUME_SCOPE,
+      credentialHash: crypto.createHash('sha256').update(rawAccessToken, 'utf8').digest('base64url'),
+    },
+    secret,
+    {
+      algorithm: 'HS256',
+      audience: ORDER_PAYMENT_RESUME_AUDIENCE,
+      issuer: ORDER_ACCESS_ISSUER,
+      expiresIn: expiresInSeconds,
+    },
+  );
+}
+
+function verifiedOrderPaymentResumePayload(
+  proof: unknown,
+  orderId: unknown,
+  secret = JWT_SECRET,
+): OrderAccessProofPayload | null {
+  if (typeof proof !== 'string' || !proof || !validOrderId(orderId)) return null;
+  try {
+    const payload = jwt.verify(proof, secret, {
+      algorithms: ['HS256'],
+      audience: ORDER_PAYMENT_RESUME_AUDIENCE,
+      issuer: ORDER_ACCESS_ISSUER,
+    }) as OrderAccessProofPayload;
+    return payload.scope === ORDER_PAYMENT_RESUME_SCOPE &&
+      payload.orderId === orderId &&
+      typeof payload.credentialHash === 'string'
+      ? payload
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+export function verifyOrderPaymentResumeProof(
+  proof: unknown,
+  orderId: unknown,
+  rawAccessToken: unknown,
+  secret = JWT_SECRET,
+): boolean {
+  const payload = verifiedOrderPaymentResumePayload(proof, orderId, secret);
+  if (!payload || typeof rawAccessToken !== 'string' || !rawAccessToken) return false;
+  return sameOrderSecret(
+    payload.credentialHash,
+    crypto.createHash('sha256').update(rawAccessToken, 'utf8').digest('base64url'),
+  );
+}
+
 type LocalCustomerRow = {
   id: string;
   phone: string | null;
@@ -406,6 +477,31 @@ export async function exchangeOrderAccessForHttpSession({
     data: { accessToken: null },
   });
   return consumed.count === 1 || ownsByAccount;
+}
+
+/**
+ * Consume a Swish return capability and its backing raw checkout secret in
+ * one compare-and-swap. A copied callback URL therefore cannot establish a
+ * second browser session after the legitimate return has completed.
+ */
+export async function exchangeOrderPaymentResumeForHttpSession(
+  orderId: unknown,
+  paymentResumeToken: unknown,
+  client: any = prisma,
+): Promise<boolean> {
+  if (!validOrderId(orderId)) return false;
+  const order = await client.order.findUnique({
+    where: { id: orderId },
+    select: { accessToken: true, createdAt: true },
+  });
+  if (!order || !ownsOrderWithActiveRawSecret(order, order.accessToken)) return false;
+  if (!verifyOrderPaymentResumeProof(paymentResumeToken, orderId, order.accessToken)) return false;
+
+  const consumed = await client.order.updateMany({
+    where: { id: orderId, accessToken: order.accessToken },
+    data: { accessToken: null },
+  });
+  return consumed.count === 1;
 }
 
 /** Only old local test clients may use a phone-number lookup shortcut. */

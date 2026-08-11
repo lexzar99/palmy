@@ -66,6 +66,11 @@ import {
   mollieUnlinkedRefundsFromTransactionsInPeriod,
 } from '../lib/mollieFinance';
 import { reconcileFinanceOrders } from '../lib/financeReconciliation';
+import { directSwishFeeSnapshot } from '../lib/directSwishFinance';
+import {
+  PayoutSourceFeeError,
+  resolveCurrentPayoutSourceFeeAmount,
+} from '../lib/payoutSourceFees';
 import {
   isFinanceCalendarMonthPeriod,
   resolveFinancePeriod,
@@ -277,6 +282,118 @@ assert.equal(
 );
 assert.equal(reconciliation.some((item) => item.id.startsWith('missing-fee:')), false);
 assert.equal(reconciliation.some((item) => item.orderId === 'paid'), false);
+
+const directSwishOrders = [
+  {
+    paymentProvider: 'swish',
+    paymentStatus: 'PAID',
+    swishPaymentId: 'ABCDEF0123456789ABCDEF0123456789',
+  },
+  {
+    paymentProvider: 'swish',
+    paymentStatus: 'REFUNDED',
+    swishPaymentId: '0123456789ABCDEF0123456789ABCDEF',
+  },
+] as const;
+assert.deepEqual(directSwishFeeSnapshot(directSwishOrders, {} as NodeJS.ProcessEnv), {
+  status: 'unavailable',
+  policy: null,
+  paymentCount: 2,
+  feePerPaymentOre: null,
+  totalFeesOre: null,
+  error: 'Sätt SWISH_PAYOUT_FEE_POLICY=external eller fixed_per_payment enligt bankavtalet.',
+});
+assert.equal(directSwishFeeSnapshot(directSwishOrders, {
+  SWISH_PAYOUT_FEE_POLICY: 'external',
+} as NodeJS.ProcessEnv).totalFeesOre, 0);
+assert.equal(directSwishFeeSnapshot(directSwishOrders, {
+  SWISH_PAYOUT_FEE_POLICY: 'fixed_per_payment',
+  SWISH_PAYOUT_FEE_ORE: '149',
+} as NodeJS.ProcessEnv).totalFeesOre, 298);
+assert.equal(directSwishFeeSnapshot(directSwishOrders, {
+  SWISH_PAYOUT_FEE_POLICY: 'fixed_per_payment',
+  SWISH_PAYOUT_FEE_ORE: '1.49',
+} as NodeJS.ProcessEnv).status, 'unavailable');
+
+async function runHistoricalSwishFeeContracts() {
+  const historicalSwishSource = {
+    id: 'paid-swish-period',
+    periodStart: new Date('2026-01-01T00:00:00.000Z'),
+    periodEnd: new Date('2026-01-31T23:59:59.999Z'),
+    paidAt: new Date('2026-02-02T10:00:00.000Z'),
+    mollieFeeAmount: 298,
+  };
+  const lateSwishRefundOrder = {
+    id: 'late-swish-refund',
+    orderNumber: 'SWISH-LATE',
+    paymentStatus: 'REFUNDED',
+    paymentProvider: 'swish',
+    molliePaymentId: null,
+    swishPaymentId: 'ABCDEF0123456789ABCDEF0123456789',
+    refundAmount: 10_000,
+    updatedAt: new Date('2026-02-10T12:00:00.000Z'),
+  };
+  assert.equal(
+    await resolveCurrentPayoutSourceFeeAmount({
+      source: historicalSwishSource,
+      orders: [lateSwishRefundOrder],
+    }),
+    298,
+    'a late Swish refund retains the fee frozen in the already-paid source period',
+  );
+  await assert.rejects(
+    resolveCurrentPayoutSourceFeeAmount({
+      source: historicalSwishSource,
+      orders: [
+        lateSwishRefundOrder,
+        {
+          ...lateSwishRefundOrder,
+          id: 'mixed-mollie-refund',
+          orderNumber: 'MOLLIE-LATE',
+          paymentProvider: 'mollie',
+          molliePaymentId: 'tr_late_mixed',
+          swishPaymentId: null,
+        },
+      ],
+    }),
+    (error: any) => error instanceof PayoutSourceFeeError &&
+      error.code === 'PAYOUT_SOURCE_MIXED_PROVIDER_FEES_FROZEN',
+    'mixed historical provider fees fail closed because the legacy snapshot has no provider split',
+  );
+}
+
+const swishReconciliation = reconcileFinanceOrders({
+  feeStatus: 'available',
+  orders: [
+    {
+      id: 'swish-missing',
+      orderNumber: 'SWISH-MISSING',
+      restaurantId: 'restaurant-1',
+      status: 'DELIVERED',
+      paymentStatus: 'PAID',
+      paymentProvider: 'swish',
+      molliePaymentId: null,
+      swishPaymentId: null,
+      total: 10_000,
+      refundAmount: null,
+    },
+    ...['swish-duplicate-a', 'swish-duplicate-b'].map((id, index) => ({
+      id,
+      orderNumber: `SWISH-DUPLICATE-${index + 1}`,
+      restaurantId: 'restaurant-1',
+      status: 'DELIVERED',
+      paymentStatus: 'PAID',
+      paymentProvider: 'swish',
+      molliePaymentId: null,
+      swishPaymentId: 'DUPLICATED-SWISH-REF',
+      total: 12_000 + index * 1_000,
+      refundAmount: null,
+    })),
+  ],
+});
+assert.equal(swishReconciliation.some((item) => item.code === 'SWISH_PAYMENT_ID_MISSING'), true);
+assert.equal(swishReconciliation.some((item) =>
+  item.code === 'DUPLICATE_SWISH_PAYMENT_ID' && item.amountOre === 12_000), true);
 
 const platformPayout = computePayout(
   [partial!],
@@ -1430,6 +1547,7 @@ async function runPayoutSourceAuditContracts() {
   const {
     reconcileMollieRefundsForPayout,
     reconcileMollieRefundsForPayoutPeriod,
+    reconcileProviderRefundsForPayoutPeriod,
   } = await import('../lib/payments/reconcile');
   const targetStart = new Date('2026-07-01T00:00:00.000Z');
   const targetEnd = new Date('2026-07-31T23:59:59.999Z');
@@ -1521,6 +1639,72 @@ async function runPayoutSourceAuditContracts() {
     refundAmount: null,
     updatedAt: auditRevision,
   };
+  const auditedSwishOrder = {
+    id: 'audited-swish-order',
+    orderNumber: 'AUDITED-SWISH-1',
+    status: 'DELIVERED',
+    paymentStatus: 'PAID',
+    paymentProvider: 'swish',
+    molliePaymentId: null,
+    swishPaymentId: 'ABCDEF0123456789ABCDEF0123456789',
+    refundAmount: null,
+    updatedAt: auditRevision,
+  };
+  const swishFingerprint = buildPayoutProviderAuditFingerprint([auditedSwishOrder]);
+  assert.throws(
+    () => assertPayoutProviderAuditFingerprint(
+      [{ ...auditedSwishOrder, swishPaymentId: '0123456789ABCDEF0123456789ABCDEF' }],
+      swishFingerprint,
+      'Swish-målperiod',
+    ),
+    (error: any) => error instanceof PayoutProviderAuditStaleError,
+  );
+  assert.throws(
+    () => buildPayoutProviderAuditFingerprint([{ ...auditedSwishOrder, swishPaymentId: null }]),
+    (error: any) => error instanceof PayoutProviderAuditBlockedError &&
+      /Swish-betalningsreferens saknas/.test(error.message),
+  );
+
+  let swishFingerprintPage = 0;
+  let swishAuditPage = 0;
+  const swishAuditBatches: any[][] = [];
+  await reconcileProviderRefundsForPayoutPeriod({
+    restaurantId: 'restaurant-a',
+    periodStart: targetStart,
+    periodEnd: targetEnd,
+  }, {
+    db: {
+      order: {
+        findMany: async ({ where }: any) => {
+          if (where.status) {
+            swishFingerprintPage += 1;
+            return swishFingerprintPage === 1 || swishFingerprintPage === 3
+              ? [auditedSwishOrder]
+              : [];
+          }
+          assert.deepEqual(where.paymentProvider.in, ['mollie', 'swish']);
+          swishAuditPage += 1;
+          return swishAuditPage === 1
+            ? [{
+                id: auditedSwishOrder.id,
+                paymentProvider: 'swish',
+                molliePaymentId: null,
+                swishPaymentId: auditedSwishOrder.swishPaymentId,
+                total: 10_000,
+              }]
+            : [];
+        },
+      },
+    } as any,
+    auditBatch: async (orders, failClosed, source) => {
+      assert.equal(failClosed, true);
+      assert.equal(source, 'PAYOUT_PREFLIGHT');
+      swishAuditBatches.push(orders);
+    },
+  });
+  assert.equal(swishAuditBatches.length, 1);
+  assert.equal(swishAuditBatches[0][0].swishPaymentId, auditedSwishOrder.swishPaymentId);
+
   const targetFingerprint = buildPayoutProviderAuditFingerprint([auditedPayableOrder]);
   assert.throws(
     () => assertPayoutProviderAuditFingerprint(
@@ -1958,7 +2142,10 @@ async function runPayoutSourceAuditContracts() {
   assert.equal(previewLateFeePlan.totalAmount, 6_575);
 }
 
-void runPayoutSourceAuditContracts()
+void Promise.all([
+  runPayoutSourceAuditContracts(),
+  runHistoricalSwishFeeContracts(),
+])
   .then(() => {
     console.log('finance payout eligibility, source audit + cumulative refund contracts: ok');
   })

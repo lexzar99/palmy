@@ -40,6 +40,9 @@ function instructionId(seed: string): string {
 async function main() {
   assert.notStrictEqual(process.env.NODE_ENV, 'production', 'MSS-test får aldrig köras i produktion');
   assert.strictEqual(String(process.env.SWISH_ENVIRONMENT || '').toUpperCase(), 'MSS');
+  // Produktionsprovidern kräver en publik refund-callback. MSS-testet pollar
+  // själv status, så en neutral HTTPS-adress räcker när lokal .env saknar en.
+  process.env.SWISH_REFUND_CALLBACK_URL ||= 'https://example.com/api/swishcb/refunds';
 
   const client = axios.create({
     baseURL: BASE,

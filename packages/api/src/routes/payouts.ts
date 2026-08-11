@@ -34,8 +34,9 @@ import {
   releaseRecoveryReservations,
   syncRecoveryReservations,
 } from '../lib/payoutRecovery';
-import { reconcileMollieRefundsForPayout } from '../lib/payments/reconcile';
+import { reconcileProviderRefundsForPayout } from '../lib/payments/reconcile';
 import { exactMollieFeeSnapshot, getMollieFinanceReport } from '../lib/mollieFinance';
+import { directSwishFeeSnapshot } from '../lib/directSwishFinance';
 import {
   PayoutSourceFeeError,
   resolveCurrentPayoutSourceMollieFeeAmount,
@@ -90,6 +91,7 @@ const financeSnapshotOrderFingerprint = (orders: readonly FinanceSnapshotFingerp
         paymentStatus: order.paymentStatus,
         paymentProvider: order.paymentProvider,
         molliePaymentId: order.molliePaymentId,
+        swishPaymentId: order.swishPaymentId,
         total: order.total,
         deliveryFee: order.deliveryFee,
         tipAmount: order.tipAmount,
@@ -257,6 +259,7 @@ async function attachExactLateRefundFees(
         paymentStatus: true,
         paymentProvider: true,
         molliePaymentId: true,
+        swishPaymentId: true,
         total: true,
         deliveryFee: true,
         tipAmount: true,
@@ -408,7 +411,7 @@ router.post('/', async (req: AuthRequest, res) => {
     const restaurantKey = String(restaurantId);
     const refundWindowHours = payoutRefundWindowHours();
 
-    let payoutAudit: Awaited<ReturnType<typeof reconcileMollieRefundsForPayout>> | undefined;
+    let payoutAudit: Awaited<ReturnType<typeof reconcileProviderRefundsForPayout>> | undefined;
     const savesOriginal = overrideOriginal || nextStatus === 'APPROVED';
     let overrideAwaitingMollie = false;
     let financeSnapshotFingerprint: string | undefined;
@@ -424,7 +427,7 @@ router.post('/', async (req: AuthRequest, res) => {
     } | undefined;
     if (savesOriginal || nextStatus === 'PAID') {
       try {
-        payoutAudit = await reconcileMollieRefundsForPayout({
+        payoutAudit = await reconcileProviderRefundsForPayout({
           restaurantId: restaurantKey,
           targetPeriodStart: start,
           targetPeriodEnd: end,
@@ -441,7 +444,7 @@ router.post('/', async (req: AuthRequest, res) => {
         throw new PayoutRequestError(
           503,
           'PAYOUT_REFUND_AUDIT_FAILED',
-          error?.message || 'Mollie-refunds kunde inte stämmas av. Utbetalningen är blockerad.',
+          error?.message || 'PSP-refunds kunde inte stämmas av. Utbetalningen är blockerad.',
         );
       }
     }
@@ -470,6 +473,7 @@ router.post('/', async (req: AuthRequest, res) => {
           status: true,
           paymentProvider: true,
           molliePaymentId: true,
+          swishPaymentId: true,
           updatedAt: true,
         },
       });
@@ -536,20 +540,25 @@ router.post('/', async (req: AuthRequest, res) => {
         paymentFeeByPaymentId: mollieFinance.paymentFeeByPaymentId,
         refundFeeByPaymentId: mollieFinance.refundFeeByPaymentId,
       });
-      const exactFeesComplete = paymentIds.length === 0 || (
+      const directSwishFees = directSwishFeeSnapshot(financialOrders);
+      const exactMollieFeesComplete = paymentIds.length === 0 || (
         mollieFinance.feeStatus !== 'unavailable' &&
         exactFeeSnapshot != null
       );
-      const displayFeesComplete = paymentIds.length === 0 || (
+      const displayMollieFeesComplete = paymentIds.length === 0 || (
         mollieFinance.feeStatus !== 'unavailable' &&
         paymentIds.every((id) => mollieFinance.displayFeeByPaymentId.has(id))
       );
+      const exactFeesComplete = exactMollieFeesComplete && directSwishFees.status === 'available';
+      const displayFeesComplete = displayMollieFeesComplete && directSwishFees.status === 'available';
       const feesCompleteForSave = overrideOriginal ? displayFeesComplete : exactFeesComplete;
       if (!feesCompleteForSave) {
         throw new PayoutRequestError(
           409,
-          'PAYOUT_MOLLIE_FEES_NOT_RECONCILED',
-          mollieFinance.feeError ||
+          directSwishFees.status === 'unavailable'
+            ? 'PAYOUT_SWISH_FEES_NOT_CONFIGURED'
+            : 'PAYOUT_MOLLIE_FEES_NOT_RECONCILED',
+          directSwishFees.error || mollieFinance.feeError ||
             'Alla faktiska transaktionsavgifter måste vara bokförda hos Mollie innan månadsrapporten kan sparas som original.',
         );
       }
@@ -563,13 +572,15 @@ router.post('/', async (req: AuthRequest, res) => {
         // Set from the server-calculated period breakdown inside the serializable
         // transaction, where the period's restaurant delivery model is frozen.
         platformFundedDiscountAmount: 0,
+        // Legacy-namnet lagras i RestaurantPayout.mollieFeeAmount, men värdet
+        // är nu den sammanlagda PSP-kostnaden för Mollie + direct Swish.
         mollieFees: feesCompleteForSave
-          ? overrideOriginal
+          ? (overrideOriginal
             ? paymentIds.reduce(
                 (sum, id) => sum + (mollieFinance.displayFeeByPaymentId.get(id) || 0),
                 0,
               )
-            : exactFeeSnapshot?.totalFees ?? 0
+            : exactFeeSnapshot?.totalFees ?? 0) + (directSwishFees.totalFeesOre || 0)
           : null,
         refundTransactionFees: feesCompleteForSave
           ? [...refundedIds].reduce((sum, id) => sum + (
@@ -590,7 +601,11 @@ router.post('/', async (req: AuthRequest, res) => {
               )
             : exactFeeSnapshot?.refundProcessingFees ?? 0
           : null,
-        mollieFeeStatus: exactFeesComplete ? 'available' : mollieFinance.feeStatus,
+        mollieFeeStatus: exactFeesComplete
+          ? 'available'
+          : directSwishFees.status === 'unavailable'
+            ? 'unavailable'
+            : mollieFinance.feeStatus,
       };
       overrideAwaitingMollie = overrideOriginal && (
         !exactFeesComplete ||
@@ -699,6 +714,7 @@ router.post('/', async (req: AuthRequest, res) => {
             paymentStatus: true,
             paymentProvider: true,
             molliePaymentId: true,
+            swishPaymentId: true,
             total: true,
             deliveryFee: true,
             tipAmount: true,
@@ -736,6 +752,7 @@ router.post('/', async (req: AuthRequest, res) => {
                 status: true,
                 paymentProvider: true,
                 molliePaymentId: true,
+                swishPaymentId: true,
                 updatedAt: true,
               },
             })

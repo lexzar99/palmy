@@ -124,6 +124,7 @@ export async function expireAbandonedAwaitingPayment(): Promise<void> {
         orderNumber: true,
         paymentProvider: true,
         molliePaymentId: true,
+        swishPaymentId: true,
         stripePaymentIntentId: true,
         adyenSessionId: true,
       },
@@ -133,7 +134,7 @@ export async function expireAbandonedAwaitingPayment(): Promise<void> {
     if (abandoned.length === 0) return;
 
     for (const order of abandoned) {
-      if (!['mollie', 'stripe', 'adyen'].includes(order.paymentProvider)) {
+      if (!['mollie', 'stripe', 'adyen', 'swish'].includes(order.paymentProvider)) {
         await markAwaitingPaymentExpired(
           order.id,
           'stripe',
@@ -146,9 +147,11 @@ export async function expireAbandonedAwaitingPayment(): Promise<void> {
       const ref =
         provider.name === 'mollie'
           ? order.molliePaymentId
-          : provider.name === 'stripe'
-            ? order.stripePaymentIntentId
-            : order.adyenSessionId;
+          : provider.name === 'swish'
+            ? order.swishPaymentId
+            : provider.name === 'stripe'
+              ? order.stripePaymentIntentId
+              : order.adyenSessionId;
       if (!ref) {
         await markAwaitingPaymentExpired(
           order.id,
@@ -165,6 +168,7 @@ export async function expireAbandonedAwaitingPayment(): Promise<void> {
             provider: provider.name,
             ref: remote.paymentIntentId || ref,
             amountReceivedOre: remote.amountReceivedOre ?? 0,
+            method: remote.method,
           });
           continue;
         }

@@ -4,6 +4,7 @@ const PAYMENT_WEBHOOK_PATHS = new Set([
   '/api/payments/webhooks/mollie',
   '/api/payments/webhooks/adyen',
   '/api/payments/webhooks/swish',
+  '/api/payments/webhooks/swish-refund',
 ]);
 
 /** Signed PSP callbacks must not share browser/client rate-limit buckets. */

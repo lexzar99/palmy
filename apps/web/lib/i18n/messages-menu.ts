@@ -36,7 +36,7 @@ export const menuPending = {
     "menu.dishCount.other": "{n} rätter",
     "menu.favorite": "Spara som favorit",
     // ── Varukorgsknapp
-    "menu.viewCart": "Visa varukorg",
+    "menu.viewCart": "Gå till varukorg",
     "menu.viewCartAria": "Gå till varukorg, {count} varor, {total} kr",
     // ── Info-modal
     "menu.info.email": "E-post",

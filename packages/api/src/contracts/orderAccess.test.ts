@@ -4,9 +4,11 @@ import path from 'node:path';
 import {
   allowLegacyOrderPhoneProof,
   exchangeOrderAccessForHttpSession,
+  exchangeOrderPaymentResumeForHttpSession,
   issueOrderAccessProof,
   issueOrderHttpSession,
   issueOrderNativeSession,
+  issueOrderPaymentResumeProof,
   ownsOrder,
   ownsOrderWithActiveRawSecret,
   sameOrderSecret,
@@ -14,6 +16,7 @@ import {
   verifyOrderAccessProof,
   verifyOrderHttpSession,
   verifyOrderNativeSession,
+  verifyOrderPaymentResumeProof,
 } from '../lib/orderAccess';
 import { localCustomerAuthMethod } from '../lib/customerAuthPolicy';
 
@@ -114,6 +117,15 @@ assert.equal(verifyOrderNativeSession(httpSession, orderId, proofSecret), false)
 const expiredNativeSession = issueOrderNativeSession(orderId, proofSecret, -1);
 assert.equal(verifyOrderNativeSession(expiredNativeSession, orderId, proofSecret), false);
 
+const paymentResume = issueOrderPaymentResumeProof(orderId, token, proofSecret, 60);
+assert.equal(verifyOrderPaymentResumeProof(paymentResume, orderId, token, proofSecret), true);
+assert.equal(verifyOrderPaymentResumeProof(paymentResume, 'different-order', token, proofSecret), false);
+assert.equal(verifyOrderPaymentResumeProof(paymentResume, orderId, `${token}wrong`, proofSecret), false);
+assert.equal(verifyOrderHttpSession(paymentResume, orderId, proofSecret), false);
+assert.equal(verifyOrderPaymentResumeProof(httpSession, orderId, token, proofSecret), false);
+const expiredPaymentResume = issueOrderPaymentResumeProof(orderId, token, proofSecret, -1);
+assert.equal(verifyOrderPaymentResumeProof(expiredPaymentResume, orderId, token, proofSecret), false);
+
 async function assertOneTimeRawExchange() {
   let storedRawSecret: string | null = token;
   const exchangeClient = {
@@ -141,6 +153,33 @@ async function assertOneTimeRawExchange() {
   );
 }
 
+async function assertOneTimePaymentResumeExchange() {
+  let storedRawSecret: string | null = token;
+  const exchangeClient = {
+    order: {
+      findUnique: async () => ({ accessToken: storedRawSecret, createdAt: new Date() }),
+      updateMany: async ({ where, data }: any) => {
+        if (storedRawSecret && where.accessToken === storedRawSecret) {
+          storedRawSecret = data.accessToken;
+          return { count: 1 };
+        }
+        return { count: 0 };
+      },
+    },
+  };
+  const resumeToken = issueOrderPaymentResumeProof(orderId, token);
+  assert.equal(
+    await exchangeOrderPaymentResumeForHttpSession(orderId, resumeToken, exchangeClient),
+    true,
+  );
+  assert.equal(storedRawSecret, null);
+  assert.equal(
+    await exchangeOrderPaymentResumeForHttpSession(orderId, resumeToken, exchangeClient),
+    false,
+    'a copied Swish return URL must lose the second session exchange',
+  );
+}
+
 const ordersRouteSource = readFileSync(path.resolve(__dirname, '../routes/orders.ts'), 'utf8');
 const orderAccessSource = readFileSync(path.resolve(__dirname, '../lib/orderAccess.ts'), 'utf8');
 const paymentsRouteSource = readFileSync(path.resolve(__dirname, '../routes/paymentsMollie.ts'), 'utf8');
@@ -153,6 +192,7 @@ assert.match(
   /if \(!ownsOrderWithActiveRawSecret\(existing, existing\.accessToken\)\) \{\s*return rejectExpiredOrderReplay\(res\);/,
 );
 assert.match(ordersRouteSource, /exchangeOrderAccessForHttpSession\(\{/);
+assert.match(ordersRouteSource, /exchangeOrderPaymentResumeForHttpSession\(orderId, paymentResumeToken\)/);
 assert.match(ordersRouteSource, /resolveActiveCustomerFromAuthorization\(authHeaderForScope\)/);
 assert.match(ordersRouteSource, /resolveActiveCustomerIdFromAuthorization\(/);
 assert.doesNotMatch(ordersRouteSource, /req\.query\.token/);
@@ -168,6 +208,8 @@ assert.match(
   /where: \{ id: orderId, accessToken: order\.accessToken \}[\s\S]*data: \{ accessToken: null \}/,
 );
 assert.doesNotMatch(paymentsRouteSource, /req\.query\.token/);
+assert.match(paymentsRouteSource, /issueOrderPaymentResumeProof\(order\.id, order\.accessToken\)/);
+assert.match(paymentsRouteSource, /searchParams\.set\('payment_provider', 'swish'\)/);
 assert.match(paymentsRouteSource, /verifyOrderNativeSession\(/);
 assert.match(paymentsRouteSource, /res\.redirect\(302, appUrl\)/);
 assert.doesNotMatch(paymentsRouteSource, /window\.location\.replace/);
@@ -179,7 +221,7 @@ assert.match(pushRouteSource, /revokeOrderWebPushSubscription\(req\.body\?\.subs
 assert.match(deviceSource, /provider: 'WEB_PUSH', installationId, tokenHash/);
 assert.match(deviceSource, /deviceOrderSubscription\.updateMany/);
 
-void assertOneTimeRawExchange()
+void Promise.all([assertOneTimeRawExchange(), assertOneTimePaymentResumeExchange()])
   .then(() => {
     console.log('Order access contracts: active customer policy, one-time raw exchange and scoped proofs OK');
   })

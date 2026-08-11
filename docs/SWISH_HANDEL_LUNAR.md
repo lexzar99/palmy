@@ -24,8 +24,9 @@ Kunden väljer själv i betalmenyn i kassan.
 ## 1. Certifikat och privat nyckel
 
 CSR:en skapades i **Nyckelhanteraren på macOS**, vilket betyder att den privata
-nyckeln aldrig låg i den nedladdade `.pem`-filen — den filen innehåller bara
-certifikatkedjan. Nyckeln ligger i `login.keychain`.
+nyckeln aldrig låg i den nedladdade `.pem`-filen. Den nedladdade filen
+innehåller däremot hela den publika klientkedjan: merchant-certifikatet, Lunar
+Customer CA och Lunar Root CA. Nyckeln ligger i `login.keychain`.
 
 Så här togs paret ut (nyckeln lämnar aldrig maskinen):
 
@@ -48,7 +49,21 @@ openssl rsa  -in swish-key.pem  -noout -modulus | openssl md5
 ```
 
 Filerna ligger lokalt i `~/.viaeats/swish/` (`chmod 600`), **aldrig i repot**.
-I drift sätts de som base64 i `SWISH_CERT_PEM` / `SWISH_KEY_PEM`.
+I drift sätts den kompletta publika klientkedjan som base64 i
+`SWISH_CLIENT_CERT_CHAIN_PEM` och nyckeln i `SWISH_KEY_PEM`.
+
+Viktigt: `https.Agent.ca` är trust store för **Swish servercertifikat** och
+skickas inte till Swish. Merchant-certifikatets Lunar-kedja måste ligga i
+`https.Agent.cert`. Den kanoniska variabeln
+`SWISH_CLIENT_CERT_CHAIN_PEM` ska därför innehålla **hela** originalkedjan i
+ordningen leaf → Lunar Customer CA → Lunar Root CA. `SWISH_CERT_PEM` med en
+full kedja stöds tillfälligt som legacy. Äldre production-konfiguration med
+leaf i `SWISH_CERT_PEM` och issuer-kedjan i `SWISH_CA_PEM` accepteras bara om
+issuer, signatur och CA-behörighet verifieras kryptografiskt och ger en
+deprecated-varning.
+`cpc.getswish.net` har en publik DigiCert-kedja och verifieras normalt med
+Node:s vanliga trust store; `SWISH_SERVER_CA_PEM` behövs bara som explicit
+server-trust override.
 
 ## 2. Miljövariabler
 
@@ -56,9 +71,11 @@ I drift sätts de som base64 i `SWISH_CERT_PEM` / `SWISH_KEY_PEM`.
 PAYMENT_PROVIDERS=mollie,swish     # kassan visar båda; PAYMENT_PROVIDER=mollie är default
 SWISH_ENVIRONMENT=PRODUCTION
 SWISH_PAYEE_ALIAS=1235309380
-SWISH_CERT_PEM=<base64 av swish-cert.pem>
+SWISH_CLIENT_CERT_CHAIN_PEM=<base64 av hela kedjan: leaf + Lunar Customer CA + Lunar Root CA>
 SWISH_KEY_PEM=<base64 av swish-key.pem>
 SWISH_CALLBACK_SECRET=<minst 32 slumpade tecken, stabilt mellan deployer>
+SWISH_PAYOUT_FEE_POLICY=<external eller fixed_per_payment enligt bankavtalet>
+SWISH_PAYOUT_FEE_ORE=<heltal i öre, endast om fixed_per_payment>
 ```
 
 `SWISH_CALLBACK_URL` och `SWISH_REFUND_CALLBACK_URL` byggs automatiskt från
@@ -73,7 +90,8 @@ SWISH_CALLBACK_SECRET=<minst 32 slumpade tecken, stabilt mellan deployer>
    `swish://paymentrequest?token=…&callbackurl=…`.
    - **Mobil:** appen öppnas direkt med belopp och mottagare ifyllt. Kunden
      anger aldrig något Swish-nummer.
-   - **Desktop:** samma token visas som QR-kod.
+   - **Desktop:** QR-koden innehåller Swish Commerce-formatet `D` + token.
+     App-deeplinken ska inte kodas direkt som QR-innehåll.
 4. Swish callbackar `/api/payments/webhooks/swish`. Callbacken är **bara en
    väcksignal** — `callbackIdentifier` verifieras och den riktiga statusen
    hämtas server-till-server med certifikatet innan ordern muteras.
@@ -95,6 +113,12 @@ Refunds går via samma certifikat och samma refund-ledger som Mollie:
 Statusmappning: `CREATED→queued`, `INITIATED→pending`,
 `VALIDATED`/`DEBITED→processing`, `PAID→refunded`, `ERROR→failed`.
 
+Swish har inget avgifts-/settlement-API. Restaurangutbetalning failar därför
+säkert tills ekonomiägaren uttryckligen väljer `external` (ViaEats bokför
+bankkostnaden utanför restaurangens orderspecifika payout) eller
+`fixed_per_payment` med den exakta öresavgiften från det undertecknade
+Lunar-avtalet. Koden gissar aldrig en bankavgift.
+
 ## 5. Test
 
 Swish officiella testmiljö (MSS) med testcertifikaten i `packages/api/.swish`:
@@ -109,16 +133,23 @@ andra utbetalning skapas, och väntar tills Swish rapporterar `refunded`.
 
 ## 6. Produktionsstatus
 
-mTLS-handskakningen mot `cpc.getswish.net` går igenom, men API-anrop med
-produktionscertifikatet svarar `ECONNRESET` — Swish stänger kopplingen efter
-handskakningen. Samma kod mot MSS fungerar felfritt, så orsaken ligger inte i
-integrationen utan i att numret/certifikatet ännu inte är aktiverat hos Swish.
+Rotorsaken till `ECONNRESET` var identifierad och reproducerad 2026-08-11:
+API-klienten skickade bara merchant-leaf-certifikatet. Lunar-kedjan låg felaktigt
+i `https.Agent.ca`, som inte skickas som klientkedja. Ett leaf-only-anrop
+resetades av Swish; exakt samma läsande GET med leaf + Lunar-kedja gav ett
+normalt autentiserat `404/RP04` för ett avsiktligt okänt request-id. Det bevisar
+att produktionsänden accepterar certifikat/nummer och att felet låg i klientens
+certifikatpaketering.
+
+Koden skickar nu full klientkedja, använder rätt server-trust och validerar att
+certifikat, privatnyckel och `SWISH_PAYEE_ALIAS` hör ihop innan första anropet.
 
 Innan `SWISH_ENVIRONMENT=PRODUCTION` slås på:
 
-- [ ] Lunar/Swish bekräftar att `1235309380` är aktivt för Handel-API:t.
+- [x] Swish produktions-API accepterar mTLS-identiteten för `1235309380`.
 - [ ] En liten skarp betalning och en full återbetalning är genomförda.
-- [ ] `SWISH_CALLBACK_SECRET` är satt i hemlighetslagret.
+- [x] `SWISH_CALLBACK_SECRET` är satt i hemlighetslagret.
+- [ ] Ekonomiägaren har godkänt och satt `SWISH_PAYOUT_FEE_POLICY`.
 
 ## Officiella källor
 

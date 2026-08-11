@@ -9,6 +9,8 @@ const allKeys = [
   'customer_legacy_credentials_absent',
   'order_client_request_id',
   'order_client_request_unique',
+  'order_swish_payment_id',
+  'order_swish_payment_id_index',
   'extra_group_restaurant_index',
   'restaurant_archived_index',
   'category_restaurant_restrict',

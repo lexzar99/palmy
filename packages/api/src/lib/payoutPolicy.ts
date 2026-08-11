@@ -82,6 +82,7 @@ export type PayoutProviderAuditOrder = Pick<PayoutOrder, 'status' | 'paymentStat
   orderNumber: string;
   paymentProvider: string | null;
   molliePaymentId: string | null;
+  swishPaymentId?: string | null;
   refundAmount?: number | null;
   updatedAt: Date | string;
 };
@@ -110,8 +111,10 @@ export class PayoutProviderAuditBlockedError extends PayoutProviderAuditError {
     const provider = rawProvider.toLowerCase();
     const reason = !provider
       ? 'betalningsprovider saknas'
-      : rawProvider === 'mollie' && !String(order.molliePaymentId || '').trim()
+      : provider === 'mollie' && !String(order.molliePaymentId || '').trim()
         ? 'Mollie-betalningsreferens saknas'
+        : provider === 'swish' && !String(order.swishPaymentId || '').trim()
+          ? 'Swish-betalningsreferens saknas'
         : ['stripe', 'adyen'].includes(provider)
           ? `${provider} är en avstängd legacy-provider vid launch`
           : `betalningsprovider ${rawProvider} kan inte PSP-revideras`;
@@ -145,10 +148,13 @@ export function buildPayoutProviderAuditFingerprint(
   return orders
     .filter(isPayoutEligibleOrder)
     .map((order) => {
-      if (
-        order.paymentProvider !== 'mollie' ||
-        !String(order.molliePaymentId || '').trim()
-      ) {
+      const provider = String(order.paymentProvider || '').trim().toLowerCase();
+      const paymentRef = provider === 'mollie'
+        ? String(order.molliePaymentId || '').trim()
+        : provider === 'swish'
+          ? String(order.swishPaymentId || '').trim()
+          : '';
+      if (!paymentRef) {
         throw new PayoutProviderAuditBlockedError(order);
       }
       const updatedAt = new Date(order.updatedAt);
@@ -157,8 +163,9 @@ export function buildPayoutProviderAuditFingerprint(
       }
       return [
         order.id,
-        order.paymentProvider,
-        order.molliePaymentId,
+        provider,
+        String(order.molliePaymentId || '').trim(),
+        String(order.swishPaymentId || '').trim(),
         String(order.status || '').toUpperCase(),
         String(order.paymentStatus || '').toUpperCase(),
         String(order.refundAmount ?? 0),
@@ -196,6 +203,7 @@ export function buildPayoutFinanceFingerprint(
         paymentStatus: String(order.paymentStatus || '').toUpperCase(),
         paymentProvider: String(order.paymentProvider || '').toLowerCase(),
         molliePaymentId: String(order.molliePaymentId || ''),
+        swishPaymentId: String(order.swishPaymentId || ''),
         total: nonNegativeOre(order.total),
         deliveryFee: nonNegativeOre(order.deliveryFee),
         tipAmount: nonNegativeOre(order.tipAmount),

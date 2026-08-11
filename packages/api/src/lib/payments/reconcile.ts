@@ -14,6 +14,7 @@ import { recordRefundProviderResponse } from './refundLedger';
 import { announceFullRefund } from './refundNotifications';
 import {
   buildPayoutProviderAuditFingerprint,
+  FINANCE_REAL_PAYMENT_STATUSES,
   PAYOUT_NON_TEST_ORDER_FILTER,
   PAYOUT_ORDER_STATUSES,
   PAYOUT_PAYMENT_STATUSES,
@@ -23,13 +24,35 @@ import {
 
 const REFUND_AUDIT_BATCH_SIZE = 50;
 const PAYOUT_SOURCE_AUDIT_BATCH_SIZE = 50;
-let mollieActiveRefundCursor: string | null = null;
-let mollieRefundAuditCursor: string | null = null;
+let activeRefundCursor: string | null = null;
+let refundAuditCursor: string | null = null;
 
-type MollieRefundAuditOrder = {
+type AuditableRefundProvider = 'mollie' | 'swish';
+
+type ProviderRefundAuditOrder = {
   id: string;
+  paymentProvider: string;
   molliePaymentId: string | null;
+  swishPaymentId: string | null;
+  total?: number;
 };
+
+function providerRefundReference(order: ProviderRefundAuditOrder): {
+  providerName: AuditableRefundProvider;
+  paymentRef: string;
+} {
+  const providerName = String(order.paymentProvider || '').trim().toLowerCase();
+  if (providerName !== 'mollie' && providerName !== 'swish') {
+    throw new Error(`Order ${order.id} har en PSP som inte kan refund-revideras`);
+  }
+  const paymentRef = String(
+    (providerName === 'mollie' ? order.molliePaymentId : order.swishPaymentId) || '',
+  ).trim();
+  if (!paymentRef) {
+    throw new Error(`Order ${order.id} saknar ${providerName === 'mollie' ? 'Mollie' : 'Swish'}-referens`);
+  }
+  return { providerName, paymentRef };
+}
 
 /** PSP-referensen för en order beror på providern. */
 function refOf(
@@ -101,24 +124,37 @@ export async function reconcilePendingPayments(): Promise<void> {
   }
 }
 
-async function reconcileMollieRefundOrder(
-  order: MollieRefundAuditOrder,
+async function reconcileProviderRefundOrder(
+  order: ProviderRefundAuditOrder,
   source: 'REFUND_RECONCILE' | 'PAYOUT_PREFLIGHT',
 ): Promise<void> {
-  if (!order.molliePaymentId) return;
-  const provider = getPaymentProviderByName('mollie');
-  const remote = await provider.getRemoteStatus(order.molliePaymentId);
+  const { providerName, paymentRef } = providerRefundReference(order);
+  const provider = getPaymentProviderByName(providerName);
+  const remote = await provider.getRemoteStatus(paymentRef);
+  if (source === 'PAYOUT_PREFLIGHT' && remote.state !== 'paid') {
+    throw new Error(
+      `betalningen ${paymentRef} är ${remote.state} hos ${providerName === 'mollie' ? 'Mollie' : 'Swish'}`,
+    );
+  }
+  if (
+    source === 'PAYOUT_PREFLIGHT' &&
+    order.total != null &&
+    Math.max(0, Math.round(Number(remote.amountReceivedOre || 0))) !==
+      Math.max(0, Math.round(Number(order.total || 0)))
+  ) {
+    throw new Error(`betalningsbeloppet för order ${order.id} avviker hos PSP:n`);
+  }
   const sync = await syncRemoteRefundOutcome({
     orderId: order.id,
-    paymentRef: order.molliePaymentId,
+    paymentRef,
     paidAmountOre: remote.amountReceivedOre ?? 0,
     cumulativeRefundOre: remote.amountRefundedOre ?? 0,
-    provider: 'mollie',
+    provider: providerName,
     source,
     refunds: remote.refunds,
   });
   if (source === 'PAYOUT_PREFLIGHT' && sync.pending) {
-    throw new Error(`Refund för order ${order.id} behandlas fortfarande hos Mollie`);
+    throw new Error(`Refund för order ${order.id} behandlas fortfarande hos PSP:n`);
   }
   if (sync.changed && sync.fullRefund) {
     await announceFullRefund(
@@ -130,13 +166,13 @@ async function reconcileMollieRefundOrder(
 
   // Crash recovery for the tiny but unavoidable boundary between the atomic
   // DB intent+lock commit and the external PSP request. Reusing the exact
-  // Mollie idempotency key either returns the original refund or creates it
+  // provider idempotency key either returns the original refund or creates it
   // once; payout preflight never initiates work and blocks instead.
   const unresolvedIntent = await prisma.paymentRefund.findFirst({
     where: {
       orderId: order.id,
-      provider: 'mollie',
-      paymentRef: order.molliePaymentId,
+      provider: providerName,
+      paymentRef,
       refundRef: null,
       status: { in: ['REQUESTED', 'UNKNOWN'] },
     },
@@ -150,21 +186,21 @@ async function reconcileMollieRefundOrder(
   let resumed: Awaited<ReturnType<typeof provider.refund>>;
   try {
     resumed = await provider.refund(
-      order.molliePaymentId,
+      paymentRef,
       unresolvedIntent.amount,
       unresolvedIntent.idempotencyKey,
     );
   } catch (error) {
     await recordRefundProviderResponse({
       idempotencyKey: unresolvedIntent.idempotencyKey,
-      provider: 'mollie',
+      provider: providerName,
       status: 'unknown',
     });
     throw error;
   }
   await recordRefundProviderResponse({
     idempotencyKey: unresolvedIntent.idempotencyKey,
-    provider: 'mollie',
+    provider: providerName,
     refundRef: resumed.refundRef,
     status: resumed.status,
   });
@@ -172,12 +208,12 @@ async function reconcileMollieRefundOrder(
   const resumedState = resumed.status ?? 'unknown';
   const resumedSync = await syncRemoteRefundOutcome({
     orderId: order.id,
-    paymentRef: order.molliePaymentId,
+    paymentRef,
     paidAmountOre: remote.amountReceivedOre ?? 0,
     cumulativeRefundOre: resumedState === 'refunded'
       ? Math.max(remote.amountRefundedOre ?? 0, unresolvedIntent.cumulativeAmount)
       : remote.amountRefundedOre ?? 0,
-    provider: 'mollie',
+    provider: providerName,
     source: 'REFUND_RECONCILE',
     refunds: [
       ...(remote.refunds || []),
@@ -198,17 +234,17 @@ async function reconcileMollieRefundOrder(
   }
 }
 
-async function reconcileMollieRefundBatch(
-  orders: MollieRefundAuditOrder[],
+async function reconcileProviderRefundBatch(
+  orders: ProviderRefundAuditOrder[],
   failClosed: boolean,
   source: 'REFUND_RECONCILE' | 'PAYOUT_PREFLIGHT',
 ): Promise<void> {
   // Keep PSP concurrency deliberately small. A large payout period must still
-  // be fully audited, but it must not burst Mollie's API or silently cap rows.
+  // be fully audited, but it must not burst either PSP API or silently cap rows.
   for (let offset = 0; offset < orders.length; offset += 5) {
     const chunk = orders.slice(offset, offset + 5);
     const results = await Promise.allSettled(
-      chunk.map((order) => reconcileMollieRefundOrder(order, source)),
+      chunk.map((order) => reconcileProviderRefundOrder(order, source)),
     );
     for (let index = 0; index < results.length; index += 1) {
       const result = results[index];
@@ -216,7 +252,7 @@ async function reconcileMollieRefundBatch(
       const order = chunk[index];
       const message = result.reason instanceof Error ? result.reason.message : String(result.reason);
       if (failClosed) {
-        throw new Error(`Mollie-refund kunde inte stämmas av för order ${order.id}: ${message}`);
+        throw new Error(`PSP-refund kunde inte stämmas av för order ${order.id}: ${message}`);
       }
       console.error(`[reconcile] kunde inte stämma av refund för ${order.id}:`, message);
     }
@@ -252,6 +288,7 @@ async function readPayoutProviderAuditFingerprint(
         paymentStatus: true,
         paymentProvider: true,
         molliePaymentId: true,
+        swishPaymentId: true,
         refundAmount: true,
         updatedAt: true,
       },
@@ -267,34 +304,40 @@ async function readPayoutProviderAuditFingerprint(
 
 /**
  * Fail-closed audit used immediately before a payout is approved or paid.
- * Every Mollie order in the period is checked; pagination prevents the old
+ * Every Mollie/direct-Swish order in the period is checked; pagination prevents the old
  * class of silent 50/100-row caps from producing an incorrect settlement.
  * The returned fingerprint is compared inside payout calculation so no PSP
  * call has to happen inside the serializable transaction.
  */
-export async function reconcileMollieRefundsForPayoutPeriod(input: PayoutAuditPeriod, dependencies: {
+export async function reconcileProviderRefundsForPayoutPeriod(input: PayoutAuditPeriod, dependencies: {
   db?: Pick<typeof prisma, 'order'>;
-  auditBatch?: typeof reconcileMollieRefundBatch;
+  auditBatch?: typeof reconcileProviderRefundBatch;
 } = {}): Promise<string[]> {
   const db = dependencies.db ?? prisma;
-  const auditBatch = dependencies.auditBatch ?? reconcileMollieRefundBatch;
+  const auditBatch = dependencies.auditBatch ?? reconcileProviderRefundBatch;
 
-  // Payout math is provider-neutral, but launch reconciliation is deliberately
-  // Mollie-only. Any payable row that cannot be tied to a Mollie payment must
-  // therefore block before approval/recovery instead of being silently paid.
+  // Every payable provider row must have a stable PSP reference before any
+  // payout can be approved. The remote sweep below then proves payment and
+  // refund state for both Mollie and direct Swish.
   const initialFingerprint = await readPayoutProviderAuditFingerprint(db, input);
 
   let cursor: string | null = null;
   while (true) {
-    const batch: MollieRefundAuditOrder[] = await db.order.findMany({
+    const batch: ProviderRefundAuditOrder[] = await db.order.findMany({
       where: {
         restaurantId: input.restaurantId,
         createdAt: { gte: input.periodStart, lte: input.periodEnd },
-        paymentProvider: 'mollie',
-        molliePaymentId: { not: null },
+        paymentProvider: { in: ['mollie', 'swish'] },
+        paymentStatus: { in: [...FINANCE_REAL_PAYMENT_STATUSES] },
         ...(cursor ? { id: { gt: cursor } } : {}),
       },
-      select: { id: true, molliePaymentId: true },
+      select: {
+        id: true,
+        paymentProvider: true,
+        molliePaymentId: true,
+        swishPaymentId: true,
+        total: true,
+      },
       orderBy: { id: 'asc' },
       take: REFUND_AUDIT_BATCH_SIZE,
     });
@@ -324,19 +367,19 @@ export async function reconcileMollieRefundsForPayoutPeriod(input: PayoutAuditPe
  * without a total cap; the returned IDs are checked again inside the payout
  * transaction so a concurrently-added source cannot bypass PSP audit.
  */
-export async function reconcileMollieRefundsForPayout(input: {
+export async function reconcileProviderRefundsForPayout(input: {
   restaurantId: string;
   targetPeriodStart: Date;
   targetPeriodEnd: Date;
 }, dependencies: {
   db?: Pick<typeof prisma, 'restaurantPayout'>;
-  auditPeriod?: typeof reconcileMollieRefundsForPayoutPeriod;
+  auditPeriod?: typeof reconcileProviderRefundsForPayoutPeriod;
 } = {}): Promise<{
   targetFingerprint: string[];
   sources: Array<{ payoutId: string; fingerprint: string[] }>;
 }> {
   const db = dependencies.db ?? prisma;
-  const auditPeriod = dependencies.auditPeriod ?? reconcileMollieRefundsForPayoutPeriod;
+  const auditPeriod = dependencies.auditPeriod ?? reconcileProviderRefundsForPayoutPeriod;
 
   const targetFingerprint = await auditPeriod({
     restaurantId: input.restaurantId,
@@ -374,6 +417,11 @@ export async function reconcileMollieRefundsForPayout(input: {
   return { targetFingerprint, sources: auditedSources };
 }
 
+// Compatibility aliases for older callers. Their implementation is now
+// provider-neutral and audits direct Swish as well as Mollie.
+export const reconcileMollieRefundsForPayoutPeriod = reconcileProviderRefundsForPayoutPeriod;
+export const reconcileMollieRefundsForPayout = reconcileProviderRefundsForPayout;
+
 /**
  * Recovery loop for both locally pending refunds and refunds created directly
  * in Mollie Dashboard when a webhook is delayed or missed.
@@ -382,19 +430,21 @@ export async function reconcilePendingRefunds(): Promise<void> {
   const pending = await prisma.order.findMany({
     where: {
       paymentStatus: 'REFUNDING',
-      paymentProvider: 'mollie',
-      molliePaymentId: { not: null },
-      ...(mollieActiveRefundCursor ? { id: { gt: mollieActiveRefundCursor } } : {}),
+      paymentProvider: { in: ['mollie', 'swish'] },
+      ...(activeRefundCursor ? { id: { gt: activeRefundCursor } } : {}),
     },
     select: {
       id: true,
+      paymentProvider: true,
       molliePaymentId: true,
+      swishPaymentId: true,
+      total: true,
     },
     orderBy: { id: 'asc' },
     take: REFUND_AUDIT_BATCH_SIZE,
   });
-  await reconcileMollieRefundBatch(pending, false, 'REFUND_RECONCILE');
-  mollieActiveRefundCursor = pending.length === REFUND_AUDIT_BATCH_SIZE
+  await reconcileProviderRefundBatch(pending, false, 'REFUND_RECONCILE');
+  activeRefundCursor = pending.length === REFUND_AUDIT_BATCH_SIZE
     ? pending[pending.length - 1].id
     : null;
 }
@@ -407,19 +457,24 @@ export async function reconcileRefundAuditSlice(): Promise<void> {
   // Walk all paid/refundable Mollie rows in stable id order across intervals.
   // This eventually discovers dashboard refunds even if their webhook never
   // arrived; payout approval additionally performs a complete period audit.
-  const audited: MollieRefundAuditOrder[] = await prisma.order.findMany({
+  const audited: ProviderRefundAuditOrder[] = await prisma.order.findMany({
     where: {
-      paymentProvider: 'mollie',
+      paymentProvider: { in: ['mollie', 'swish'] },
       paymentStatus: { in: ['PAID', 'PARTIALLY_REFUNDED'] },
-      molliePaymentId: { not: null },
-      ...(mollieRefundAuditCursor ? { id: { gt: mollieRefundAuditCursor } } : {}),
+      ...(refundAuditCursor ? { id: { gt: refundAuditCursor } } : {}),
     },
-    select: { id: true, molliePaymentId: true },
+    select: {
+      id: true,
+      paymentProvider: true,
+      molliePaymentId: true,
+      swishPaymentId: true,
+      total: true,
+    },
     orderBy: { id: 'asc' },
     take: REFUND_AUDIT_BATCH_SIZE,
   });
-  await reconcileMollieRefundBatch(audited, false, 'REFUND_RECONCILE');
-  mollieRefundAuditCursor = audited.length === REFUND_AUDIT_BATCH_SIZE
+  await reconcileProviderRefundBatch(audited, false, 'REFUND_RECONCILE');
+  refundAuditCursor = audited.length === REFUND_AUDIT_BATCH_SIZE
     ? audited[audited.length - 1].id
     : null;
 }

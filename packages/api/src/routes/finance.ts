@@ -41,6 +41,7 @@ import {
   type Settlement,
 } from '../lib/settlementModel';
 import { getMollieFinanceReport, type MollieFinanceReport } from '../lib/mollieFinance';
+import { directSwishFeeSnapshot } from '../lib/directSwishFinance';
 import {
   reconcileFinanceOrders,
   type FinanceDeviation,
@@ -107,6 +108,22 @@ const resolvedMolliePaymentId = (
   (order.id ? report.paymentIdByOrderId.get(String(order.id)) : '') ||
   (order.orderNumber ? report.paymentIdByOrderNumber.get(String(order.orderNumber)) : '') ||
   '';
+
+const resolvedAuditablePaymentId = (
+  report: MollieFinanceReport,
+  order: {
+    id?: string | null;
+    orderNumber?: string | null;
+    paymentProvider?: string | null;
+    molliePaymentId?: string | null;
+    swishPaymentId?: string | null;
+  },
+) => {
+  const provider = String(order.paymentProvider || '').trim().toLowerCase();
+  if (provider === 'mollie') return resolvedMolliePaymentId(report, order);
+  if (provider === 'swish') return String(order.swishPaymentId || '').trim();
+  return '';
+};
 
 const mollieOrderReferences = (orders: ReadonlyArray<{
   id: string;
@@ -344,6 +361,7 @@ router.get('/summary', async (req, res) => {
           orderNumber: true,
           restaurantId: true,
           molliePaymentId: true,
+          swishPaymentId: true,
           paymentProvider: true,
           status: true,
           paymentStatus: true,
@@ -371,6 +389,7 @@ router.get('/summary', async (req, res) => {
           orderNumber: true,
           restaurantId: true,
           molliePaymentId: true,
+          swishPaymentId: true,
           paymentProvider: true,
           status: true,
           paymentStatus: true,
@@ -444,6 +463,7 @@ router.get('/summary', async (req, res) => {
               orderNumber: true,
               restaurantId: true,
               molliePaymentId: true,
+              swishPaymentId: true,
               paymentProvider: true,
               status: true,
               paymentStatus: true,
@@ -466,6 +486,7 @@ router.get('/summary', async (req, res) => {
           orderNumber: true,
           restaurantId: true,
           molliePaymentId: true,
+          swishPaymentId: true,
           paymentProvider: true,
           status: true,
           paymentStatus: true,
@@ -590,18 +611,28 @@ router.get('/summary', async (req, res) => {
             .filter(Boolean),
         )];
         const rowMollieOrderCount = restaurantReportOrders.filter(isMollieCandidateOrder).length;
-        const rowFeesComplete = mollieReport.feeStatus !== 'unavailable' &&
+        const rowMollieFeesComplete = rowMollieOrderCount === 0 || (
+          mollieReport.feeStatus !== 'unavailable' &&
           rowMolliePaymentIds.length === rowMollieOrderCount &&
-          rowMolliePaymentIds.every((id) => mollieReport.feeByPaymentId.has(id));
-        const rowFeesDisplayable = mollieReport.feeStatus !== 'unavailable' &&
+          rowMolliePaymentIds.every((id) => mollieReport.feeByPaymentId.has(id))
+        );
+        const rowMollieFeesDisplayable = rowMollieOrderCount === 0 || (
+          mollieReport.feeStatus !== 'unavailable' &&
           rowMolliePaymentIds.length === rowMollieOrderCount &&
-          rowMolliePaymentIds.every((id) => mollieReport.displayFeeByPaymentId.has(id));
-        const liveMollieFeesOre = !rowFeesDisplayable
+          rowMolliePaymentIds.every((id) => mollieReport.displayFeeByPaymentId.has(id))
+        );
+        const liveMollieFeesOre = !rowMollieFeesDisplayable
           ? null
           : rowMolliePaymentIds.reduce(
               (sum, id) => sum + (mollieReport.displayFeeByPaymentId.get(id) || 0),
               0,
             );
+        const rowDirectSwishFees = directSwishFeeSnapshot(restaurantReportOrders);
+        const rowFeesComplete = rowMollieFeesComplete && rowDirectSwishFees.status === 'available';
+        const rowFeesDisplayable = rowMollieFeesDisplayable && rowDirectSwishFees.status === 'available';
+        const liveProviderFeesOre = !rowFeesDisplayable || liveMollieFeesOre == null
+          ? null
+          : liveMollieFeesOre + (rowDirectSwishFees.totalFeesOre || 0);
         const waitingForMollieConfirmation =
           String(p?.status || '').toUpperCase() === 'HOLD' &&
           frozenMetrics?.mollieFeeStatus &&
@@ -646,7 +677,7 @@ router.get('/summary', async (req, res) => {
             );
         const mollieFeesOre = frozenMetrics && Object.prototype.hasOwnProperty.call(frozenMetrics, 'mollieFees')
           ? (frozenMetrics.mollieFees == null ? null : Math.round(Number(frozenMetrics.mollieFees)))
-          : liveMollieFeesOre;
+          : liveProviderFeesOre;
         const refundTransactionFeesOre = frozenMetrics && Object.prototype.hasOwnProperty.call(frozenMetrics, 'refundTransactionFees')
           ? (frozenMetrics.refundTransactionFees == null
               ? null
@@ -717,7 +748,7 @@ router.get('/summary', async (req, res) => {
           grossTotal: liveGrossTotalOre,
           refunds: liveRefundTotalOre,
           commissionPct: b.commissionPct,
-          cardFees: liveMollieFeesOre,
+          cardFees: liveProviderFeesOre,
           // Nya modellens tecken: positivt betyder att restaurangen får extra.
           // Det lagrade fältet har motsatt tecken och lämnas orört.
           adjustment: -manualAdjustmentOre,
@@ -777,6 +808,12 @@ router.get('/summary', async (req, res) => {
             ),
           ),
           mollieFees: mollieFeesOre == null ? null : fromOre(mollieFeesOre),
+          providerFees: mollieFeesOre == null ? null : fromOre(mollieFeesOre),
+          directSwishFees: rowDirectSwishFees.totalFeesOre == null
+            ? null
+            : fromOre(rowDirectSwishFees.totalFeesOre),
+          directSwishFeeStatus: rowDirectSwishFees.status,
+          directSwishFeePolicy: rowDirectSwishFees.policy,
           refundTransactionFees: refundTransactionFeesOre == null
             ? null
             : fromOre(refundTransactionFeesOre),
@@ -791,7 +828,7 @@ router.get('/summary', async (req, res) => {
           commissionAfterMollieFees: fromOre(economic.commission + economic.subscription),
           mollieFeeStatus: frozenMetrics?.mollieFeeStatus || (rowFeesComplete && missingRefundFeeCount === 0
             ? 'available'
-            : mollieReport.feeStatus === 'unavailable'
+            : rowDirectSwishFees.status === 'unavailable' || mollieReport.feeStatus === 'unavailable'
               ? 'unavailable'
               : 'partial'),
           waitingForMollieConfirmation: Boolean(waitingForMollieConfirmation),
@@ -979,6 +1016,9 @@ router.get('/summary', async (req, res) => {
       (sum, row) => sum + toRoundedOre(row.lateRefundRecovery),
       0,
     );
+    const containsNonMollieProviderFunds = reportOrders.some((order) =>
+      !isMollieCandidateOrder(order),
+    );
     const fundingReconciliation = reconcileRestaurantFundingOre({
       periodGross: periodGrossOre,
       periodRefunds: periodRefundsOre,
@@ -989,6 +1029,7 @@ router.get('/summary', async (req, res) => {
       historicalRefundPrincipal: historicalRefundPrincipalOre,
       historicalRefundFees: historicalRefundFeesOre,
       lateRefundRecovery: lateRefundRecoveryOre,
+      containsNonMollieProviderFunds,
       rows: rows.map((row) => ({
         grossTotal: toRoundedOre(row.grossTotal),
         refunds: toRoundedOre(row.refunds),
@@ -1171,6 +1212,7 @@ router.get('/summary', async (req, res) => {
       },
       fundingReconciliation: {
         status: fundingReconciliation.difference === 0 ? 'exact' : fundingReconciliation.difference == null ? 'unavailable' : 'difference',
+        scope: containsNonMollieProviderFunds ? 'mixed-provider' : 'mollie',
         mollieRestaurantNet: fundingReconciliation.mollieRestaurantNet == null ? null : fromOre(fundingReconciliation.mollieRestaurantNet),
         calculatedRestaurantNet: fromOre(fundingReconciliation.calculatedRestaurantNet),
         difference: fundingReconciliation.difference == null ? null : fromOre(fundingReconciliation.difference),
@@ -1382,6 +1424,7 @@ router.get('/payout/:restaurantId', async (req, res) => {
           refundAmount: true,
           paymentProvider: true,
           molliePaymentId: true,
+          swishPaymentId: true,
           type: true,
         },
         orderBy: { createdAt: 'asc' },
@@ -1484,9 +1527,11 @@ router.get('/payout/:restaurantId', async (req, res) => {
     const molliePaymentIds = [...new Set(
       mollieOrders.map((order) => resolvedMolliePaymentId(detailMollieReport, order)).filter(Boolean),
     )];
-    const detailFeesComplete = detailMollieReport.feeStatus !== 'unavailable' &&
+    const detailFeesComplete = mollieOrders.length === 0 || (
+      detailMollieReport.feeStatus !== 'unavailable' &&
       molliePaymentIds.length === mollieOrders.length &&
-      molliePaymentIds.every((id) => detailMollieReport.feeByPaymentId.has(id));
+      molliePaymentIds.every((id) => detailMollieReport.feeByPaymentId.has(id))
+    );
     const detailRefundedPaymentIds = mollieOrders
       .filter((order) =>
         Number(order.refundAmount || 0) > 0 ||
@@ -1499,6 +1544,12 @@ router.get('/payout/:restaurantId', async (req, res) => {
     const detailMollieFeesOre = !detailFeesComplete
       ? null
       : molliePaymentIds.reduce((sum, id) => sum + (detailMollieReport.feeByPaymentId.get(id) || 0), 0);
+    const directSwishFees = directSwishFeeSnapshot(financialOrders);
+    const detailProviderFeesComplete = detailFeesComplete &&
+      directSwishFees.status === 'available';
+    const detailProviderFeesOre = !detailProviderFeesComplete || detailMollieFeesOre == null
+      ? null
+      : detailMollieFeesOre + (directSwishFees.totalFeesOre || 0);
     const detailRefundProcessingFeesOre = !detailFeesComplete || !detailRefundFeesComplete
       ? null
       : detailRefundedPaymentIds.reduce(
@@ -1512,7 +1563,7 @@ router.get('/payout/:restaurantId', async (req, res) => {
     // show the current calculation for preview. Only a paid report is final.
     const lockedMollieFeesOre = persisted && String(persisted.status || '').toUpperCase() === 'PAID'
       ? Math.max(0, Number(persisted.mollieFeeAmount || 0))
-      : detailMollieFeesOre;
+      : detailProviderFeesOre;
     const adjustedPayoutOre = lockedMollieFeesOre == null
       ? b.payoutOre
       : Math.max(0, b.payoutOre - lockedMollieFeesOre);
@@ -1621,11 +1672,11 @@ router.get('/payout/:restaurantId', async (req, res) => {
     const periodIsCalendarMonth = isFinanceCalendarMonthPeriod(start, end);
     const refundWindowClosed = isPayoutRefundWindowClosed(end, readinessNow, refundWindowHours);
     const providerBlockerCount = financialOrders.filter((order) =>
-      String(order.paymentProvider || '').trim().toLowerCase() !== 'mollie' ||
-      !resolvedMolliePaymentId(detailMollieReport, order),
+      !resolvedAuditablePaymentId(detailMollieReport, order),
     ).length;
     const providerAuditReady = providerBlockerCount === 0;
     const exactFeesReady = mollieOrders.length === 0 || (detailFeesComplete && detailRefundFeesComplete);
+    const providerFeesReady = exactFeesReady && directSwishFees.status === 'available';
     const alreadyPaid = String(persisted?.status || '').toUpperCase() === 'PAID';
     const readinessBlocker = !periodIsCalendarMonth
       ? {
@@ -1652,12 +1703,14 @@ router.get('/payout/:restaurantId', async (req, res) => {
               : !providerAuditReady
                 ? {
                     code: 'PAYOUT_PROVIDER_AUDIT_BLOCKED',
-                    reason: `${providerBlockerCount} betalningar saknar verifierbar Mollie-koppling.`,
+                    reason: `${providerBlockerCount} betalningar saknar verifierbar PSP-koppling.`,
                   }
-                : !exactFeesReady
+                : !providerFeesReady
                 ? {
-                    code: 'PAYOUT_MOLLIE_FEES_NOT_RECONCILED',
-                    reason: 'Exakta kort- och återbetalningsavgifter saknas.',
+                    code: directSwishFees.status === 'unavailable'
+                      ? 'PAYOUT_SWISH_FEES_NOT_CONFIGURED'
+                      : 'PAYOUT_MOLLIE_FEES_NOT_RECONCILED',
+                    reason: directSwishFees.error || 'Exakta kort- och återbetalningsavgifter saknas.',
                   }
                 : recoveryPreview.blocked
                   ? {
@@ -1703,7 +1756,7 @@ router.get('/payout/:restaurantId', async (req, res) => {
         refundWindowClosed,
         providerAuditReady,
         providerBlockerCount,
-        exactFeesReady,
+        exactFeesReady: providerFeesReady,
         recoveryBlocked: recoveryPreview.blocked,
         blockingOrderCount,
         immatureOrderCount,
@@ -1730,11 +1783,17 @@ router.get('/payout/:restaurantId', async (req, res) => {
         payout: fromOre(adjustedPayoutOre),
         owed: fromOre(adjustedOwedOre),
         mollieFees: lockedMollieFeesOre == null ? null : fromOre(lockedMollieFeesOre),
+        providerFees: lockedMollieFeesOre == null ? null : fromOre(lockedMollieFeesOre),
+        directSwishFees: directSwishFees.totalFeesOre == null
+          ? null
+          : fromOre(directSwishFees.totalFeesOre),
+        directSwishFeeStatus: directSwishFees.status,
+        directSwishFeePolicy: directSwishFees.policy,
         mollieFeeStatus: persisted && String(persisted.status || '').toUpperCase() === 'PAID'
           ? 'available'
-          : detailFeesComplete && detailRefundFeesComplete
+          : providerFeesReady
             ? 'available'
-            : detailMollieReport.feeStatus === 'unavailable'
+            : directSwishFees.status === 'unavailable' || detailMollieReport.feeStatus === 'unavailable'
               ? 'unavailable'
               : 'partial',
         paymentFees: detailPaymentFeesOre == null ? null : fromOre(detailPaymentFeesOre),

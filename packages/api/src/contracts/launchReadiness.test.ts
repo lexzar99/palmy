@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import { createSwishTlsFixtures } from './fixtures/swishTlsFixtures';
 import {
   assertRuntimeCriticalConfiguration,
   getLaunchConfigIssues,
@@ -17,6 +18,11 @@ const validFcmServiceAccount = JSON.stringify({
   client_email: 'firebase-adminsdk@viaeats-prod.iam.gserviceaccount.com',
   private_key: fcmPrivateKey,
 });
+const swishFixtures = createSwishTlsFixtures();
+process.once('exit', swishFixtures.cleanup);
+const swishFullChain = swishFixtures.fullChain;
+const swishLeaf = swishFixtures.leaf;
+const swishPrivateKey = swishFixtures.key;
 
 const healthy: NodeJS.ProcessEnv = {
   NODE_ENV: 'production',
@@ -202,8 +208,8 @@ const directSwishProduction = {
   PAYMENT_PROVIDERS: 'mollie,swish',
   SWISH_ENVIRONMENT: 'PRODUCTION',
   SWISH_PAYEE_ALIAS: '1231234567',
-  SWISH_CERT_PEM: 'certificate',
-  SWISH_KEY_PEM: 'private-key',
+  SWISH_CLIENT_CERT_CHAIN_PEM: swishFullChain,
+  SWISH_KEY_PEM: swishPrivateKey,
   SWISH_CALLBACK_SECRET: '0123456789abcdef0123456789abcdef',
 };
 // Egen Swish Handel med eget certifikat är produktionsgodkänd. En komplett
@@ -214,6 +220,28 @@ assert.deepEqual(
 );
 assert.doesNotThrow(() => assertRuntimeCriticalConfiguration(directSwishProduction));
 
+const leafOnlySwishProduction = {
+  ...directSwishProduction,
+  SWISH_CLIENT_CERT_CHAIN_PEM: swishLeaf,
+};
+assert(getLaunchConfigIssues(leafOnlySwishProduction).some(
+  (issue) => issue.key === 'swish_tls' && issue.severity === 'error' && /leaf-only/.test(issue.message),
+));
+assert.throws(
+  () => assertRuntimeCriticalConfiguration(leafOnlySwishProduction),
+  /Ogiltig Swish TLS-konfiguration.*leaf-only/,
+);
+
+const deprecatedSwishCertificateName = {
+  ...directSwishProduction,
+  SWISH_CLIENT_CERT_CHAIN_PEM: '',
+  SWISH_CERT_PEM: swishFullChain,
+};
+assert(getLaunchConfigIssues(deprecatedSwishCertificateName).some(
+  (issue) => issue.key === 'swish_tls_deprecated' && issue.severity === 'warning',
+));
+assert.doesNotThrow(() => assertRuntimeCriticalConfiguration(deprecatedSwishCertificateName));
+
 // Men en halv uppsättning får aldrig starta: utan callback-hemlighet går det
 // inte att skilja en äkta Swish-callback från en påhittad.
 assert.throws(
@@ -221,7 +249,18 @@ assert.throws(
     ...directSwishProduction,
     SWISH_CALLBACK_SECRET: '',
   }),
-  /Aktiv Swish Handel saknar/,
+  /SWISH_CALLBACK_SECRET måste vara minst 32 tecken/,
+);
+const shortSwishCallbackSecret = {
+  ...directSwishProduction,
+  SWISH_CALLBACK_SECRET: 'too-short',
+};
+assert(getLaunchConfigIssues(shortSwishCallbackSecret).some(
+  (issue) => issue.key === 'swish_callback_secret' && issue.severity === 'error' && /minst 32/.test(issue.message),
+));
+assert.throws(
+  () => assertRuntimeCriticalConfiguration(shortSwishCallbackSecret),
+  /SWISH_CALLBACK_SECRET måste vara minst 32 tecken/,
 );
 // Testmiljön får inte råka ligga kvar när riktiga pengar rör sig.
 assert.throws(

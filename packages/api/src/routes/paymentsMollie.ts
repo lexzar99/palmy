@@ -12,7 +12,7 @@
  */
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { createHash } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import prisma from '../lib/prisma';
 import { authenticateUserOptional } from './auth';
 import {
@@ -36,6 +36,7 @@ import { announceFullRefund } from '../lib/payments/refundNotifications';
 import {
   ORDER_HTTP_SESSION_HEADER,
   ORDER_NATIVE_SESSION_HEADER,
+  issueOrderPaymentResumeProof,
   ownsOrderWithActiveRawSecret,
   verifyOrderHttpSession,
   verifyOrderNativeSession,
@@ -43,15 +44,22 @@ import {
 import { KIOSK_ACCESS_HEADER, validKioskAccessProof } from '../lib/kioskAccess';
 import { validateFrozenOrderPricing } from '../lib/checkoutIntegrity';
 import { validSwishCallbackIdentifier, swishRefundInstructionId } from '../lib/payments/swish';
+import {
+  inspectSwishTlsConfiguration,
+  swishCallbackSecretIssue,
+} from '../lib/payments/swishTls';
 
 const router = Router();
 
 router.get('/methods', (_req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=60');
   const providers = configuredCheckoutProviderNames();
+  const swishReady = !providers.includes('swish') || (
+    inspectSwishTlsConfiguration().ok && !swishCallbackSecretIssue()
+  );
   res.json({
     methods: [
-      ...(providers.includes('swish') ? [{ id: 'swish', label: 'Swish', direct: true }] : []),
+      ...(providers.includes('swish') && swishReady ? [{ id: 'swish', label: 'Swish', direct: true }] : []),
       ...(providers.includes('mollie') ? [{ id: 'mollie', label: 'Kort, Klarna och fler', direct: false }] : []),
       ...(providers.includes('stripe') ? [{ id: 'stripe', label: 'Kort och Klarna', direct: false }] : []),
       ...(providers.includes('adyen') ? [{ id: 'adyen', label: 'Kort, Klarna och wallets', direct: false }] : []),
@@ -320,10 +328,117 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
       });
       return;
     }
+    let reservedSwishPaymentRef: string | undefined;
+    if (provider.name === 'swish') {
+      const previousRef = String(order.swishPaymentId || '').trim().toUpperCase();
+      let reusableRef = previousRef || null;
+      if (previousRef) {
+        let remote: Awaited<ReturnType<typeof provider.getRemoteStatus>> | null = null;
+        try {
+          remote = await provider.getRemoteStatus(previousRef);
+        } catch (error: any) {
+          // A pre-reserved UUID whose PUT never reached Swish is safe to reuse.
+          // Any other transport/auth failure fails closed: never create a
+          // second request while the first one's state is unknown.
+          if (Number(error?.response?.status) !== 404) throw error;
+        }
+        if (remote?.state === 'paid') {
+          const finalized = await finalizePaymentSuccess(order.id, {
+            provider: 'swish',
+            ref: previousRef,
+            amountReceivedOre: remote.amountReceivedOre ?? 0,
+            method: 'swish',
+          });
+          if (finalized.ok) {
+            res.json({ alreadyPaid: true, paymentStatus: 'PAID', provider: 'swish' });
+          } else {
+            res.status(409).json({
+              error: 'Swish-betalningen kräver manuell kontroll innan ordern kan fortsätta.',
+              code: 'SWISH_PAYMENT_REVIEW_REQUIRED',
+            });
+          }
+          return;
+        }
+        if (remote?.state === 'open' || remote?.state === 'pending') {
+          if (!provider.cancelPayment) {
+            res.status(409).json({
+              error: 'En Swish-betalning väntar redan på svar.',
+              code: 'SWISH_PAYMENT_STILL_PENDING',
+            });
+            return;
+          }
+          const canceled = await provider.cancelPayment(previousRef);
+          if (canceled.state === 'paid') {
+            const finalized = await finalizePaymentSuccess(order.id, {
+              provider: 'swish',
+              ref: previousRef,
+              amountReceivedOre: canceled.amountReceivedOre ?? 0,
+              method: 'swish',
+            });
+            if (finalized.ok) {
+              res.json({ alreadyPaid: true, paymentStatus: 'PAID', provider: 'swish' });
+            } else {
+              res.status(409).json({
+                error: 'Swish-betalningen kräver manuell kontroll innan ordern kan fortsätta.',
+                code: 'SWISH_PAYMENT_REVIEW_REQUIRED',
+              });
+            }
+            return;
+          }
+          if (!['canceled', 'failed', 'expired'].includes(canceled.state)) {
+            res.status(409).json({
+              error: 'Den tidigare Swish-betalningen verifieras fortfarande. Försök igen om en stund.',
+              code: 'SWISH_PAYMENT_STILL_PENDING',
+            });
+            return;
+          }
+          reusableRef = null;
+        } else if (remote) {
+          // A terminal declined/error/cancelled request has already consumed
+          // its instruction UUID. Reserve a fresh one for the new app token.
+          reusableRef = null;
+        }
+      }
+      if (!reusableRef) {
+        reusableRef = randomBytes(16).toString('hex').toUpperCase();
+        const reserved = await prisma.order.updateMany({
+          where: {
+            id: order.id,
+            status: 'AWAITING_PAYMENT',
+            paymentStatus: order.paymentStatus,
+            paymentProvider: 'swish',
+            swishPaymentId: order.swishPaymentId,
+          },
+          data: { swishPaymentId: reusableRef },
+        });
+        if (reserved.count !== 1) {
+          res.status(409).json({
+            error: 'Ett annat Swish-försök startades samtidigt. Försök igen.',
+            code: 'SWISH_PAYMENT_RESERVATION_CHANGED',
+          });
+          return;
+        }
+        order.swishPaymentId = reusableRef;
+      }
+      reservedSwishPaymentRef = reusableRef;
+    }
+    let providerReturnUrl = verifiedReturnUrl;
+    if (provider.name === 'swish') {
+      const swishReturnUrl = new URL(verifiedReturnUrl);
+      swishReturnUrl.searchParams.set('payment_provider', 'swish');
+      if (order.accessToken) {
+        swishReturnUrl.searchParams.set(
+          'payment_resume',
+          issueOrderPaymentResumeProof(order.id, order.accessToken),
+        );
+      }
+      providerReturnUrl = swishReturnUrl.toString();
+    }
     const result = await provider.createPayment({
       order: toOrderForPayment(order),
       idempotencyKey: paymentIdempotencyKey(provider.name, order.id),
-      returnUrl: verifiedReturnUrl,
+      paymentReference: reservedSwishPaymentRef,
+      returnUrl: providerReturnUrl,
       webhookUrl: publicWebhookUrl(provider.name),
       channel: adyenChannel,
       storePaymentMethod: !!storePaymentMethod,

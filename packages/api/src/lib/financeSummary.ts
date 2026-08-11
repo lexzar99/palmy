@@ -171,6 +171,8 @@ export function reconcileRestaurantFundingOre(input: {
   historicalRefundPrincipal?: number;
   historicalRefundFees?: number;
   lateRefundRecovery?: number;
+  /** Mollie balance data cannot prove cash held by a separate direct PSP. */
+  containsNonMollieProviderFunds?: boolean;
   rows: readonly FundingReconciliationOreRow[];
 }) {
   const historicalRefundPrincipal = Math.max(0, Number(input.historicalRefundPrincipal || 0));
@@ -214,9 +216,13 @@ export function reconcileRestaurantFundingOre(input: {
   return {
     mollieRestaurantNet,
     calculatedRestaurantNet,
-    difference: mollieRestaurantNet == null ? null : mollieRestaurantNet - calculatedRestaurantNet,
-    salesDifference: linkedMollieSales == null ? null : linkedMollieSales - calculatedRestaurantSales,
-    feeDifference: input.periodFees == null || input.externalFees == null || restaurantFees == null
+    difference: input.containsNonMollieProviderFunds || mollieRestaurantNet == null
+      ? null
+      : mollieRestaurantNet - calculatedRestaurantNet,
+    salesDifference: input.containsNonMollieProviderFunds || linkedMollieSales == null
+      ? null
+      : linkedMollieSales - calculatedRestaurantSales,
+    feeDifference: input.containsNonMollieProviderFunds || input.periodFees == null || input.externalFees == null || restaurantFees == null
       ? null
       : input.periodFees - input.externalFees - restaurantFees,
     adjustmentNet,

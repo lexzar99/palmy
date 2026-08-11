@@ -6,7 +6,7 @@
     "dev": "nodemon src/index.ts",
     "postinstall": "prisma generate --schema prisma/schema.prisma",
     "build": "prisma generate --schema prisma/schema.prisma && tsc",
-    "test:contracts": "ts-node --transpile-only src/contracts/backendContracts.test.ts && ts-node --transpile-only src/contracts/launchCampaignPagination.test.ts",
+    "test:contracts": "ts-node --transpile-only src/contracts/backendContracts.test.ts && ts-node --transpile-only src/contracts/launchCampaignPagination.test.ts && ts-node --transpile-only src/contracts/swishTls.test.ts && ts-node --transpile-only src/contracts/swishContracts.test.ts",
     "test:home-categories": "ts-node --transpile-only src/contracts/homeCategoryFeed.test.ts",
     "test:live-state": "ts-node src/contracts/liveState.test.ts && ts-node src/contracts/courierLivePosition.test.ts",
     "test:order-status": "ts-node --transpile-only src/contracts/orderStatusMachine.test.ts",

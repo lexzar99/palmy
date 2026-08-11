@@ -28,7 +28,6 @@ import {
   Check,
   ChevronDown,
   ChevronLeft,
-  Smartphone,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { ensureKioskAccess } from "@/lib/kioskAccessClient";
@@ -60,6 +59,19 @@ import {
 import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import { LAST_CUSTOMER_ID_KEY } from "@/lib/platformSessionClient";
+import {
+  SWISH_POLLING_POLICY,
+  classifyAbandonResponse,
+  classifyPaymentStatus,
+  clearPendingPaymentMetadata,
+  isHandheldPaymentDevice,
+  readPendingPaymentProvider,
+  readPersistedSwishCheckout,
+  swishBackoffDelayMs,
+  writePendingPaymentProvider,
+  writePersistedSwishCheckout,
+  type AbandonOutcome,
+} from "@/lib/swishCheckoutRecovery";
 
 const TEST_ORDERS_ENABLED =
   process.env.NODE_ENV !== "production" &&
@@ -70,13 +82,37 @@ const CHECKOUT_ATTEMPT_KEY = "viaeats.checkout.attempt.v1";
 type CheckoutAttempt = { key: string; fingerprint: string };
 type HostedPaymentContext = {
   passive?: boolean;
+  provider?: CheckoutPaymentProvider;
   embedded?: boolean;
   restaurantSlug?: string;
   parentOrigin?: string | null;
   pollAttempts?: number;
+  initialPollDelayMs?: number;
+  pollBackoffBaseMs?: number;
+  pollMaxDelayMs?: number;
+  pollJitterRatio?: number;
 };
 
 type CheckoutPaymentProvider = "mollie" | "swish" | "stripe" | "adyen";
+
+function checkoutPaymentProvider(value: unknown): CheckoutPaymentProvider | null {
+  const provider = String(value || "").toLowerCase();
+  return ["mollie", "swish", "stripe", "adyen"].includes(provider)
+    ? provider as CheckoutPaymentProvider
+    : null;
+}
+
+function hostedPaymentContext(
+  provider: CheckoutPaymentProvider | null,
+  context: HostedPaymentContext = {},
+): HostedPaymentContext {
+  if (provider !== "swish") return { ...context, provider: provider || context.provider };
+  return {
+    ...context,
+    provider: "swish",
+    ...SWISH_POLLING_POLICY,
+  };
+}
 
 function createCheckoutKey(): string {
   return typeof crypto !== "undefined" && crypto.randomUUID
@@ -302,7 +338,11 @@ export default function CartPage() {
   // ge hydration mismatch.
   const [isHandheld, setIsHandheld] = useState(false);
   useEffect(() => {
-    setIsHandheld(/iphone|ipad|ipod|android/i.test(navigator.userAgent));
+    setIsHandheld(isHandheldPaymentDevice({
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      maxTouchPoints: navigator.maxTouchPoints,
+    }));
   }, []);
   // M-commerce: token-länken öppnar Swish-appen med belopp och mottagare redan
   // ifyllt. Kunden ska aldrig behöva knappa in ett Swish-nummer, så på mobil
@@ -318,6 +358,11 @@ export default function CartPage() {
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   // True när kunden återvänt från Mollie och vi pollar orderns betalstatus.
   const [verifyingPayment, setVerifyingPayment] = useState(false);
+  // Varje poll-loop äger en generation. Ny checkout, explicit avbryt eller
+  // unmount invaliderar äldre loopar så ett sovande/avslutat anrop aldrig kan
+  // skriva stale state eller navigera efteråt.
+  const paymentPollGenerationRef = useRef(0);
+  useEffect(() => () => { paymentPollGenerationRef.current += 1; }, []);
   const idempotencyKey = useRef<string>("");
   useEffect(() => {
     let active = true;
@@ -1644,6 +1689,12 @@ export default function CartPage() {
     const returnParam = params.get("payment_return");
     const returnOrderId = returnParam || localStorage.getItem("pending_order_id");
     if (!returnOrderId) return;
+    const paymentResumeToken = params.get("payment_resume") || "";
+    const returnProvider = checkoutPaymentProvider(params.get("payment_provider"));
+    const persistedProvider = readPendingPaymentProvider(localStorage);
+    // Query-parametern väljer enbart säker poll-policy. Den är aldrig bevis på
+    // betalning; endast backend-status PAID får slutföra checkouten.
+    const recoveryProvider = returnProvider || persistedProvider;
     const returnEmbedded = params.get("embed") === "1";
     const returnRestaurantSlug = params.get("restaurant") || cartRestaurantSlug || "";
     // A partner return belongs only to an explicit embedded checkout. Never
@@ -1656,6 +1707,18 @@ export default function CartPage() {
       params.get("payment_cancelled") === "1" ||
       ["failed", "canceled", "cancelled", "requires_payment_method"].includes(String(params.get("redirect_status") || "").toLowerCase());
 
+    // payment_resume är en kortlivad engångshemlighet. Alla värden ovan är nu
+    // kopierade till minnet, så rensa den ur adressfält/browserhistorik innan
+    // första nätverksanrop eller await.
+    clearCartReturnParams();
+    localStorage.setItem("pending_order_id", returnOrderId);
+    setPendingOrderId(returnOrderId);
+    if (recoveryProvider) writePendingPaymentProvider(localStorage, recoveryProvider);
+    if (recoveryProvider === "swish") {
+      const restoredCheckout = readPersistedSwishCheckout(localStorage, returnOrderId);
+      if (restoredCheckout) setSwishCheckout(restoredCheckout);
+    }
+
     // Betalprovidern redirectade tillbaka hit efter kassan. Vi pollar orderns
     // betalstatus (webhooken är sanningskällan). Redirect är inte bevis på
     // betalning, så vi litar bara på PAID/FAILED från servern.
@@ -1666,19 +1729,28 @@ export default function CartPage() {
       if (returnEmbedded && returnRestaurantSlug) {
         await ensureKioskAccess(returnRestaurantSlug);
       }
+      if (paymentResumeToken) {
+        try {
+          await axios.post(`/api/platform/orders/${returnOrderId}/session`, {
+            paymentResumeToken,
+          });
+        } catch {
+          // Engångstoken kan redan vara förbrukad av samma browser. Den
+          // ordinarie HttpOnly-sessionen provas fortfarande av statusanropet.
+        }
+      }
       if (cancelled) {
         await handlePaymentCancelled(returnOrderId);
         return;
       }
-      // Passivt återupptagen order (ingen payment_return-param) får inte låsa
-      // kassan med en lång poll-loop på varje besök — den gör en snabb koll och
-      // släpper sedan varukorgen fri.
-      await finishHostedPayment(returnOrderId, {
+      // En passivt återupptagen vanlig hosted checkout gör en snabb koll.
+      // Swish måste däremot behålla samma callback-first-policy även på reload.
+      await finishHostedPayment(returnOrderId, hostedPaymentContext(recoveryProvider, {
         passive: !returnParam,
         embedded: returnEmbedded,
         restaurantSlug: returnRestaurantSlug,
         parentOrigin: returnParentOrigin,
-      });
+      }));
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1688,6 +1760,7 @@ export default function CartPage() {
   // status när webhooken finaliserat. Gäster använder den slumpade order-token
   // som ägarbevis; telefonnumret sparas bara som kontaktdata i historiken.
   const goToOrderTracking = async (orderId: string, context: HostedPaymentContext = {}) => {
+    paymentPollGenerationRef.current += 1;
     paymentInFlightRef.current = false;
     const trackingEmbedded = context.embedded ?? embedMode;
     const trackingRestaurantSlug = context.restaurantSlug || embedRestaurantSlug || cartRestaurantSlug || "";
@@ -1737,6 +1810,7 @@ export default function CartPage() {
     } catch {
       /* noop */
     }
+    try { clearPendingPaymentMetadata(localStorage); } catch { /* noop */ }
     clearCheckoutAttempt();
     const trackingUrl = trackingEmbedded
       ? `/order/${orderId}?embed=1&restaurant=${encodeURIComponent(trackingRestaurantSlug)}&${EMBED_PARENT_ORIGIN_PARAM}=${encodeURIComponent(trackingParentOrigin || "")}`
@@ -1763,6 +1837,7 @@ export default function CartPage() {
       localStorage.removeItem("pending_order_id");
       localStorage.removeItem("pending_order_token");
       localStorage.removeItem("pending_order_phone");
+      clearPendingPaymentMetadata(localStorage);
     } catch {
       /* noop */
     }
@@ -1775,32 +1850,53 @@ export default function CartPage() {
       next.searchParams.delete("payment_return");
       next.searchParams.delete("payment_cancelled");
       next.searchParams.delete("redirect_status");
+      next.searchParams.delete("payment_resume");
+      next.searchParams.delete("payment_provider");
       window.history.replaceState({}, "", `${next.pathname}${next.search}`);
     } catch { /* noop */ }
   };
 
   const handlePaymentCancelled = async (orderId: string) => {
+    const cancelGeneration = ++paymentPollGenerationRef.current;
     setVerifyingPayment(false);
-    setSwishCheckout(null);
     paymentInFlightRef.current = false;
     clearCartReturnParams();
-    await abandonPendingOrder(orderId);
-    clearPendingPaymentStorage();
-    setPendingOrderId(null);
-    setError("Betalningen avbröts. Din varukorg är kvar, så du kan försöka igen direkt.");
+    const outcome = await abandonPendingOrder(orderId);
+    if (cancelGeneration !== paymentPollGenerationRef.current) return;
+    if (outcome === "paid") {
+      await goToOrderTracking(orderId);
+      return;
+    }
+    if (outcome === "terminal") {
+      setSwishCheckout(null);
+      clearPendingPaymentStorage();
+      setPendingOrderId(null);
+      setError("Betalningen avbröts. Din varukorg är kvar, så du kan försöka igen direkt.");
+      return;
+    }
+
+    // PSP:n eller nätet kunde inte bekräfta cancel. Bevara order-id,
+    // idempotency proof och eventuell Swish-länk så ett nytt PUT aldrig görs
+    // mot samma betalningsrequest och orsakar RP09.
+    const restoredCheckout = readPersistedSwishCheckout(localStorage, orderId);
+    if (restoredCheckout) setSwishCheckout(restoredCheckout);
+    setPendingOrderId(orderId);
+    setError("Vi kunde inte bekräfta att betalningen avbröts. Den kan fortfarande behandlas. Vänta på status eller öppna Swish igen – starta inte en ny betalning ännu.");
   };
 
   // Pollar orderns betalstatus efter provider-returen eller när en persisterad
-  // Mollie-order återupptas vid reopen. Status-endpointen stämmer dessutom av
+  // provider-order återupptas vid reopen. Status-endpointen stämmer dessutom av
   // direkt mot PSP:n, så flödet återhämtar sig även efter en försenad webhook.
   // PAID → tracking.
-  // Terminalt fel/cancel → abandon + behåll varukorg. Timeout/pending → behåll
-  // cart och låt kunden försöka igen; skicka ALDRIG obetald order till tracking.
+  // Terminalt fel/cancel → rensa proof + behåll varukorg. Timeout/pending →
+  // bevara proof/order; skicka ALDRIG obetald order till tracking eller PSP-
+  // cancel från passiv recovery.
   const finishHostedPayment = async (orderId: string, opts: HostedPaymentContext = {}) => {
-    // Passiv = ingen payment_return-param, bara en kvarlämnad pending_order_id
-    // (stängd Mollie-flik el. dyl.). Då görs en snabb engångskoll: PAID går
-    // till tracking som vanligt, allt annat städas bort tyst så kassan aldrig
-    // låses av en gammal order.
+    const pollGeneration = ++paymentPollGenerationRef.current;
+    const isCurrentPoll = () => pollGeneration === paymentPollGenerationRef.current;
+    // Passiv = ingen payment_return-param, bara en kvarlämnad pending_order_id.
+    // Icke-Swish gör en snabb engångskoll. Swish behåller alltid sin officiella
+    // 10→20/40/80-policy även efter callback-return eller reload.
     const passive = opts.passive === true;
     setVerifyingPayment(true);
     const recoveryToken = localStorage.getItem("pending_order_token") || "";
@@ -1814,21 +1910,35 @@ export default function CartPage() {
         // otherwise it reports a recoverable timeout without leaking a token.
       }
     }
-    const maxAttempts = passive ? 1 : (opts.pollAttempts ?? 8);
+    if (!isCurrentPoll()) return;
+    const maxAttempts = passive && opts.provider !== "swish" ? 1 : (opts.pollAttempts ?? 8);
+    const waitBeforePoll = async (baseDelayMs: number, withJitter: boolean) => {
+      const jitterRatio = Math.max(0, Math.min(opts.pollJitterRatio ?? 0, 0.5));
+      const jitter = withJitter ? baseDelayMs * jitterRatio * ((Math.random() * 2) - 1) : 0;
+      await new Promise((resolve) => setTimeout(resolve, Math.max(0, baseDelayMs + jitter)));
+      return isCurrentPoll();
+    };
+    if (!passive && (opts.initialPollDelayMs ?? 0) > 0) {
+      // Ingen negativ jitter här: första Swish-GET får aldrig ske före 10 s.
+      if (!await waitBeforePoll(opts.initialPollDelayMs!, false)) return;
+    } else if (passive && opts.provider === "swish" && (opts.initialPollDelayMs ?? 0) > 0) {
+      if (!await waitBeforePoll(opts.initialPollDelayMs!, false)) return;
+    }
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      if (!isCurrentPoll()) return;
       try {
         const res = await axios.get(`/api/platform/payments/status/${orderId}`);
-        const ps = String(res.data?.paymentStatus || "").toUpperCase();
-        if (ps === "PAID") {
+        if (!isCurrentPoll()) return;
+        const paymentOutcome = classifyPaymentStatus(res.data?.paymentStatus);
+        if (paymentOutcome === "paid") {
           clearCartReturnParams();
           await goToOrderTracking(orderId, opts);
           return;
         }
-        if (["FAILED", "EXPIRED", "CANCELED", "CANCELLED", "REQUIRES_PAYMENT_METHOD"].includes(ps)) {
+        if (paymentOutcome === "terminal") {
           setVerifyingPayment(false);
           setSwishCheckout(null);
           clearCartReturnParams();
-          await abandonPendingOrder(orderId);
           clearPendingPaymentStorage();
           setPendingOrderId(null);
           // En gammal order som städas bort passivt ska inte skrämmas upp som
@@ -1837,8 +1947,9 @@ export default function CartPage() {
           return;
         }
       } catch (err: unknown) {
+        if (!isCurrentPoll()) return;
         const responseStatus = (err as { response?: { status?: unknown } } | null)?.response?.status;
-        if ([404, 410].includes(Number(responseStatus))) {
+        if (Number(responseStatus) === 410) {
           setVerifyingPayment(false);
           setSwishCheckout(null);
           clearCartReturnParams();
@@ -1847,23 +1958,40 @@ export default function CartPage() {
           if (!passive) setError("Den tidigare betalningen kunde inte återställas. Din varukorg är kvar, så du kan försöka igen.");
           return;
         }
+        if (Number(responseStatus) === 404) {
+          // Status-endpointen använder även 404 när order-sessionen saknas.
+          // Det är inte bevis på terminal PSP-status: bevara recovery-underlag.
+          setVerifyingPayment(false);
+          setPendingOrderId(orderId);
+          if (!passive) setError("Betalningen finns kvar men orderåtkomsten kunde inte återställas. Ladda om sidan eller vänta en stund – starta inte en ny betalning.");
+          return;
+        }
         /* nätverksfel: fortsätt polla */
       }
-      if (attempt < maxAttempts - 1) await new Promise((r) => setTimeout(r, 2000));
+      if (attempt < maxAttempts - 1) {
+        const delayMs = opts.provider === "swish"
+          ? swishBackoffDelayMs(attempt, Math.random(), opts.pollJitterRatio)
+          : opts.pollBackoffBaseMs
+            ? Math.min(
+                opts.pollBackoffBaseMs * (2 ** attempt),
+                opts.pollMaxDelayMs ?? Number.POSITIVE_INFINITY,
+              )
+            : 2000;
+        // Swish-helpern har redan applicerat jitter; generisk polling gör det här.
+        if (!await waitBeforePoll(delayMs, opts.provider !== "swish")) return;
+      }
     }
+    if (!isCurrentPoll()) return;
     setVerifyingPayment(false);
-    setSwishCheckout(null);
     clearCartReturnParams();
+    setPendingOrderId(orderId);
     if (passive) {
-      // Ordern är varken betald eller terminal — kunden lämnade kassan. Släpp
-      // den gamla ordern (abandon är no-op server-side om den hunnit betalas,
-      // webhooken finaliserar den ändå) så en ny beställning kan läggas direkt.
-      await abandonPendingOrder(orderId);
-      clearPendingPaymentStorage();
-      setPendingOrderId(null);
+      // Passiv recovery får aldrig PSP-cancella en fortfarande pending order.
+      // Proof och request-id ligger kvar tills explicit cancel eller terminal
+      // status, så nästa besök kan återuppta samma betalning säkert.
       return;
     }
-    setError("Vi väntar fortfarande på betalningsbekräftelsen. Din varukorg är kvar. Om betalningen gick igenom uppdateras ordern automatiskt, annars kan du försöka igen om en stund.");
+    setError("Vi väntar fortfarande på betalningsbekräftelsen. Din varukorg och betalningsunderlaget är sparade. Öppna Swish igen eller vänta på status – starta inte en ny betalning ännu.");
   };
 
   const buildOrderPayload = (paymentIntentId?: string) => {
@@ -1987,17 +2115,30 @@ export default function CartPage() {
   // Anropas när kunden avbryter (Stripe redirect_status=failed/cancelled) eller
   // navigerar bort från cart-sidan utan att slutföra betalning. Backend gör
   // owner-check via accessToken eller platform-cookie och stämmer av PSP:n.
-  // Idempotent: säker att kalla flera gånger.
-  const abandonPendingOrder = useCallback(async (orderId: string): Promise<void> => {
+  // Idempotent: säker att kalla flera gånger. Resultatet är medvetet
+  // fail-closed: nätfel/okänd status betyder pending och proof måste bevaras.
+  const abandonPendingOrder = useCallback(async (orderId: string): Promise<AbandonOutcome> => {
     try {
       const token = (typeof window !== "undefined" ? localStorage.getItem("pending_order_token") : "") || "";
-      await axios.post(`/api/platform/orders/${orderId}/abandon`, {
+      const response = await axios.post(`/api/platform/orders/${orderId}/abandon`, {
         accessToken: token || undefined,
       });
+      const outcome = classifyAbandonResponse(response.data);
+      if (outcome !== "pending") return outcome;
+
+      // `skipped:not-awaiting` kan betyda att en sen webhook just betalade
+      // ordern. Läs status innan något lokalt proof rensas.
+      if (response.data?.skipped) {
+        try {
+          const statusResponse = await axios.get(`/api/platform/payments/status/${orderId}`);
+          return classifyPaymentStatus(statusResponse.data?.paymentStatus);
+        } catch {
+          return "pending";
+        }
+      }
+      return "pending";
     } catch {
-      // Backend cleanup-cron (5 min) hanterar misslyckanden — kunden ska inte
-      // se fel här. Race med webhook är också säkert eftersom abandon-route
-      // re-assertar status=AWAITING_PAYMENT + paymentStatus != PAID.
+      return "pending";
     }
   }, []);
 
@@ -2030,6 +2171,7 @@ export default function CartPage() {
   // och ändå skickas till Mollie.
   const startCheckout = async (e: React.FormEvent, providerOverride?: CheckoutPaymentProvider) => {
     e.preventDefault();
+    paymentPollGenerationRef.current += 1;
     setError(null);
     setHostedCheckoutUrl(null);
     setSwishCheckout(null);
@@ -2230,8 +2372,47 @@ export default function CartPage() {
       const fingerprint = checkoutFingerprint(pendingPayload);
       const previousAttempt = readCheckoutAttempt();
       const previousOrderId = localStorage.getItem("pending_order_id");
-      if (previousOrderId && (!previousAttempt || previousAttempt.fingerprint !== fingerprint)) {
-        await abandonPendingOrder(previousOrderId);
+      const previousProvider = readPendingPaymentProvider(localStorage);
+      const sameCheckoutAttempt = Boolean(
+        previousOrderId && previousAttempt?.fingerprint === fingerprint,
+      );
+      if (previousOrderId && sameCheckoutAttempt) {
+        // Samma kundpayload + samma provider betyder samma PSP-request. Skapa
+        // aldrig blint om den (Swish svarar RP09); återställ proof och stäm av
+        // status när vi har tokenlänken kvar.
+        const restoredCheckout = previousProvider === "swish"
+          ? readPersistedSwishCheckout(localStorage, previousOrderId)
+          : null;
+        if (restoredCheckout) {
+          setSwishCheckout(restoredCheckout);
+          setPendingOrderId(previousOrderId);
+          await finishHostedPayment(previousOrderId, hostedPaymentContext(previousProvider, {
+            embedded: embedMode,
+            restaurantSlug: embedRestaurantSlug || undefined,
+            parentOrigin: embedMode ? readEmbedParentOrigin() : null,
+          }));
+          return;
+        }
+        // Om create-svaret tappades finns ingen återöppningslänk. Fortsätt med
+        // samma idempotenta order. För Swish verifierar backend den reserverade
+        // requesten och roterar säkert vid behov; hosted providers returnerar
+        // sin befintliga checkout-URL igen.
+      }
+      if (previousOrderId && !sameCheckoutAttempt) {
+        // Ny payload/provider får en ny request först efter verifierad terminal
+        // cancel. PAID vinner alltid; pending/nätfel bevarar original-proof.
+        const cancellation = await abandonPendingOrder(previousOrderId);
+        if (cancellation === "paid") {
+          await goToOrderTracking(previousOrderId);
+          return;
+        }
+        if (cancellation === "pending") {
+          const restoredCheckout = readPersistedSwishCheckout(localStorage, previousOrderId);
+          if (restoredCheckout) setSwishCheckout(restoredCheckout);
+          setPendingOrderId(previousOrderId);
+          setError("Den tidigare betalningen kan fortfarande behandlas och kunde inte avbrytas säkert. Vänta på status eller öppna Swish igen innan du ändrar betalsätt.");
+          return;
+        }
         clearPendingPaymentStorage();
         setPendingOrderId(null);
       }
@@ -2248,6 +2429,7 @@ export default function CartPage() {
       // is read elsewhere solely to migrate checkouts created by old clients.
       localStorage.setItem("pending_order_id", orderId);
       localStorage.setItem("pending_order_phone", (formData.customerPhone || "").trim());
+      writePendingPaymentProvider(localStorage, checkoutProvider);
       setPendingOrderId(orderId);
 
       // Step 2: Skapa hosted checkout och skicka kunden dit. Providern
@@ -2293,13 +2475,18 @@ export default function CartPage() {
           paymentInFlightRef.current = false;
           throw new Error("Swish-betalningen saknar öppningslänk eller QR-kod");
         }
-        setSwishCheckout({ orderId, appUrl, qrCode });
-        void finishHostedPayment(orderId, {
+        const checkout = { orderId, appUrl, qrCode };
+        writePersistedSwishCheckout(localStorage, checkout);
+        writePendingPaymentProvider(localStorage, "swish");
+        setSwishCheckout(checkout);
+        void finishHostedPayment(orderId, hostedPaymentContext("swish", {
           embedded: checkoutEmbedded,
           restaurantSlug: embedRestaurantSlug || undefined,
           parentOrigin: embedParentOrigin,
-          pollAttempts: 90,
-        });
+          // Swish callback är normalflödet. Om den dröjer följer vi deras
+          // rekommenderade 10, 20, 40, 80…-pollning med jitter för att undvika
+          // 429 och synkroniserade klienttoppar.
+        }));
         return;
       }
       const checkoutUrl: string | undefined = payRes.data?.checkoutUrl;
@@ -2809,17 +2996,17 @@ export default function CartPage() {
                   style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)" }}
                 >
                   <span
-                    className="grid h-9 w-9 shrink-0 place-items-center rounded-lg"
-                    style={{ backgroundColor: "#1A1A1A" }}
+                    className="grid h-9 w-[88px] shrink-0 place-items-center rounded-lg bg-white px-2"
+                    style={{ border: "1px solid rgba(23, 26, 27, 0.10)" }}
                   >
-                    <Smartphone size={17} color="#FFFFFF" strokeWidth={2.3} />
+                    <img src="/swish-logo.svg" alt="Swish" className="h-auto w-full" />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-[14.5px] font-semibold" style={{ color: "var(--text-primary)" }}>
                       Betala med Swish
                     </span>
                     <span className="block text-[12px]" style={{ color: "var(--text-secondary)" }}>
-                      Öppnar Swish direkt – inget nummer behövs
+                      Betala med Swish smidigt och enkelt
                     </span>
                   </span>
                   <ArrowRight size={17} style={{ color: "var(--text-secondary)" }} />
@@ -2961,9 +3148,14 @@ export default function CartPage() {
             </h2>
             <p className="mt-2 text-[13.5px] leading-5" style={{ color: "var(--text-secondary)" }}>
               {isHandheld
-                ? "Swish öppnas med belopp och mottagare ifyllt – godkänn med BankID. Vi verifierar betalningen automatiskt."
+                ? "Swish öppnas med belopp och mottagare ifyllt – godkänn med BankID. Om appen inte öppnas automatiskt använder du knappen nedan."
                 : "Skanna QR-koden med Swish-appen. Beloppet är redan ifyllt och vi verifierar betalningen automatiskt."}
             </p>
+            {error && (
+              <p role="status" className="mt-3 rounded-xl bg-rose-500/10 px-3 py-2 text-[12.5px] font-medium leading-5 text-rose-600">
+                {error}
+              </p>
+            )}
             {/* QR-koden är meningslös på telefonen som ska betala — den kan inte
                 skanna sin egen skärm. Där är app-länken hela flödet. */}
             {!isHandheld && (
@@ -2975,17 +3167,17 @@ export default function CartPage() {
             )}
             <a
               href={swishCheckout.appUrl}
+              aria-label="Öppna Swish manuellt för att godkänna betalningen"
               className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl px-4 text-[15px] font-semibold text-white"
               style={{ backgroundColor: "#2C2C2C" }}
             >
-              {isHandheld ? "Öppna Swish igen" : "Öppna Swish"} <ArrowRight size={18} />
+              {isHandheld ? "Öppna Swish manuellt" : "Öppna Swish på den här enheten"} <ArrowRight size={18} />
             </a>
             <button
               type="button"
               onClick={() => {
                 const orderId = swishCheckout.orderId;
                 paymentInFlightRef.current = false;
-                setSwishCheckout(null);
                 void handlePaymentCancelled(orderId);
               }}
               className="mt-3 h-10 px-4 text-[13px] font-semibold"
@@ -3210,7 +3402,20 @@ export default function CartPage() {
                   </div>
                 )}
 
-                {error && <div className="p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[13.5px] font-medium text-center leading-snug">{error}</div>}
+                {error && (
+                  <div className="p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[13.5px] font-medium text-center leading-snug">
+                    <p>{error}</p>
+                    {pendingOrderId && (
+                      <button
+                        type="button"
+                        onClick={() => { void handlePaymentCancelled(pendingOrderId); }}
+                        className="mt-3 rounded-lg border border-rose-500/30 px-3 py-2 text-[12.5px] font-semibold"
+                      >
+                        Avbryt väntande betalning säkert
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 {renderPayMenu()}
 
@@ -3614,7 +3819,20 @@ export default function CartPage() {
 
                      {/* Mobile: checkout (desktop has this in left column) */}
                      <div className="lg:hidden">
-                       {error && <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[13.5px] font-medium text-center leading-snug">{error}</motion.div>}
+                       {error && (
+                         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[13.5px] font-medium text-center leading-snug">
+                           <p>{error}</p>
+                           {pendingOrderId && (
+                             <button
+                               type="button"
+                               onClick={() => { void handlePaymentCancelled(pendingOrderId); }}
+                               className="mt-3 rounded-lg border border-rose-500/30 px-3 py-2 text-[12.5px] font-semibold"
+                             >
+                               Avbryt väntande betalning säkert
+                             </button>
+                           )}
+                         </motion.div>
+                       )}
 
                        {/* Sticky på mobil: knappen följer med ovanför bottennaven
                            tills man scrollat ner till dess naturliga plats —

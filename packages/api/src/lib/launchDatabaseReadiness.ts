@@ -16,6 +16,8 @@ const REQUIRED_CHECKS: Readonly<Record<string, string>> = {
   customer_legacy_credentials_absent: 'Legacy-fält för kundlösenord eller e-postverifiering finns kvar',
   order_client_request_id: 'Order.clientRequestId saknas',
   order_client_request_unique: 'Unikt index för Order.clientRequestId saknas',
+  order_swish_payment_id: 'Order.swishPaymentId saknas',
+  order_swish_payment_id_index: 'Index för Order.swishPaymentId saknas',
   extra_group_restaurant_index: 'Tenant-index för ExtraGroup.restaurantId saknas',
   restaurant_archived_index: 'Index för Restaurant.archivedAt saknas',
   category_restaurant_restrict: 'Category.restaurantId saknar ON DELETE RESTRICT',
@@ -107,6 +109,14 @@ export async function getLaunchDatabaseSchemaIssues(): Promise<LaunchDatabaseSch
       ('order_client_request_unique', EXISTS (
         SELECT 1 FROM pg_indexes
         WHERE schemaname = current_schema() AND indexname = 'Order_clientRequestId_key'
+      )),
+      ('order_swish_payment_id', EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'Order' AND column_name = 'swishPaymentId'
+      )),
+      ('order_swish_payment_id_index', EXISTS (
+        SELECT 1 FROM pg_indexes
+        WHERE schemaname = current_schema() AND indexname = 'Order_swishPaymentId_idx'
       )),
       ('extra_group_restaurant_index', EXISTS (
         SELECT 1 FROM pg_indexes

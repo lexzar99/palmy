@@ -119,6 +119,7 @@ export async function calculateLateRefundRecoveryPlan(
         paymentStatus: true,
         paymentProvider: true,
         molliePaymentId: true,
+        swishPaymentId: true,
         total: true,
         deliveryFee: true,
         tipAmount: true,

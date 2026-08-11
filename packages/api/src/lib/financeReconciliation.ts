@@ -13,6 +13,7 @@ export type FinanceReconciliationOrder = {
   paymentStatus: string;
   paymentProvider: string | null;
   molliePaymentId: string | null;
+  swishPaymentId?: string | null;
   total: number;
   refundAmount: number | null;
 };
@@ -26,6 +27,8 @@ export type FinanceDeviation = {
     | 'SETTLED_PAYMENT_OUTSIDE_ACCOUNTING'
     | 'MOLLIE_PAYMENT_ID_MISSING'
     | 'DUPLICATE_MOLLIE_PAYMENT_ID'
+    | 'SWISH_PAYMENT_ID_MISSING'
+    | 'DUPLICATE_SWISH_PAYMENT_ID'
     | 'REFUND_AMOUNT_INVALID'
     | 'MOLLIE_REPORTING_UNAVAILABLE'
     | 'UNLINKED_MOLLIE_PAYMENT'
@@ -45,6 +48,14 @@ export type FinanceDeviation = {
 const normalized = (value: unknown) => String(value || '').trim().toUpperCase();
 const isMollie = (order: FinanceReconciliationOrder) =>
   String(order.paymentProvider || '').trim().toLowerCase() === 'mollie';
+const isSwish = (order: FinanceReconciliationOrder) =>
+  String(order.paymentProvider || '').trim().toLowerCase() === 'swish';
+const providerPaymentId = (order: FinanceReconciliationOrder) =>
+  isMollie(order)
+    ? String(order.molliePaymentId || '').trim()
+    : isSwish(order)
+      ? String(order.swishPaymentId || '').trim()
+      : '';
 
 export function reconcileFinanceOrders(input: {
   orders: readonly FinanceReconciliationOrder[];
@@ -69,7 +80,7 @@ export function reconcileFinanceOrders(input: {
         restaurantId: order.restaurantId,
         orderId: order.id,
         orderNumber: order.orderNumber,
-        paymentId: order.molliePaymentId,
+        paymentId: providerPaymentId(order) || null,
         title: `Levererad order utan slutbetald betalning`,
         detail: `Order ${order.orderNumber} är ${normalized(order.status)} men betalningen är ${normalized(order.paymentStatus) || 'OKÄND'}. Den räknas inte som intäkt.`,
         amountOre: total,
@@ -86,7 +97,7 @@ export function reconcileFinanceOrders(input: {
         restaurantId: order.restaurantId,
         orderId: order.id,
         orderNumber: order.orderNumber,
-        paymentId: order.molliePaymentId,
+        paymentId: providerPaymentId(order) || null,
         title: `Betald order utanför restaurangutbetalning`,
         detail: `Order ${order.orderNumber} har en verklig betalning men orderstatus ${normalized(order.status) || 'OKÄND'}. Pengarna syns i ekonomin men betalas inte ut till restaurangen innan leverans eller slutlig återbetalning är klar.`,
         amountOre: Math.max(0, total - Math.max(0, refund)),
@@ -112,6 +123,23 @@ export function reconcileFinanceOrders(input: {
       });
     }
 
+    if (settled && isSwish(order) && !String(order.swishPaymentId || '').trim()) {
+      deviations.push({
+        id: `missing-swish-payment-id:${order.id}`,
+        code: 'SWISH_PAYMENT_ID_MISSING',
+        severity: 'critical',
+        restaurantId: order.restaurantId,
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        paymentId: null,
+        title: `Swish-referens saknas`,
+        detail: `Order ${order.orderNumber} är bokförd som betald men saknar Swish payment request ID. Betalningen och återbetalningar kan därför inte stämmas av.`,
+        amountOre: total,
+        affectedOrderCount: 1,
+        confirmedLoss: false,
+      });
+    }
+
     const partial = normalized(order.paymentStatus) === 'PARTIALLY_REFUNDED';
     const full = normalized(order.paymentStatus) === 'REFUNDED';
     if (
@@ -127,7 +155,7 @@ export function reconcileFinanceOrders(input: {
         restaurantId: order.restaurantId,
         orderId: order.id,
         orderNumber: order.orderNumber,
-        paymentId: order.molliePaymentId,
+        paymentId: providerPaymentId(order) || null,
         title: `Återbetalningen stämmer inte`,
         detail: `Order ${order.orderNumber} har status ${normalized(order.paymentStatus)} men ${refund} öre återbetalt av ${total} öre.`,
         amountOre: Math.max(0, refund - total),
@@ -167,6 +195,38 @@ export function reconcileFinanceOrders(input: {
         confirmedLoss: false,
       });
     }
+  }
+
+
+  const swishOrdersByPaymentId = new Map<string, FinanceReconciliationOrder[]>();
+  for (const order of realOrders.filter(isSwish)) {
+    const paymentId = providerPaymentId(order);
+    if (!paymentId) continue;
+    const rows = swishOrdersByPaymentId.get(paymentId) || [];
+    rows.push(order);
+    swishOrdersByPaymentId.set(paymentId, rows);
+  }
+
+  for (const [paymentId, paymentOrders] of swishOrdersByPaymentId) {
+    if (paymentOrders.length <= 1) continue;
+    deviations.push({
+      id: `duplicate-swish:${paymentId}`,
+      code: 'DUPLICATE_SWISH_PAYMENT_ID',
+      severity: 'critical',
+      restaurantId: paymentOrders[0]?.restaurantId || null,
+      orderId: null,
+      orderNumber: paymentOrders.map((order) => order.orderNumber).join(', '),
+      paymentId,
+      title: `Samma Swish-betalning används flera gånger`,
+      detail: `${paymentId} är kopplad till ${paymentOrders.length} ordrar. Kontrollera att försäljningen inte dubbelräknas.`,
+      amountOre: paymentOrders
+        .map((order) => Math.max(0, Number(order.total || 0)))
+        .sort((a, b) => b - a)
+        .slice(1)
+        .reduce((sum, amount) => sum + amount, 0),
+      affectedOrderCount: paymentOrders.length,
+      confirmedLoss: false,
+    });
   }
 
   if (input.feeStatus === 'unavailable' && ordersByPaymentId.size > 0) {
