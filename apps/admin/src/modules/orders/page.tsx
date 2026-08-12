@@ -385,7 +385,7 @@ function OrderDetailsModalContent({
     <Modal
       open={open}
       onClose={closeDetails}
-      size="lg"
+      size="xl"
       title={order ? `Order ${order.orderNumber}` : "Orderdetaljer"}
       description={order ? `${order.restaurantName || "Okänd restaurang"} · ${formatDateTime(order.createdAt)} · ${orderTypeLabel(order.type)}` : undefined}
       footer={<Button className="w-full sm:w-auto" onClick={onClose}>Stäng</Button>}
@@ -411,10 +411,13 @@ function OrderDetailsModalContent({
             </div>
           ) : null}
 
-          <div className="grid gap-4">
-            {/* ── Operationellt först: kund, status, återbetalning och noteringar ── */}
-            <div className="order-1 space-y-4">
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.78fr)] lg:items-start">
+          {/* Ett rutnät för hela ordern: orderinnehållet till vänster, kund och
+              åtgärder som en smal sidokolumn. Tidigare låg allt som fullbreda
+              kort staplade på varandra. */}
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.85fr)] lg:items-start">
+            {/* ── Sidokolumn: kund, leverans, åtgärder, anteckningar ── */}
+            <div className="order-1 space-y-4 lg:order-2">
+              <div className="space-y-4">
                 <div className="space-y-4">
                   {/* Kund */}
                   <div className="surface px-5 py-4">
@@ -602,10 +605,15 @@ function OrderDetailsModalContent({
                   </div>
                 </div>
               </div>
+              {/* Support-anteckningar: på ordern + på kunden (telefon). Super-admin-only. */}
+              <NotesPanel target={{ orderId: order.id }} title="Anteckningar på ordern" />
+              {order.customerPhone ? (
+                <NotesPanel target={{ customerPhone: order.customerPhone }} title="Anteckningar på kunden" />
+              ) : null}
             </div>
 
-            {/* ── Orderinnehåll: artiklar + kvitto/summa, bud ── */}
-            <div className="order-2 space-y-4">
+            {/* ── Huvudspår: artiklar, kvitto, bud och återbetalningar ── */}
+            <div className="order-2 space-y-4 lg:order-1">
               <div className="surface px-5 py-5">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-[14.5px] font-extrabold tracking-[-0.01em]">
@@ -631,43 +639,6 @@ function OrderDetailsModalContent({
                       </div>
                     );
                   })}
-                </div>
-
-                {/* Kvitto / summa */}
-                <div className="mt-2 border-t border-[var(--border-strong)] pt-3">
-                  <div className="flex items-center justify-between py-1 text-[13px] text-[var(--text-secondary)]">
-                    <span>Delsumma</span>
-                    <span className="tabular-nums">{formatCurrency(order.total - (order.deliveryFee || 0) - orderTipAmount(order) + (order.discountAmount || 0))}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1 text-[13px] text-[var(--text-secondary)]">
-                    <span>Leverans</span>
-                    <span className="tabular-nums">{formatCurrency(order.deliveryFee || 0)}</span>
-                  </div>
-                  {order.discountAmount ? (
-                    <div className="flex items-center justify-between py-1 text-[13px] text-[var(--text-secondary)]">
-                      <span>Rabatt</span>
-                      <span className="tabular-nums">−{formatCurrency(order.discountAmount)}</span>
-                    </div>
-                  ) : null}
-                  <div className={orderTipAmount(order) > 0
-                    ? "flex items-center justify-between rounded-lg bg-[var(--success-soft)] px-2.5 py-2 text-[13px] font-semibold text-[var(--success-text)]"
-                    : "flex items-center justify-between py-1 text-[13px] text-[var(--text-secondary)]"}
-                  >
-                    <span>Dricks till budet</span>
-                    <span className="tabular-nums">{orderTipAmount(order) > 0 ? "+" : ""}{formatCurrency(orderTipAmount(order))}</span>
-                  </div>
-                  <div className="mt-1.5 flex items-baseline justify-between">
-                    <span className="text-[15px] font-extrabold">Totalt</span>
-                    <span className="text-[19px] font-extrabold tracking-[-0.02em] tabular-nums">{formatCurrency(order.total)}</span>
-                  </div>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-[var(--text-muted)]">
-                    <span>Betalt med {order.paymentMethod || "—"}</span>
-                    {order.paymentStatus ? <Badge tone={order.paymentStatus === "PAID" ? "success" : order.paymentStatus === "REFUNDED" ? "danger" : order.paymentStatus === "REFUNDING" || order.paymentStatus === "PARTIALLY_REFUNDED" ? "warning" : "neutral"}>{paymentStatusLabel(order.paymentStatus)}</Badge> : null}
-                    <span>· {formatDateTime(order.createdAt)}</span>
-                  </div>
-                </div>
-              </div>
-
               {order.courier && (
                 <div className="surface px-5 py-5">
                   <div className="flex items-start justify-between gap-2">
@@ -768,8 +739,6 @@ function OrderDetailsModalContent({
                   )}
                 </div>
               )}
-            </div>
-
               {/* ── Återbetalning ── */}
               {refundedAmount > 0 ? (
                 <div className="surface flex items-center gap-2.5 px-5 py-4 text-[13px] font-semibold text-[var(--success-text)]">
@@ -833,11 +802,44 @@ function OrderDetailsModalContent({
                 </div>
               ) : null}
 
-              {/* Support-anteckningar: på ordern + på kunden (telefon). Super-admin-only. */}
-              <NotesPanel target={{ orderId: order.id }} title="Anteckningar på ordern" />
-              {order.customerPhone ? (
-                <NotesPanel target={{ customerPhone: order.customerPhone }} title="Anteckningar på kunden" />
-              ) : null}
+            </div>
+
+              {/* Kvitto / summa */}
+                <div className="mt-2 border-t border-[var(--border-strong)] pt-3">
+                  <div className="flex items-center justify-between py-1 text-[13px] text-[var(--text-secondary)]">
+                    <span>Delsumma</span>
+                    <span className="tabular-nums">{formatCurrency(order.total - (order.deliveryFee || 0) - orderTipAmount(order) + (order.discountAmount || 0))}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 text-[13px] text-[var(--text-secondary)]">
+                    <span>Leverans</span>
+                    <span className="tabular-nums">{formatCurrency(order.deliveryFee || 0)}</span>
+                  </div>
+                  {order.discountAmount ? (
+                    <div className="flex items-center justify-between py-1 text-[13px] text-[var(--text-secondary)]">
+                      <span>Rabatt</span>
+                      <span className="tabular-nums">−{formatCurrency(order.discountAmount)}</span>
+                    </div>
+                  ) : null}
+                  <div className={orderTipAmount(order) > 0
+                    ? "flex items-center justify-between rounded-lg bg-[var(--success-soft)] px-2.5 py-2 text-[13px] font-semibold text-[var(--success-text)]"
+                    : "flex items-center justify-between py-1 text-[13px] text-[var(--text-secondary)]"}
+                  >
+                    <span>Dricks till budet</span>
+                    <span className="tabular-nums">{orderTipAmount(order) > 0 ? "+" : ""}{formatCurrency(orderTipAmount(order))}</span>
+                  </div>
+                  <div className="mt-1.5 flex items-baseline justify-between">
+                    <span className="text-[15px] font-extrabold">Totalt</span>
+                    <span className="text-[19px] font-extrabold tracking-[-0.02em] tabular-nums">{formatCurrency(order.total)}</span>
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-[var(--text-muted)]">
+                    <span>Betalt med {order.paymentMethod || "—"}</span>
+                    {order.paymentStatus ? <Badge tone={order.paymentStatus === "PAID" ? "success" : order.paymentStatus === "REFUNDED" ? "danger" : order.paymentStatus === "REFUNDING" || order.paymentStatus === "PARTIALLY_REFUNDED" ? "warning" : "neutral"}>{paymentStatusLabel(order.paymentStatus)}</Badge> : null}
+                    <span>· {formatDateTime(order.createdAt)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       )}
