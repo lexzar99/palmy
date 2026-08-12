@@ -3667,6 +3667,24 @@ export default function CartPage() {
                                           </p>
                                         )}
                                       </div>
+                                      <div>
+                                        <label className="block text-[12px] font-semibold mb-1" style={{ color: "var(--text-secondary)" }}>
+                                          E-post för kvitto
+                                        </label>
+                                        <input
+                                          value={formData.customerEmail}
+                                          onChange={e => setFormData({ ...formData, customerEmail: e.target.value })}
+                                          type="email"
+                                          inputMode="email"
+                                          autoComplete="email"
+                                          className="w-full h-11 rounded-xl px-3.5 bg-transparent outline-none text-[15px] font-medium"
+                                          style={{ border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+                                          placeholder="namn@exempel.se"
+                                        />
+                                        <p className="pt-1 text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
+                                          Valfri — kvittot på köpet skickas hit och fylls i automatiskt vid nästa betalning.
+                                        </p>
+                                      </div>
                                     </div>
                                   </CartCollapsibleRow>
                                 </div>
@@ -3674,12 +3692,16 @@ export default function CartPage() {
                             );
                           }
 
-                          // GÄST: öppet formulär, endast namn + telefon. Ingen e-post,
-                          // ingen portkod. Adressen visas bara i statusraden ovan.
+                          // GÄST: öppet formulär — namn + telefon (krav) och valfri
+                          // e-post för kvittot. E-posten sparas lokalt och förifylls
+                          // både här och (låst) på Stripes betalsida nästa gång, så
+                          // kunden aldrig behöver skriva den igen. Ingen portkod;
+                          // adressen visas bara i statusraden ovan.
                           const nameTouched = formData.customerName.length > 0;
                           const phoneTouched = formData.customerPhone.length > 0;
                           const nameInvalid = nameTouched && formData.customerName.trim().length < 2;
                           const phoneInvalid = phoneTouched && formData.customerPhone.replace(/\D/g, '').length < 8;
+                          const emailInvalid = formData.customerEmail.trim().length > 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.customerEmail.trim());
                           return (
                             <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-muted)", backgroundColor: "var(--bg-card)" }}>
                               <div className="px-4 py-3 flex items-center justify-between gap-3" style={{ borderBottom: "1px solid var(--border-muted)" }}>
@@ -3697,6 +3719,18 @@ export default function CartPage() {
                                 <input value={formData.customerPhone} onChange={e => setFormData({ ...formData, customerPhone: e.target.value })} type="tel" inputMode="tel" autoComplete="tel" className={inputCls} style={inputStyle} placeholder="070 000 00 00" />
                               </div>
                               {phoneInvalid && <p className="px-4 pb-2 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.phoneTooShort")}</p>}
+                              {hair}
+                              <div className="flex items-center min-h-[52px] px-4">
+                                <span style={lbl(emailInvalid)}>E-post</span>
+                                <input value={formData.customerEmail} onChange={e => setFormData({ ...formData, customerEmail: e.target.value })} type="email" inputMode="email" autoComplete="email" className={inputCls} style={inputStyle} placeholder="För kvitto på köpet" />
+                              </div>
+                              {emailInvalid ? (
+                                <p className="px-4 pb-2 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.invalidEmail")}</p>
+                              ) : (
+                                <p className="px-4 pb-3 text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
+                                  Valfri — kvittot på köpet skickas hit och e-posten fylls i automatiskt nästa gång.
+                                </p>
+                              )}
                             </div>
                           );
                         })()}

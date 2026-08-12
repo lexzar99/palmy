@@ -46,8 +46,8 @@ import authRoutes from './routes/auth';
 import terminalRoutes from './routes/terminal';
 // Kompatibilitetsrouter för Stripes gamla webhook-URL. Gamla klient-endpoints
 // är pensionerade; alla aktiva klienter använder provider-neutrala API:t.
+import legacyPaymentClientRoutes from './routes/paymentsLegacyClient';
 import paymentRoutes from './routes/payments';
-import paymentsRoutes from './routes/paymentsMollie';
 import discountRoutes from './routes/discount';
 import settingsRoutes from './routes/settings';
 import dealsRoutes from './routes/deals';
@@ -415,8 +415,8 @@ app.use('/api/account', referralsRoutes);
 app.use('/api/account', inviteRoutes);
 app.use('/api/public', referralsPublic);
 app.use('/api/public', publicInviteRouter);
-app.use('/api/payments', paymentRoutes); // Endast gammal Stripe-webhook + 410 för gamla klienter
-app.use('/api/payments', paymentsRoutes); // Provider-neutralt create/status/webhooks
+app.use('/api/payments', legacyPaymentClientRoutes); // Endast gammal Stripe-webhook + 410 för gamla klienter
+app.use('/api/payments', paymentRoutes); // Provider-neutralt create/status/webhooks
 app.use('/api/discount', discountRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/deals', dealsRoutes);

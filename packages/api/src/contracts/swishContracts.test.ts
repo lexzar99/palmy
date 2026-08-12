@@ -93,7 +93,7 @@ const paymentProviderSource = readFileSync(path.resolve(__dirname, '../lib/payme
 assert.match(paymentProviderSource, /provider\.cancelPayment\(paymentRef\)/);
 assert.match(paymentProviderSource, /provider\.getRemoteStatus\(paymentRef\)/);
 
-const paymentRouteSource = readFileSync(path.resolve(__dirname, '../routes/paymentsMollie.ts'), 'utf8');
+const paymentRouteSource = readFileSync(path.resolve(__dirname, '../routes/payments.ts'), 'utf8');
 assert.match(paymentRouteSource, /inspectSwishTlsConfiguration\(\)\.ok/);
 assert.match(
   paymentRouteSource,

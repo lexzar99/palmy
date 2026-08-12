@@ -5,9 +5,10 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
-// Retursida för Mollie hosted checkout från APPEN. Appen pollar orderstatus
-// själv (webhooken är sanningen), så den här sidan behöver bara tala om för
-// kunden att stänga webbläsaren. Utan den fick appens Safari-sheet en 404.
+// Retursida för hosted checkout från APPEN (oavsett provider). Appen pollar
+// orderstatus själv (webhooken är sanningen), så den här sidan behöver bara
+// tala om för kunden att stänga webbläsaren. Utan den fick appens
+// Safari-sheet en 404.
 export default function PayReturnPage() {
   return (
     <div

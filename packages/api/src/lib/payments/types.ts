@@ -1,7 +1,8 @@
 /**
  * Provider-agnostiskt betalnings-interface.
  *
- * Allt betal-specifikt (Mollie idag, Adyen/Stripe senare) göms bakom detta.
+ * Allt betal-specifikt (Stripe och Swish idag, Mollie/Adyen för historiska
+ * ordrar) göms bakom detta.
  * Routes och klienter pratar bara med interfacet → byte av PSP blir en
  * inpluggning, inte en omskrivning. Aktiv provider väljs via env
  * PAYMENT_PROVIDER (se ./index.ts).
@@ -64,9 +65,9 @@ export interface CreatePaymentArgs {
 }
 
 export interface CreatePaymentResult {
-  /** PSP-referensen som länkas på ordern (Mollie: payment-id, Adyen: session-id). */
+  /** PSP-referensen som länkas på ordern (Stripe: cs_/pi_, Swish: instruction-id). */
   paymentRef: string;
-  /** Hostad checkout att redirecta/öppna (Mollie). Saknas för embeddade providers. */
+  /** Hostad checkout att redirecta/öppna. Saknas för direkta providers som Swish. */
   checkoutUrl?: string;
   /** Embeddade providers (Adyen sessions): blob som klientens SDK monterar. Ömsesidigt uteslutande med checkoutUrl. */
   session?: { id: string; sessionData: string };

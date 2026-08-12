@@ -33,7 +33,7 @@ assert.equal(stripeRefundState('canceled'), 'canceled');
 assert.equal(stripeRefundState(undefined), 'unknown');
 
 const stripeSource = readFileSync(resolve(__dirname, '../lib/payments/stripe.ts'), 'utf8');
-const paymentRouteSource = readFileSync(resolve(__dirname, '../routes/paymentsMollie.ts'), 'utf8');
+const paymentRouteSource = readFileSync(resolve(__dirname, '../routes/payments.ts'), 'utf8');
 const finalizeSource = readFileSync(resolve(__dirname, '../lib/payments/finalize.ts'), 'utf8');
 
 assert.match(stripeSource, /for await \(const refund of stripe\(\)\.refunds\.list/,

@@ -182,7 +182,7 @@ async function assertOneTimePaymentResumeExchange() {
 
 const ordersRouteSource = readFileSync(path.resolve(__dirname, '../routes/orders.ts'), 'utf8');
 const orderAccessSource = readFileSync(path.resolve(__dirname, '../lib/orderAccess.ts'), 'utf8');
-const paymentsRouteSource = readFileSync(path.resolve(__dirname, '../routes/paymentsMollie.ts'), 'utf8');
+const paymentsRouteSource = readFileSync(path.resolve(__dirname, '../routes/payments.ts'), 'utf8');
 const authRouteSource = readFileSync(path.resolve(__dirname, '../routes/auth.ts'), 'utf8');
 const pushRouteSource = readFileSync(path.resolve(__dirname, '../routes/push.ts'), 'utf8');
 const deviceSource = readFileSync(path.resolve(__dirname, '../lib/deviceInstallations.ts'), 'utf8');

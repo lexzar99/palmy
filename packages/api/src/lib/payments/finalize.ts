@@ -2,7 +2,7 @@
  * Provider-neutral money-truth.
  *
  * Detta är den ENDA finaliseringspunkten för en betald order, oavsett PSP.
- * Mollie, Stripe och Adyen kallar hit i stället för att duplicera
+ * Stripe, Swish, Mollie och Adyen kallar alla hit i stället för att duplicera
  * order-livscykeln.
  *
  * Allt här är idempotent — webhook, reconcile-poller och en ev. klient-driven
