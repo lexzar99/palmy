@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2,
-  ShoppingBag,
   Store,
   Truck,
   Trash2,
@@ -364,6 +363,9 @@ export default function CartPage() {
   const { items, removeItem, updateQuantity, updateItem, getTotal, clearCart, restaurantId: cartRestaurantId, restaurantSlug: cartRestaurantSlug } = useCartStore();
   // Namnet på restaurangen man beställer från — visas högst upp i kassan.
   const [cartRestaurantName, setCartRestaurantName] = useState<string | null>(null);
+  // Avhämtning måste säga var maten hämtas — annars vet kunden bara att den
+  // inte levereras.
+  const [cartRestaurantAddress, setCartRestaurantAddress] = useState<string | null>(null);
   const router = useRouter();
   const [embedMode, setEmbedMode] = useState(false);
   const [embedRestaurantFromUrl, setEmbedRestaurantFromUrl] = useState<string | null>(null);
@@ -392,6 +394,9 @@ export default function CartPage() {
 
   // Rekommenderad vara öppnas i samma produktmodal som menyn använder, så
   // tillvalsgrupper och priser blir identiska med restaurangsidan.
+  // En produktbild som 404:ar renderas annars som webbläsarens trasig-bild-
+  // symbol (ett frågetecken på iOS). Tom yta är rätt fallback i kassan.
+  const [failedImageIds, setFailedImageIds] = useState<Set<string>>(new Set());
   const [addingProduct, setAddingProduct] = useState<any>(null);
   const [addingProductId, setAddingProductId] = useState<string | null>(null);
   const handleAddRecommended = useCallback(async (productId: string) => {
@@ -1370,6 +1375,17 @@ export default function CartPage() {
       // and in that case the zone check endpoint already returns the restaurant default.
       if (restaurantRes.data) {
         if (restaurantRes.data.name) setCartRestaurantName(restaurantRes.data.name);
+        setCartRestaurantAddress((() => {
+          const street = String(restaurantRes.data.address || "").trim();
+          if (!street) return null;
+          // Adressfältet innehåller ofta redan ort ("Kiliansgatan 14, Lund,
+          // Sverige"). Lägg bara till ort/postnummer när de faktiskt saknas.
+          const city = String(restaurantRes.data.city || "").trim();
+          const zip = String(restaurantRes.data.zipCode || restaurantRes.data.postalCode || "").trim();
+          const hasCity = city && street.toLowerCase().includes(city.toLowerCase());
+          const tail = [zip, hasCity ? "" : city].filter(Boolean).join(" ").trim();
+          return tail ? `${street}, ${tail}` : street;
+        })());
         setRestaurantSettings((prev) => ({
           ...prev,
           isOpen: restaurantRes.data.isOpen ?? prev.isOpen,
@@ -3181,13 +3197,22 @@ export default function CartPage() {
                 style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
               >
                 <span className="block h-[84px] w-full overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
-                  {image ? (
-                    <img src={image} alt="" loading="lazy" className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="flex h-full w-full items-center justify-center">
-                      <ShoppingBag size={20} style={{ color: "var(--text-secondary)", opacity: 0.5 }} />
-                    </span>
-                  )}
+                  {image && !failedImageIds.has(product.id) ? (
+                    <img
+                      src={image}
+                      alt=""
+                      loading="lazy"
+                      className="h-full w-full object-cover"
+                      onError={() => {
+                        setFailedImageIds((previous) => {
+                          if (previous.has(product.id)) return previous;
+                          const next = new Set(previous);
+                          next.add(product.id);
+                          return next;
+                        });
+                      }}
+                    />
+                  ) : null}
                 </span>
                 <span className="block px-2.5 py-2">
                   <span className="line-clamp-2 block min-h-[32px] text-[12.5px] font-semibold leading-4" style={{ color: "var(--text-primary)" }}>
@@ -3959,7 +3984,20 @@ export default function CartPage() {
                           <div className="rounded-xl border px-4 py-3 flex gap-3" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
                             <Store size={17} className="shrink-0 mt-0.5" style={{ color: "var(--gold-ink)" }} />
                             <div className="min-w-0">
-                              <p className="text-[13.5px] font-semibold" style={{ color: "var(--text-primary)" }}>Avhämtning vald</p>
+                              <p className="text-[13.5px] font-semibold" style={{ color: "var(--text-primary)" }}>
+                                Hämtas hos {cartRestaurantName || "restaurangen"}
+                              </p>
+                              {cartRestaurantAddress ? (
+                                <a
+                                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${cartRestaurantName || ""} ${cartRestaurantAddress}`.trim())}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="mt-0.5 block text-[12.5px] font-medium underline underline-offset-2"
+                                  style={{ color: "var(--text-secondary)" }}
+                                >
+                                  {cartRestaurantAddress}
+                                </a>
+                              ) : null}
                             </div>
                           </div>
                         )}

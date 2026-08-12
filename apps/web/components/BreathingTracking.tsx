@@ -434,8 +434,8 @@ export function BreathingTrackingPanel({
         <button
           type="button"
           onClick={() => setShowContact(true)}
-          className="flex h-[54px] items-center justify-center gap-2 rounded-[18px] border text-[14.5px] font-black transition active:scale-[0.98]"
-          style={{ backgroundColor: `${tint}17`, borderColor: `${tint}38`, color: tint }}
+          className="flex h-[54px] items-center justify-center gap-2 rounded-[18px] text-[14.5px] font-black text-white transition active:scale-[0.98]"
+          style={{ backgroundColor: tint }}
         >
           <Phone size={17} />
           Kontakt
@@ -443,8 +443,8 @@ export function BreathingTrackingPanel({
         <button
           type="button"
           onClick={onOpenInfo}
-          className="flex h-[54px] items-center justify-center gap-2 rounded-[18px] border text-[14.5px] font-black transition active:scale-[0.98]"
-          style={{ backgroundColor: `${tint}17`, borderColor: `${tint}38`, color: tint }}
+          className="flex h-[54px] items-center justify-center gap-2 rounded-[18px] text-[14.5px] font-black text-white transition active:scale-[0.98]"
+          style={{ backgroundColor: tint }}
         >
           <Receipt size={17} />
           Orderinfo

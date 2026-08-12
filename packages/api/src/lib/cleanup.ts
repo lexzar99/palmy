@@ -81,7 +81,7 @@ export async function runDailyCleanup(): Promise<void> {
   }
 }
 
-export const AWAITING_PAYMENT_TIMEOUT_MINUTES = 15;
+export const AWAITING_PAYMENT_TIMEOUT_MINUTES = 3;
 
 async function markAwaitingPaymentExpired(
   orderId: string,
@@ -90,16 +90,21 @@ async function markAwaitingPaymentExpired(
   reason: string,
 ) {
   await finalizePaymentFailed(orderId, { provider, ref, reason });
-  // Försvinner från alla aktiva orderflöden, men själva revisionsraden behålls.
-  // Hard-delete vore osäkert om en sen PSP-webhook behöver utredas.
-  await prisma.order.updateMany({
+  // En order som aldrig blev betald ska inte finnas kvar någonstans: den syns
+  // annars i kundens historik och går att ta kvitto på. Raden tas därför bort
+  // helt. Villkoret är avsiktligt snävt — bara en rad som fortfarande är
+  // AWAITING_PAYMENT och vars betalning PSP:n har bekräftat som misslyckad
+  // matchar, så en sent inkommen betalning aldrig kan raderas bort.
+  const deleted = await prisma.order.deleteMany({
     where: {
       id: orderId,
       status: 'AWAITING_PAYMENT',
       paymentStatus: 'FAILED',
     },
-    data: { status: 'CANCELLED' },
   });
+  if (deleted.count > 0) {
+    console.log(`[cleanup] Raderade obetald order ${orderId} (${reason})`);
+  }
 }
 
 /**

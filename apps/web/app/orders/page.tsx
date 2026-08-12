@@ -11,10 +11,11 @@ import { ensureKioskAccess } from "@/lib/kioskAccessClient";
 import { forgetActiveOrder, readActiveOrderRefs } from "@/lib/activeOrder";
 import { partnerOriginForRestaurant, readEmbedParentOrigin, trustedPartnerOrigin } from "@/lib/embedPartner";
 
-// Ordrar som inte ska visas i historiken — samma filter som profilens
-// order-flik (avbrutna/avvisade/obetalda göms).
-const HIDDEN_ORDER_STATUSES = new Set(["AWAITING_PAYMENT", "CANCELLED", "REJECTED", "DELIVERY_FAILED"]);
-const HIDDEN_PAYMENT_STATUSES = new Set(["PENDING", "FAILED", "EXPIRED"]);
+// Historiken visar det som faktiskt hände med pengarna: betalda ordrar och
+// avbrutna ordrar. En order som aldrig blev betald (AWAITING_PAYMENT) är inget
+// köp — den städas bort på servern och ska aldrig synas här.
+const HIDDEN_ORDER_STATUSES = new Set(["AWAITING_PAYMENT"]);
+const HIDDEN_PAYMENT_STATUSES = new Set(["PENDING", "EXPIRED"]);
 
 type OrderRow = {
   id: string;
@@ -258,7 +259,13 @@ export default function OrdersPage() {
           selfDelivery: typeof live?.selfDelivery === "boolean" ? live.selfDelivery : row.selfDelivery,
         }];
       });
-      setOrders(merged.filter((row) => !HIDDEN_ORDER_STATUSES.has(String(row.status || "").toUpperCase())));
+      // En rad visas bara när servern har bekräftat en tillåten status. Utan
+      // det kunde en obetald (AWAITING_PAYMENT) order ligga kvar i listan med
+      // kvitto och allt, bara för att statusen inte gick att läsa.
+      setOrders(merged.filter((row) => {
+        const status = String(row.status || "").toUpperCase();
+        return status.length > 0 && !HIDDEN_ORDER_STATUSES.has(status);
+      }));
     };
 
     const accessReady = embedMode && embedRestaurant

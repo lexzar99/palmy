@@ -99,6 +99,17 @@ export function refundRestaurantScope(admin: RefundAdmin | null | undefined): {
   return { allowed: false };
 }
 
+/** Namnet kunden/personalen känner igen. Aldrig hårdkodat i meddelandetexter. */
+export function refundProviderLabel(provider: string | null | undefined): string {
+  switch (String(provider || '').trim().toLowerCase()) {
+    case 'swish': return 'Swish';
+    case 'stripe': return 'Stripe';
+    case 'mollie': return 'Mollie';
+    case 'adyen': return 'Adyen';
+    default: return 'betalleverantören';
+  }
+}
+
 export type RefundLifecycleAction = 'complete' | 'wait' | 'release';
 
 /** Unknown provider responses remain locked until reconciliation proves an outcome. */

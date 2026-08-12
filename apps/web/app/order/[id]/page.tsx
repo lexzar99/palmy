@@ -991,7 +991,7 @@ const OrderStatusPage = () => {
 
   const OrderInfoOverlayWeb = (
     <AnimatePresence>
-      {showReceipt ? (
+      {showReceipt && !awaitingPayment ? (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -1114,7 +1114,9 @@ const OrderStatusPage = () => {
                 <p className="mt-0.5 text-[12.5px] font-medium" style={{ color: "var(--text-secondary)" }}>{statusDescription}</p>
               </div>
               <div className="text-right">
-                <button type="button" onClick={() => setShowReceipt(true)} className="mb-1 text-[11.5px] font-bold" style={{ color: statusAccentInk }}>Orderinfo & kvitto ›</button>
+                {awaitingPayment ? null : (
+                  <button type="button" onClick={() => setShowReceipt(true)} className="mb-1 text-[11.5px] font-bold" style={{ color: statusAccentInk }}>Orderinfo & kvitto ›</button>
+                )}
                 <p className="text-[10px] font-medium" style={{ color: "var(--text-secondary)" }}>{fullscreenEtaSub}</p>
                 <p className="text-[24px] font-black tracking-tight" style={{ color: isGreenStatus ? "#2E7D4F" : "var(--text-primary)" }}>{fullscreenEtaMain}</p>
               </div>
@@ -1792,7 +1794,7 @@ const OrderStatusPage = () => {
         {/* Kvitto-modal: snyggt kvitto med restaurangens juridiska uppgifter +
             nedladdning (max 2 ggr per order, klient-genererad HTML — ingen server). */}
         <AnimatePresence>
-          {showReceipt && (
+          {showReceipt && !awaitingPayment && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center px-4 pb-6 sm:pb-0 backdrop-blur-sm" style={{ backgroundColor: "rgba(10,10,10,0.7)" }} onClick={() => setShowReceipt(false)}>
               <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="w-full max-w-md max-h-[88vh] overflow-auto rounded-2xl border shadow-2xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }} onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-6 pt-5 pb-3 sticky top-0" style={{ backgroundColor: "var(--bg-secondary)", borderBottom: "1px solid var(--border-muted)" }}>

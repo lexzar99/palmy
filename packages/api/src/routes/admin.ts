@@ -27,6 +27,7 @@ import { parseMenuImport, runMenuImport } from '../lib/menuImport';
 import { runMenuSyncSafe } from '../lib/menuSync';
 import {
   isRefundRequiredTerminalStatus,
+  refundProviderLabel,
   refundRestaurantScope,
 } from '../lib/payments/refunds';
 import {
@@ -5035,11 +5036,15 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
       },
     });
     const refundStatus = String(outcome.refundStatus || (outcome.status === 'refund_pending' ? 'pending' : 'refunded')).toLowerCase();
-    const message = refundStatus === 'queued'
+    // Texten måste följa orderns egen leverantör. Saldokön finns bara hos
+    // Mollie — en Swish- eller Stripe-återbetalning ska aldrig be personalen
+    // fylla på ett Mollie-saldo.
+    const providerLabel = refundProviderLabel(outcome.provider);
+    const message = refundStatus === 'queued' && outcome.provider === 'mollie'
       ? 'Återbetalningen är köad hos Mollie eftersom saldot inte räcker just nu. Mollie genomför den automatiskt när saldot fylls på.'
-      : refundStatus === 'pending' || refundStatus === 'processing' || refundStatus === 'unknown'
-        ? 'Återbetalningen är mottagen av Mollie och behandlas. Ett nytt försök är spärrat tills Mollie lämnar slutstatus.'
-        : 'Återbetalningen är slutförd hos Mollie.';
+      : refundStatus === 'queued' || refundStatus === 'pending' || refundStatus === 'processing' || refundStatus === 'unknown'
+        ? `Återbetalningen är mottagen av ${providerLabel} och behandlas. Ett nytt försök är spärrat tills ${providerLabel} lämnar slutstatus.`
+        : `Återbetalningen är slutförd hos ${providerLabel}.`;
     res.status(outcome.status === 'refund_pending' ? 202 : 200).json({
       success: true,
       processing: outcome.status === 'refund_pending',
@@ -5055,7 +5060,7 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
     console.error('Refund error:', error);
     if (error instanceof RefundPersistenceConflict) {
       return res.status(409).json({
-        error: 'Återbetalningen skickades till betalningsleverantören men den lokala orderstatusen kunde inte slutföras. Försök inte igen med ett annat belopp; stäm av ordern mot Mollie.',
+        error: 'Återbetalningen skickades till betalningsleverantören men den lokala orderstatusen kunde inte slutföras. Försök inte igen med ett annat belopp; stäm av ordern mot betalleverantören.',
         requiresReconciliation: true,
       });
     }

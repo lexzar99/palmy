@@ -385,7 +385,7 @@ function OrderDetailsModalContent({
     <Modal
       open={open}
       onClose={closeDetails}
-      size="xl"
+      size="lg"
       title={order ? `Order ${order.orderNumber}` : "Orderdetaljer"}
       description={order ? `${order.restaurantName || "Okänd restaurang"} · ${formatDateTime(order.createdAt)} · ${orderTypeLabel(order.type)}` : undefined}
       footer={<Button className="w-full sm:w-auto" onClick={onClose}>Stäng</Button>}
@@ -826,91 +826,6 @@ function OrderDetailsModalContent({
                   </div>
                 </div>
               ) : null}
-              {showRefund && refundCanStart ? (
-                <div className="surface overflow-hidden border-[color-mix(in_srgb,var(--danger)_28%,transparent)] px-5 py-5">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-[14px] font-extrabold tracking-[-0.01em] text-[var(--danger-text)]">Återbetala order</p>
-                    <span className="font-[ui-monospace,Menlo,monospace] text-[12px] font-bold text-[var(--text-muted)]">{order.orderNumber}</span>
-                  </div>
-
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <Field label="Beloppstyp">
-                      <Select
-                        value={refundMode}
-                        onChange={(event) => {
-                          const mode = event.target.value === "partial" ? "partial" : "full";
-                          setRefundMode(mode);
-                          if (mode === "full") setRefundAmount("");
-                        }}
-                      >
-                        <option value="full">Hela återstående beloppet · {formatCurrency(remainingRefundAmount)}</option>
-                        <option value="partial">Delbelopp</option>
-                      </Select>
-                    </Field>
-                    {refundMode === "partial" ? (
-                      <Field label="Delbelopp" error={partialRefundError}>
-                        <MoneyInput
-                          value={refundAmount}
-                          onValueChange={setRefundAmount}
-                          placeholder="0"
-                          min={0}
-                          max={remainingRefundAmount}
-                        />
-                      </Field>
-                    ) : (
-                      <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] px-4 py-3">
-                        <p className="card-label">Återbetalas</p>
-                        <p className="mt-1 text-[17px] font-extrabold tabular-nums">{formatCurrency(remainingRefundAmount)}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <Field label="Anledning" className="mt-4">
-                    <Select
-                      value={refundReasonKey}
-                      onChange={(event) => setRefundReasonKey(event.target.value)}
-                    >
-                      <option value="">Välj anledning…</option>
-                      {REFUND_REASONS.map((r) => (
-                        <option key={r.value} value={r.value}>{r.label}</option>
-                      ))}
-                    </Select>
-                  </Field>
-                  {refundReasonKey ? (
-                    <Field label={refundReasonKey === "other" ? "Beskriv anledningen" : "Intern notering"} optional={refundReasonKey !== "other"} className="mt-3">
-                      <Textarea
-                        value={refundReasonExtra}
-                        onChange={(event) => setRefundReasonExtra(event.target.value)}
-                        placeholder={refundReasonKey === "other" ? "Beskriv anledningen" : "Lägg till en intern notering"}
-                      />
-                    </Field>
-                  ) : null}
-
-                  <div className="mt-4 flex flex-col-reverse gap-2.5 sm:flex-row">
-                    <Button variant="secondary" className="w-full flex-1" onClick={() => setShowRefund(false)} disabled={refundMutation.isPending}>
-                      Avbryt
-                    </Button>
-                    <Button
-                      variant="danger"
-                      className="w-full flex-[1.4]"
-                      onClick={() => {
-                        const amountKr = refundMode === "partial" ? partialRefundAmount : null;
-                        if (refundMode === "partial" && (amountKr === null || partialRefundError)) return;
-                        setRefundFeedback(null);
-                        setRefundError(null);
-                        setPendingConfirmation({ kind: "refund", amountKr });
-                      }}
-                      disabled={refundMutation.isPending || Boolean(partialRefundError)}
-                    >
-                      <ReceiptText size={16} />
-                      {refundMode === "partial" && partialRefundAmount !== null
-                        ? `Återbetala ${formatCurrency(partialRefundAmount)}`
-                        : `Återbetala ${formatCurrency(remainingRefundAmount)}`}
-                    </Button>
-                  </div>
-                </div>
-              ) : null}
-
               {order.note ? (
                 <div className="surface px-5 py-5">
                   <p className="card-label">Kundnotering</p>
@@ -926,6 +841,94 @@ function OrderDetailsModalContent({
           </div>
         </div>
       )}
+    </Modal>
+
+    {/* Återbetalning är ett eget beslut och får ett eget fönster. Tidigare
+        fälldes formuläret ut längst ner i orderfönstret, utanför synfältet, så
+        man var tvungen att leta rätt på det genom att skrolla. */}
+    <Modal
+      open={showRefund && refundCanStart}
+      onClose={() => setShowRefund(false)}
+      size="sm"
+      title="Återbetala order"
+      description={order ? `${order.orderNumber} · ${formatCurrency(remainingRefundAmount)} kvar att återbetala` : undefined}
+    >
+      {order ? (
+        <div className="space-y-4">
+          <Field label="Beloppstyp">
+            <Select
+              value={refundMode}
+              onChange={(event) => {
+                const mode = event.target.value === "partial" ? "partial" : "full";
+                setRefundMode(mode);
+                if (mode === "full") setRefundAmount("");
+              }}
+            >
+              <option value="full">Hela återstående beloppet · {formatCurrency(remainingRefundAmount)}</option>
+              <option value="partial">Delbelopp</option>
+            </Select>
+          </Field>
+
+          {refundMode === "partial" ? (
+            <Field label="Delbelopp" error={partialRefundError}>
+              <MoneyInput
+                value={refundAmount}
+                onValueChange={setRefundAmount}
+                placeholder="0"
+                min={0}
+                max={remainingRefundAmount}
+              />
+            </Field>
+          ) : (
+            <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel-muted)] px-4 py-3">
+              <p className="card-label">Återbetalas</p>
+              <p className="mt-1 text-[17px] font-extrabold tabular-nums">{formatCurrency(remainingRefundAmount)}</p>
+            </div>
+          )}
+
+          <Field label="Anledning">
+            <Select value={refundReasonKey} onChange={(event) => setRefundReasonKey(event.target.value)}>
+              <option value="">Välj anledning…</option>
+              {REFUND_REASONS.map((r) => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </Select>
+          </Field>
+
+          {refundReasonKey ? (
+            <Field label={refundReasonKey === "other" ? "Beskriv anledningen" : "Intern notering"} optional={refundReasonKey !== "other"}>
+              <Textarea
+                value={refundReasonExtra}
+                onChange={(event) => setRefundReasonExtra(event.target.value)}
+                placeholder={refundReasonKey === "other" ? "Beskriv anledningen" : "Lägg till en intern notering"}
+              />
+            </Field>
+          ) : null}
+
+          <div className="flex flex-col-reverse gap-2.5 pt-1 sm:flex-row">
+            <Button variant="secondary" className="w-full flex-1" onClick={() => setShowRefund(false)} disabled={refundMutation.isPending}>
+              Avbryt
+            </Button>
+            <Button
+              variant="danger"
+              className="w-full flex-[1.4]"
+              onClick={() => {
+                const amountKr = refundMode === "partial" ? partialRefundAmount : null;
+                if (refundMode === "partial" && (amountKr === null || partialRefundError)) return;
+                setRefundFeedback(null);
+                setRefundError(null);
+                setPendingConfirmation({ kind: "refund", amountKr });
+              }}
+              disabled={refundMutation.isPending || Boolean(partialRefundError)}
+            >
+              <ReceiptText size={16} />
+              {refundMode === "partial" && partialRefundAmount !== null
+                ? `Återbetala ${formatCurrency(partialRefundAmount)}`
+                : `Återbetala ${formatCurrency(remainingRefundAmount)}`}
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </Modal>
 
     {/* Lightbox: förstorat leveransfoto. */}
