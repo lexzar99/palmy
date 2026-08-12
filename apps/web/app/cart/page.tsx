@@ -3682,7 +3682,7 @@ export default function CartPage() {
                                           placeholder="namn@exempel.se"
                                         />
                                         <p className="pt-1 text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
-                                          Valfri — kvittot på köpet skickas hit och fylls i automatiskt vid nästa betalning.
+                                          Används för kvitto.
                                         </p>
                                       </div>
                                     </div>
@@ -3728,7 +3728,7 @@ export default function CartPage() {
                                 <p className="px-4 pb-2 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.invalidEmail")}</p>
                               ) : (
                                 <p className="px-4 pb-3 text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
-                                  Valfri — kvittot på köpet skickas hit och e-posten fylls i automatiskt nästa gång.
+                                  Används för kvitto.
                                 </p>
                               )}
                             </div>

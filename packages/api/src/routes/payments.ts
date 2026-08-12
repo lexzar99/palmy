@@ -326,9 +326,16 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
     }
 
     const provider = getCheckoutPaymentProvider(order.paymentProvider);
-    if (provider.name === 'stripe' && adyenChannel === 'Web') {
-      if (checkoutExperience !== 'embedded' && checkoutExperience !== 'hosted') {
+    if (provider.name === 'stripe') {
+      // Webben måste alltid välja upplevelse. Native-apparna begär 'hosted'
+      // för den samlade betalsidan; utelämnad experience är kvar för äldre
+      // native-byggen som fortfarande använder inline PaymentSheet.
+      if (adyenChannel === 'Web' && checkoutExperience !== 'embedded' && checkoutExperience !== 'hosted') {
         res.status(400).json({ error: 'checkoutExperience måste vara embedded eller hosted för Stripe' });
+        return;
+      }
+      if (adyenChannel !== 'Web' && checkoutExperience != null && checkoutExperience !== 'hosted') {
+        res.status(400).json({ error: 'checkoutExperience måste vara hosted för Stripe i appen' });
         return;
       }
       const validStripeMethods = ['klarna', 'apple_pay', 'google_pay', 'card'];

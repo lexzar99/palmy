@@ -416,6 +416,7 @@ async function createInlinePaymentIntent(args: CreatePaymentArgs): Promise<Creat
 
 async function createHostedCheckoutSession(args: CreatePaymentArgs): Promise<CreatePaymentResult> {
   const { order, returnUrl, idempotencyKey } = args;
+  const channel = args.channel || 'Web';
   const method = parseStripeCheckoutMethod(args.checkoutMethod);
   // Utan explicit metod visar hosted Checkout hela den konfigurerade
   // uppsättningen (card + klarna) i EN session; Apple Pay/Google Pay följer
@@ -443,7 +444,7 @@ async function createHostedCheckoutSession(args: CreatePaymentArgs): Promise<Cre
   const methodTypes: Stripe.Checkout.SessionCreateParams.PaymentMethodType[] = method
     ? [stripePaymentMethodType(method)]
     : (configuredPaymentMethodTypes() ?? ['card', 'klarna']);
-  const metadata = metadataFor(order, 'Web', method || undefined);
+  const metadata = metadataFor(order, channel, method || undefined);
   const baseParams: Stripe.Checkout.SessionCreateParams = {
     mode: 'payment',
     locale: 'sv',
@@ -486,11 +487,12 @@ export const stripeProvider: PaymentProvider = {
 
   async createPayment(args: CreatePaymentArgs): Promise<CreatePaymentResult> {
     const channel = args.channel || 'Web';
-    if (channel === 'Web') {
-      if (args.checkoutExperience === 'hosted') return createHostedCheckoutSession(args);
-      if (args.checkoutExperience !== 'embedded') {
-        throw new Error('checkoutExperience måste vara embedded eller hosted för Stripe Web');
-      }
+    // Hosted Checkout är samma sida oavsett kanal: webben redirectar dit och
+    // native-apparna öppnar den i SFSafariViewController. Appen begär den
+    // uttryckligen med checkoutExperience 'hosted'.
+    if (args.checkoutExperience === 'hosted') return createHostedCheckoutSession(args);
+    if (channel === 'Web' && args.checkoutExperience !== 'embedded') {
+      throw new Error('checkoutExperience måste vara embedded eller hosted för Stripe Web');
     }
     return createInlinePaymentIntent(args);
   },
