@@ -502,7 +502,10 @@ router.get('/orders', authenticateUser, async (req: any, res: any) => {
       // OBS: filtrera INTE bort CANCELLED/REJECTED här. Home-skärmen läser samma
       // endpoint för att kunna visa "Avbruten"-kortet för en nyligen avvisad
       // order. Orderhistoriken döljer avbrutna client-side (OrdersListScreen).
+      // AWAITING_PAYMENT filtreras däremot bort här: en obetald order är inget
+      // köp, och den ska inte kunna nå någon klients historik eller kvitto.
       where: {
+        status: { not: 'AWAITING_PAYMENT' },
         OR: [
           { userId: req.user.id },
           ...(phoneVariants.length ? [{ customerPhone: { in: phoneVariants } }] : []),
