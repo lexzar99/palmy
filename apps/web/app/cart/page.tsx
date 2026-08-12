@@ -284,6 +284,81 @@ function CartCollapsibleRow({
   );
 }
 
+/**
+ * Rekommenderade tillägg i kassan. Identisk logik med Swift-appen: bara varor
+ * under 70 kr, tre prisspann (>=45, 25-45, <25), bilder först inom varje spann
+ * och därefter varvat mellan spannen så listan aldrig blir en prisstege.
+ */
+const CART_RECOMMENDATION_MAX_PRICE = 70;
+const CART_DRINK_KEYWORDS = ["dryck", "läsk", "cola", "fanta", "sprite", "vatten", "juice", "ramlösa", "loka", "zero", "champis", "trocadero"];
+
+type CartMenuProduct = {
+  id: string;
+  name: string;
+  price: number;
+  imageUrl?: string | null;
+  discountPrice?: number | null;
+  discountPercent?: number | null;
+};
+
+function recommendationPrice(product: CartMenuProduct): number {
+  const price = Number(product?.price) || 0;
+  const discountPrice = Number(product?.discountPrice) || 0;
+  if (discountPrice > 0 && discountPrice < price) return discountPrice;
+  const discountPercent = Number(product?.discountPercent) || 0;
+  if (discountPercent > 0) return Math.max(0, Math.round(price * (1 - discountPercent / 100)));
+  return price;
+}
+
+function shuffledProducts(products: CartMenuProduct[]): CartMenuProduct[] {
+  const list = [...products];
+  for (let i = list.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+  return list;
+}
+
+function prioritizedRecommendationBucket(products: CartMenuProduct[]): CartMenuProduct[] {
+  const hasImage = (product: CartMenuProduct) => String(product?.imageUrl || "").trim().length > 0;
+  return [
+    ...shuffledProducts(products.filter(hasImage)),
+    ...shuffledProducts(products.filter((product) => !hasImage(product))),
+  ];
+}
+
+function cartRecommendations(products: CartMenuProduct[]): CartMenuProduct[] {
+  const seen = new Set<string>();
+  const eligible = products.filter((product) => {
+    const price = recommendationPrice(product);
+    if (!(price > 0 && price < CART_RECOMMENDATION_MAX_PRICE)) return false;
+    if (!product?.id || seen.has(product.id)) return false;
+    seen.add(product.id);
+    return true;
+  });
+  const buckets = [
+    prioritizedRecommendationBucket(eligible.filter((product) => recommendationPrice(product) >= 45)),
+    prioritizedRecommendationBucket(eligible.filter((product) => {
+      const price = recommendationPrice(product);
+      return price >= 25 && price < 45;
+    })),
+    prioritizedRecommendationBucket(eligible.filter((product) => recommendationPrice(product) < 25)),
+  ];
+  const ordered: CartMenuProduct[] = [];
+  while (buckets.some((bucket) => bucket.length > 0)) {
+    for (const bucket of buckets) {
+      const next = bucket.shift();
+      if (next) ordered.push(next);
+    }
+  }
+  return ordered;
+}
+
+function containsDrink(name: string): boolean {
+  const lowered = name.toLowerCase();
+  return CART_DRINK_KEYWORDS.some((keyword) => lowered.includes(keyword));
+}
+
 export default function CartPage() {
   const { t } = useTranslation();
   const { items, removeItem, updateQuantity, updateItem, getTotal, clearCart, restaurantId: cartRestaurantId, restaurantSlug: cartRestaurantSlug } = useCartStore();
@@ -314,6 +389,48 @@ export default function CartPage() {
       /* noop */
     }
   }, []);
+
+  // Rekommenderad vara öppnas i samma produktmodal som menyn använder, så
+  // tillvalsgrupper och priser blir identiska med restaurangsidan.
+  const [addingProduct, setAddingProduct] = useState<any>(null);
+  const [addingProductId, setAddingProductId] = useState<string | null>(null);
+  const handleAddRecommended = useCallback(async (productId: string) => {
+    setAddingProductId(productId);
+    try {
+      const res = await axios.get(`${API_URL}/api/menu/products/${productId}`);
+      setAddingProduct(res.data);
+    } catch {
+      /* noop */
+    } finally {
+      setAddingProductId(null);
+    }
+  }, []);
+
+  // Menyn hämtas bara för rekommendationsraden i kassan. Samma normaliserade
+  // payload som restaurangsidan använder, så inga extra fält behövs.
+  const [menuProducts, setMenuProducts] = useState<CartMenuProduct[]>([]);
+  useEffect(() => {
+    if (!cartRestaurantSlug) {
+      setMenuProducts([]);
+      return;
+    }
+    let cancelled = false;
+    axios
+      .get(`/api/platform/menu/categories`, { params: { slug: cartRestaurantSlug, format: "normalized" } })
+      .then((res) => {
+        if (cancelled) return;
+        const categories = Array.isArray(res.data?.categories) ? res.data.categories : [];
+        setMenuProducts(categories.flatMap((category: any) => (Array.isArray(category?.products) ? category.products : [])));
+      })
+      .catch(() => {
+        if (!cancelled) setMenuProducts([]);
+      });
+    return () => { cancelled = true; };
+  }, [cartRestaurantSlug]);
+
+  // Ordningen slumpas en gång per meny — inte per render, annars skulle raden
+  // hoppa runt varje gång kassan uppdateras.
+  const recommendedProducts = useMemo(() => cartRecommendations(menuProducts).slice(0, 12), [menuProducts]);
 
   const [user, setUser] = useState<any>(null);
   const [profilePhone, setProfilePhone] = useState("");
@@ -2246,6 +2363,18 @@ export default function CartPage() {
   // Webhook/reconcile finaliserar ordern; klienten routar bara till
   // /order/{id} efter att backend har verifierat betalstatusen.
 
+  // Har gästen redan beställt en gång ligger namn/telefon/e-post kvar. Då
+  // ska kassan inte be om dem igen — bara visa dem hopfällda.
+  const [guestDetailsKnown, setGuestDetailsKnown] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setGuestDetailsKnown(Boolean(
+      localStorage.getItem("guest_name")
+      && localStorage.getItem("guest_phone")
+      && localStorage.getItem("guest_email"),
+    ));
+  }, []);
+
   // Persist guest name/phone/email across sessions
   useEffect(() => {
     if (user || typeof window === "undefined") return;
@@ -2277,7 +2406,6 @@ export default function CartPage() {
       setHostedCheckoutUrl(null);
       setSwishCheckout(null);
       setSelectedCheckoutMethod(checkoutMethod);
-      setPaymentStepOpen(true);
     }
     const checkoutProvider: CheckoutPaymentProvider = checkoutMethod === "swish" ? "swish" : "stripe";
 
@@ -2462,7 +2590,12 @@ export default function CartPage() {
     }
     // ────────────────────────────────────────────────────────────────────────
 
-    if (!deferredStripePayment) setLoading(true);
+    // Alla kontroller är gjorda: nu först lämnar vi kassan för det fokuserade
+    // betalsteget. Ett valideringsfel ska stanna kvar hos fälten kunden ska rätta.
+    if (!deferredStripePayment) {
+      setPaymentStepOpen(true);
+      setLoading(true);
+    }
     try {
       // isTestFlow är redan beräknad ovan — testa-koden gör att vi
       // direktpostar order utan att gå via Stripe.
@@ -2677,7 +2810,7 @@ export default function CartPage() {
       }
       setSwishCheckout(null);
       setSelectedCheckoutMethod(null);
-      setPaymentStepOpen(true);
+      setPaymentStepOpen(false);
       setError(err.response?.data?.error || t("cart.errors.paymentUnavailable"));
     } finally {
       if (!deferredStripePayment && !preserveLoadingForNavigation) setLoading(false);
@@ -3023,6 +3156,60 @@ export default function CartPage() {
     );
   };
 
+  // "Ofta köpta med" — samma rubrikval som appen: saknas dryck i varukorgen
+  // men finns bland förslagen blir det en påminnelse i stället.
+  const cartHasDrink = items.some((item: any) => containsDrink(String(item?.name || "")));
+  const recommendationsHaveDrink = recommendedProducts.some((product) => containsDrink(product.name));
+  const renderRecommendedRail = () => {
+    if (recommendedProducts.length === 0) return null;
+    return (
+      <div className="mt-6">
+        <h2 className="mb-2.5 px-1 text-[15px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+          {!cartHasDrink && recommendationsHaveDrink ? "Har du glömt något?" : "Ofta köpta med"}
+        </h2>
+        <div className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {recommendedProducts.map((product) => {
+            const price = recommendationPrice(product);
+            const image = String(product.imageUrl || "").trim();
+            return (
+              <button
+                key={product.id}
+                type="button"
+                onClick={() => { void handleAddRecommended(product.id); }}
+                disabled={addingProductId === product.id}
+                className="w-[132px] shrink-0 snap-start overflow-hidden rounded-2xl text-left transition-transform active:scale-[0.98] disabled:opacity-60"
+                style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
+              >
+                <span className="block h-[84px] w-full overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
+                  {image ? (
+                    <img src={image} alt="" loading="lazy" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center">
+                      <ShoppingBag size={20} style={{ color: "var(--text-secondary)", opacity: 0.5 }} />
+                    </span>
+                  )}
+                </span>
+                <span className="block px-2.5 py-2">
+                  <span className="line-clamp-2 block min-h-[32px] text-[12.5px] font-semibold leading-4" style={{ color: "var(--text-primary)" }}>
+                    {product.name}
+                  </span>
+                  <span className="mt-1 flex items-center justify-between gap-1">
+                    <span className="text-[12.5px] font-bold" style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>
+                      {formatSekAmount(price)} kr
+                    </span>
+                    {addingProductId === product.id
+                      ? <Loader2 size={14} className="animate-spin" style={{ color: "var(--text-secondary)" }} />
+                      : <Plus size={14} style={{ color: "var(--gold-ink)" }} />}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const renderMinOrderBanner = (extraClass = "") =>
     subtotal > 0 && Math.max(0, subtotal - foodDiscountComponent) < effectiveMinOrder && addressZoneStatus !== "error" && (
       <div
@@ -3105,19 +3292,6 @@ export default function CartPage() {
     );
   };
 
-  const openPaymentStep = () => {
-    setError(null);
-    setPaymentStepOpen(true);
-    if (!pendingOrderId) {
-      setSelectedCheckoutMethod(null);
-      setSwishCheckout(null);
-      setHostedCheckoutUrl(null);
-      setEmbeddedStripeOrderId(null);
-      setEmbeddedStripeProcessing(false);
-    }
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
   const returnFromPayment = () => {
     // En väntande Swish-request ska avbrytas säkert även från Tillbaka-knappen
     // — kunden ska inte behöva hitta den separata Avbryt-knappen.
@@ -3150,7 +3324,7 @@ export default function CartPage() {
     hint: string;
     provider: "swish" | "stripe";
   }> = [
-    { id: "swish", label: "Swish", hint: "Betala med Swish smidigt och enkelt", provider: "swish" },
+    { id: "swish", label: "Swish", hint: "Betala direkt", provider: "swish" },
     { id: "stripe_all", label: "Fler betalmetoder", hint: "Apple Pay, Klarna, kort, Google Pay", provider: "stripe" },
   ];
 
@@ -3164,8 +3338,9 @@ export default function CartPage() {
     }
     // Samlade hosted-sidan: loggorna visar i förväg exakt vad som väntar —
     // Apple Pay och Klarna först (mest eftersökta), sedan kort och Google Pay.
+    // De ligger på egen rad under texten så rubriken aldrig kläms ihop.
     return (
-      <span aria-hidden="true" className="flex h-11 w-[164px] shrink-0 items-center justify-center gap-1.5 rounded-xl bg-white px-2 sm:w-[180px] sm:gap-2" style={{ border: "1px solid rgba(23,26,27,0.10)" }}>
+      <span aria-hidden="true" className="flex h-10 w-full max-w-xs items-center gap-1.5 rounded-xl bg-white px-2" style={{ border: "1px solid rgba(23,26,27,0.10)" }}>
         <span className="flex items-center gap-0.5 text-[8px] font-semibold tracking-[-0.03em] text-black">
           <svg viewBox="0 0 384 512" focusable="false" className="h-[14px] w-[11px] fill-current" role="presentation">
             <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5c0 26.2 4.8 53.3 14.4 81.2 12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.7-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.6-90-61.6-91.9zm-57.5-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
@@ -3190,23 +3365,79 @@ export default function CartPage() {
     void startCheckout(event, method);
   };
 
-  const renderPaymentMethodChoice = (method: (typeof paymentMethods)[number]) => (
+  const renderPaymentMethodChoice = (method: (typeof paymentMethods)[number], keyPrefix = "") => (
     <button
-      key={method.id}
+      key={`${keyPrefix}${method.id}`}
       type="button"
       onClick={(event) => { choosePaymentMethod(event, method.id); }}
       disabled={loading || embeddedStripeProcessing}
-      className="flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 disabled:opacity-50"
+      className="flex w-full items-center gap-3.5 rounded-2xl border p-3.5 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 disabled:opacity-50"
       style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-primary)" }}
     >
-      {renderMethodMark(method.id)}
+      {method.id === "swish" && renderMethodMark(method.id)}
       <span className="min-w-0 flex-1">
-        <span className="block text-[15px] font-semibold" style={{ color: "var(--text-primary)" }}>{method.label}</span>
+        <span className="flex items-center justify-between gap-3">
+          <span className="text-[15px] font-semibold" style={{ color: "var(--text-primary)" }}>{method.label}</span>
+          <ArrowRight size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
+        </span>
         <span className="mt-0.5 block text-[12.5px] leading-4" style={{ color: "var(--text-secondary)" }}>{method.hint}</span>
+        {method.id !== "swish" && <span className="mt-2.5 block">{renderMethodMark(method.id)}</span>}
       </span>
-      <ArrowRight size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
     </button>
   );
+
+  // Kunden väljer betalsätt direkt i kassan. Först när ett val är gjort byter
+  // sidan till det fokuserade betalsteget (Swish-väntan eller Stripe-redirect).
+  const checkoutBelowMinimum = Math.max(0, subtotal - foodDiscountComponent) < effectiveMinOrder && !topUpToMinimum;
+  const checkoutBlocked =
+    loading
+    || bogoMustPick
+    || (!isTestFlow && activeDealBelowMinimum)
+    || (!isTestFlow && checkoutBelowMinimum)
+    || (!isTestFlow && !restaurantSettings.isOpen)
+    || (!isTestFlow && addressZoneStatus === "error")
+    || (!isTestFlow && addressZoneStatus === "checking");
+
+  const renderCheckoutMethods = (keyPrefix: string) => {
+    const methods = paymentMethods.filter((method) => availablePaymentProviders.includes(method.provider));
+    if (checkoutBlocked) {
+      return (
+        <button
+          type="button"
+          disabled
+          className="flex h-[52px] w-full items-center justify-center gap-3 rounded-xl bg-gold-500 px-5 text-[15.5px] font-semibold opacity-50"
+          style={{ color: "#FFFFFF" }}
+        >
+          {loading
+            ? <Loader2 className="animate-spin" size={22} />
+            : bogoMustPick
+              ? t("cart.bogo.mustPick")
+              : addressZoneStatus === "checking"
+                ? <><Loader2 className="animate-spin" size={20} /> {t("cart.submit.checking")}</>
+                : checkoutBelowMinimum
+                  ? t("cart.submit.short", { amount: formatSekAmount(Math.ceil(effectiveMinOrder - Math.max(0, subtotal - foodDiscountComponent))) })
+                  : addressZoneStatus === "error"
+                    ? t("cart.submit.zoneError")
+                    : t("cart.submit")}
+        </button>
+      );
+    }
+    return (
+      <div className="space-y-2.5">
+        {methods.map((method) => renderPaymentMethodChoice(method, keyPrefix))}
+        {!paymentProvidersLoaded && (
+          <p className="flex items-center justify-center gap-2 rounded-2xl border p-3.5 text-[13px]" style={{ borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}>
+            <Loader2 size={16} className="animate-spin" /> Hämtar betalsätt…
+          </p>
+        )}
+        {paymentProvidersLoaded && methods.length === 0 && (
+          <p className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-3.5 text-[13px] text-rose-600">
+            Inget betalsätt är tillgängligt just nu.
+          </p>
+        )}
+      </div>
+    );
+  };
 
   const renderPaymentStep = () => {
     // Hosted-sidan behöver ingen publishable key i klienten — Stripe äger
@@ -3303,19 +3534,9 @@ export default function CartPage() {
             </div>
           ) : (
             <div className="mt-6 space-y-3">
-              {/* Exakt två val: Swish native överst (svensk debet-först-regel),
-                  därefter EN samlad hosted Stripe-sida med alla övriga metoder.
-                  Loggorna + undertexten visar i förväg vad som väntar. */}
-              {methods.map(renderPaymentMethodChoice)}
-              {!paymentProvidersLoaded && (
-                <p className="flex items-center justify-center gap-2 rounded-2xl border p-4 text-[13.5px]" style={{ borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}>
-                  <Loader2 size={17} className="animate-spin" /> Hämtar säkra betalsätt…
-                </p>
-              )}
-              {paymentProvidersLoaded && methods.length === 0 && (
-                <p className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-[13.5px] text-rose-600">Inget betalsätt är tillgängligt just nu. Försök igen om en stund.</p>
-              )}
-              <p className="pt-2 text-center text-[11.5px] leading-4" style={{ color: "var(--text-secondary)" }}>Swish öppnas direkt. Övriga betalsätt öppnas på Stripes säkra betalsida — kortuppgifter hanteras aldrig av ViaEats.</p>
+              {/* Valen görs i kassan. Hamnar man ändå här utan aktivt försök
+                  (t.ex. efter en avbruten retur) leder knappen tillbaka dit. */}
+              {methods.map((method) => renderPaymentMethodChoice(method, "step-"))}
               {payDebug && (
                 <p className="rounded-lg px-2 py-1.5 text-center font-mono text-[10.5px]" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-secondary)" }}>
                   paydebug · pk: {stripePublishableKey ? (stripePublishableKey.startsWith("pk_live_") ? "live" : "test") : "saknas"}
@@ -3482,6 +3703,8 @@ export default function CartPage() {
               ))}
             </div>
 
+            {renderRecommendedRail()}
+
             {/* Desktop left column: delivery details + pricing */}
             <div className="hidden lg:block mt-5 space-y-4" id="desktop-left-extras">
               <div className="p-5 rounded-2xl space-y-5" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
@@ -3562,35 +3785,8 @@ export default function CartPage() {
                   </div>
                 )}
 
-                {/* Checkout button */}
-                <button
-                  onClick={openPaymentStep}
-                  disabled={
-                    loading
-                    || bogoMustPick
-                    || (!isTestFlow && activeDealBelowMinimum)
-                    || (!isTestFlow && Math.max(0, subtotal - foodDiscountComponent) < effectiveMinOrder && !topUpToMinimum)
-                    || (!isTestFlow && !restaurantSettings.isOpen)
-                    || (!isTestFlow && addressZoneStatus === "error")
-                    || (!isTestFlow && addressZoneStatus === "checking")
-                  }
-                  className="w-full h-[52px] px-5 bg-gold-500 rounded-xl text-[15.5px] font-semibold active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3 group" style={{ color: "#FFFFFF" }}
-                >
-                  {loading
-                    ? <Loader2 className="animate-spin" size={24} />
-                    : bogoMustPick
-                      ? t("cart.bogo.mustPick")
-                      : addressZoneStatus === "checking"
-                        ? <><Loader2 className="animate-spin" size={20} /> {t("cart.submit.checking")}</>
-                        : (Math.max(0, subtotal - foodDiscountComponent) < effectiveMinOrder && !topUpToMinimum)
-                          ? t("cart.submit.short", { amount: formatSekAmount(Math.ceil(effectiveMinOrder - Math.max(0, subtotal - foodDiscountComponent))) })
-                          : addressZoneStatus === "error"
-                            ? t("cart.submit.zoneError")
-                            : <span className="w-full flex items-center justify-between gap-3">
-                                <span className="flex items-center gap-2">{t("cart.submit")} <ArrowRight size={18} className="group-hover:translate-x-1.5 transition-transform" /></span>
-                                <span style={{ fontVariantNumeric: "tabular-nums" }}>{formatSekAmount(total)} {t("common.sek")}</span>
-                              </span>}
-                </button>
+                {/* Betalsätt direkt i kassan — inget mellansteg. */}
+                {renderCheckoutMethods("dl-")}
               </div>
             </div>
           </div>
@@ -3702,12 +3898,8 @@ export default function CartPage() {
                           const nameInvalid = nameTouched && formData.customerName.trim().length < 2;
                           const phoneInvalid = phoneTouched && formData.customerPhone.replace(/\D/g, '').length < 8;
                           const emailInvalid = formData.customerEmail.trim().length > 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.customerEmail.trim());
-                          return (
-                            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-muted)", backgroundColor: "var(--bg-card)" }}>
-                              <div className="px-4 py-3 flex items-center justify-between gap-3" style={{ borderBottom: "1px solid var(--border-muted)" }}>
-                                <span className="text-[14px] font-bold" style={{ color: "var(--text-primary)" }}>{t("cart.yourInfo.title")}</span>
-                                <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ color: "var(--gold-ink)", backgroundColor: "var(--gold-soft)" }}>Gäst</span>
-                              </div>
+                          const fields = (
+                            <>
                               <div className="flex items-center min-h-[52px] px-4">
                                 <span style={lbl(nameInvalid)}>{t("cart.fields.name")}</span>
                                 <input value={formData.customerName} onChange={e => setFormData({ ...formData, customerName: e.target.value })} autoComplete="name" className={inputCls} style={inputStyle} placeholder={t("cart.fields.namePlaceholder")} />
@@ -3731,6 +3923,34 @@ export default function CartPage() {
                                   Används för kvitto.
                                 </p>
                               )}
+                            </>
+                          );
+                          // Efter första beställningen är uppgifterna redan
+                          // ifyllda — då räcker en kollapsad rad, precis som i
+                          // appen. Första gången visas fälten direkt.
+                          if (guestDetailsKnown) {
+                            return (
+                              <div className="rounded-xl overflow-hidden px-4" style={{ border: "1px solid var(--border-muted)", backgroundColor: "var(--bg-card)" }}>
+                                <CartCollapsibleRow
+                                  first
+                                  label={t("cart.yourInfo.title")}
+                                  hint={formData.customerName.trim() || "Gäst"}
+                                  icon={<UserIcon size={15} style={{ color: "var(--text-secondary)" }} />}
+                                >
+                                  <div className="-mx-4 overflow-hidden rounded-lg" style={{ border: "1px solid var(--border-muted)" }}>
+                                    {fields}
+                                  </div>
+                                </CartCollapsibleRow>
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-muted)", backgroundColor: "var(--bg-card)" }}>
+                              <div className="px-4 py-3 flex items-center justify-between gap-3" style={{ borderBottom: "1px solid var(--border-muted)" }}>
+                                <span className="text-[14px] font-bold" style={{ color: "var(--text-primary)" }}>{t("cart.yourInfo.title")}</span>
+                                <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ color: "var(--gold-ink)", backgroundColor: "var(--gold-soft)" }}>Gäst</span>
+                              </div>
+                              {fields}
                             </div>
                           );
                         })()}
@@ -3740,9 +3960,6 @@ export default function CartPage() {
                             <Store size={17} className="shrink-0 mt-0.5" style={{ color: "var(--gold-ink)" }} />
                             <div className="min-w-0">
                               <p className="text-[13.5px] font-semibold" style={{ color: "var(--text-primary)" }}>Avhämtning vald</p>
-                              <p className="text-[12px] leading-snug mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                                Du betalar här och hämtar ordern hos restaurangen när den är klar.
-                              </p>
                             </div>
                           </div>
                         )}
@@ -4008,40 +4225,11 @@ export default function CartPage() {
                          </motion.div>
                        )}
 
-                       {/* Mobilknappen öppnar ett eget stabilt betalsteg i samma
-                           route. Inget betalval renderas i sticky-lagret. */}
-                       <div
-                          className="sticky z-[90] mt-8"
-                          style={{ bottom: "max(calc(env(safe-area-inset-bottom, 0px) + 64px), 86px)" }}
-                       >
-                       <button
-                          onClick={openPaymentStep}
-                          disabled={
-                            loading
-                            || bogoMustPick
-                            || (!isTestFlow && activeDealBelowMinimum)
-                            || (!isTestFlow && Math.max(0, subtotal - foodDiscountComponent) < effectiveMinOrder && !topUpToMinimum)
-                            || (!isTestFlow && !restaurantSettings.isOpen)
-                            || (!isTestFlow && addressZoneStatus === "error")
-                            || (!isTestFlow && addressZoneStatus === "checking")
-                          }
-                          className="w-full h-[52px] px-5 bg-gold-500 rounded-xl text-[15.5px] font-semibold active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3 group" style={{ color: "#FFFFFF" }}
-                       >
-                          {loading
-                            ? <Loader2 className="animate-spin" size={24} />
-                            : bogoMustPick
-                              ? t("cart.bogo.mustPick")
-                              : addressZoneStatus === "checking"
-                                ? <><Loader2 className="animate-spin" size={20} /> {t("cart.submit.checking")}</>
-                                : (Math.max(0, subtotal - foodDiscountComponent) < effectiveMinOrder && !topUpToMinimum)
-                                  ? t("cart.submit.short", { amount: formatSekAmount(Math.ceil(effectiveMinOrder - Math.max(0, subtotal - foodDiscountComponent))) })
-                                  : addressZoneStatus === "error"
-                                    ? t("cart.submit.zoneError")
-                                    : <span className="w-full flex items-center justify-between gap-3">
-                                <span className="flex items-center gap-2">{t("cart.submit")} <ArrowRight size={18} className="group-hover:translate-x-1.5 transition-transform" /></span>
-                                <span style={{ fontVariantNumeric: "tabular-nums" }}>{formatSekAmount(total)} {t("common.sek")}</span>
-                              </span>}
-                       </button>
+                       {/* Betalsätt direkt i kassan — samma val som på desktop.
+                           Extra bottenluft så knapparna klarar hemindikatorn i
+                           den installerade PWA:n. */}
+                       <div className="mt-8" style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 8px)" }}>
+                         {renderCheckoutMethods("mb-")}
                        </div>
                      </div>
                  </motion.div>
@@ -4051,6 +4239,17 @@ export default function CartPage() {
         </div>
       </div>
       )}
+
+      <AnimatePresence>
+        {addingProduct && (
+          <ProductModal
+            product={addingProduct}
+            restaurantId={cartRestaurantId || addingProduct.restaurantId}
+            restaurantSlug={cartRestaurantSlug || undefined}
+            onClose={() => setAddingProduct(null)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Cart item edit */}
       <AnimatePresence>

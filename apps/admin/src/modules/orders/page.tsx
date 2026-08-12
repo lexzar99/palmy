@@ -15,6 +15,12 @@ import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, orderSt
 const DELIVERY_STEPS = ["PENDING", "PREPARING", "DELIVERING", "DELIVERED"] as const;
 const PICKUP_STEPS = ["PENDING", "PREPARING", "READY", "DELIVERED"] as const;
 const CANCEL_STATUSES = ["CANCELLED", "REJECTED", "DELIVERY_FAILED"];
+const REFUND_PROVIDER_LABELS: Record<string, string> = {
+  swish: "Swish",
+  stripe: "Stripe",
+  mollie: "Mollie",
+  adyen: "Adyen",
+};
 
 function stepLabel(status: string, isDelivery: boolean): string {
   switch (status) {
@@ -316,13 +322,17 @@ function OrderDetailsModalContent({
   const refundIsPending = paymentStatus === "REFUNDING";
   const refundIsComplete = paymentStatus === "REFUNDED" || remainingRefundAmount <= 0;
   const refundCanStart = ["PAID", "PARTIALLY_REFUNDED"].includes(paymentStatus) && remainingRefundAmount > 0;
-  const latestActiveRefundStatus = [...(order?.paymentRefunds || [])]
+  // Ordern äger sin betalleverantör. Saldokön finns bara hos Mollie — en
+  // Swish- eller Stripe-återbetalning får aldrig beskrivas med Mollies text.
+  const latestActiveRefund = [...(order?.paymentRefunds || [])]
     .reverse()
-    .map((refund) => refund.status.toUpperCase())
-    .find((status) => ["REQUESTED", "QUEUED", "PENDING", "PROCESSING", "UNKNOWN"].includes(status));
-  const pendingRefundMessage = latestActiveRefundStatus === "QUEUED"
+    .find((refund) => ["REQUESTED", "QUEUED", "PENDING", "PROCESSING", "UNKNOWN"].includes(refund.status.toUpperCase()));
+  const latestActiveRefundStatus = latestActiveRefund?.status.toUpperCase();
+  const refundProvider = String(latestActiveRefund?.provider || order?.paymentProvider || "").toLowerCase();
+  const refundProviderLabel = REFUND_PROVIDER_LABELS[refundProvider] || "betalleverantören";
+  const pendingRefundMessage = latestActiveRefundStatus === "QUEUED" && refundProvider === "mollie"
     ? "Återbetalningen är köad hos Mollie eftersom saldot inte räcker just nu. Fyll på Mollie-saldot eller invänta nya betalningar; därefter genomförs den automatiskt."
-    : "Återbetalningen behandlas hos Mollie. Nytt försök är spärrat tills statusen är slutlig.";
+    : `Återbetalningen behandlas hos ${refundProviderLabel}. Nytt försök är spärrat tills statusen är slutlig.`;
   const partialRefundAmount = parseDecimalInput(refundAmount);
   const partialRefundError = order && refundMode === "partial"
     ? partialRefundAmount === null || partialRefundAmount <= 0

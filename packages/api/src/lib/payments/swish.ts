@@ -113,7 +113,9 @@ function mapRefundStatus(value: unknown): RemoteRefundState {
   switch (String(value || '').toUpperCase()) {
     case 'PAID': return 'refunded';
     case 'ERROR': return 'failed';
-    case 'CREATED': return 'queued';
+    // 'queued' är reserverat för Mollies saldokö. Swish har ingen sådan kö —
+    // en nyskapad refund väntar bara på att behandlas, precis som INITIATED.
+    case 'CREATED':
     case 'INITIATED': return 'pending';
     case 'VALIDATED':
     case 'DEBITED': return 'processing';

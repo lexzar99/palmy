@@ -181,7 +181,7 @@ export const messages: Record<Locale, Messages> = {
     "cart.submit.checking": "Kontrollerar adress…",
     "cart.guest.banner": "Du handlar som gäst.",
     "cart.guest.loginLink": "Verifiera nummer",
-    "cart.guest.bannerSuffix": "för orderhistorik och snabbare support.",
+    "cart.guest.bannerSuffix": "för orderhistorik.",
 
     // ── Order tracking ────────────────────────────────────────────────────
     "order.title": "Order",
@@ -403,7 +403,7 @@ export const messages: Record<Locale, Messages> = {
     "cart.submit.checking": "Checking address…",
     "cart.guest.banner": "You're checking out as a guest.",
     "cart.guest.loginLink": "Verify number",
-    "cart.guest.bannerSuffix": "for saved addresses and personal offers.",
+    "cart.guest.bannerSuffix": "for order history.",
 
     // ── Order tracking ────────────────────────────────────────────────────
     "order.title": "Order",

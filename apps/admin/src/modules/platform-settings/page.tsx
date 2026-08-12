@@ -6,11 +6,20 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, Building2, Check, CreditCard, FileText, Headset, Loader2, Save, Smartphone } from "lucide-react";
 import { Button, Field, Input, PageHeader, Surface, Textarea, Toggle } from "@/shared/components/ui";
 import {
+  checkoutPaymentMethodsQueryKey,
+  getCheckoutPaymentMethods,
   getPlatformSettings,
   platformSettingsQueryKey,
   updatePlatformSettings,
   type PlatformSettings,
 } from "@/modules/platform-settings/api";
+
+const PROVIDER_LABELS: Record<string, string> = {
+  swish: "Swish",
+  stripe: "Stripe",
+  mollie: "Mollie",
+  adyen: "Adyen",
+};
 
 const EMPTY_PLATFORM_SETTINGS: PlatformSettings = {
   contactPhone: "",
@@ -69,6 +78,17 @@ function PlatformSettingsEditor({ initialForm }: { initialForm: PlatformSettings
   const [form, setForm] = useState<PlatformSettings>(initialForm);
 
   const [savedFlash, setSavedFlash] = useState(false);
+
+  // Läs den faktiska uppsättningen ur kassans egen endpoint i stället för att
+  // påstå en leverantör i koden — den blir fel så fort PAYMENT_PROVIDERS ändras.
+  const checkoutMethods = useQuery({
+    queryKey: checkoutPaymentMethodsQueryKey,
+    queryFn: getCheckoutPaymentMethods,
+    staleTime: 60_000,
+  });
+  const activeProviderLabels = (checkoutMethods.data?.methods || [])
+    .map((method) => PROVIDER_LABELS[method.id] || method.id)
+    .filter((label, index, all) => all.indexOf(label) === index);
 
   const saveMutation = useMutation({
     mutationFn: () => updatePlatformSettings(form),
@@ -151,9 +171,19 @@ function PlatformSettingsEditor({ initialForm }: { initialForm: PlatformSettings
 
         {/* Betalning & systemavsändare */}
         <SettingsCard icon={<CreditCard size={16} />} title="Betalning & utskick" hint="Betalleverantör och systemavsändare">
-          <div className="mb-4 flex items-center justify-between rounded-[11px] bg-[var(--bg-panel-soft)] px-4 py-3">
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-[11px] bg-[var(--bg-panel-soft)] px-4 py-3">
             <span className="text-[13px] font-semibold">Betalleverantör</span>
-            <span className="badge badge-success">Mollie</span>
+            <span className="flex flex-wrap justify-end gap-1.5">
+              {checkoutMethods.isLoading ? (
+                <span className="badge">Hämtar…</span>
+              ) : activeProviderLabels.length > 0 ? (
+                activeProviderLabels.map((label) => (
+                  <span key={label} className="badge badge-success">{label}</span>
+                ))
+              ) : (
+                <span className="badge badge-danger">Ingen aktiv</span>
+              )}
+            </span>
           </div>
           <div className="grid gap-x-4 gap-y-3.5 sm:grid-cols-2">
             <Field label="No-reply (avsändare)">

@@ -22,7 +22,18 @@ export interface PlatformSettings {
   heroCtaUrl?: string | null;
 }
 
+export interface CheckoutPaymentMethod {
+  id: string;
+  label: string;
+  direct?: boolean;
+}
+
 export const platformSettingsQueryKey = ["platform-settings"] as const;
+export const checkoutPaymentMethodsQueryKey = ["checkout-payment-methods"] as const;
+
+/** Vilka betalleverantörer kassan faktiskt kör just nu (PAYMENT_PROVIDERS). */
+export const getCheckoutPaymentMethods = () =>
+  apiGet<{ methods: CheckoutPaymentMethod[] }>("/payments/methods");
 
 export const getPlatformSettings = () => apiGet<PlatformSettings & Record<string, unknown>>("/settings");
 
