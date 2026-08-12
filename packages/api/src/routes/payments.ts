@@ -235,6 +235,14 @@ function safePaymentReturnUrl(
   return parsed.toString();
 }
 
+/**
+ * App-switch-URL tillbaka till native-appen. Samma form som /api/payments/return
+ * redirectar till, men utan webbhoppet emellan — bara orderns id följer med.
+ */
+function nativeAppReturnUrl(orderId: string): string {
+  return `viaeats://payment/return?orderId=${encodeURIComponent(orderId)}`;
+}
+
 function paymentIdempotencyKey(provider: string, orderId: string): string {
   const digest = createHash('sha256')
     .update(`viaeats-payment-v1\0${provider}\0${orderId}`, 'utf8')
@@ -500,15 +508,23 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
     }
     let providerReturnUrl = verifiedReturnUrl;
     if (provider.name === 'swish') {
-      const swishReturnUrl = new URL(verifiedReturnUrl);
-      swishReturnUrl.searchParams.set('payment_provider', 'swish');
-      if (order.accessToken) {
-        swishReturnUrl.searchParams.set(
-          'payment_resume',
-          issueOrderPaymentResumeProof(order.id, order.accessToken),
-        );
+      if (adyenChannel === 'Web') {
+        const swishReturnUrl = new URL(verifiedReturnUrl);
+        swishReturnUrl.searchParams.set('payment_provider', 'swish');
+        if (order.accessToken) {
+          swishReturnUrl.searchParams.set(
+            'payment_resume',
+            issueOrderPaymentResumeProof(order.id, order.accessToken),
+          );
+        }
+        providerReturnUrl = swishReturnUrl.toString();
+      } else {
+        // Native: Swish-appen ska hoppa RAKT tillbaka till vår app. Med
+        // https-bryggan som callbackurl öppnas Safari först och redirectar
+        // sedan vidare, vilket kunden ser som ett extra webbhopp. URL:en
+        // byggs här av orderns eget id — aldrig av klientens returnUrl.
+        providerReturnUrl = nativeAppReturnUrl(order.id);
       }
-      providerReturnUrl = swishReturnUrl.toString();
     }
     const result = await provider.createPayment({
       order: toOrderForPayment(order),

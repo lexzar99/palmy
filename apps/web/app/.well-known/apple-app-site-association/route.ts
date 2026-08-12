@@ -25,6 +25,19 @@ const AASA = {
   applinks: {
     apps: [] as string[],
     details: [
+      // Den nuvarande Swift-appen. Saknades här tidigare, så iOS kunde aldrig
+      // matcha en viaeats.se-länk mot den installerade appen och varje länk
+      // landade i Safari först.
+      {
+        appID: '3KDGPYZXHH.se.viaeats.swift',
+        paths: [
+          '/r/*',
+          '/i/*',
+          '/order/*',
+          '/cart*',
+          '/stripe-redirect*',
+        ],
+      },
       {
         appID: '3KDGPYZXHH.se.delivera.app',
         paths: [

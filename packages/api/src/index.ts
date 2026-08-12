@@ -389,6 +389,26 @@ const requirePrelaunchCheckoutAccess: express.RequestHandler = (req, res, next) 
 app.post('/api/orders', requirePrelaunchCheckoutAccess);
 app.post('/api/payments/create', requirePrelaunchCheckoutAccess);
 
+/**
+ * Universal Links för native-apparna. Utan den här filen kan iOS inte veta att
+ * api.viaeats.se tillhör appen, och en PSP-retur öppnar Safari innan den
+ * redirectar vidare till viaeats://. Med filen på plats hoppar iOS direkt in i
+ * appen från betalsidan.
+ */
+app.get('/.well-known/apple-app-site-association', (_req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate');
+  res.json({
+    applinks: {
+      apps: [],
+      details: [
+        { appID: '3KDGPYZXHH.se.viaeats.swift', paths: ['/api/payments/return*'] },
+        { appID: '3KDGPYZXHH.se.delivera.app', paths: ['/api/payments/return*'] },
+      ],
+    },
+  });
+});
+
 // Routes
 app.use('/api/menu', menuRoutes);
 app.use('/api/orders', orderRoutes);

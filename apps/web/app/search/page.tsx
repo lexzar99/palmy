@@ -392,29 +392,37 @@ export default function SearchPage() {
                 </button>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
-              {categoryOptions.map((category, index) => {
-                const active = selectedTag === category.key;
-                const tone = CHIP_TONES[index % CHIP_TONES.length];
-                return (
-                  <button
-                    key={category.key}
-                    type="button"
-                    onClick={() => setSelectedTag(active ? "" : category.key)}
-                    aria-pressed={active}
-                    className="relative flex min-h-[105px] flex-col items-start justify-between overflow-hidden rounded-[20px] p-3.5 text-left transition-transform active:scale-[0.98]"
-                    style={{
-                      backgroundColor: active ? tone.ink : tone.bg,
-                      color: active ? "#fff" : tone.ink,
-                      boxShadow: active ? `inset 0 0 0 3px ${tone.ink}` : `inset 0 0 0 1px ${tone.ring}`,
-                    }}
-                  >
-                    <Tag size={19} strokeWidth={2.5} />
-                    <span className="absolute right-3.5 top-3 text-[11px] font-black opacity-65">{category.count}</span>
-                    <span className="mt-auto max-w-[9ch] text-[17px] font-black leading-[1.03] tracking-[-0.02em]">{category.label}</span>
-                  </button>
-                );
-              })}
+            {/* Exakt två rader som rullar i sidled. Ett rutnät som växer nedåt
+                sköt ner restaurangerna under vikningen så fort menyerna hade
+                många taggar. */}
+            <div className="-mx-5 overflow-x-auto px-5 pb-2 no-scrollbar sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10">
+              <div
+                className="grid gap-2.5"
+                style={{ gridTemplateRows: "repeat(2, minmax(0, 1fr))", gridAutoFlow: "column", gridAutoColumns: "148px" }}
+              >
+                {categoryOptions.map((category, index) => {
+                  const active = selectedTag === category.key;
+                  const tone = CHIP_TONES[index % CHIP_TONES.length];
+                  return (
+                    <button
+                      key={category.key}
+                      type="button"
+                      onClick={() => setSelectedTag(active ? "" : category.key)}
+                      aria-pressed={active}
+                      className="relative flex h-[84px] flex-col items-start justify-between overflow-hidden rounded-[18px] p-3 text-left transition-transform active:scale-[0.98]"
+                      style={{
+                        backgroundColor: active ? tone.ink : tone.bg,
+                        color: active ? "#fff" : tone.ink,
+                        boxShadow: active ? `inset 0 0 0 3px ${tone.ink}` : `inset 0 0 0 1px ${tone.ring}`,
+                      }}
+                    >
+                      <Tag size={17} strokeWidth={2.5} />
+                      <span className="absolute right-3 top-2.5 text-[10.5px] font-black opacity-65">{category.count}</span>
+                      <span className="mt-auto line-clamp-1 w-full text-[15px] font-black leading-[1.05] tracking-[-0.02em]">{category.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </section>
         )}

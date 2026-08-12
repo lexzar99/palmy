@@ -55,6 +55,7 @@ type PublicDeal = {
 type RestaurantRail = {
   slug: string;
   name: string;
+  restaurant: DiscountedProduct["restaurant"];
   products: DiscountedProduct[];
   topPrice: number;
 };
@@ -116,6 +117,7 @@ export default function DealsPage() {
       const existing = byRestaurant.get(product.restaurant.slug) || {
         slug: product.restaurant.slug,
         name: product.restaurant.name,
+        restaurant: product.restaurant,
         products: [],
         topPrice: 0,
       };
@@ -154,7 +156,7 @@ export default function DealsPage() {
             <div className="absolute -right-10 -top-14 h-36 w-36 rounded-full bg-white/55" />
             <div className="relative max-w-md">
               <Gift size={28} strokeWidth={2.25} className="text-[#125B9D]" />
-              <h2 className="mt-4 text-[25px] font-black leading-tight text-[#113A5C]">Inga deals just nu</h2>
+              <h2 className="mt-4 text-[25px] font-black leading-tight text-[#113A5C]">Inga deals</h2>
               <p className="mt-2 text-[14px] font-semibold leading-relaxed text-[#41647E]">
                 Nya erbjudanden landar här — titta in snart igen.
               </p>
@@ -201,19 +203,42 @@ export default function DealsPage() {
               </section>
             )}
 
-            {rails.map((rail) => (
+            {rails.map((rail) => {
+              const heroImage = rail.restaurant.heroImageUrl || rail.restaurant.imageUrl || "";
+              const heroSubtitle = [rail.restaurant.cuisine, rail.restaurant.city]
+                .map((part) => (part || "").trim())
+                .filter(Boolean)
+                .join(" · ");
+              return (
               <section key={rail.slug}>
-                <div className="flex items-end justify-between gap-4">
-                  <div>
-                    <h2 className="text-[20px] font-black leading-tight">{rail.name}</h2>
-                  </div>
-                  <Link
-                    href={`/restaurants/${rail.slug}`}
-                    className="inline-flex shrink-0 items-center gap-1 text-[13px] font-black text-[var(--orange)]"
-                  >
-                    Se menyn <ArrowRight size={15} />
-                  </Link>
-                </div>
+                {/* Restaurangens egen hero över dess deals — kunden ser direkt
+                    vems fynd det är innan hen scrollar i rälsen. */}
+                <Link
+                  href={`/restaurants/${rail.slug}`}
+                  className="relative flex h-[132px] items-end overflow-hidden rounded-[22px] bg-[#113A5C] p-4 text-white sm:h-[152px] sm:p-5"
+                >
+                  {heroImage ? (
+                    <SmartImage
+                      src={heroImage}
+                      alt={rail.name}
+                      sizes="(min-width: 1024px) 960px, 100vw"
+                      className="absolute inset-0 h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : null}
+                  <span className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10" />
+                  <span className="relative flex w-full items-end justify-between gap-4">
+                    <span className="min-w-0">
+                      <span className="block text-[22px] font-black leading-tight sm:text-[26px]">{rail.name}</span>
+                      {heroSubtitle ? (
+                        <span className="mt-0.5 block truncate text-[12.5px] font-bold text-white/80">{heroSubtitle}</span>
+                      ) : null}
+                    </span>
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/92 px-3.5 py-2 text-[12.5px] font-black text-[var(--ink)]">
+                      Se menyn <ArrowRight size={14} />
+                    </span>
+                  </span>
+                </Link>
 
                 <div className="mt-3 flex gap-3 overflow-x-auto pb-2 no-scrollbar">
                   {rail.products.map((product) => {
@@ -238,14 +263,11 @@ export default function DealsPage() {
                         </div>
                         <div className="p-3">
                           <h3 className="line-clamp-2 min-h-[34px] text-[13px] font-black leading-tight">{product.name}</h3>
-                          <div className="mt-1.5 flex min-w-0 items-center gap-1.5">
-                            {restaurantImage ? (
-                              <span className="relative h-6 w-6 shrink-0 overflow-hidden rounded-full bg-[var(--bg-deep)]">
-                                <SmartImage src={restaurantImage} alt="" sizes="24px" className="h-full w-full object-cover" loading="lazy" />
-                              </span>
-                            ) : null}
-                            <span className="truncate text-[11px] font-bold text-[var(--muted)]">{rail.name}</span>
-                          </div>
+                          {product.description?.trim() ? (
+                            <p className="mt-1 line-clamp-2 text-[11.5px] font-semibold leading-[1.35] text-[var(--muted)]">
+                              {product.description.trim()}
+                            </p>
+                          ) : null}
                           <div className="mt-2 flex items-baseline gap-2">
                             <span className="text-[15px] font-black text-[var(--orange)]">{kr(product.discountPrice)}</span>
                             <span className="text-[11px] font-bold text-[var(--muted)] line-through">{kr(product.originalPrice)}</span>
@@ -256,7 +278,8 @@ export default function DealsPage() {
                   })}
                 </div>
               </section>
-            ))}
+              );
+            })}
           </div>
         )}
 
