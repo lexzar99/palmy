@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
 import { buildRestaurantStatusMaintenance } from '../lib/restaurantStatusMaintenance';
-import { manualOpenClosesAt, nextClosingAfter, nextOpeningAfterToday } from '../lib/openingHours';
+import { nextOpeningAfterToday } from '../lib/openingHours';
 import { normalizeDeliveryZones } from '../utils/deliveryZones';
 import { moneyDto, parseOre, sekToOre } from '../utils/money';
 import { resolveContentStatus } from '../lib/contentPlacement';
@@ -68,50 +68,6 @@ assert.equal(
   nextOpeningAfterToday(dailyWindow, new Date('2026-07-10T18:30:00.000Z')).toISOString(),
   '2026-07-11T09:00:00.000Z',
 );
-assert.equal(
-  nextClosingAfter(dailyWindow, new Date('2026-07-10T08:00:00.000Z'))?.toISOString(),
-  '2026-07-10T19:00:00.000Z',
-  'tidig manuell öppning ska skyddas av dagens ordinarie stängning',
-);
-assert.equal(
-  nextClosingAfter(overnightFriday, new Date('2026-07-10T23:00:00.000Z'))?.toISOString(),
-  '2026-07-11T00:00:00.000Z',
-  'nattpass ska stänga på följande kalenderdag',
-);
-assert.equal(
-  manualOpenClosesAt(dailyWindow, new Date('2026-07-10T08:00:00.000Z'))?.toISOString(),
-  '2026-07-10T19:00:00.000Z',
-  'manuell öppning tillåts en timme före öppning',
-);
-assert.equal(
-  manualOpenClosesAt(dailyWindow, new Date('2026-07-10T19:01:00.000Z')),
-  null,
-  'manuell öppning blockeras efter ordinarie stängning',
-);
-const earlyManualOpen = resolveRestaurantAvailability({
-  openingHours: dailyWindow,
-  acceptingOrdersMode: 'FORCE_OPEN',
-  acceptingOrdersOverrideUntil: nextClosingAfter(dailyWindow, new Date('2026-07-10T08:00:00.000Z')),
-}, {}, new Date('2026-07-10T08:00:00.000Z')); // fredag 10:00, en timme före öppning
-assert.equal(earlyManualOpen.isOpen, true);
-assert.equal(earlyManualOpen.reason, 'MANUAL_FORCE_OPEN');
-const protectedAfterClose = resolveRestaurantAvailability({
-  openingHours: dailyWindow,
-  acceptingOrdersMode: 'FORCE_OPEN',
-  acceptingOrdersOverrideUntil: '2026-07-10T19:00:00.000Z',
-}, {}, new Date('2026-07-10T19:00:01.000Z'));
-assert.equal(protectedAfterClose.isOpen, false, 'manuell öppning får inte läcka över stängningstiden');
-assert.equal(protectedAfterClose.reason, 'OUTSIDE_OPENING_HOURS');
-const explicitClosedForToday = resolveRestaurantAvailability({
-  openingHours: dailyWindow,
-  acceptingOrdersMode: 'FORCE_CLOSED',
-  acceptingOrdersOverrideUntil: '2026-07-11T09:00:00.000Z',
-  acceptingOrdersOverrideReason: 'CLOSED_UNTIL_NEXT_OPENING',
-}, {}, new Date('2026-07-10T18:30:00.000Z'));
-assert.equal(explicitClosedForToday.reason, 'CLOSED_UNTIL_OPENING');
-assert.equal(explicitClosedForToday.restaurantPaused, false, 'stäng för idag får aldrig markeras pausad');
-assert.equal(explicitClosedForToday.closedUntilOpening, true);
-assert.equal(explicitClosedForToday.opensAt, '2026-07-11T09:00:00.000Z');
 const closedForToday = resolveRestaurantAvailability({
   openingHours: dailyWindow,
   acceptingOrdersMode: 'SCHEDULED',

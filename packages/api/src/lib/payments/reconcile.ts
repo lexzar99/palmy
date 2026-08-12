@@ -21,27 +21,20 @@ import {
   PayoutProviderAuditStaleError,
   type PayoutProviderAuditOrder,
 } from '../payoutPolicy';
-import {
-  auditStripeOrderForPayout,
-  stripeProviderFeeSnapshot,
-  type StripeOrderFeeEvidence,
-} from '../stripeFinance';
-import type { ProviderFeeSnapshotEvidence } from '../providerFeeSnapshots';
 
 const REFUND_AUDIT_BATCH_SIZE = 50;
 const PAYOUT_SOURCE_AUDIT_BATCH_SIZE = 50;
 let activeRefundCursor: string | null = null;
 let refundAuditCursor: string | null = null;
 
-type AuditableRefundProvider = 'mollie' | 'swish' | 'stripe';
+type AuditableRefundProvider = 'mollie' | 'swish';
 
 type ProviderRefundAuditOrder = {
   id: string;
   paymentProvider: string;
   molliePaymentId: string | null;
   swishPaymentId: string | null;
-  stripePaymentIntentId: string | null;
-  total: number;
+  total?: number;
 };
 
 function providerRefundReference(order: ProviderRefundAuditOrder): {
@@ -49,19 +42,14 @@ function providerRefundReference(order: ProviderRefundAuditOrder): {
   paymentRef: string;
 } {
   const providerName = String(order.paymentProvider || '').trim().toLowerCase();
-  if (providerName !== 'mollie' && providerName !== 'swish' && providerName !== 'stripe') {
+  if (providerName !== 'mollie' && providerName !== 'swish') {
     throw new Error(`Order ${order.id} har en PSP som inte kan refund-revideras`);
   }
   const paymentRef = String(
-    (providerName === 'mollie'
-      ? order.molliePaymentId
-      : providerName === 'swish'
-        ? order.swishPaymentId
-        : order.stripePaymentIntentId) || '',
+    (providerName === 'mollie' ? order.molliePaymentId : order.swishPaymentId) || '',
   ).trim();
   if (!paymentRef) {
-    const label = providerName === 'mollie' ? 'Mollie' : providerName === 'swish' ? 'Swish' : 'Stripe';
-    throw new Error(`Order ${order.id} saknar ${label}-referens`);
+    throw new Error(`Order ${order.id} saknar ${providerName === 'mollie' ? 'Mollie' : 'Swish'}-referens`);
   }
   return { providerName, paymentRef };
 }
@@ -139,19 +127,13 @@ export async function reconcilePendingPayments(): Promise<void> {
 async function reconcileProviderRefundOrder(
   order: ProviderRefundAuditOrder,
   source: 'REFUND_RECONCILE' | 'PAYOUT_PREFLIGHT',
-): Promise<StripeOrderFeeEvidence | null> {
+): Promise<void> {
   const { providerName, paymentRef } = providerRefundReference(order);
   const provider = getPaymentProviderByName(providerName);
-  const stripeAudit = providerName === 'stripe'
-    ? await auditStripeOrderForPayout(order, {
-        requireAvailable: source === 'PAYOUT_PREFLIGHT',
-        blockDisputes: source === 'PAYOUT_PREFLIGHT',
-      })
-    : null;
-  const remote = stripeAudit?.remote ?? await provider.getRemoteStatus(paymentRef);
+  const remote = await provider.getRemoteStatus(paymentRef);
   if (source === 'PAYOUT_PREFLIGHT' && remote.state !== 'paid') {
     throw new Error(
-      `betalningen ${paymentRef} är ${remote.state} hos ${providerName}`,
+      `betalningen ${paymentRef} är ${remote.state} hos ${providerName === 'mollie' ? 'Mollie' : 'Swish'}`,
     );
   }
   if (
@@ -196,7 +178,7 @@ async function reconcileProviderRefundOrder(
     },
     orderBy: { createdAt: 'asc' },
   });
-  if (!unresolvedIntent) return stripeAudit?.fee ?? null;
+  if (!unresolvedIntent) return;
   if (source === 'PAYOUT_PREFLIGHT') {
     throw new Error(`Refund-intent för order ${order.id} saknar slutligt PSP-svar`);
   }
@@ -250,15 +232,13 @@ async function reconcileProviderRefundOrder(
       resumedSync.orderStatus === 'REJECTED' ? 'REJECTED' : 'CANCELLED',
     );
   }
-  return stripeAudit?.fee ?? null;
 }
 
 async function reconcileProviderRefundBatch(
   orders: ProviderRefundAuditOrder[],
   failClosed: boolean,
   source: 'REFUND_RECONCILE' | 'PAYOUT_PREFLIGHT',
-): Promise<StripeOrderFeeEvidence[]> {
-  const stripeFees: StripeOrderFeeEvidence[] = [];
+): Promise<void> {
   // Keep PSP concurrency deliberately small. A large payout period must still
   // be fully audited, but it must not burst either PSP API or silently cap rows.
   for (let offset = 0; offset < orders.length; offset += 5) {
@@ -268,10 +248,7 @@ async function reconcileProviderRefundBatch(
     );
     for (let index = 0; index < results.length; index += 1) {
       const result = results[index];
-      if (result.status === 'fulfilled') {
-        if (result.value) stripeFees.push(result.value);
-        continue;
-      }
+      if (result.status === 'fulfilled') continue;
       const order = chunk[index];
       const message = result.reason instanceof Error ? result.reason.message : String(result.reason);
       if (failClosed) {
@@ -280,7 +257,6 @@ async function reconcileProviderRefundBatch(
       console.error(`[reconcile] kunde inte stämma av refund för ${order.id}:`, message);
     }
   }
-  return stripeFees;
 }
 
 type PayoutAuditPeriod = {
@@ -313,7 +289,6 @@ async function readPayoutProviderAuditFingerprint(
         paymentProvider: true,
         molliePaymentId: true,
         swishPaymentId: true,
-        stripePaymentIntentId: true,
         refundAmount: true,
         updatedAt: true,
       },
@@ -329,37 +304,31 @@ async function readPayoutProviderAuditFingerprint(
 
 /**
  * Fail-closed audit used immediately before a payout is approved or paid.
- * Every Mollie/direct-Swish/Stripe order in the period is checked; pagination prevents the old
+ * Every Mollie/direct-Swish order in the period is checked; pagination prevents the old
  * class of silent 50/100-row caps from producing an incorrect settlement.
  * The returned fingerprint is compared inside payout calculation so no PSP
  * call has to happen inside the serializable transaction.
  */
-async function reconcileProviderRefundsForPayoutPeriodDetailed(input: PayoutAuditPeriod, dependencies: {
+export async function reconcileProviderRefundsForPayoutPeriod(input: PayoutAuditPeriod, dependencies: {
   db?: Pick<typeof prisma, 'order'>;
-  auditBatch?: (
-    orders: ProviderRefundAuditOrder[],
-    failClosed: boolean,
-    source: 'REFUND_RECONCILE' | 'PAYOUT_PREFLIGHT',
-  ) => Promise<StripeOrderFeeEvidence[] | void>;
-} = {}): Promise<{ fingerprint: string[]; stripeFees: StripeOrderFeeEvidence[] }> {
+  auditBatch?: typeof reconcileProviderRefundBatch;
+} = {}): Promise<string[]> {
   const db = dependencies.db ?? prisma;
   const auditBatch = dependencies.auditBatch ?? reconcileProviderRefundBatch;
 
   // Every payable provider row must have a stable PSP reference before any
   // payout can be approved. The remote sweep below then proves payment and
-  // refund state for Mollie, direct Swish and Stripe.
+  // refund state for both Mollie and direct Swish.
   const initialFingerprint = await readPayoutProviderAuditFingerprint(db, input);
 
   let cursor: string | null = null;
-  const stripeFees: StripeOrderFeeEvidence[] = [];
   while (true) {
     const batch: ProviderRefundAuditOrder[] = await db.order.findMany({
       where: {
         restaurantId: input.restaurantId,
         createdAt: { gte: input.periodStart, lte: input.periodEnd },
-        paymentProvider: { in: ['mollie', 'swish', 'stripe'] },
+        paymentProvider: { in: ['mollie', 'swish'] },
         paymentStatus: { in: [...FINANCE_REAL_PAYMENT_STATUSES] },
-        ...PAYOUT_NON_TEST_ORDER_FILTER,
         ...(cursor ? { id: { gt: cursor } } : {}),
       },
       select: {
@@ -367,15 +336,13 @@ async function reconcileProviderRefundsForPayoutPeriodDetailed(input: PayoutAudi
         paymentProvider: true,
         molliePaymentId: true,
         swishPaymentId: true,
-        stripePaymentIntentId: true,
         total: true,
       },
       orderBy: { id: 'asc' },
       take: REFUND_AUDIT_BATCH_SIZE,
     });
     if (batch.length === 0) break;
-    const auditedFees = await auditBatch(batch, true, 'PAYOUT_PREFLIGHT');
-    if (auditedFees) stripeFees.push(...auditedFees);
+    await auditBatch(batch, true, 'PAYOUT_PREFLIGHT');
     cursor = batch[batch.length - 1].id;
   }
 
@@ -391,18 +358,7 @@ async function reconcileProviderRefundsForPayoutPeriodDetailed(input: PayoutAudi
       `period ${input.periodStart.toISOString()}–${input.periodEnd.toISOString()}`,
     );
   }
-  return { fingerprint: finalFingerprint, stripeFees };
-}
-
-export async function reconcileProviderRefundsForPayoutPeriod(input: PayoutAuditPeriod, dependencies: {
-  db?: Pick<typeof prisma, 'order'>;
-  auditBatch?: (
-    orders: ProviderRefundAuditOrder[],
-    failClosed: boolean,
-    source: 'REFUND_RECONCILE' | 'PAYOUT_PREFLIGHT',
-  ) => Promise<StripeOrderFeeEvidence[] | void>;
-} = {}): Promise<string[]> {
-  return (await reconcileProviderRefundsForPayoutPeriodDetailed(input, dependencies)).fingerprint;
+  return finalFingerprint;
 }
 
 /**
@@ -420,37 +376,18 @@ export async function reconcileProviderRefundsForPayout(input: {
   auditPeriod?: typeof reconcileProviderRefundsForPayoutPeriod;
 } = {}): Promise<{
   targetFingerprint: string[];
-  targetProviderFees: ProviderFeeSnapshotEvidence[];
-  sources: Array<{
-    payoutId: string;
-    fingerprint: string[];
-    providerFees: ProviderFeeSnapshotEvidence[];
-  }>;
+  sources: Array<{ payoutId: string; fingerprint: string[] }>;
 }> {
   const db = dependencies.db ?? prisma;
-  const auditPeriod = dependencies.auditPeriod;
-  const auditOne = async (period: PayoutAuditPeriod) => {
-    if (auditPeriod) {
-      return {
-        fingerprint: await auditPeriod(period),
-        stripeFees: [] as StripeOrderFeeEvidence[],
-      };
-    }
-    return reconcileProviderRefundsForPayoutPeriodDetailed(period);
-  };
+  const auditPeriod = dependencies.auditPeriod ?? reconcileProviderRefundsForPayoutPeriod;
 
-  const targetAudit = await auditOne({
+  const targetFingerprint = await auditPeriod({
     restaurantId: input.restaurantId,
     periodStart: input.targetPeriodStart,
     periodEnd: input.targetPeriodEnd,
   });
-  const targetStripeFees = stripeProviderFeeSnapshot(targetAudit.stripeFees);
 
-  const auditedSources: Array<{
-    payoutId: string;
-    fingerprint: string[];
-    providerFees: ProviderFeeSnapshotEvidence[];
-  }> = [];
+  const auditedSources: Array<{ payoutId: string; fingerprint: string[] }> = [];
   let cursor: string | null = null;
   while (true) {
     const sources: Array<{ id: string; periodStart: Date; periodEnd: Date }> =
@@ -467,26 +404,17 @@ export async function reconcileProviderRefundsForPayout(input: {
       });
     if (sources.length === 0) break;
     for (const source of sources) {
-      const sourceAudit = await auditOne({
+      const fingerprint = await auditPeriod({
         restaurantId: input.restaurantId,
         periodStart: source.periodStart,
         periodEnd: source.periodEnd,
       });
-      const sourceStripeFees = stripeProviderFeeSnapshot(sourceAudit.stripeFees);
-      auditedSources.push({
-        payoutId: source.id,
-        fingerprint: sourceAudit.fingerprint,
-        providerFees: sourceStripeFees ? [sourceStripeFees] : [],
-      });
+      auditedSources.push({ payoutId: source.id, fingerprint });
     }
     cursor = sources[sources.length - 1].id;
   }
 
-  return {
-    targetFingerprint: targetAudit.fingerprint,
-    targetProviderFees: targetStripeFees ? [targetStripeFees] : [],
-    sources: auditedSources,
-  };
+  return { targetFingerprint, sources: auditedSources };
 }
 
 // Compatibility aliases for older callers. Their implementation is now
@@ -502,8 +430,7 @@ export async function reconcilePendingRefunds(): Promise<void> {
   const pending = await prisma.order.findMany({
     where: {
       paymentStatus: 'REFUNDING',
-      paymentProvider: { in: ['mollie', 'swish', 'stripe'] },
-      ...PAYOUT_NON_TEST_ORDER_FILTER,
+      paymentProvider: { in: ['mollie', 'swish'] },
       ...(activeRefundCursor ? { id: { gt: activeRefundCursor } } : {}),
     },
     select: {
@@ -511,7 +438,6 @@ export async function reconcilePendingRefunds(): Promise<void> {
       paymentProvider: true,
       molliePaymentId: true,
       swishPaymentId: true,
-      stripePaymentIntentId: true,
       total: true,
     },
     orderBy: { id: 'asc' },
@@ -528,14 +454,13 @@ export async function reconcilePendingRefunds(): Promise<void> {
  * Active local refunds are handled separately and more frequently above.
  */
 export async function reconcileRefundAuditSlice(): Promise<void> {
-  // Walk all paid/refundable auditable provider rows in stable id order.
+  // Walk all paid/refundable Mollie rows in stable id order across intervals.
   // This eventually discovers dashboard refunds even if their webhook never
   // arrived; payout approval additionally performs a complete period audit.
   const audited: ProviderRefundAuditOrder[] = await prisma.order.findMany({
     where: {
-      paymentProvider: { in: ['mollie', 'swish', 'stripe'] },
+      paymentProvider: { in: ['mollie', 'swish'] },
       paymentStatus: { in: ['PAID', 'PARTIALLY_REFUNDED'] },
-      ...PAYOUT_NON_TEST_ORDER_FILTER,
       ...(refundAuditCursor ? { id: { gt: refundAuditCursor } } : {}),
     },
     select: {
@@ -543,7 +468,6 @@ export async function reconcileRefundAuditSlice(): Promise<void> {
       paymentProvider: true,
       molliePaymentId: true,
       swishPaymentId: true,
-      stripePaymentIntentId: true,
       total: true,
     },
     orderBy: { id: 'asc' },
