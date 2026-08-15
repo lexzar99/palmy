@@ -1,5 +1,6 @@
 import axios from "axios";
 import { getKioskAccessProof } from "@/lib/kioskAccessClient";
+import { EMBED_CONTEXT_HEADER } from "@/lib/orderSession";
 
 // Global axios-default: 25 sekunders timeout istället för 0 (oändlig).
 // På 3G/flakey-nät innebar oändliga timeouts att checkout-POSTs och
@@ -34,6 +35,13 @@ if (typeof window !== "undefined") {
       if (proof) {
         config.headers = config.headers || {};
         config.headers["x-viaeats-kiosk-access"] = proof;
+      }
+      // Proxyn måste veta att svaret landar i en cross-site iframe innan den
+      // sätter orderns HttpOnly-cookie: en Lax-cookie skickas aldrig tillbaka
+      // därifrån, så order-status och avbryt skulle svara 404 för alltid.
+      if (window.parent !== window) {
+        config.headers = config.headers || {};
+        config.headers[EMBED_CONTEXT_HEADER] = "1";
       }
     }
     return config;

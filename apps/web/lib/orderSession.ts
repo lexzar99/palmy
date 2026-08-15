@@ -11,12 +11,29 @@ export function orderSessionCookieName(orderId: string): string | null {
   return `${ORDER_SESSION_COOKIE_PREFIX}${orderId}`;
 }
 
-export function getOrderSessionCookieOptions() {
-  return {
+export const EMBED_CONTEXT_HEADER = "x-viaeats-embed";
+
+/**
+ * Partnersidan bäddar in kassan i en cross-site iframe. En SameSite=Lax-cookie
+ * skickas aldrig i den kontexten, så orderns session försvann tyst: status,
+ * abandon och tracking svarade 404 och avbryt-knappen kunde aldrig bekräftas.
+ *
+ * Den inbäddade varianten sätts därför som SameSite=None + Partitioned (CHIPS).
+ * Den förblir HttpOnly och binds till partitionen partnersida × viaeats, så
+ * den kan varken läsas av JavaScript eller återanvändas som spårande
+ * tredjepartscookie. Den vanliga viaeats.se-kassan behåller Lax.
+ */
+export function getOrderSessionCookieOptions(options: { embedded?: boolean } = {}) {
+  const secure = process.env.NODE_ENV === "production";
+  const base = {
     httpOnly: true,
-    sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
     path: "/api/platform",
     maxAge: ORDER_SESSION_MAX_AGE_SECONDS,
   };
+  // SameSite=None kräver Secure. Lokal http-utveckling faller därför tillbaka
+  // på Lax, där iframe:n ändå är same-site.
+  if (options.embedded && secure) {
+    return { ...base, sameSite: "none" as const, secure: true, partitioned: true };
+  }
+  return { ...base, sameSite: "lax" as const, secure };
 }

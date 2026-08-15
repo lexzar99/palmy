@@ -18,6 +18,7 @@ import { formatCheckoutSek } from "../lib/checkoutMoney.ts";
 
 const cart = fs.readFileSync(new URL("../app/cart/page.tsx", import.meta.url), "utf8");
 const menu = fs.readFileSync(new URL("../components/MenuContent.tsx", import.meta.url), "utf8");
+const embedScript = fs.readFileSync(new URL("../public/embed.js", import.meta.url), "utf8");
 
 test("direct Swish checkout uses the server app link and Commerce QR", () => {
   assert.match(cart, /choosePaymentMethod\(event, method\.id\)/);
@@ -205,6 +206,42 @@ test("the back button safely cancels a waiting Swish payment", () => {
   // säkra avbryt som den dedikerade Avbryt-knappen.
   assert.match(cart, /const returnFromPayment = \(\) => \{[\s\S]*?if \(swishCheckout\) \{\s*void handlePaymentCancelled\(swishCheckout\.orderId\);/);
   assert.match(cart, /disabled=\{loading \|\| embeddedStripeProcessing \|\| cancellingPayment \|\| \(verifyingPayment && !swishCheckout\)\}/);
+});
+
+test("the embedded checkout opens Swish from the partner top frame", () => {
+  // En cross-origin iframe får inte navigera till swish://. Auto-öppningen
+  // går därför via partnersidan, och kundens knapp riktas mot _top.
+  assert.match(cart, /const openSwishApp = useCallback\(\(appUrl: string\) => \{[\s\S]*?if \(window\.parent !== window\)/);
+  assert.match(cart, /type: "viaeats:open-swish", swishUrl: appUrl \}, parentOrigin\)/);
+  assert.match(cart, /openSwishApp\(swishCheckout\.appUrl\)/);
+  assert.match(cart, /target=\{embedMode \? "_top" : undefined\}/);
+  // Länken bär en engångskapabilitet i callbackurl — aldrig postMessage till "*".
+  assert.doesNotMatch(cart, /viaeats:open-swish[\s\S]{0,200}"\*"/);
+  assert.match(cart, /const parentOrigin = readEmbedParentOrigin\(\)\s*\|\| partnerOriginForRestaurant\(embedRestaurantSlug\);/);
+
+  assert.match(embedScript, /event\.data\.type === "viaeats:open-swish"/);
+  assert.match(embedScript, /raw\.indexOf\("swish:\/\/paymentrequest\?"\) !== 0/);
+  assert.match(embedScript, /window\.location\.href = swishUrl/);
+});
+
+test("the partner embed accepts every hosted checkout host we actually use", () => {
+  // Bara mollie.com släpptes igenom tidigare, så "Fler betalmetoder" (Stripe
+  // hosted Checkout) tog aldrig kunden vidare från den inbäddade kassan.
+  assert.match(embedScript, /host === "stripe\.com" \|\| host\.endsWith\("\.stripe\.com"\)/);
+  assert.match(embedScript, /host === "mollie\.com" \|\| host\.endsWith\("\.mollie\.com"\)/);
+  assert.match(embedScript, /parsed\.protocol !== "https:"/);
+  assert.doesNotMatch(embedScript, /function mollieCheckoutUrl/);
+});
+
+test("cancelling a payment always releases the checkout instead of spinning", () => {
+  assert.match(cart, /const MAX_PAYMENT_CANCEL_ATTEMPTS = 4;/);
+  assert.match(
+    cart,
+    /if \(nextAttempt >= MAX_PAYMENT_CANCEL_ATTEMPTS\) \{[\s\S]*?setVerifyingPayment\(false\);[\s\S]*?setCancellingPayment\(false\);[\s\S]*?return;/,
+  );
+  // Orderns proof måste överleva taket: backend reconcile stänger PSP-försöket.
+  const cappedBranch = cart.match(/if \(nextAttempt >= MAX_PAYMENT_CANCEL_ATTEMPTS\) \{([\s\S]*?)\n\s*\}/)?.[1] || "";
+  assert.doesNotMatch(cappedBranch, /clearPendingPaymentStorage|setPendingOrderId\(null\)/);
 });
 
 test("paydebug diagnostics stay available in the payment step", () => {

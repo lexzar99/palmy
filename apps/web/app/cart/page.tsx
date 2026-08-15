@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { ensureKioskAccess } from "@/lib/kioskAccessClient";
-import { EMBED_PARENT_ORIGIN_PARAM, readEmbedParentOrigin, trustedPartnerOrigin } from "@/lib/embedPartner";
+import { EMBED_PARENT_ORIGIN_PARAM, partnerOriginForRestaurant, readEmbedParentOrigin, trustedPartnerOrigin } from "@/lib/embedPartner";
 import { useCartStore } from "@/store/cartStore";
 import BogoPickerModal from "@/components/BogoPickerModal";
 import { rememberActiveOrder } from "@/lib/activeOrder";
@@ -110,6 +110,11 @@ type StartCheckoutOptions = { checkoutExperience?: CheckoutExperience };
 type PreparedStripePayment =
   | { status: "prepared"; orderId: string; clientSecret: string; returnUrl: string }
   | { status: "paid"; orderId: string };
+
+// Hur många gånger ett avbrott får försöka bekräftas hos providern innan
+// kassan lämnar tillbaka kontrollen till kunden. 1+2+4 s ≈ 7 s väntan, sedan
+// ett tydligt besked i stället för en spinner som aldrig tar slut.
+const MAX_PAYMENT_CANCEL_ATTEMPTS = 4;
 
 function checkoutPaymentProvider(value: unknown): CheckoutPaymentProvider | null {
   const provider = String(value || "").toLowerCase();
@@ -506,13 +511,36 @@ export default function CartPage() {
   // ifyllt. Kunden ska aldrig behöva knappa in ett Swish-nummer, så på mobil
   // hoppar vi direkt till appen i stället för att visa en QR-kod som ändå inte
   // går att skanna med samma telefon.
+  //
+  // I partner-embedden körs kassan i en cross-origin iframe, och browsern
+  // blockerar tyst all navigation till ett custom-schema därifrån — både
+  // location.href och en vanlig <a href="swish://">. Appen öppnas därför i två
+  // spår: partnersidan (top-level) gör app-hoppet åt oss via postMessage, och
+  // kundens egen knapp riktas mot _top så klicket blir en riktig
+  // top-navigation med användaraktivering.
+  const openSwishApp = useCallback((appUrl: string) => {
+    if (typeof window === "undefined") return;
+    if (window.parent !== window) {
+      // Länken bär en engångskapabilitet i callbackurl. Den får bara skickas
+      // till ett verifierat partner-origin, aldrig till "*". Samma fallback
+      // som order-/tracking-vyerna: en rensad sessionStorage ska inte tysta
+      // app-hoppet när restaurangen har en känd partnersida.
+      const parentOrigin = readEmbedParentOrigin()
+        || partnerOriginForRestaurant(embedRestaurantSlug);
+      if (parentOrigin) {
+        window.parent.postMessage({ type: "viaeats:open-swish", swishUrl: appUrl }, parentOrigin);
+      }
+      return;
+    }
+    window.location.href = appUrl;
+  }, [embedRestaurantSlug]);
   const swishAutoOpenedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!swishCheckout || !isHandheld) return;
     if (swishAutoOpenedRef.current === swishCheckout.orderId) return;
     swishAutoOpenedRef.current = swishCheckout.orderId;
-    window.location.href = swishCheckout.appUrl;
-  }, [swishCheckout, isHandheld]);
+    openSwishApp(swishCheckout.appUrl);
+  }, [swishCheckout, isHandheld, openSwishApp]);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   // True när kunden återvänt från en betalprovider och vi verifierar status.
   const [verifyingPayment, setVerifyingPayment] = useState(false);
@@ -2089,6 +2117,18 @@ export default function CartPage() {
       : 0;
     const nextAttempt = previousRetry + 1;
     paymentCancelRetryRef.current = { orderId, attempt: nextAttempt };
+    if (nextAttempt >= MAX_PAYMENT_CANCEL_ATTEMPTS) {
+      // Backoffen är bounded, inte oändlig. Utan tak snurrade "Avslutar
+      // betalningsförsöket" för alltid så fort avbrottet inte gick att
+      // bekräfta — t.ex. i en inbäddad kassa där orderns cookie blockeras.
+      // Ge tillbaka kontrollen i stället: ordern och dess proof bevaras,
+      // backend reconcile/cleanup stänger PSP-försöket, och kunden kan
+      // trycka avbryt igen när providern svarar.
+      setVerifyingPayment(false);
+      setCancellingPayment(false);
+      setError("Vi kunde inte bekräfta avbrottet hos betaltjänsten. Din varukorg är kvar och ingen ny betalning har startats – vänta en stund och avbryt igen.");
+      return;
+    }
     const retryDelayMs = Math.min(1_000 * (2 ** Math.min(previousRetry, 4)), 10_000);
     window.setTimeout(() => {
       if (
@@ -3524,7 +3564,19 @@ export default function CartPage() {
                   : "Skanna QR-koden med Swish-appen. Beloppet är redan ifyllt och betalningen verifieras automatiskt."}
               </p>
               {!isHandheld && <img src={swishCheckout.qrCode} alt="QR-kod för Swish-betalningen" className="mx-auto mt-5 h-52 w-52 rounded-2xl bg-white p-2" />}
-              <a href={swishCheckout.appUrl} className="mt-5 flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-[#2C2C2C] px-4 text-[15px] font-semibold text-white">
+              {/* target="_top" i embedden: en cross-origin iframe får bara
+                  lämna till ett custom-schema via en top-navigation med
+                  användaraktivering. onClick ber dessutom partnersidan göra
+                  hoppet, så knappen fungerar även om browsern stoppar det
+                  ena spåret. Swish visar samma betalning oavsett vilket som
+                  vinner — token:en är densamma. */}
+              <a
+                href={swishCheckout.appUrl}
+                target={embedMode ? "_top" : undefined}
+                rel="noopener"
+                onClick={() => { if (embedMode) openSwishApp(swishCheckout.appUrl); }}
+                className="mt-5 flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-[#2C2C2C] px-4 text-[15px] font-semibold text-white"
+              >
                 {isHandheld ? "Öppna Swish" : "Öppna Swish på den här enheten"} <ArrowRight size={18} />
               </a>
               <button type="button" onClick={() => { void handlePaymentCancelled(swishCheckout.orderId); }} className="mt-3 h-10 px-4 text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>

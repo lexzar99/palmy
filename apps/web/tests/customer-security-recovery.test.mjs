@@ -122,8 +122,22 @@ test("guest order web access uses scoped HttpOnly sessions and clean deep links"
   const proxy = read("app/api/platform/[...path]/route.ts");
   assert.match(proxy, /request\.cookies\.get\(orderCookieName\)/);
   assert.match(proxy, /headers\.set\(ORDER_SESSION_HEADER, orderSession\)/);
-  assert.match(proxy, /response\.cookies\.set\(issuedCookieName, issuedOrderSession/);
+  assert.match(proxy, /response\.cookies\.set\(\s*issuedCookieName,\s*issuedOrderSession/);
   assert.match(proxy, /targetUrl\.searchParams\.delete\("token"\)/);
+
+  // Den inbäddade kassan är en cross-site iframe. Order-sessionen måste
+  // därför sättas partitionerad (CHIPS) i stället för Lax, annars skickar
+  // browsern den aldrig tillbaka och status/abandon svarar 404 för alltid.
+  const orderSession = read("lib/orderSession.ts");
+  assert.match(orderSession, /sameSite: "none" as const, secure: true, partitioned: true/);
+  assert.match(orderSession, /sameSite: "lax" as const/);
+  assert.match(orderSession, /httpOnly: true/);
+  assert.match(proxy, /getOrderSessionCookieOptions\(\{ embedded: isEmbeddedRequest \}\)/);
+  assert.match(proxy, /request\.headers\.get\(EMBED_CONTEXT_HEADER\) === "1"/);
+  // Utloggning måste rensa båda cookie-varianterna — de är separata poster.
+  assert.match(proxy, /for \(const embedded of \[false, true\]\)/);
+  // Proofen får aldrig lämna HttpOnly-cookien för JavaScript-lagring.
+  assert.doesNotMatch(read("lib/api.ts"), /ORDER_SESSION_HEADER|order-session/);
 
   const orderPage = read("app/order/[id]/page.tsx");
   assert.match(orderPage, /orders\/\$\{orderId\}\/session/);

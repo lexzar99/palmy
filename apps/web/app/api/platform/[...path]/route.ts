@@ -8,6 +8,7 @@ import {
 } from "@/lib/platformSession";
 import { isValidLaunchCookie, LAUNCH_ACCESS_COOKIE } from "@/lib/launchAccess";
 import {
+  EMBED_CONTEXT_HEADER,
   getOrderSessionCookieOptions,
   ORDER_SESSION_COOKIE_PREFIX,
   ORDER_SESSION_HEADER,
@@ -56,10 +57,15 @@ function expireCustomerCredentials(response: NextResponse, request: NextRequest)
   });
   for (const cookie of request.cookies.getAll()) {
     if (!cookie.name.startsWith(ORDER_SESSION_COOKIE_PREFIX)) continue;
-    response.cookies.set(cookie.name, "", {
-      ...getOrderSessionCookieOptions(),
-      maxAge: 0,
-    });
+    // Partitionerad och opartitionerad cookie är två separata poster i
+    // browserns jar. Utloggning måste rensa båda, annars kan en inbäddad
+    // kassa behålla en orderaccess som förstasidan just har återkallat.
+    for (const embedded of [false, true]) {
+      response.cookies.set(cookie.name, "", {
+        ...getOrderSessionCookieOptions({ embedded }),
+        maxAge: 0,
+      });
+    }
   }
 }
 
@@ -100,6 +106,10 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
 
     stage = "resolve-api-url";
     const apiUrl = getRequiredApiUrl();
+    // Kassan i partner-iframen märker sina anrop. Order-sessionen måste då
+    // sättas som partitionerad cross-site-cookie, annars går den förlorad och
+    // status/abandon svarar 404 inifrån embedden.
+    const isEmbeddedRequest = request.headers.get(EMBED_CONTEXT_HEADER) === "1";
 
     stage = "read-cookie";
     const token = await getServerPlatformAccessToken().catch(() => null);
@@ -201,7 +211,11 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
     const issuedOrderId = upstreamResponse.headers.get(ORDER_SESSION_ID_HEADER);
     const issuedCookieName = issuedOrderId ? orderSessionCookieName(issuedOrderId) : null;
     if (issuedOrderSession && issuedCookieName) {
-      response.cookies.set(issuedCookieName, issuedOrderSession, getOrderSessionCookieOptions());
+      response.cookies.set(
+        issuedCookieName,
+        issuedOrderSession,
+        getOrderSessionCookieOptions({ embedded: isEmbeddedRequest }),
+      );
     }
     if (recoveredAsGuest) expirePlatformCredential(response);
     return response;
