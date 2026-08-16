@@ -8,6 +8,7 @@ import {
   Loader2, CheckCircle2, Building2, ChevronRight, Search, LocateFixed, RotateCw,
 } from "lucide-react";
 import { loadLeaflet, CARTO_LIGHT, CARTO_ATTRIBUTION, DEFAULT_MAP_CENTER } from "@/lib/leaflet";
+import { checkDeliveryStreet } from "@/lib/deliveryAddress";
 
 // Liten cookie-hjälpare — kommer ihåg om användaren nekat GPS, så vi inte
 // auto-promptar plats varje omstart.
@@ -128,18 +129,30 @@ export default function AddressModal({
   // ── Reverse-geocoda en kart-position via backend (keyless) → adressfält ───────
   const handleMapPosition = useCallback(async (lat: number, lng: number) => {
     setSelectedCoords({ lat, lng });
+    // Nålen har flyttats: den tidigare adressen hör inte längre till de här
+    // koordinaterna. Behåller vi den får kuriren en adress som pekar någon
+    // annanstans än nålen.
+    setSelectedAddress(null);
+    setSelectedPostalCode(null);
+    setSelectedDeliveryCity(null);
     setError(null);
     setLoading(true);
     try {
       const res = await fetch(`/api/places/reverse?lat=${lat}&lng=${lng}`);
       const data = await res.json();
-      if (data?.address) {
+      // Servern svarar bara med en adress som har gata + husnummer. Allt annat
+      // (postnummerområde, ortnamn) är inte leveransbart.
+      if (data?.address && checkDeliveryStreet(String(data.address).split(",")[0]).ok) {
         setSelectedAddress(data.address);
         setInput(data.address);
         setSelectedPostalCode(data.postalCode ?? null);
         setSelectedDeliveryCity(data.city ?? null);
+      } else {
+        setError("Ingen gatuadress på den punkten. Dra nålen till en byggnad eller sök upp adressen.");
       }
-    } catch { /* behåll koordinaterna även om reverse failar */ }
+    } catch {
+      setError("Kunde inte hämta adressen för punkten. Försök igen eller sök upp adressen.");
+    }
     finally { setLoading(false); }
   }, []);
 
@@ -321,6 +334,17 @@ export default function AddressModal({
     setInput(pred.description);
     setLoading(true);
     setError(null);
+    // Sista utvägen om en leverantör ändå returnerar ett postnummer eller en
+    // ort som förslag: en sådan träff får inte bli en bekräftad adress.
+    const predictedStreet = pred.description.split(",")[0].trim();
+    const predictionCheck = checkDeliveryStreet(predictedStreet);
+    if (!predictionCheck.ok) {
+      setSelectedAddress(null);
+      setSelectedCoords(null);
+      setError(predictionCheck.message);
+      setLoading(false);
+      return;
+    }
     try {
       const res = await fetch(
         `/api/places/geocode?place_id=${pred.place_id}&sessiontoken=${sessionToken.current}`
@@ -372,8 +396,20 @@ export default function AddressModal({
       setError("Välj din plats på kartan eller sök upp adressen.");
       return;
     }
+    // Fritexten i sökfältet får ALDRIG bli leveransadressen. Den vägen kunde
+    // "224 76" bekräftas så länge kartan råkade ha koordinater sedan tidigare.
+    // Bara en bekräftad träff (sökförslag eller nål på en gatuadress) duger.
+    if (!selectedAddress) {
+      setError("Välj din adress bland förslagen eller placera nålen på din gatuadress.");
+      return;
+    }
+    const addressCheck = checkDeliveryStreet(selectedAddress.split(",")[0]);
+    if (!addressCheck.ok) {
+      setError(addressCheck.message);
+      return;
+    }
     onConfirm(
-      selectedAddress || input.trim(),
+      selectedAddress,
       "DELIVERY",
       selectedCoords,
       selectedPostalCode ?? undefined,
@@ -462,7 +498,7 @@ export default function AddressModal({
                       <input
                         type="text" value={input} onChange={e => handleInputChange(e.target.value)}
                         onKeyDown={e => e.key === "Enter" && predictions.length === 0 && handleSubmit()}
-                        placeholder="Sök gatuadress, postnummer…"
+                        placeholder="Sök gatuadress med husnummer…"
                         className="w-full bg-transparent font-medium focus:outline-none"
                         style={{ color: "var(--text-primary)", fontSize: "16px" }}
                         autoComplete="off"

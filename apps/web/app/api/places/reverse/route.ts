@@ -28,16 +28,27 @@ interface GeocodeResult {
   formatted_address?: string;
 }
 
-function parse(result: GeocodeResult): { address: string; postalCode: string | null; city: string | null } {
+/**
+ * Returnerar bara en adress som faktiskt går att köra ut till.
+ *
+ * Tidigare föll den tillbaka på `formatted_address` när gata/husnummer
+ * saknades. En nål mitt i ett fält blev då ett postnummerområde eller en
+ * plus-kod som såg ut som en giltig leveransadress. `null` här betyder
+ * "fortsätt leta" — anroparen provar backend och svarar annars tomt, så
+ * kunden ombeds flytta nålen eller söka upp adressen.
+ */
+function parse(
+  result: GeocodeResult,
+): { address: string; postalCode: string | null; city: string | null } | null {
   const comp: GeocodeComponent[] = result?.address_components || [];
   const get = (type: string) => comp.find((c) => c.types?.includes(type))?.long_name;
   const route = get("route");
   const num = get("street_number");
+  if (!route || !num) return null;
   const zip = get("postal_code") || null;
   const city = get("postal_town") || get("locality") || get("sublocality") || null;
-  const street = [route, num].filter(Boolean).join(" ") || String(result?.formatted_address || "").split(",")[0];
   const zipCity = [zip, city].filter(Boolean).join(" ");
-  const address = [street, zipCity].filter(Boolean).join(", ");
+  const address = [`${route} ${num}`, zipCity].filter(Boolean).join(", ");
   return { address, postalCode: zip, city };
 }
 
@@ -68,8 +79,13 @@ export async function GET(req: NextRequest) {
       url.searchParams.set("key", SERVER_MAPS_KEY);
       const res = await fetch(url.toString());
       const data = (await res.json()) as { results?: GeocodeResult[] };
-      const result = (data.results || [])[0];
-      if (result) return NextResponse.json(parse(result));
+      // Google sorterar det mest specifika först, men en nål utanför bebyggelse
+      // ger bara områdesträffar. Leta efter den första som har gata + nummer
+      // innan vi ger upp och provar backend.
+      for (const result of data.results || []) {
+        const parsed = parse(result);
+        if (parsed) return NextResponse.json(parsed);
+      }
     } catch {
       /* fall through to backend */
     }

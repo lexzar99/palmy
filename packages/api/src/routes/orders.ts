@@ -28,6 +28,7 @@ import { getIdempotencyKey } from '../lib/idempotency';
 import { normalizeDeliveryZones, normalizeMoneyToOre, resolveDeliveryFee } from '../utils/deliveryZones';
 import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
 import { computeDeliveryWindowMs } from '../lib/deliveryWindow';
+import { checkDeliveryStreet } from '../lib/deliveryAddress';
 import { discountPlatformAllowed } from '../lib/clientPlatform';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { dispatchCustomerOrderStatus } from '../lib/customerOrderNotifier';
@@ -696,11 +697,19 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     // Validera leveransadress om delivery
-    // Only require street — zip is optional since the zone check via GPS coordinates
-    // is the authoritative validation for delivery availability and fee.
+    // Zip är fortfarande valfritt — zon-kontrollen på GPS-koordinater avgör
+    // leveransbarhet och avgift. Men gatan måste vara en riktig gatuadress:
+    // ett postnummer eller ett ortnamn gav förut en order som restaurangen
+    // inte kunde köra ut. Klienterna varnar tidigare, den här grinden är den
+    // som gäller för webben, partner-embedden OCH appen.
     if (data.type === 'DELIVERY') {
-      if (!data.deliveryStreet) {
-        res.status(400).json({ error: 'Leveransadress krävs för hemkörning' });
+      const addressCheck = checkDeliveryStreet(data.deliveryStreet);
+      if (!addressCheck.ok) {
+        res.status(400).json({
+          error: addressCheck.message,
+          code: 'DELIVERY_ADDRESS_INCOMPLETE',
+          issue: addressCheck.issue,
+        });
         return;
       }
     }

@@ -31,6 +31,7 @@ import {
 import { API_URL } from "@/lib/api";
 import { ensureKioskAccess } from "@/lib/kioskAccessClient";
 import { EMBED_PARENT_ORIGIN_PARAM, partnerOriginForRestaurant, readEmbedParentOrigin, trustedPartnerOrigin } from "@/lib/embedPartner";
+import { checkDeliveryStreet, isDeliverableStreet } from "@/lib/deliveryAddress";
 import { useCartStore } from "@/store/cartStore";
 import BogoPickerModal from "@/components/BogoPickerModal";
 import { rememberActiveOrder } from "@/lib/activeOrder";
@@ -939,6 +940,17 @@ export default function CartPage() {
     setAddressZoneStatus(null);
 
     const street = pred.description.split(",")[0] || pred.description;
+    // Ett förslag som inte är en gatuadress (postnummer, ort, stadsdel) får
+    // inte bli kundens leveransadress — säg till direkt i stället för att
+    // låta kassan stoppa den först vid betalning.
+    const streetCheck = checkDeliveryStreet(street);
+    if (!streetCheck.ok) {
+      setFormData(prev => ({ ...prev, deliveryStreet: "", deliveryZip: "", deliveryCity: "" }));
+      setError(streetCheck.message);
+      setAddressLoading(false);
+      return;
+    }
+    setError(null);
     // Optimistic: extract zip from description text while geocode loads
     const zipMatchFallback = pred.description.match(/\b\d{3}\s?\d{2}\b/);
     const zipFallback = zipMatchFallback ? zipMatchFallback[0].replace(/\s/g, "") : "";
@@ -2556,6 +2568,14 @@ export default function CartPage() {
     // ── Zone check (last-mile safeguard for delivery) ────────────────────────
     // Skippas för test-flödet så vi kan testa till adresser utanför zone.
     if (!isTestFlow && orderType === "DELIVERY" && currentRestaurantId) {
+      // Adressen måste vara en gatuadress INNAN vi bryr oss om zonen. Ett
+      // postnummer har en centroid som ligger i zonen, så zon-checken sa ja
+      // till "224 76" och restaurangen fick en order utan adress.
+      const deliveryAddressCheck = checkDeliveryStreet(formData.deliveryStreet);
+      if (!deliveryAddressCheck.ok) {
+        rejectCheckout(deliveryAddressCheck.message);
+        return;
+      }
       if (addressZoneStatus === "checking") {
         rejectCheckout(t("cart.errors.zoneChecking"));
         return;
@@ -2584,7 +2604,13 @@ export default function CartPage() {
         try {
           const aRes = await fetch(`/api/places/autocomplete?input=${encodeURIComponent(formData.deliveryStreet)}&sessiontoken=${sessionToken.current}`);
           const aData = await aRes.json();
-          const bestMatch = aData.predictions?.[0];
+          // Den här sista-chans-geokodningen tog förut FÖRSTA träffen rakt av.
+          // Skrev kunden "224 76" blev det postnumrets centroid, zonen sa ja
+          // och ordern gick igenom utan adress. Nu accepteras bara en träff
+          // som faktiskt är en gatuadress.
+          const bestMatch = (aData.predictions || []).find(
+            (prediction: any) => isDeliverableStreet(String(prediction?.description || "").split(",")[0]),
+          );
           if (bestMatch) {
             const gRes = await fetch(`/api/places/geocode?place_id=${bestMatch.place_id}&sessiontoken=${sessionToken.current}`);
             const gData = await gRes.json();

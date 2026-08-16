@@ -77,6 +77,10 @@ async function googleAutocompleteNew(
         input,
         includedRegionCodes: ['se'],
         languageCode: 'sv',
+        // Motsvarigheten till legacy-API:ts `types=address`. Utan filtret
+        // föreslog Places API (New) postnummer, orter och stadsdelar — en
+        // kund kunde välja "224 76" och få igenom en order utan adress.
+        includedPrimaryTypes: ['street_address', 'premise', 'subpremise', 'route'],
         ...(sessiontoken ? { sessionToken: sessiontoken } : {}),
       }),
     });
@@ -139,11 +143,17 @@ async function googleGeocodeNew(
 // med i place_id ("photon:lat,lng,postnr,ort") så geocode-steget inte behöver
 // något extra nätverksanrop.
 
+/**
+ * Photon returnerar även orter och stadsdelar som features. Utan husnummer är
+ * de inte adresser att köra ut till — de gav förut förslag som "Lund" och
+ * "Linero" i adressväljaren. Ett gatunamn utan nummer duger inte heller.
+ */
 function photonAddress(props: any): { street: string; zip?: string; city?: string } | null {
-  const street = [props.street || props.name, props.housenumber].filter(Boolean).join(' ').trim();
-  if (!street) return null;
+  const route = String(props.street || '').trim();
+  const houseNumber = String(props.housenumber || '').trim();
+  if (!route || !houseNumber) return null;
   return {
-    street,
+    street: `${route} ${houseNumber}`,
     zip: props.postcode || undefined,
     city: props.city || props.town || props.village || props.locality || undefined,
   };
@@ -272,9 +282,13 @@ async function googleReverse(lat: number, lng: number): Promise<ReverseResult | 
     const num = get('street_number');
     const zip = get('postal_code');
     const city = get('postal_town') || get('locality') || get('sublocality');
-    const street = [route, num].filter(Boolean).join(' ') || String(result.formatted_address || '').split(',')[0];
+    // En nål mitt i ett fält reverse-geokodar till ett postnummerområde eller
+    // en plus-kod. Den föll förut tillbaka på formatted_address och blev en
+    // "adress" som kuriren inte kunde hitta. Utan gata + husnummer svarar vi
+    // hellre ingenting, så kunden får söka upp adressen i stället.
+    if (!route || !num) return null;
     const zipCity = [zip, city].filter(Boolean).join(' ');
-    const address = [street, zipCity].filter(Boolean).join(', ');
+    const address = [`${route} ${num}`, zipCity].filter(Boolean).join(', ');
     return { address, postalCode: zip, city };
   } catch {
     return null;
