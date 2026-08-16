@@ -100,6 +100,16 @@ export async function GET(req: NextRequest) {
   // 2) Fallback: proxa till backend (har nyckeln i prod).
   try {
     const res = await fetch(`${API_URL}/api/places/reverse?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`);
+    // "Ingen gatuadress på den här punkten" är ett giltigt svar, inte ett
+    // serverfel. Att kasta här gav 500 för varje nål ute på ett fält eller i
+    // vattnet, vilket både larmade i felrapporteringen och dolde att kartan
+    // fungerade precis som tänkt.
+    if (res.status === 404) {
+      return NextResponse.json(
+        { address: null, postalCode: null, city: null },
+        { status: 404 },
+      );
+    }
     if (!res.ok) throw new Error(`Backend ${res.status}`);
     const data = (await res.json()) as { address?: string; postalCode?: string | null; city?: string | null };
     return NextResponse.json({

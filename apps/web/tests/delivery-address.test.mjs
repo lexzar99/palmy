@@ -142,6 +142,8 @@ test("reverse geocoding never invents an address from a map pin", () => {
     assert.match(source, /isDeliverableStreet.*from ["']@?[./\w-]*\/?lib\/deliveryAddress["']/);
   }
   assert.match(modal, /Ingen gatuadress på den punkten/);
+  // En punkt utan gatuadress är ett svar, inte ett serverfel.
+  assert.match(webReverse, /if \(res\.status === 404\) \{[\s\S]*?address: null/);
 
   // Plus-koden som produktionen faktiskt returnerade för en punkt i vattnet.
   assert.equal(web.checkDeliveryStreet("HWX2+X2 Malmö").ok, false);
