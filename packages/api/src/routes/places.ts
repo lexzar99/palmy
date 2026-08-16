@@ -11,6 +11,7 @@
 import { Router, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import { trackApiCall } from '../lib/apiHealth';
+import { isDeliverableStreet } from '../lib/deliveryAddress';
 
 const router = Router();
 
@@ -151,9 +152,14 @@ async function googleGeocodeNew(
 function photonAddress(props: any): { street: string; zip?: string; city?: string } | null {
   const route = String(props.street || '').trim();
   const houseNumber = String(props.housenumber || '').trim();
-  if (!route || !houseNumber) return null;
+  // `name` bär landsbygdsadresser som "Gårdstånga 309" men även rena ortnamn,
+  // så den släpps bara igenom när den klarar gatuadress-regeln.
+  const street = route && houseNumber
+    ? `${route} ${houseNumber}`
+    : String(props.name || '').trim();
+  if (!isDeliverableStreet(street)) return null;
   return {
-    street: `${route} ${houseNumber}`,
+    street,
     zip: props.postcode || undefined,
     city: props.city || props.town || props.village || props.locality || undefined,
   };
@@ -283,12 +289,16 @@ async function googleReverse(lat: number, lng: number): Promise<ReverseResult | 
     const zip = get('postal_code');
     const city = get('postal_town') || get('locality') || get('sublocality');
     // En nål mitt i ett fält reverse-geokodar till ett postnummerområde eller
-    // en plus-kod. Den föll förut tillbaka på formatted_address och blev en
-    // "adress" som kuriren inte kunde hitta. Utan gata + husnummer svarar vi
-    // hellre ingenting, så kunden får söka upp adressen i stället.
-    if (!route || !num) return null;
+    // en plus-kod ("HWX2+X2 Malmö"), och den föll förut igenom som en giltig
+    // adress via formatted_address. Fallbacken finns kvar — landsbygdsadresser
+    // som "Gårdstånga 309" saknar ofta strukturerad route/street_number — men
+    // resultatet måste klara samma gatuadress-regel som ordern valideras mot.
+    const street = route && num
+      ? `${route} ${num}`
+      : String(result.formatted_address || '').split(',')[0].trim();
+    if (!isDeliverableStreet(street)) return null;
     const zipCity = [zip, city].filter(Boolean).join(' ');
-    const address = [`${route} ${num}`, zipCity].filter(Boolean).join(', ');
+    const address = [street, zipCity].filter(Boolean).join(', ');
     return { address, postalCode: zip, city };
   } catch {
     return null;

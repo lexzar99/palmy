@@ -134,12 +134,21 @@ test("reverse geocoding never invents an address from a map pin", () => {
     new URL("../app/api/places/reverse/route.ts", import.meta.url),
     "utf8",
   );
+  // Fallbacken på formatted_address får finnas kvar (landsbygdsadresser som
+  // "Gårdstånga 309" saknar strukturerad route/street_number), men allt som
+  // släpps ut måste klara samma regel som ordern valideras mot.
   for (const source of [webReverse, places]) {
-    assert.match(source, /if \(!route \|\| !num\) return null;/);
-    assert.doesNotMatch(source, /formatted_address[^\n]*split\(","\)\[0\]/);
-    assert.doesNotMatch(source, /formatted_address[^\n]*split\(','\)\[0\]/);
+    assert.match(source, /if \(!isDeliverableStreet\(street\)\) return null;/);
+    assert.match(source, /isDeliverableStreet.*from ["']@?[./\w-]*\/?lib\/deliveryAddress["']/);
   }
   assert.match(modal, /Ingen gatuadress på den punkten/);
+
+  // Plus-koden som produktionen faktiskt returnerade för en punkt i vattnet.
+  assert.equal(web.checkDeliveryStreet("HWX2+X2 Malmö").ok, false);
+  assert.equal(web.checkDeliveryStreet("5GX2+X2 Övre Galthult").ok, false);
+  // Riktiga landsbygdsadresser från samma reverse-endpoint.
+  assert.equal(web.checkDeliveryStreet("Gårdstånga 309").ok, true);
+  assert.equal(web.checkDeliveryStreet("Norra REVEN 6520").ok, true);
 });
 
 test("autocomplete only suggests street addresses", () => {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkGeocodeLimit } from "@/lib/mapsRateLimit";
+import { isDeliverableStreet } from "@/lib/deliveryAddress";
 
 // Reverse-geocode (lat/lng → adress) server-side så ingen browser-nyckel behövs
 // → kart-väljaren funkar i produktion utan referrer-/nyckel-konfiguration.
@@ -31,9 +32,11 @@ interface GeocodeResult {
 /**
  * Returnerar bara en adress som faktiskt går att köra ut till.
  *
- * Tidigare föll den tillbaka på `formatted_address` när gata/husnummer
- * saknades. En nål mitt i ett fält blev då ett postnummerområde eller en
- * plus-kod som såg ut som en giltig leveransadress. `null` här betyder
+ * Fallbacken på `formatted_address` finns kvar — landsbygdsadresser som
+ * "Gårdstånga 309" saknar ofta strukturerad route/street_number — men allt
+ * som kommer ut måste klara samma gatuadress-regel som ordern valideras mot.
+ * En nål mitt i ett fält gav annars ett postnummerområde eller en plus-kod
+ * ("HWX2+X2 Malmö") som såg ut som en giltig leveransadress. `null` betyder
  * "fortsätt leta" — anroparen provar backend och svarar annars tomt, så
  * kunden ombeds flytta nålen eller söka upp adressen.
  */
@@ -44,11 +47,14 @@ function parse(
   const get = (type: string) => comp.find((c) => c.types?.includes(type))?.long_name;
   const route = get("route");
   const num = get("street_number");
-  if (!route || !num) return null;
+  const street = route && num
+    ? `${route} ${num}`
+    : String(result?.formatted_address || "").split(",")[0].trim();
+  if (!isDeliverableStreet(street)) return null;
   const zip = get("postal_code") || null;
   const city = get("postal_town") || get("locality") || get("sublocality") || null;
   const zipCity = [zip, city].filter(Boolean).join(" ");
-  const address = [`${route} ${num}`, zipCity].filter(Boolean).join(", ");
+  const address = [street, zipCity].filter(Boolean).join(", ");
   return { address, postalCode: zip, city };
 }
 
