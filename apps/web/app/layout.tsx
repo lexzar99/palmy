@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Baloo_2 } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import BottomNav from "@/components/BottomNav";
 import Navbar from "@/components/Navbar";
@@ -14,10 +14,22 @@ import DeferredGlobalClients from "@/components/DeferredGlobalClients";
 import MetaPixel from "@/components/MetaPixel";
 
 // ViaEats-typografin: mjuk men stadig, med höga vikter för ett appnära uttryck.
-const baloo = Baloo_2({
-  subsets: ["latin"],
-  weight: ["500", "600", "700", "800"],
+//
+// Självhostad i stället för next/font/google. Google-varianten hämtar CSS och
+// woff2 vid BUILD-tid, och Next cachar den CSS:en. När Google roterade
+// Baloo 2:s filnamn pekade den cachade CSS:en på 404:ade URL:er och hela
+// Vercel-bygget föll ("Can't resolve @vercel/turbopack-next/internal/font/
+// google/font"). Filen nedan är samma latin-subset som Google levererade,
+// men som variabel font (vikt 500-800 interpoleras) — bygget blir därmed
+// oberoende av deras CDN. Baloo 2 är OFL-licensierad, se OFL.txt.
+const baloo = localFont({
+  src: "./fonts/Baloo2-latin-variable.woff2",
+  weight: "500 800",
+  style: "normal",
   display: "swap",
+  // Samma fallback-kedja som Google-varianten gav, så layouten inte hoppar
+  // om fonten skulle blockeras.
+  fallback: ["system-ui", "-apple-system", "Segoe UI", "sans-serif"],
 });
 
 export const metadata: Metadata = {
