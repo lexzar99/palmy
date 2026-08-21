@@ -44,6 +44,7 @@ import companyLookupRoutes from './routes/companyLookup';
 import controlCenterRoutes from './routes/controlCenter';
 import authRoutes from './routes/auth';
 import terminalRoutes from './routes/terminal';
+import terminalReleaseAdminRoutes, { terminalUpdateRouter, terminalDownloadRouter } from './routes/terminalReleases';
 // Kompatibilitetsrouter för Stripes gamla webhook-URL. Gamla klient-endpoints
 // är pensionerade; alla aktiva klienter använder provider-neutrala API:t.
 import legacyPaymentClientRoutes from './routes/paymentsLegacyClient';
@@ -342,6 +343,19 @@ const sessionVerifyLimiter = rateLimit({
   handler: opsRateLimitHandler('session-verify', verifyRateKey),
 });
 
+// Den dolda nedladdningssidans kod är 8 tecken ur ett 29-teckens alfabet.
+// Taket här gör uttömmande gissning meningslös långt innan koden hinner gå ut.
+const terminalDownloadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => `${trustedClientIp(req)}:apk-code`,
+  message: { error: 'För många försök. Vänta 15 minuter och hämta en ny kod i terminalen.' },
+});
+app.use('/api/terminal-download/verify', terminalDownloadLimiter);
+
 app.use('/api/orders', orderLimiter);
 app.use('/api/account/login', adminLoginLimiter);
 app.use('/api/auth/login', adminLoginLimiter);
@@ -430,7 +444,9 @@ app.use('/api/account', authRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/account', paymentMethodsRoutes);
 app.use('/api/terminal/pair', adminLoginLimiter);
+app.use('/api/terminal', terminalUpdateRouter);
 app.use('/api/terminal', terminalRoutes);
+app.use('/api/terminal-download', terminalDownloadRouter);
 app.use('/api/account', referralsRoutes);
 app.use('/api/account', inviteRoutes);
 app.use('/api/public', referralsPublic);
@@ -453,6 +469,7 @@ app.use('/api/admin/reports', reportRoutes);
 // (/upload, /upload-r2, /images/list, /images/exists, /images/auto-match,
 // /images/migrate) hamnar på de URL:er admin-klienten faktiskt anropar.
 app.use('/api/admin', uploadRoutes);
+app.use('/api/admin', terminalReleaseAdminRoutes);
 app.use('/api/maps-stats', mapsStatsRoutes);
 app.use('/api/places', placesRoutes);
 app.use('/api/notifications', notificationRoutes);

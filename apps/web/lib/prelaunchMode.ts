@@ -49,6 +49,7 @@ export function isLaunchGateBypassPath(pathname: string): boolean {
     || pathname === "/orders"
     || pathname === "/pay/return"
     || pathname === "/stripe-redirect"
+    || pathname === "/terminal"
     || pathname === "/favicon.ico"
     || pathname === "/manifest.webmanifest"
     || pathname === "/robots.txt"

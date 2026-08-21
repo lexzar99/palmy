@@ -17,7 +17,7 @@
  * så vi inte tyst tappar uppladdningar. Hela admin-flowet förblir
  * funktionellt mot Cloudinary tills R2 är konfigurerat.
  */
-import { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand, CopyObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, DeleteObjectCommand, CopyObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { trackApiCall } from './apiHealth';
 import { createHash } from 'crypto';
 import sharp from 'sharp';
@@ -334,6 +334,25 @@ export async function uploadToR2(key: string, body: Buffer, contentType = 'image
   // nyckel faktiskt syns: samma innehåll → samma ?v (idempotent), ny bild → ny
   // ?v → CDN/browser hämtar färskt trots immutable-cachen.
   return { key, url: r2KeyToVersionedUrl(key, shortContentHash(body)) };
+}
+
+/**
+ * Hämtar ett objekt ur R2 som buffer.
+ *
+ * Används för partner-APK:erna, som vi medvetet INTE exponerar via den publika
+ * R2-domänen: nedladdningen ska kräva en engångskod från plattan, så filen
+ * måste gå genom API:t.
+ */
+export async function getFromR2(key: string): Promise<Buffer> {
+  const c = getClient();
+  if (!c) throw new Error('R2 är inte konfigurerat');
+  const out = await c.client.send(new GetObjectCommand({ Bucket: c.cfg.bucket, Key: key }));
+  const body = out.Body as any;
+  if (!body) throw new Error(`R2-objektet ${key} saknar innehåll`);
+  const chunks: Buffer[] = [];
+  for await (const chunk of body) chunks.push(Buffer.from(chunk));
+  trackApiCall('r2').catch(() => {});
+  return Buffer.concat(chunks);
 }
 
 /**

@@ -9,10 +9,12 @@ import {
   KeyRound,
   LogIn,
   LogOut,
+  Package,
   Plus,
   RefreshCw,
   Tablet,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { CityRestaurantPicker } from "@/shared/components/city-restaurant-picker";
 import creamSmiley from "../../../../../Logotyp/exports/smiley-cream-transparent.png";
@@ -27,13 +29,23 @@ import {
   Surface,
 } from "@/shared/components/ui";
 import {
+  activateTerminalRelease,
   deleteDevice,
   generatePairingCode,
   getRestaurantDevices,
+  getTerminalReleases,
   restoreDevice,
   revokeDevice,
+  uploadTerminalRelease,
   type RestaurantDevicesResponse,
+  type TerminalAppRelease,
 } from "./api";
+
+function formatBytes(bytes: number): string {
+  if (!bytes) return "—";
+  const mb = bytes / (1024 * 1024);
+  return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.round(bytes / 1024)} kB`;
+}
 
 function formatWhen(value: string | null): string {
   if (!value) return "—";
@@ -52,6 +64,11 @@ export function RestaurantDevicesPage() {
   const [restaurantId, setRestaurantId] = useState("");
   const [copied, setCopied] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
+  const [updateOpen, setUpdateOpen] = useState(false);
+  const [apkFile, setApkFile] = useState<File | null>(null);
+  const [releaseNotes, setReleaseNotes] = useState("");
+  const [uploadPercent, setUploadPercent] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const queryKey = useMemo(() => ["restaurant-devices", restaurantId], [restaurantId]);
 
@@ -89,6 +106,51 @@ export function RestaurantDevicesPage() {
       socket.disconnect();
     };
   }, [restaurantId, invalidate]);
+
+  // Releaserna är gemensamma för hela flottan, inte scopade till en
+  // restaurang — därför en egen query som lever oberoende av platsvalet.
+  const releasesQuery = useQuery({
+    queryKey: ["terminal-releases"],
+    queryFn: getTerminalReleases,
+  });
+  const invalidateReleases = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ["terminal-releases"] }),
+    [queryClient],
+  );
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) =>
+      uploadTerminalRelease(file, {
+        notes: releaseNotes.trim() || undefined,
+        onProgress: setUploadPercent,
+      }),
+    onSuccess: () => {
+      void invalidateReleases();
+      setUpdateOpen(false);
+      setApkFile(null);
+      setReleaseNotes("");
+      setUploadPercent(0);
+      setUploadError(null);
+    },
+    onError: (error: unknown) => {
+      // Serverns felmeddelanden är skrivna för att läsas rakt av (fel
+      // paketnamn, redan uppladdad versionCode, nedgradering) — visa dem.
+      const detail =
+        (error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+        (error as Error)?.message ??
+        "Uppladdningen misslyckades";
+      setUploadError(detail);
+      setUploadPercent(0);
+    },
+  });
+
+  const activateMutation = useMutation({
+    mutationFn: (id: string) => activateTerminalRelease(id),
+    onSuccess: (result) => {
+      void invalidateReleases();
+      if (result?.warning) window.alert(result.warning);
+    },
+  });
 
   const generateMutation = useMutation({
     mutationFn: () => generatePairingCode(restaurantId),
@@ -135,10 +197,16 @@ export function RestaurantDevicesPage() {
         breadcrumb="Katalog"
         title="Enheter"
         actions={
-          <Button variant="primary" onClick={() => setLinkOpen(true)}>
-            <Plus size={15} className="mr-1.5 inline" />
-            Koppla enhet
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => setUpdateOpen(true)}>
+              <Upload size={15} className="mr-1.5 inline" />
+              Ladda upp ny uppdatering
+            </Button>
+            <Button variant="primary" onClick={() => setLinkOpen(true)}>
+              <Plus size={15} className="mr-1.5 inline" />
+              Koppla enhet
+            </Button>
+          </div>
         }
       />
 
@@ -266,6 +334,78 @@ export function RestaurantDevicesPage() {
         </div>
       )}
 
+      {/* Appversion: den APK terminalerna hämtar när personalen trycker
+          Uppdatera i plattans inställningar. Global för hela flottan. */}
+      <Surface className="px-5 py-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <Package size={17} className="text-[var(--text-muted)]" />
+            <h2 className="text-[15px] font-extrabold tracking-[-0.2px]">Appversion på terminalerna</h2>
+          </div>
+          <Button variant="secondary" onClick={() => setUpdateOpen(true)}>
+            <Upload size={14} className="mr-1.5 inline" />
+            Ladda upp ny uppdatering
+          </Button>
+        </div>
+
+        {releasesQuery.isLoading ? (
+          <p className="mt-4 text-[13px] text-[var(--text-muted)]">Laddar versioner…</p>
+        ) : (releasesQuery.data?.releases ?? []).length === 0 ? (
+          <p className="mt-4 max-w-prose text-[13px] leading-relaxed text-[var(--text-secondary)]">
+            Ingen version är publicerad än. Ladda upp en APK här — då dyker den upp på
+            plattorna när personalen trycker Uppdatera i inställningarna.
+          </p>
+        ) : (
+          <div className="mt-4 grid gap-2">
+            {(releasesQuery.data?.releases ?? []).map((release: TerminalAppRelease) => (
+              <div
+                key={release.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--row-divider)] px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-[13.5px] font-extrabold tracking-[-0.2px]">
+                      {release.versionName}
+                    </p>
+                    <span className="font-mono text-[11.5px] text-[var(--text-muted)]">
+                      versionCode {release.versionCode}
+                    </span>
+                    {release.isActive ? <Badge tone="success">Aktiv</Badge> : null}
+                    <Badge tone="neutral">{release.flavor}</Badge>
+                  </div>
+                  <p className="mt-0.5 text-[11.5px] text-[var(--text-muted)]">
+                    {formatBytes(release.sizeBytes)} · {formatWhen(release.createdAt)}
+                    {release.uploadedBy ? ` · ${release.uploadedBy}` : ""}
+                  </p>
+                  {release.notes ? (
+                    <p className="mt-1.5 max-w-prose text-[12px] leading-relaxed text-[var(--text-secondary)]">
+                      {release.notes}
+                    </p>
+                  ) : null}
+                </div>
+                {!release.isActive ? (
+                  <Button
+                    variant="secondary"
+                    disabled={activateMutation.isPending}
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          "Gör denna version aktiv igen? Plattor som redan installerat en nyare version behåller den — Android tillåter ingen nedgradering.",
+                        )
+                      ) {
+                        activateMutation.mutate(release.id);
+                      }
+                    }}
+                  >
+                    Aktivera
+                  </Button>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </Surface>
+
       {/* Koppla enhet: stad → restaurang → enhetskod */}
       <Modal
         open={linkOpen}
@@ -326,6 +466,104 @@ export function RestaurantDevicesPage() {
                 </p>
               </>
             )}
+          </div>
+        </div>
+      </Modal>
+
+      {/* Ladda upp ny uppdatering: servern läser versionCode/versionName ur
+          APK:n själv, så det finns inga versionsfält att skriva fel i. */}
+      <Modal
+        open={updateOpen}
+        title="Ladda upp ny uppdatering"
+        size="md"
+        onClose={() => {
+          if (uploadMutation.isPending) return;
+          setUpdateOpen(false);
+          setUploadError(null);
+        }}
+      >
+        <div className="grid gap-4">
+          <p className="max-w-prose text-[13px] leading-relaxed text-[var(--text-secondary)]">
+            Välj den signerade partner-APK:n. Versionen läses ur filen, den ersätter
+            den aktiva releasen, och plattorna hittar den när personalen trycker
+            Uppdatera i inställningarna.
+          </p>
+
+          <label className="grid gap-2">
+            <span className="card-label">APK-fil</span>
+            <input
+              type="file"
+              accept=".apk,application/vnd.android.package-archive"
+              disabled={uploadMutation.isPending}
+              onChange={(event) => {
+                setApkFile(event.target.files?.[0] ?? null);
+                setUploadError(null);
+              }}
+              className="rounded-xl border border-[var(--row-divider)] px-3 py-2.5 text-[13px] file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--surface-2)] file:px-3 file:py-1.5 file:text-[12.5px] file:font-bold"
+            />
+            {apkFile ? (
+              <span className="text-[11.5px] text-[var(--text-muted)]">
+                {apkFile.name} · {formatBytes(apkFile.size)}
+              </span>
+            ) : null}
+          </label>
+
+          <label className="grid gap-2">
+            <span className="card-label">Vad är nytt (valfritt)</span>
+            <textarea
+              rows={3}
+              value={releaseNotes}
+              disabled={uploadMutation.isPending}
+              onChange={(event) => setReleaseNotes(event.target.value)}
+              placeholder="Syns i versionslistan här i admin."
+              className="rounded-xl border border-[var(--row-divider)] px-3 py-2.5 text-[13px] leading-relaxed"
+            />
+          </label>
+
+          {uploadMutation.isPending ? (
+            <div>
+              <div className="h-2 overflow-hidden rounded-full bg-[var(--surface-2)]">
+                <div
+                  className="h-full rounded-full bg-[var(--brand-orange,#E8622C)] transition-[width]"
+                  style={{ width: `${uploadPercent}%` }}
+                />
+              </div>
+              <p className="mt-2 text-[12px] text-[var(--text-muted)]">
+                Laddar upp… {uploadPercent}%
+              </p>
+            </div>
+          ) : null}
+
+          {uploadError ? (
+            <p className="rounded-xl border border-[rgba(220,70,50,0.35)] bg-[rgba(220,70,50,0.08)] px-3.5 py-2.5 text-[12.5px] leading-relaxed text-[var(--text-primary)]">
+              {uploadError}
+            </p>
+          ) : null}
+
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              variant="secondary"
+              disabled={uploadMutation.isPending}
+              onClick={() => {
+                setUpdateOpen(false);
+                setUploadError(null);
+              }}
+            >
+              Avbryt
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!apkFile || uploadMutation.isPending}
+              onClick={() => {
+                if (!apkFile) return;
+                setUploadError(null);
+                setUploadPercent(0);
+                uploadMutation.mutate(apkFile);
+              }}
+            >
+              <Upload size={15} className="mr-1.5 inline" />
+              {uploadMutation.isPending ? "Laddar upp…" : "Publicera uppdatering"}
+            </Button>
           </div>
         </div>
       </Modal>

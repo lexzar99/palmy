@@ -744,6 +744,46 @@ model DevicePairingCode {
   @@index([restaurantId])
 }
 
+// Partner-APK:er som terminalerna uppdaterar sig från. Admin laddar upp en ny
+// APK under Enheter, den blir aktiv release, och plattorna hittar den när de
+// trycker Uppdatera i Inställningarna. Historiken behålls så en trasig release
+// kan rullas tillbaka genom att markera en äldre som aktiv igen.
+model TerminalAppRelease {
+  id          String   @id @default(cuid())
+  // Android uppgraderar bara till HÖGRE versionCode. Samma kod ger "Appen är
+  // inte installerad" på plattan, därför är den unik per flavor.
+  versionCode Int
+  versionName String
+  flavor      String   @default("sunmi")
+  r2Key       String
+  // Plattan jämför mot den här efter nedladdning innan den installerar.
+  sha256      String
+  sizeBytes   Int
+  notes       String?
+  isActive    Boolean  @default(false)
+  uploadedBy  String?
+  createdAt   DateTime @default(now())
+
+  @@unique([flavor, versionCode])
+  @@index([flavor, isActive])
+}
+
+// Engångskod som plattan visar och personalen skriver in på den dolda
+// nedladdningssidan. Kort livslängd + single-use gör att APK:n aldrig ligger
+// öppet nåbar för den som råkar gissa URL:en.
+model TerminalDownloadCode {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  deviceId     String?
+  restaurantId String?
+  releaseId    String?
+  expiresAt    DateTime
+  usedAt       DateTime?
+  createdAt    DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
 // Trusted device — när admin loggat in med TOTP får enheten en cookie som
 // gäller 30 dagar. Då slipper man TOTP-prompt nästa gång på samma dator.
 // Admin kan revoka enheter från /2fa-sidan om de tappat dem.
