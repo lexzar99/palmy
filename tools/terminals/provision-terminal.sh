@@ -62,6 +62,9 @@ show_status() {
   if is_device_owner; then green "Device Owner: satt"; else warn "Device Owner: INTE satt"; fi
   printf 'Installerad app:  %s\n' "$(sh_adb shell dumpsys package $PACKAGE 2>/dev/null | grep -m1 versionName | tr -d '\r ' || echo 'ej installerad')"
   printf 'Skärmtimeout:     %s ms\n' "$(sh_adb shell settings get system screen_off_timeout | tr -d '\r')"
+  printf 'Tidszon:          %s\n' "$(sh_adb shell getprop persist.sys.timezone | tr -d '\r')"
+  printf 'Klockformat:      %s-timmars\n' "$(sh_adb shell settings get system time_12_24 | tr -d '\r')"
+  printf 'Plattans klocka:  %s\n' "$(sh_adb shell date | tr -d '\r')"
   printf 'Batteri-undantag: '
   if sh_adb shell dumpsys deviceidle whitelist 2>/dev/null | grep -q "$PACKAGE"; then green "ja"; else warn "nej"; fi
   echo "Appar med startikon:"
@@ -160,6 +163,44 @@ disable_stubborn_admins() {
   done
 }
 
+# Tid och tidszon.
+#
+# Kvittona får fel klockslag om plattan står i UTC, och personalen läser
+# hämtningstider i 24-timmarsformat. Automatisk tid hämtas över nätverket
+# (NTP) och fungerar på Wi-Fi, men automatisk TIDSZON kommer från
+# mobilnätet — och plattorna har inget SIM. Därför sätts Europe/Stockholm
+# uttryckligen som grund, med automatiken påslagen ovanpå.
+apply_time_settings() {
+  step "Tid och tidszon"
+
+  sh_adb shell settings put global auto_time 1 >/dev/null 2>&1
+  sh_adb shell settings put global auto_time_zone 1 >/dev/null 2>&1
+  sh_adb shell settings put system time_12_24 24 >/dev/null 2>&1
+
+  # persist.sys.timezone är den enda vägen att sätta zonen på API 25 utan
+  # mobilnät. Kräver att adbd kör med tillräcklig behörighet.
+  sh_adb shell setprop persist.sys.timezone "Europe/Stockholm" >/dev/null 2>&1
+
+  local zone format
+  zone=$(sh_adb shell getprop persist.sys.timezone | tr -d '\r')
+  format=$(sh_adb shell settings get system time_12_24 | tr -d '\r')
+
+  if [ "$zone" = "Europe/Stockholm" ]; then
+    green "Tidszon: $zone"
+  else
+    warn "Tidszonen är \"$zone\", inte Europe/Stockholm."
+    warn "Sätt den för hand: Inställningar → Datum och tid → Tidszon → Stockholm."
+  fi
+
+  if [ "$format" = "24" ]; then
+    green "Klockformat: 24 timmar"
+  else
+    warn "Klockformatet är \"$format\", inte 24."
+  fi
+  green "Automatisk tid och tidszon påslagen."
+  printf 'Plattans klocka: %s\n' "$(sh_adb shell date | tr -d '\r')"
+}
+
 apply_lockdown() {
   step "Låser plattan"
   # DPC:n i appen gör själva döljandet — den känner skyddslistan och rör aldrig
@@ -228,6 +269,7 @@ case "${1:-}" in
     require_device
     install_app
     set_device_owner
+    apply_time_settings
     apply_device_settings
     apply_lockdown
     disable_stubborn_admins

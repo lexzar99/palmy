@@ -39,6 +39,7 @@ sammanfattning på slutet. En platta som fallerar stoppar inte de andra.
 ## Vad presetet gör
 
 - Installerar partner-appen
+- Sätter tidszon Europe/Stockholm, 24-timmarsklocka och automatisk tid
 - Gör appen till **Device Owner** — det är det som ersätter en betald MDM
 - Döljer alla appar utom **Inställningar** och **ViaEats**
 - Stänger av Sunmis fjärrsupportapp, som inte går att dölja (den är själv en
@@ -50,6 +51,11 @@ sammanfattning på slutet. En platta som fallerar stoppar inte de andra.
 
 Inställningar lämnas kvar med flit: utan den går det inte att byta Wi-Fi på
 plats, och varje nätverksbyte hade blivit ett supportärende.
+
+Om skriptet varnar om att tidszonen inte gick att sätta: automatisk tidszon
+hämtas från mobilnätet, och plattorna har inget SIM. Sätt den då för hand
+under `Inställningar → Datum och tid → Tidszon`. Klockslaget i sig hämtas
+över Wi-Fi och blir rätt ändå.
 
 ## Efteråt
 
