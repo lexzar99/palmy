@@ -112,3 +112,9 @@ tmp/
 # car-os: lokalt Flutter-projekt, ~1 GB varav mestadels byggartefakter.
 # Ska aldrig till GitHub.
 car-os/
+.vercel
+.env*
+
+# Personliga hjälpskript och lösa filer, samlade ur repo-roten 2026-08-22.
+# Innehållet är lokalt och ska inte versionshanteras.
+_local/
