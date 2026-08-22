@@ -2804,9 +2804,16 @@ export default function CartPage() {
       // Hosted betalning ska tillbaka till restaurangens sida, inte lämna kunden på en
       // fristående ViaEats-cart. Palmyras embed.js läser payment_return och
       // laddar samma säkra statuspollning inuti iframe:n igen.
+      // Swish växlar till sin egen app och öppnar sedan retur-URL:en som en
+      // vanlig https-länk. Pekar den på /cart fångar iOS den som universal
+      // link och kastar in webbkunden i ViaEats-appen — efter både godkänd
+      // och avbruten betalning. /pay/back är inte registrerad för appen och
+      // skickar vidare till kassan inuti webbläsaren. Partner-embedden
+      // återvänder till partnerns egen domän, som appen aldrig gör anspråk på.
+      const swishAppSwitchReturn = checkoutProvider === "swish" && !embedParentOrigin;
       const returnUrl = embedParentOrigin
         ? `${embedParentOrigin}/meny.html?${returnParams.toString()}`
-        : `${window.location.origin}/cart?${returnParams.toString()}`;
+        : `${window.location.origin}/${swishAppSwitchReturn ? "pay/back" : "cart"}?${returnParams.toString()}`;
       const payRes = await axios.post(`/api/platform/payments/create`, {
         orderId,
         returnUrl,

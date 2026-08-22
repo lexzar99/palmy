@@ -107,34 +107,52 @@ function forecast(order: any, phase: BreathingPhase, pickup = false) {
 
 // ── Andningen ───────────────────────────────────────────────────────────────
 
+// Lagren bakom huvudformen har varsin egen, statisk organisk radie i stället
+// för en animerad. Att animera border-radius tvingar fram en ommålning varje
+// bildruta — med fyra samtidiga lager blev de första sekunderna hackiga precis
+// när sidan också hydrerar. Nu rör sig de tre bakre lagren enbart med
+// transform (scale/rotate), som webbläsaren kan lämna till GPU:n. Huvudformen
+// behåller sin morf: ett enda element klarar den utan att det märks.
+const HERO_LAYERS = [
+  { size: "89.3%", radius: "42% 58% 47% 53%", spin: 14 },
+  { size: "81.9%", radius: "56% 44% 59% 41%", spin: -18 },
+  { size: "74.6%", radius: "47% 53% 41% 59%", spin: 12 },
+];
+
 function BreathingHero({ phase, children }: { phase: BreathingPhase; children: React.ReactNode }) {
   const tint = TINTS[phase];
   const calm = phase !== "waiting";
   const cycle = calm ? 4.4 : 1.6;
 
   return (
-    <div className="relative mx-auto grid place-items-center" style={{ height: 300, width: 300 }}>
-      {[0, 1, 2].map((layer) => (
+    // Kvadratisk och elastisk: på en 320 px-telefon krympte en fast 300 px-hero
+    // ut över sidkanten och gjorde spårningen sidledes dragbar.
+    <div
+      className="relative mx-auto grid w-full place-items-center overflow-hidden"
+      style={{ maxWidth: 300, aspectRatio: "1 / 1" }}
+    >
+      {HERO_LAYERS.map((layer, index) => (
         <motion.div
-          key={layer}
+          key={layer.radius}
           aria-hidden
           className="absolute"
           style={{
-            width: 268 - layer * 22,
-            height: 268 - layer * 22,
+            width: layer.size,
+            height: layer.size,
             backgroundColor: tint,
             opacity: calm ? 0.13 : 0.18,
+            borderRadius: layer.radius,
+            willChange: "transform",
           }}
           animate={{
             scale: [0.94, 1.05, 0.94],
-            borderRadius: ["38%", "48%", "38%"],
-            rotate: [layer * -14, layer * 22, layer * -14],
+            rotate: [-layer.spin, layer.spin, -layer.spin],
           }}
           transition={{
             duration: cycle,
             repeat: Infinity,
             ease: "easeInOut",
-            delay: layer * (calm ? 0.4 : 0.14),
+            delay: index * (calm ? 0.4 : 0.14),
           }}
         />
       ))}
@@ -143,16 +161,19 @@ function BreathingHero({ phase, children }: { phase: BreathingPhase; children: R
         aria-hidden
         className="absolute"
         style={{
-          width: 218,
-          height: 218,
+          width: "72.7%",
+          height: "72.7%",
           background: `linear-gradient(135deg, ${tint} 0%, ${tint}d0 100%)`,
           boxShadow: `0 22px 48px ${tint}59`,
+          willChange: "transform, border-radius",
         }}
         animate={{ scale: [0.97, 1.03, 0.97], borderRadius: ["37%", "47%", "37%"] }}
         transition={{ duration: cycle, repeat: Infinity, ease: "easeInOut" }}
       />
 
-      <div className="relative z-10 grid place-items-center px-6 text-center" style={{ width: 218 }}>
+      {/* Texten ligger inuti formen som andas. Smal padding så tiden får vara
+          stor utan att nudda kanten. */}
+      <div className="relative z-10 grid place-items-center px-2 text-center" style={{ width: "72.7%" }}>
         {children}
       </div>
     </div>
@@ -162,25 +183,27 @@ function BreathingHero({ phase, children }: { phase: BreathingPhase; children: R
 /** Kort, energisk sekvens direkt efter betalningen. Lägger sig av sig själv. */
 function PlacedBurst({ tint }: { tint: string }) {
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 grid place-items-center">
-      {[0, 1, 2, 3].map((ring) => (
+    // overflow-hidden: ringarna växer långt utanför heron och gjorde annars
+    // sidan dragbar i sidled under de första sekunderna.
+    <div aria-hidden className="pointer-events-none absolute inset-0 grid place-items-center overflow-hidden">
+      {[0, 1, 2].map((ring) => (
         <motion.span
           key={ring}
           className="absolute rounded-full"
-          style={{ width: 150, height: 150, border: `2.5px solid ${tint}` }}
+          style={{ width: 150, height: 150, border: `2.5px solid ${tint}`, willChange: "transform, opacity" }}
           initial={{ scale: 0.25, opacity: 0.85 }}
-          animate={{ scale: 2.7, opacity: 0 }}
+          animate={{ scale: 2.2, opacity: 0 }}
           transition={{ duration: 1.5, delay: ring * 0.18, ease: "easeOut" }}
         />
       ))}
-      {Array.from({ length: 12 }).map((_, spark) => (
+      {Array.from({ length: 8 }).map((_, spark) => (
         <motion.span
           key={spark}
           className="absolute rounded-full"
-          style={{ width: 7, height: 7, backgroundColor: tint, rotate: `${spark * 30}deg` }}
+          style={{ width: 7, height: 7, backgroundColor: tint, rotate: `${spark * 45}deg`, willChange: "transform, opacity" }}
           initial={{ y: -20, opacity: 1 }}
-          animate={{ y: -150, opacity: 0 }}
-          transition={{ duration: 1.2, delay: spark * 0.02, ease: "easeOut" }}
+          animate={{ y: -140, opacity: 0 }}
+          transition={{ duration: 1.2, delay: spark * 0.03, ease: "easeOut" }}
         />
       ))}
     </div>
@@ -369,9 +392,12 @@ export function BreathingTrackingPanel({
       <div className="relative">
         {!burstDone && phase === "waiting" ? <PlacedBurst tint={tint} /> : null}
         <BreathingHero phase={phase}>
+          {/* Etiketten är ren text på formen — ingen platta och ingen ram runt
+              om. Den ska läsas som en del av det som andas, inte som en bricka
+              ovanpå. Skuggan bär kontrasten i stället för en bakgrund. */}
           <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[9.5px] font-black uppercase leading-tight tracking-[0.07em] text-white"
-            style={{ backgroundColor: "rgba(0,0,0,0.22)" }}
+            className="inline-flex items-center gap-1.5 text-[13px] font-black uppercase leading-tight tracking-[0.08em] text-white"
+            style={{ textShadow: "0 1px 8px rgba(0,0,0,0.28)" }}
           >
             {revised && phase === "onTheWay" ? <span aria-hidden>↻</span> : null}
             {label}
@@ -380,21 +406,24 @@ export function BreathingTrackingPanel({
           {clock ? (
             <>
               <p
-                className="mt-2 whitespace-nowrap text-[54px] font-black leading-none tracking-[-0.03em] text-white tabular-nums"
+                className="mt-2.5 whitespace-nowrap text-[66px] font-black leading-none tracking-[-0.035em] text-white tabular-nums"
                 style={{ textShadow: "0 2px 10px rgba(0,0,0,0.18)" }}
               >
                 {clock}
               </p>
               {minutesLeft != null ? (
-                <p className="mt-1.5 whitespace-nowrap text-[12.5px] font-black text-white/90">
+                <p
+                  className="mt-2 whitespace-nowrap text-[15.5px] font-black text-white"
+                  style={{ textShadow: "0 1px 8px rgba(0,0,0,0.24)" }}
+                >
                   {minutesLeft <= 0 ? "när som helst nu" : `ca ${minutesLeft} min kvar`}
                 </p>
               ) : null}
             </>
           ) : phase === "done" || phase === "readyForPickup" ? (
-            <p className="mt-2 text-[46px] font-black leading-none text-white">✓</p>
+            <p className="mt-2.5 text-[58px] font-black leading-none text-white">✓</p>
           ) : (
-            <p className="mt-2 text-[34px] font-black leading-none text-white/60">· · ·</p>
+            <p className="mt-2.5 text-[42px] font-black leading-none text-white/70">· · ·</p>
           )}
         </BreathingHero>
       </div>
@@ -457,7 +486,9 @@ export function BreathingTrackingPanel({
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
           className="mt-6 overflow-hidden rounded-[24px] border"
-          style={{ height: 210, borderColor: "rgba(17,17,19,0.08)", backgroundColor: "#F7F7F5" }}
+          // Sidan i övrigt tillåter bara lodrät dragning; kartan måste få
+          // panorera fritt i sin egen ruta.
+          style={{ height: 210, borderColor: "rgba(17,17,19,0.08)", backgroundColor: "#F7F7F5", touchAction: "auto" }}
         >
           <CourierTrackingMap
             pickup={{ lat: order.restaurantLat, lng: order.restaurantLng }}

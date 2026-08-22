@@ -21,6 +21,30 @@
 
 import { NextResponse } from 'next/server';
 
+// Betalningsreturer från en ANNAN app (Swish) får aldrig fångas som universal
+// link. Kunden som startade i webbläsaren ska tillbaka till webbläsaren — både
+// när betalningen godkändes och när den avbröts. Swish öppnar vår retur-URL
+// som en vanlig https-länk, och utan den här exkluderingen matchar iOS den mot
+// den installerade appen och kastar in webbkunden i appen mitt i kassan.
+//
+// `components` gäller iOS 13+ och vinner över `paths`; `paths` ligger kvar för
+// äldre iOS. Retur-URL:en känns igen på `payment_return` (webbens kassa) —
+// native-appen återvänder aldrig den vägen, den använder viaeats:// eller
+// API-bryggan /api/payments/return på api.viaeats.se.
+const excludePaymentReturn = [
+  { "/": "/cart*", "?": { payment_return: "?*" }, exclude: true, comment: "Swish/PSP-retur för webbkassan stannar i webbläsaren" },
+  { "/": "/order/*", "?": { payment_return: "?*" }, exclude: true, comment: "Swish/PSP-retur för webbkassan stannar i webbläsaren" },
+];
+
+const appComponents = [
+  ...excludePaymentReturn,
+  { "/": "/r/*" },
+  { "/": "/i/*" },
+  { "/": "/order/*" },
+  { "/": "/cart*" },
+  { "/": "/stripe-redirect*" },
+];
+
 const AASA = {
   applinks: {
     apps: [] as string[],
@@ -37,6 +61,7 @@ const AASA = {
           '/cart*',
           '/stripe-redirect*',
         ],
+        components: appComponents,
       },
       {
         appID: '3KDGPYZXHH.se.delivera.app',
@@ -56,6 +81,7 @@ const AASA = {
           // upp Safari istället för att hamna direkt i appen.
           '/stripe-redirect*',
         ],
+        components: appComponents,
       },
     ],
   },

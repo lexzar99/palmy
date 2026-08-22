@@ -1239,7 +1239,22 @@ const OrderStatusPage = () => {
   );
 
   return (
-    <div className="min-h-[100dvh]" style={{ backgroundColor: "var(--bg-primary)" }}>
+    // Spårningen ska bete sig som en app-skärm: den rör sig bara uppåt och
+    // nedåt. `touch-action: pan-y` stoppar sidledes dragning på touch,
+    // `overscroll-behavior` tar bort studsen mot kanterna och `overflow-x:
+    // clip` (inte hidden — hidden bryter position:sticky i descendants)
+    // ser till att inget innehåll kan skapa en sidledes scroll.
+    <div
+      className="min-h-[100dvh] w-full max-w-full"
+      style={{
+        backgroundColor: "var(--bg-primary)",
+        overflowX: "clip",
+        overscrollBehavior: "none",
+        // pinch-zoom får vara kvar — det är sidledes dragningen som ska bort,
+        // inte möjligheten att zooma in texten.
+        touchAction: "pan-y pinch-zoom",
+      }}
+    >
       <div
         className="mx-auto max-w-md px-4 pt-[calc(env(safe-area-inset-top,0px)+8px)]"
         style={{ paddingBottom: embedMode ? "calc(env(safe-area-inset-bottom, 0px) + 10rem)" : "calc(env(safe-area-inset-bottom, 0px) + 24px)" }}

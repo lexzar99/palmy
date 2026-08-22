@@ -48,6 +48,8 @@ export function isLaunchGateBypassPath(pathname: string): boolean {
     || pathname === "/cart"
     || pathname === "/orders"
     || pathname === "/pay/return"
+    // Swish-returen från webbkassan landar här och skickas vidare till /cart.
+    || pathname === "/pay/back"
     || pathname === "/stripe-redirect"
     || pathname === "/terminal"
     || pathname === "/favicon.ico"
