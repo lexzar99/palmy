@@ -329,6 +329,38 @@ terminalDownloadRouter.post('/verify', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/terminal-download/provision/:flavor.apk
+ *
+ * PUBLIK — medvetet utan engångskod. Androids QR-provisionering laddar ner
+ * DPC:n innan enheten har någon användare, något konto eller någon möjlighet
+ * att mata in en kod, så URL:en måste vara öppen.
+ *
+ * Det är ett avvägt avsteg: APK:n är ändå värdelös utan en parningskod från
+ * admin, och Android verifierar signaturchecksumman i QR-koden mot filen —
+ * en utbytt APK skulle avvisas av enheten.
+ */
+terminalDownloadRouter.get('/provision/:flavor.apk', async (req: Request, res: Response) => {
+  const flavor = asFlavor(req.params.flavor);
+  const release = await (prisma as any).terminalAppRelease.findFirst({
+    where: { flavor, isActive: true },
+  });
+  if (!release) return res.status(404).send('Ingen release är publicerad än.');
+
+  try {
+    const body = await getFromR2(release.r2Key);
+    res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+    res.setHeader('Content-Disposition', `attachment; filename="viaeats-partner-${release.versionName}.apk"`);
+    res.setHeader('Content-Length', String(body.length));
+    // Provisionering sker en gång per enhet — ingen vinst i att låta den cachas.
+    res.setHeader('Cache-Control', 'no-store');
+    return res.end(body);
+  } catch (e: any) {
+    console.error('[terminal-download] provisionering kunde inte hämta APK', e);
+    return res.status(500).send('Kunde inte hämta filen just nu.');
+  }
+});
+
+/**
  * GET /api/terminal-download/file/:token
  * Streamar APK:n mot en giltig token.
  */
