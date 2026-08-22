@@ -111,6 +111,53 @@ set_device_owner() {
   else red "Kunde inte sätta Device Owner:"; echo "  $out"; exit 1; fi
 }
 
+# Android 7 har `appops`, senare versioner `cmd appops`.
+#
+# Båda returnerar 0 även när de inte gjort något — POST_NOTIFICATION finns
+# t.ex. inte alls som app-op på API 25, och `appops set` sväljer det tyst.
+# Därför läser vi tillbaka värdet i stället för att lita på exitkoden; annars
+# rapporterar skriptet "notiser avstängda" om en platta som fortsätter pipa.
+# Väntar tills plattan faktiskt svarar.
+#
+# USB-kontakten på V2 Pro glappar lätt, och en körning som startar i glappet
+# dör mitt i med halvfärdig lockdown. Hellre vänta in enheten än att lämna
+# den i ett obestämt läge.
+wait_for_device() {
+  local seconds="${1:-120}"
+  local waited=0
+  while [ "$waited" -lt "$seconds" ]; do
+    if [ -n "$(adb devices | sed -n '2p' | grep -w device)" ]; then
+      [ "$waited" -gt 0 ] && green "Plattan är tillbaka efter ${waited}s."
+      return 0
+    fi
+    [ "$waited" -eq 0 ] && warn "Väntar på att plattan ska svara (glappande USB?)…"
+    sleep 2
+    waited=$((waited+2))
+  done
+  red "Plattan svarade inte inom ${seconds}s."
+  return 1
+}
+
+set_appop() {
+  local pkg="$1" op="$2" mode="$3"
+  sh_adb shell cmd appops set "$pkg" "$op" "$mode" >/dev/null 2>&1
+  sh_adb shell appops set "$pkg" "$op" "$mode" >/dev/null 2>&1
+  local check
+  check=$(sh_adb shell appops get "$pkg" "$op" 2>/dev/null | tr -d '\r')
+  [ -z "$check" ] && check=$(sh_adb shell cmd appops get "$pkg" "$op" 2>/dev/null | tr -d '\r')
+  case "$check" in
+    *"$mode"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Har plattan fungerande app-op-styrning av notiser alls? På API 25 saknas
+# op:en, och då är enda vägen att stänga av eller dölja appen.
+appops_notifications_supported() {
+  set_appop "$PACKAGE" POST_NOTIFICATION allow && return 0
+  return 1
+}
+
 apply_device_settings() {
   step "Skärm, batteri och notiser"
 
@@ -123,8 +170,8 @@ apply_device_settings() {
 
   # Full batteri-frihet åt ViaEats: ingen doze, ingen bakgrundsstrypning.
   sh_adb shell dumpsys deviceidle whitelist "+$PACKAGE" >/dev/null 2>&1
-  sh_adb shell cmd appops set "$PACKAGE" RUN_IN_BACKGROUND allow >/dev/null 2>&1
-  sh_adb shell cmd appops set "$PACKAGE" WAKE_LOCK allow >/dev/null 2>&1
+  set_appop "$PACKAGE" RUN_IN_BACKGROUND allow
+  set_appop "$PACKAGE" WAKE_LOCK allow
   green "ViaEats undantaget från batterioptimering."
 
   # Bevilja allt appen deklarerar, så ingen dialog dyker upp mitt i ett kök.
@@ -140,9 +187,101 @@ apply_device_settings() {
   local silenced=0
   for pkg in $(sh_adb shell pm list packages 2>/dev/null | sed 's/package://' | tr -d '\r'); do
     [ "$pkg" = "$PACKAGE" ] && continue
-    sh_adb shell cmd appops set "$pkg" POST_NOTIFICATION ignore >/dev/null 2>&1 && silenced=$((silenced+1))
+    set_appop "$pkg" POST_NOTIFICATION ignore && silenced=$((silenced+1))
   done
-  green "Notiser avstängda för $silenced appar (ViaEats orörd)."
+  if [ "$silenced" -eq 0 ]; then
+    warn "Notisstyrning via app-ops finns inte på den här Android-versionen."
+    warn "Det gör mindre än det låter: apparna vi DÖLJER kan inte skicka notiser"
+    warn "alls, så det som återstår är bara de synliga apparna."
+    warn "Behöver någon av dem tystas: Inställningar → Appar → <app> → Notiser."
+  else
+    green "Notiser avstängda för $silenced appar (ViaEats orörd)."
+  fi
+}
+
+# Säkerhetskopiering.
+#
+# En orderterminal har inget eget innehåll värt att kopiera — allt ligger i
+# API:t — men Android tjatar ändå om säkerhetskopiering och Google-konto.
+# Appen har redan android:allowBackup="false", så det här handlar bara om att
+# få tyst på systemets egna påminnelser.
+disable_backup_prompts() {
+  step "Stänger av säkerhetskopiering"
+
+  # Backup Manager helt av: inga jobb, inga påminnelser.
+  local out
+  out=$(sh_adb shell bmgr enable false 2>&1 | tr -d '\r')
+  if echo "$out" | grep -qi "disabled\|false"; then
+    green "Säkerhetskopiering avstängd."
+  else
+    warn "Kunde inte stänga av backup-hanteraren: ${out:-inget svar}"
+  fi
+
+  # Setup-guidens kvarvarande påminnelser ("slutför konfigurationen").
+  sh_adb shell settings put secure user_setup_complete 1 >/dev/null 2>&1
+  sh_adb shell settings put global device_provisioned 1 >/dev/null 2>&1
+
+  local quieted=0
+  for pkg in com.android.backupconfirm com.google.android.backuptransport com.google.android.gms.backup; do
+    if sh_adb shell pm list packages 2>/dev/null | tr -d '\r' | grep -q "^package:${pkg}$"; then
+      set_appop "$pkg" POST_NOTIFICATION ignore && quieted=$((quieted+1))
+    fi
+  done
+  [ "$quieted" -gt 0 ] && green "Backup-notiser tystade ($quieted paket)."
+  return 0
+}
+
+# Google Play Services och dess syskon.
+#
+# Standardläget tystar bara deras NOTISER — "Play Protect", kontovarningar och
+# uppdateringsaviseringar har inget på en orderterminal att göra. Tjänsten
+# lämnas igång med flit: appen tar emot nya ordrar via Firebase (FCM), som
+# slutar fungera helt utan Play Services.
+#
+# --kill-play-services stänger av dem på riktigt. Terminalen fungerar ändå,
+# eftersom appen synkar ordrar var 15:e sekund på egen hand och hålls vid liv
+# av sin foreground service — men pushen försvinner, och med den det som väcker
+# appen om den ändå skulle dö. Använd bara om du vill ha en helt Google-fri
+# platta och accepterar upp till 15 sekunders fördröjning på nya ordrar.
+GOOGLE_PACKAGES="com.google.android.gms com.android.vending com.google.android.gsf com.google.android.googlequicksearchbox"
+
+handle_google_services() {
+  if [ "$KILL_PLAY_SERVICES" = "1" ]; then
+    step "Stänger av Google Play Services helt"
+    warn "FCM-push slås ut. Nya ordrar hämtas i stället av appens 15-sekunderssynk."
+    local killed=0
+    for pkg in $GOOGLE_PACKAGES; do
+      if sh_adb shell pm list packages 2>/dev/null | tr -d '\r' | grep -q "^package:${pkg}$"; then
+        local out
+        out=$(sh_adb shell pm disable-user --user 0 "$pkg" 2>&1 | tr -d '\r')
+        if echo "$out" | grep -q "disabled-user"; then
+          green "$pkg avstängd."; killed=$((killed+1))
+        else
+          warn "Kunde inte stänga av $pkg: $out"
+        fi
+      fi
+    done
+    [ "$killed" -eq 0 ] && warn "Inget Google-paket kunde stängas av."
+    return 0
+  fi
+
+  step "Tystar Google-notiser"
+  local quieted=0
+  for pkg in $GOOGLE_PACKAGES; do
+    if sh_adb shell pm list packages 2>/dev/null | tr -d '\r' | grep -q "^package:${pkg}$"; then
+      set_appop "$pkg" POST_NOTIFICATION ignore && quieted=$((quieted+1))
+    fi
+  done
+  if [ "$quieted" -gt 0 ]; then
+    green "Notiser tystade för $quieted Google-paket (FCM-push orörd)."
+  else
+    warn "Android 7 saknar app-op för notiser — Google-notiser går inte att"
+    warn "tysta via adb utan att stänga av tjänsten."
+    warn "I praktiken är det sällan ett problem: utan Google-konto på plattan"
+    warn "har Play Services nästan inget att avisera om."
+    warn "Vill du ändå bli av med dem helt: kör om med --kill-play-services"
+    warn "(FCM-push försvinner, ordrar hämtas av 15-sekunderssynken i stället)."
+  fi
 }
 
 # Appar som är registrerade som device admins kan inte döljas — Android
@@ -261,7 +400,17 @@ provision_all_connected() {
   [ "$fail_count" -eq 0 ]
 }
 
-case "${1:-}" in
+KILL_PLAY_SERVICES=0
+MODE=""
+for arg in "$@"; do
+  case "$arg" in
+    --kill-play-services) KILL_PLAY_SERVICES=1 ;;
+    # Första lägesflaggan vinner; resten av argumenten är tillval.
+    *) [ -z "$MODE" ] && MODE="$arg" ;;
+  esac
+done
+
+case "$MODE" in
   --all-devices) provision_all_connected ;;
   --status)   require_device; show_status ;;
   --app-only) require_device; install_app ;;
@@ -272,9 +421,11 @@ case "${1:-}" in
     apply_time_settings
     apply_device_settings
     apply_lockdown
+    handle_google_services
+    disable_backup_prompts
     disable_stubborn_admins
     show_status
     printf '\n'; green "Klar. Plattan är redo att paras i admin → Enheter."
     warn "Lägg ALDRIG till ett Google-konto på plattan — det bryter låsningen." ;;
-  *) echo "Användning: $0 [--all|--all-devices|--app-only|--status]"; exit 1 ;;
+  *) echo "Användning: $0 [--all|--all-devices|--app-only|--status] [--kill-play-services]"; exit 1 ;;
 esac
