@@ -317,19 +317,32 @@ apply_time_settings() {
   sh_adb shell settings put system time_12_24 24 >/dev/null 2>&1
 
   # persist.sys.timezone är den enda vägen att sätta zonen på API 25 utan
-  # mobilnät. Kräver att adbd kör med tillräcklig behörighet.
-  sh_adb shell setprop persist.sys.timezone "Europe/Stockholm" >/dev/null 2>&1
+  # mobilnät, och den kräver att adbd kör med tillräcklig behörighet — på
+  # Sunmis ROM gör den oftast inte det, så räkna med att den tyst inte biter.
+  #
+  # Vi provar Stockholm först och sedan Bryssel. Att Bryssel duger är ingen
+  # kompromiss: zonerna delar CET/CEST och följer samma EU-regler för
+  # sommartid, så klockan går exakt lika. Plattorna levereras dessutom ofta
+  # med Bryssel förvalt. Skillnaden är namnet i inställningarna, inte tiden,
+  # och därför är båda grönt godkända här.
+  for candidate in Europe/Stockholm Europe/Brussels; do
+    sh_adb shell setprop persist.sys.timezone "$candidate" >/dev/null 2>&1
+    [ "$(sh_adb shell getprop persist.sys.timezone | tr -d '\r')" = "$candidate" ] && break
+  done
 
   local zone format
   zone=$(sh_adb shell getprop persist.sys.timezone | tr -d '\r')
   format=$(sh_adb shell settings get system time_12_24 | tr -d '\r')
 
-  if [ "$zone" = "Europe/Stockholm" ]; then
-    green "Tidszon: $zone"
-  else
-    warn "Tidszonen är \"$zone\", inte Europe/Stockholm."
-    warn "Sätt den för hand: Inställningar → Datum och tid → Tidszon → Stockholm."
-  fi
+  case "$zone" in
+    Europe/Stockholm)
+      green "Tidszon: $zone" ;;
+    Europe/Brussels)
+      green "Tidszon: $zone (samma tid som Stockholm — CET/CEST)" ;;
+    *)
+      warn "Tidszonen är \"$zone\" och kan gå fel mot svensk tid."
+      warn "Sätt den för hand: Inställningar → Datum och tid → Tidszon → Stockholm." ;;
+  esac
 
   if [ "$format" = "24" ]; then
     green "Klockformat: 24 timmar"
