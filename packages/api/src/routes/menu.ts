@@ -474,17 +474,29 @@ router.get('/discounted', async (req, res) => {
       ),
     );
 
+    // En kategorirabatt sänker priset på varje rätt i avdelningen och är för
+    // kunden samma sak som en rabatt på rätten. Utan de här id:na hittade
+    // queryn bara produkter med legacy-rabatt satt direkt på raden, och en
+    // restaurang som la sin rea på en hel meny­avdelning syntes inte alls på
+    // deals-sidan.
+    const categoryDealCategoryIds = Array.from(
+      new Set(
+        activeDeals
+          .filter((deal) => isDealAvailableNow(deal) && getDealScopeType(deal) === 'CATEGORY')
+          .flatMap((deal) => parseDealTargetIds(deal.comboProductIds)),
+      ),
+    );
+
+    const discountSources = [
+      { discountActive: true },
+      ...(productDealProductIds.length > 0 ? [{ id: { in: productDealProductIds } }] : []),
+      ...(categoryDealCategoryIds.length > 0 ? [{ categoryId: { in: categoryDealCategoryIds } }] : []),
+    ];
+
     const products: any[] = await prisma.product.findMany({
       where: {
         isActive: true,
-        ...(productDealProductIds.length > 0
-          ? {
-              OR: [
-                { discountActive: true },
-                { id: { in: productDealProductIds } },
-              ],
-            }
-          : { discountActive: true }),
+        ...(discountSources.length > 1 ? { OR: discountSources } : { discountActive: true }),
         category: {
           isActive: true,
           restaurant: {
@@ -545,8 +557,12 @@ router.get('/discounted', async (req, res) => {
           deals: activeDeals.filter((deal) => dealMatchesRestaurant(deal, p.category.restaurant?.id || null)),
         });
 
-        // "Rea & rabatter" should only contain individually discounted products.
-        if (!displayPromotion || displayPromotion.scope !== 'PRODUCT') return null;
+        // Rätten måste ha ett eget sänkt pris att visa. Rabatt på en enskild
+        // rätt och rabatt på hela menyavdelningen räknas båda — kunden ser
+        // samma sak, ett lägre pris på maten. Restaurangbreda procentdeals
+        // hålls utanför; de skulle lägga hela menyn på deals-sidan.
+        if (!displayPromotion) return null;
+        if (displayPromotion.scope !== 'PRODUCT' && displayPromotion.scope !== 'CATEGORY') return null;
 
         return {
           id: p.id,
