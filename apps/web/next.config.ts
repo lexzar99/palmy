@@ -53,6 +53,19 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return {
+      beforeFiles: [
+        {
+          // Swish-returen för WEBBEN. En redirect härifrån till /cart duger
+          // inte: iOS utvärderar universal links även på server-redirects, så
+          // kunden kastades in i appen ett ögonblick efter att ha landat på
+          // sajten. Här serveras kassan direkt på /pay/back — ingen navigering
+          // sker alls, och sökvägen är avsiktligt inte registrerad i
+          // apple-app-site-association. Frågesträngen (payment_return,
+          // payment_provider, payment_resume) följer med oförändrad.
+          source: "/pay/back",
+          destination: "/cart",
+        },
+      ],
       fallback: [
         {
           source: "/api/:path*",
