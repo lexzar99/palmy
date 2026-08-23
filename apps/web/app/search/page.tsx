@@ -88,11 +88,44 @@ function categoryStem(label: string) {
   return label.trim().toLocaleLowerCase("sv").slice(0, 4);
 }
 
-function wordsStartWith(text: string, stem: string) {
-  return text
-    .toLocaleLowerCase("sv")
-    .split(/[^a-zåäöéü0-9]+/)
-    .some((word) => word.startsWith(stem));
+/**
+ * Menyavdelningar heter sällan samma sak som matkategorin. Synonymerna låter
+ * "Familj" hitta Barnmenyn och "Bowls" hitta salladen när grillavdelningen
+ * redan tagits. Ordningen är prioritetsordning — första träffen är bäst.
+ */
+const CATEGORY_SYNONYMS: Record<string, string[]> = {
+  bowl: ["bowl", "salla", "poke"],
+  gril: ["gril", "keba", "spett"],
+  pizz: ["pizz"],
+  burg: ["burg", "crisp"],
+  past: ["past"],
+  sush: ["sush", "maki"],
+  vege: ["vege", "falaf", "hallo"],
+  kyck: ["kyck"],
+  dess: ["dess", "efter"],
+  dryc: ["dryc", "läsk"],
+};
+
+function matchTerms(label: string) {
+  const stem = categoryStem(label);
+  return Array.from(new Set([stem, ...(CATEGORY_SYNONYMS[stem] || [])]));
+}
+
+/**
+ * Hur väl ett namn matchar. En avdelning som *börjar* med ordet är en bättre
+ * träff än en som råkar nämna det sist: "Grill & bowls" hör till Grill, inte
+ * till Bowls. Högre är bättre, null = ingen träff.
+ */
+function matchScore(text: string, terms: string[]): number | null {
+  const words = text.toLocaleLowerCase("sv").split(/[^a-zåäöéü0-9]+/).filter(Boolean);
+  let best: number | null = null;
+  terms.forEach((term, termIndex) => {
+    const wordIndex = words.findIndex((word) => word.startsWith(term));
+    if (wordIndex === -1) return;
+    const score = 1000 - termIndex * 100 - wordIndex * 10;
+    if (best === null || score > best) best = score;
+  });
+  return best;
 }
 
 function absoluteImage(path?: string) {
@@ -366,25 +399,32 @@ export default function SearchPage() {
         }
         if (cancelled) return;
 
+        // Alla tänkbara par av kategori och bild poängsätts först, sedan
+        // delas bilderna ut med bästa träff överst. Annars vann den kategori
+        // som råkade komma först i bokstavsordning: "Bowls" tog grillbilden
+        // och "Grill" blev utan.
+        const pairs: { key: string; image: string; score: number }[] = [];
         for (const category of categories) {
-          const stem = categoryStem(category.label);
-          // Menykategorin bär bilden i den här menystrukturen — rätterna ärver
-          // samma bild. Matchar ingen kategori provas enskilda rätter.
-          const sectionMatches = menu
-            .filter((section) => wordsStartWith(String(section.name || ""), stem))
-            .map((section) => absoluteImage(section.imageUrl || undefined));
-          const productMatches = menu
-            .flatMap((section) => section.products || [])
-            .filter((product) => wordsStartWith(String(product.name || ""), stem))
-            .map((product) => absoluteImage(product.imageUrl || undefined));
-
-          // Två kategorier ur samma menyavdelning får inte visa samma foto —
-          // då ser raden ut som ett fel. Den andra behåller sitt rena kort.
-          const image = [...sectionMatches, ...productMatches].find((url) => url && !used.has(url));
-          if (image) {
-            used.add(image);
-            picked[category.key] = image;
+          const terms = matchTerms(category.label);
+          for (const section of menu) {
+            const image = absoluteImage(section.imageUrl || undefined);
+            const score = matchScore(String(section.name || ""), terms);
+            if (image && score !== null) pairs.push({ key: category.key, image, score });
           }
+          // Rätternas namn matchas medvetet INTE: i den här menystrukturen
+          // ärver varje rätt sin avdelnings bild. "Falafel Lunch Bowl" gav
+          // därför bilden på Studentfavoriter — en inslagen rulle — till
+          // kategorin Bowls. Bara avdelningens eget namn säger något om vad
+          // bilden föreställer.
+        }
+
+        pairs.sort((left, right) => right.score - left.score);
+        for (const pair of pairs) {
+          // Samma foto på två kategorier ser ut som ett fel, och en kategori
+          // behöver bara en bild.
+          if (picked[pair.key] || used.has(pair.image)) continue;
+          picked[pair.key] = pair.image;
+          used.add(pair.image);
         }
       }
 
