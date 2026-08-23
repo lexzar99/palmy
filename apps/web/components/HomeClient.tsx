@@ -2231,22 +2231,6 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
           </section>
         )}
 
-        {query.trim() === "" && (
-          <section className="mb-6">
-            <Link
-              href="/deals"
-              className="relative mx-[-8px] flex min-h-[168px] overflow-hidden rounded-[23px] bg-[linear-gradient(135deg,#e9f8ff,#a8dcff)] p-5 text-left shadow-[0_12px_28px_rgba(18,103,165,0.12)] active:scale-[0.99]"
-            >
-              <span className="absolute -right-4 -top-8 h-32 w-32 rounded-full bg-white/75" />
-              <span className="relative flex min-h-full max-w-[13rem] flex-col justify-between">
-                <span className="text-[11px] font-black uppercase tracking-[0.1em] text-[#2D719F]">ViaEats Deals</span>
-                <span className="text-[30px] font-black leading-[0.94] tracking-[-0.04em] text-[#0B3B63]">Mer mat.<br />Bättre pris.</span>
-              </span>
-              <ChevronRight size={34} strokeWidth={2.8} className="relative ml-auto self-end text-[#0B3B63]" aria-hidden />
-            </Link>
-          </section>
-        )}
-
         {/* Launch-rälsar. Kategorier hör hemma på Sök, inte på startsidan. */}
         {query.trim() === "" && launchRails.map((rail, index) => (
           <React.Fragment key={rail.id}>
@@ -2255,6 +2239,44 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
             })}
           </React.Fragment>
         ))}
+
+        {/* Deals-bannern ligger under rälsarna: startsidans översta yta ska
+            visa mat och restauranger, inte en kampanjruta. Kunden möter den
+            när hen redan bläddrat förbi dagens urval. */}
+        {query.trim() === "" && (
+          <section className="mb-6">
+            <Link
+              href="/deals"
+              className="mx-[-8px] flex items-center gap-4 rounded-[22px] px-5 py-6 text-left transition-transform active:scale-[0.99]"
+              style={{
+                backgroundColor: "var(--deal-blue-chip)",
+                boxShadow: "inset 0 0 0 1px rgba(18,135,245,0.16)",
+              }}
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block text-[11px] font-black uppercase tracking-[0.12em]" style={{ color: "var(--deal-blue)" }}>
+                  ViaEats Deals
+                </span>
+                <span
+                  className="mt-2 block text-[26px] font-black leading-[1.02] tracking-[-0.035em]"
+                  style={{ color: "var(--deal-blue-ink)" }}
+                >
+                  Mer mat. Bättre pris.
+                </span>
+                <span className="mt-1.5 block text-[13px] font-bold" style={{ color: "var(--deal-blue)" }}>
+                  Se dagens sänkta priser
+                </span>
+              </span>
+              <ChevronRight
+                size={26}
+                strokeWidth={2.6}
+                className="shrink-0"
+                style={{ color: "var(--deal-blue-ink)" }}
+                aria-hidden
+              />
+            </Link>
+          </section>
+        )}
 
         {/* GLOBAL TOM-STATE — visas när inga restauranger alls matchar kundens
             stad (varken main-grid, rails, eller HomeCategorySections). Detta är

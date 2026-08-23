@@ -10,7 +10,6 @@ import {
   SearchX,
   Star,
   Store,
-  Tag,
   Truck,
   Utensils,
   X,
@@ -79,14 +78,6 @@ type SearchHomeFeed = {
     }[];
   }[];
 };
-
-const CHIP_TONES = [
-  { bg: "#FFF0EA", ink: "#B9350E", ring: "#FFD4C4" },
-  { bg: "#EAF4FF", ink: "#125B9D", ring: "#C9E4FF" },
-  { bg: "#EAF7EF", ink: "#246B43", ring: "#C8EAD5" },
-  { bg: "#F3EEFF", ink: "#6344A4", ring: "#DDD0FA" },
-  { bg: "#FFF7DF", ink: "#805D08", ring: "#F5E3A6" },
-];
 
 function absoluteImage(path?: string) {
   if (!path) return "";
@@ -400,25 +391,32 @@ export default function SearchPage() {
                 className="grid gap-2.5"
                 style={{ gridTemplateRows: "repeat(2, minmax(0, 1fr))", gridAutoFlow: "column", gridAutoColumns: "148px" }}
               >
-                {categoryOptions.map((category, index) => {
+                {categoryOptions.map((category) => {
                   const active = selectedTag === category.key;
-                  const tone = CHIP_TONES[index % CHIP_TONES.length];
                   return (
                     <button
                       key={category.key}
                       type="button"
                       onClick={() => setSelectedTag(active ? "" : category.key)}
                       aria-pressed={active}
-                      className="relative flex h-[84px] flex-col items-start justify-between overflow-hidden rounded-[18px] p-3 text-left transition-transform active:scale-[0.98]"
+                      className="flex h-[76px] flex-col justify-center rounded-[16px] px-3.5 text-left transition-[background-color,box-shadow] active:scale-[0.99]"
                       style={{
-                        backgroundColor: active ? tone.ink : tone.bg,
-                        color: active ? "#fff" : tone.ink,
-                        boxShadow: active ? `inset 0 0 0 3px ${tone.ink}` : `inset 0 0 0 1px ${tone.ring}`,
+                        backgroundColor: active ? "var(--orange)" : "var(--bg-secondary)",
+                        color: active ? "#fff" : "var(--ink)",
+                        boxShadow: active
+                          ? "inset 0 0 0 1px var(--orange)"
+                          : "inset 0 0 0 1px var(--border-muted)",
                       }}
                     >
-                      <Tag size={17} strokeWidth={2.5} />
-                      <span className="absolute right-3 top-2.5 text-[10.5px] font-black opacity-65">{category.count}</span>
-                      <span className="mt-auto line-clamp-1 w-full text-[15px] font-black leading-[1.05] tracking-[-0.02em]">{category.label}</span>
+                      <span className="line-clamp-1 text-[15.5px] font-black leading-[1.1] tracking-[-0.02em]">
+                        {category.label}
+                      </span>
+                      <span
+                        className="mt-1 text-[11.5px] font-bold"
+                        style={{ color: active ? "rgba(255,255,255,0.82)" : "var(--muted)" }}
+                      >
+                        {category.count === 1 ? "1 ställe" : `${category.count} ställen`}
+                      </span>
                     </button>
                   );
                 })}

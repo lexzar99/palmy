@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import axios from "axios";
-import { ArrowRight, Gift, Truck } from "lucide-react";
+import { ArrowRight, Truck } from "lucide-react";
 import SmartImage from "@/components/SmartImage";
 
 // Deals = rabatterade rätter från restaurangernas menyer (/api/menu/discounted).
@@ -142,9 +142,14 @@ export default function DealsPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] pb-32 text-[var(--ink)] md:pt-20">
       <div className="mx-auto max-w-6xl px-5 pb-8 pt-8 sm:px-6 lg:px-10">
-        <header>
-          <p className="text-[12px] font-black text-[var(--orange)]">VIAEATS DEALS</p>
-          <h1 className="mt-1 text-[34px] font-black leading-none tracking-tight sm:text-5xl">Mer mat. Bättre pris.</h1>
+        <header className="max-w-xl">
+          <p className="text-[11.5px] font-black uppercase tracking-[0.12em] text-[var(--deal-blue)]">Viaeats deals</p>
+          <h1 className="mt-2 text-[34px] font-black leading-[0.98] tracking-[-0.03em] sm:text-[44px]">
+            Mer mat. Bättre pris.
+          </h1>
+          <p className="mt-3 text-[14.5px] font-semibold leading-relaxed text-[var(--muted)]">
+            Sänkta priser från restaurangerna nära dig — uppdateras löpande.
+          </p>
         </header>
 
         {loading ? (
@@ -152,15 +157,19 @@ export default function DealsPage() {
             {[1, 2, 3, 4].map((index) => <div key={index} className="skeleton h-56 w-[200px] shrink-0 rounded-[18px]" />)}
           </div>
         ) : rails.length === 0 && campaignCards.length === 0 ? (
-          <section className="relative mt-8 overflow-hidden rounded-[28px] bg-[#EAF4FF] px-6 py-12 sm:px-10">
-            <div className="absolute -right-10 -top-14 h-36 w-36 rounded-full bg-white/55" />
-            <div className="relative max-w-md">
-              <Gift size={28} strokeWidth={2.25} className="text-[#125B9D]" />
-              <h2 className="mt-4 text-[25px] font-black leading-tight text-[#113A5C]">Inga deals</h2>
-              <p className="mt-2 text-[14px] font-semibold leading-relaxed text-[#41647E]">
-                Nya erbjudanden landar här — titta in snart igen.
+          <section
+            className="mt-10 rounded-[24px] bg-[var(--bg-secondary)] px-6 py-14 text-center sm:px-10"
+            style={{ boxShadow: "inset 0 0 0 1px var(--border-muted)" }}
+          >
+            <div className="mx-auto max-w-sm">
+              <h2 className="text-[22px] font-black leading-tight tracking-[-0.02em]">Inga deals just nu</h2>
+              <p className="mt-2 text-[14px] font-semibold leading-relaxed text-[var(--muted)]">
+                Så fort en restaurang sänker priset på en rätt dyker den upp här.
               </p>
-              <Link href="/" className="mt-6 inline-flex h-11 items-center gap-2 rounded-full bg-[var(--orange)] px-5 text-[14px] font-black text-white">
+              <Link
+                href="/"
+                className="mt-7 inline-flex h-12 items-center gap-2 rounded-full bg-[var(--ink)] px-6 text-[14.5px] font-black text-white transition-opacity active:opacity-80"
+              >
                 Hitta mat <ArrowRight size={16} />
               </Link>
             </div>
@@ -169,7 +178,7 @@ export default function DealsPage() {
           <div className="mt-8 space-y-9">
             {campaignCards.length > 0 && (
               <section>
-                <h2 className="text-[20px] font-black">Kampanjer</h2>
+                <h2 className="text-[19px] font-black tracking-[-0.02em]">Kampanjer</h2>
                 <div className="mt-3 flex gap-3 overflow-x-auto pb-2 no-scrollbar">
                   {campaignCards.map((deal) => {
                     const campaignImage = deal.restaurant?.heroImageUrl || deal.restaurant?.imageUrl || deal.imageUrl;
@@ -178,7 +187,7 @@ export default function DealsPage() {
                         key={deal.id}
                         href={`/deals/${deal.id}`}
                         className="relative flex min-h-[164px] w-[220px] shrink-0 flex-col overflow-hidden rounded-[20px] p-4 text-white"
-                        style={{ background: campaignImage ? "#113A5C" : "linear-gradient(145deg,#F36A2E 0%,#C83F12 100%)" }}
+                        style={{ background: campaignImage ? "var(--deal-blue-ink)" : "linear-gradient(145deg,var(--deal-blue) 0%,var(--deal-blue-deep) 100%)" }}
                       >
                         {campaignImage ? <SmartImage src={campaignImage} alt={deal.restaurant?.name || deal.title} sizes="220px" className="absolute inset-0 h-full w-full object-cover" loading="lazy" /> : null}
                         {campaignImage ? <span className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/10" /> : null}
@@ -215,7 +224,7 @@ export default function DealsPage() {
                     vems fynd det är innan hen scrollar i rälsen. */}
                 <Link
                   href={`/restaurants/${rail.slug}`}
-                  className="relative flex h-[132px] items-end overflow-hidden rounded-[22px] bg-[#113A5C] p-4 text-white sm:h-[152px] sm:p-5"
+                  className="relative flex h-[132px] items-end overflow-hidden rounded-[22px] bg-[var(--deal-blue-ink)] p-4 text-white sm:h-[152px] sm:p-5"
                 >
                   {heroImage ? (
                     <SmartImage
@@ -249,7 +258,7 @@ export default function DealsPage() {
                       <Link
                         key={product.id}
                         href={`/restaurants/${rail.slug}?product=${product.id}`}
-                        className="w-[200px] shrink-0 overflow-hidden rounded-[18px] bg-white shadow-[0_8px_20px_rgba(17,17,19,0.08)]"
+                        className="w-[200px] shrink-0 overflow-hidden rounded-[18px] bg-[var(--bg-secondary)] shadow-[0_2px_10px_rgba(17,17,19,0.04)] ring-1 ring-[var(--border-muted)]"
                       >
                         <div className="relative h-[116px] bg-[var(--cream,#FEF7F0)]">
                           {productImage ? (
