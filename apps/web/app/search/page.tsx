@@ -79,6 +79,22 @@ type SearchHomeFeed = {
   }[];
 };
 
+// Kategoriraden är en genväg, inte en katalog. Åtta räcker för att täcka
+// det folk faktiskt letar efter utan att raden blir egen scrollsträcka.
+const CATEGORY_LIMIT = 8;
+
+/** Ordstam för lös matchning: "pizza" ska hitta "Husets pizzor". */
+function categoryStem(label: string) {
+  return label.trim().toLocaleLowerCase("sv").slice(0, 4);
+}
+
+function wordsStartWith(text: string, stem: string) {
+  return text
+    .toLocaleLowerCase("sv")
+    .split(/[^a-zåäöéü0-9]+/)
+    .some((word) => word.startsWith(stem));
+}
+
 function absoluteImage(path?: string) {
   if (!path) return "";
   return path.startsWith("/") ? `${API_URL}${path}` : path;
@@ -138,6 +154,8 @@ export default function SearchPage() {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [deals, setDeals] = useState<PublicDeal[]>([]);
   const [feedTags, setFeedTags] = useState<FeedTag[]>([]);
+  const [categoryImages, setCategoryImages] = useState<Record<string, string>>({});
+  const [loadedCategoryImages, setLoadedCategoryImages] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [deliverableIds, setDeliverableIds] = useState<Set<string> | null>(null);
   const [zoneInfo, setZoneInfo] = useState<ZoneInfo>({});
@@ -276,7 +294,8 @@ export default function SearchPage() {
   }, []);
 
   const categoryOptions = useMemo(() => {
-    const counts = new Map<string, { label: string; count: number }>();
+    // Restaurangen sparas med kategorin: dess meny får ge kategorin sin bild.
+    const counts = new Map<string, { label: string; count: number; restaurant: Restaurant }>();
     const categoryRestaurants =
       orderType === "DELIVERY" && deliverableIds !== null
         ? restaurants.filter((restaurant) => deliverableIds.has(restaurant.id))
@@ -291,23 +310,91 @@ export default function SearchPage() {
         counts.set(key, {
           label: current?.label || titleCase(term),
           count: (current?.count || 0) + 1,
+          restaurant: current?.restaurant || restaurant,
         });
       });
     });
     const available = new Map(feedTags.map((tag) => [tag.slug.toLocaleLowerCase("sv"), tag]));
     const options = [...counts.entries()]
       .map(([key, value]) => ({ key, ...value }))
-      .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, "sv"))
-      .slice(0, 20);
-    if (available.size === 0) return options;
-    return options.filter((option) =>
-      [...available.values()].some(
-        (tag) =>
-          tag.slug.toLocaleLowerCase("sv") === option.key ||
-          tag.name.toLocaleLowerCase("sv") === option.key,
-      ),
-    );
+      .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, "sv"));
+    const allowed = available.size === 0
+      ? options
+      : options.filter((option) =>
+          [...available.values()].some(
+            (tag) =>
+              tag.slug.toLocaleLowerCase("sv") === option.key ||
+              tag.name.toLocaleLowerCase("sv") === option.key,
+          ),
+        );
+    // Ett tak, inte en obegränsad rad. Fler än så blir en vägg att scrolla
+    // förbi i stället för en genväg — de vanligaste kategorierna räcker.
+    return allowed.slice(0, CATEGORY_LIMIT);
   }, [restaurants, feedTags, orderType, deliverableIds]);
+
+  // Varje kategori får sin bild från en riktig rätt i restaurangens meny —
+  // pizza visar en pizza, bowls en bowl. Menyn hämtas en gång per restaurang
+  // och först efter att korten redan renderats, så raden aldrig blockerar
+  // sidan. Hittas ingen passande rätt faller kortet tillbaka på restaurangens
+  // egen bild, och i sista hand på ren typografi.
+  useEffect(() => {
+    if (categoryOptions.length === 0) return;
+    let cancelled = false;
+
+    const bySlug = new Map<string, typeof categoryOptions>();
+    categoryOptions.forEach((category) => {
+      const slug = category.restaurant?.slug;
+      if (!slug) return;
+      bySlug.set(slug, [...(bySlug.get(slug) || []), category]);
+    });
+
+    (async () => {
+      const picked: Record<string, string> = {};
+      const used = new Set<string>();
+
+      for (const [slug, categories] of bySlug) {
+        let menu: {
+          name?: string;
+          imageUrl?: string | null;
+          products?: { name?: string; imageUrl?: string | null }[];
+        }[] = [];
+        try {
+          const response = await axios.get(`/api/menu/categories`, { params: { slug } });
+          menu = Array.isArray(response.data) ? response.data : response.data?.categories || [];
+        } catch {
+          menu = [];
+        }
+        if (cancelled) return;
+
+        for (const category of categories) {
+          const stem = categoryStem(category.label);
+          // Menykategorin bär bilden i den här menystrukturen — rätterna ärver
+          // samma bild. Matchar ingen kategori provas enskilda rätter.
+          const sectionMatches = menu
+            .filter((section) => wordsStartWith(String(section.name || ""), stem))
+            .map((section) => absoluteImage(section.imageUrl || undefined));
+          const productMatches = menu
+            .flatMap((section) => section.products || [])
+            .filter((product) => wordsStartWith(String(product.name || ""), stem))
+            .map((product) => absoluteImage(product.imageUrl || undefined));
+
+          // Två kategorier ur samma menyavdelning får inte visa samma foto —
+          // då ser raden ut som ett fel. Den andra behåller sitt rena kort.
+          const image = [...sectionMatches, ...productMatches].find((url) => url && !used.has(url));
+          if (image) {
+            used.add(image);
+            picked[category.key] = image;
+          }
+        }
+      }
+
+      if (!cancelled) setCategoryImages(picked);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [categoryOptions]);
 
   const filtered = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("sv");
@@ -383,44 +470,75 @@ export default function SearchPage() {
                 </button>
               )}
             </div>
-            {/* Exakt två rader som rullar i sidled. Ett rutnät som växer nedåt
-                sköt ner restaurangerna under vikningen så fort menyerna hade
-                många taggar. */}
-            <div className="-mx-5 overflow-x-auto px-5 pb-2 no-scrollbar sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10">
-              <div
-                className="grid gap-2.5"
-                style={{ gridTemplateRows: "repeat(2, minmax(0, 1fr))", gridAutoFlow: "column", gridAutoColumns: "148px" }}
-              >
-                {categoryOptions.map((category) => {
-                  const active = selectedTag === category.key;
-                  return (
-                    <button
-                      key={category.key}
-                      type="button"
-                      onClick={() => setSelectedTag(active ? "" : category.key)}
-                      aria-pressed={active}
-                      className="flex h-[76px] flex-col justify-center rounded-[16px] px-3.5 text-left transition-[background-color,box-shadow] active:scale-[0.99]"
+            {/* En rad som rullar i sidled, aldrig fler än CATEGORY_LIMIT kort.
+                Bilden är en riktig rätt ur menyn — kategorin visar maten den
+                leder till i stället för en färgplatta. */}
+            <div className="-mx-5 flex gap-2.5 overflow-x-auto px-5 pb-2 no-scrollbar sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10">
+              {categoryOptions.map((category) => {
+                const active = selectedTag === category.key;
+                const image = categoryImages[category.key];
+                // Kortet blir ett fotokort först när bilden verkligen är
+                // hämtad. Fram till dess — och om den aldrig kommer — står
+                // det rena kortet kvar i stället för en svart ruta.
+                const hasPhoto = Boolean(image) && loadedCategoryImages[category.key];
+                return (
+                  <button
+                    key={category.key}
+                    type="button"
+                    onClick={() => setSelectedTag(active ? "" : category.key)}
+                    aria-pressed={active}
+                    className="relative h-[112px] w-[134px] shrink-0 overflow-hidden rounded-[18px] text-left transition-transform active:scale-[0.98]"
+                    style={{
+                      backgroundColor: hasPhoto ? "#2A3744" : "var(--bg-secondary)",
+                      boxShadow: active
+                        ? "inset 0 0 0 2.5px var(--orange)"
+                        : "inset 0 0 0 1px var(--border-muted)",
+                    }}
+                  >
+                    {image ? (
+                      // Vanlig img: bilderna ligger på en värd utanför
+                      // next/image-optimeringen ändå, och här behövs
+                      // laddningsbeskedet för att kunna växla utseende.
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={image}
+                        alt=""
+                        className="absolute inset-0 h-full w-full object-cover transition-opacity duration-300"
+                        style={{ opacity: hasPhoto ? 1 : 0 }}
+                        onLoad={() => setLoadedCategoryImages((current) => ({ ...current, [category.key]: true }))}
+                        onError={() => setLoadedCategoryImages((current) => ({ ...current, [category.key]: false }))}
+                      />
+                    ) : null}
+                    <span
+                      aria-hidden
+                      className="absolute inset-0"
                       style={{
-                        backgroundColor: active ? "var(--orange)" : "var(--bg-secondary)",
-                        color: active ? "#fff" : "var(--ink)",
-                        boxShadow: active
-                          ? "inset 0 0 0 1px var(--orange)"
-                          : "inset 0 0 0 1px var(--border-muted)",
+                        background: hasPhoto
+                          ? active
+                            ? "linear-gradient(to top, rgba(240,79,26,0.92) 12%, rgba(240,79,26,0.35) 62%, rgba(240,79,26,0.12) 100%)"
+                            : "linear-gradient(to top, rgba(10,15,20,0.82) 8%, rgba(10,15,20,0.24) 58%, rgba(10,15,20,0.04) 100%)"
+                          : active
+                            ? "var(--orange)"
+                            : "transparent",
                       }}
-                    >
-                      <span className="line-clamp-1 text-[15.5px] font-black leading-[1.1] tracking-[-0.02em]">
+                    />
+                    <span className="absolute inset-x-0 bottom-0 flex flex-col gap-0.5 p-3">
+                      <span
+                        className="line-clamp-1 text-[15px] font-black leading-[1.1] tracking-[-0.02em]"
+                        style={{ color: hasPhoto || active ? "#fff" : "var(--ink)" }}
+                      >
                         {category.label}
                       </span>
                       <span
-                        className="mt-1 text-[11.5px] font-bold"
-                        style={{ color: active ? "rgba(255,255,255,0.82)" : "var(--muted)" }}
+                        className="text-[11px] font-bold"
+                        style={{ color: hasPhoto || active ? "rgba(255,255,255,0.85)" : "var(--muted)" }}
                       >
                         {category.count === 1 ? "1 ställe" : `${category.count} ställen`}
                       </span>
-                    </button>
-                  );
-                })}
-              </div>
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </section>
         )}
