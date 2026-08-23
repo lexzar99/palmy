@@ -426,6 +426,27 @@ export default function SearchPage() {
           picked[pair.key] = pair.image;
           used.add(pair.image);
         }
+
+        // Ingen kategori lämnas utan bild. Saknas en träff tar vi menyns
+        // största avdelning som ännu inte används — den är restaurangens mest
+        // representativa, och en riktig bild ur samma kök är alltid bättre än
+        // ett tomt kort. Fortfarande aldrig samma foto två gånger.
+        const fallbacks = menu
+          .map((section, index) => ({
+            image: absoluteImage(section.imageUrl || undefined),
+            count: (section.products || []).length,
+            index,
+          }))
+          .filter((entry) => entry.image)
+          .sort((left, right) => right.count - left.count || left.index - right.index);
+
+        for (const category of categories) {
+          if (picked[category.key]) continue;
+          const fallback = fallbacks.find((entry) => !used.has(entry.image));
+          if (!fallback) break;
+          picked[category.key] = fallback.image;
+          used.add(fallback.image);
+        }
       }
 
       if (!cancelled) setCategoryImages(picked);
