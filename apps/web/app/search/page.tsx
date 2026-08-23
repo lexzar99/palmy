@@ -106,6 +106,19 @@ const CATEGORY_SYNONYMS: Record<string, string[]> = {
   dryc: ["dryc", "läsk"],
 };
 
+/**
+ * Bilder som bär en synlig "Referensbild"-stämpel duger inte som
+ * kategoribild. Stämpeln ligger i själva bildfilen, så den går inte att
+ * upptäcka i data — nyckeln nedan är därför versionshashen för den enskilda
+ * fil som är stämplad. Byts bilden i admin får den ny hash och undantaget
+ * upphör av sig självt. Den varaktiga fixen är att ladda upp en riktig bild.
+ */
+const PLACEHOLDER_IMAGE_MARKERS = ["v=1017d78bc4"];
+
+function isPlaceholderImage(url: string) {
+  return PLACEHOLDER_IMAGE_MARKERS.some((marker) => url.includes(marker));
+}
+
 function matchTerms(label: string) {
   const stem = categoryStem(label);
   return Array.from(new Set([stem, ...(CATEGORY_SYNONYMS[stem] || [])]));
@@ -409,7 +422,9 @@ export default function SearchPage() {
           for (const section of menu) {
             const image = absoluteImage(section.imageUrl || undefined);
             const score = matchScore(String(section.name || ""), terms);
-            if (image && score !== null) pairs.push({ key: category.key, image, score });
+            if (image && !isPlaceholderImage(image) && score !== null) {
+              pairs.push({ key: category.key, image, score });
+            }
           }
           // Rätternas namn matchas medvetet INTE: i den här menystrukturen
           // ärver varje rätt sin avdelnings bild. "Falafel Lunch Bowl" gav
@@ -437,7 +452,7 @@ export default function SearchPage() {
             count: (section.products || []).length,
             index,
           }))
-          .filter((entry) => entry.image)
+          .filter((entry) => entry.image && !isPlaceholderImage(entry.image))
           .sort((left, right) => right.count - left.count || left.index - right.index);
 
         for (const category of categories) {

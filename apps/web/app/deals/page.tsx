@@ -148,7 +148,7 @@ export default function DealsPage() {
             Mer mat. Bättre pris.
           </h1>
           <p className="mt-3 text-[14.5px] font-semibold leading-relaxed text-[var(--muted)]">
-            Sänkta priser från restaurangerna nära dig — uppdateras löpande.
+            Sänkta priser från restaurangerna nära dig, uppdaterade varje dag.
           </p>
         </header>
 
