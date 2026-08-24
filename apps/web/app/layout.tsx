@@ -50,7 +50,8 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false,
   },
-  // Open Graph + Twitter — använder app/opengraph-image.tsx auto-generated
+  // Open Graph + Twitter — bilden kommer från app/opengraph-image.png
+  // (byggs av tools/build-og-image.py ur varumärkespaketet i Logotyp/).
   openGraph: {
     type: "website",
     locale: "sv_SE",
