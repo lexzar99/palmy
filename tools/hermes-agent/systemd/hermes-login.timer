@@ -1,0 +1,11 @@
+[Unit]
+Description=Fornyar ViaEats Hermes-sessioner dagligen
+
+[Timer]
+# Fore morgonrapporten. Persistent=true tar igen korningen om minin varit av.
+OnCalendar=*-*-* 04:30:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

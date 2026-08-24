@@ -1,0 +1,27 @@
+# Hamtar Hermes-notiser fran ViaEats-API:t och skickar dem till WhatsApp-bryggan.
+# Installera pa Linux-minin:
+#   sudo cp tools/hermes-agent/systemd/*.service tools/hermes-agent/systemd/*.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now hermes-poll.service hermes-login.timer
+# Byt User och sokvagar om repot inte ligger i /opt/viaeats.
+[Unit]
+Description=ViaEats Hermes alert-pollare
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hermes
+WorkingDirectory=/opt/viaeats
+ExecStart=/usr/bin/node /opt/viaeats/tools/hermes-whatsapp-forwarder/poll-api.js
+Restart=always
+RestartSec=10
+# Pollaren far aldrig ligga nere tyst igen: en krasch startar om,
+# och journalen visar vilken lank som brast.
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

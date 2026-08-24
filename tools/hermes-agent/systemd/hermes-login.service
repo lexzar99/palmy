@@ -1,0 +1,14 @@
+# Fornyar agenternas API-session. JWT:n lever 7 dygn - timern kor dagligen
+# sa morgonrapporten aldrig moter en utgangen session.
+[Unit]
+Description=ViaEats Hermes agent-inloggning
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=hermes
+WorkingDirectory=/opt/viaeats
+ExecStart=/usr/bin/node /opt/viaeats/tools/hermes-agent/login.mjs
+NoNewPrivileges=true
+PrivateTmp=true
