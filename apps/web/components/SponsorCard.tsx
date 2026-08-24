@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { ExternalLink, ArrowRight, Crown, Tag, Flame, Sparkles } from "lucide-react";
-import { optimizedImageUrl } from "@/lib/imageOptimization";
+import { optimizedImageUrl, PROMO_CARD_IMAGE_QUALITY, PROMO_CARD_IMAGE_WIDTH } from "@/lib/imageOptimization";
 import { API_URL } from "@/lib/api";
 
 export interface SponsorData {
@@ -163,7 +163,7 @@ export default function SponsorCard({
           role="img"
           aria-label={sponsor.name}
           className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url("${optimizedImageUrl(imageUrl, 1800, 90)}")` }}
+          style={{ backgroundImage: `url("${optimizedImageUrl(imageUrl, PROMO_CARD_IMAGE_WIDTH, PROMO_CARD_IMAGE_QUALITY)}")` }}
         />
 
         {/* Mörk botten-scrim för läsbarhet, som champion-kortet. */}
@@ -223,7 +223,7 @@ export default function SponsorCard({
         role="img"
         aria-label={sponsor.name}
         className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url("${optimizedImageUrl(imageUrl, 1800, 90)}")` }}
+        style={{ backgroundImage: `url("${optimizedImageUrl(imageUrl, PROMO_CARD_IMAGE_WIDTH, PROMO_CARD_IMAGE_QUALITY)}")` }}
       />
 
       {/* Namn-overlay (valfri, admin-styrd). Visas bara om sponsorn INTE redan

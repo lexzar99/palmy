@@ -39,7 +39,7 @@ import { useCartStore } from "@/store/cartStore";
 import { useFavorites } from "@/lib/favoritesStore";
 import { addSkippedReviewOrderId, readSkippedReviewOrderIds } from "@/lib/reviewPrompt";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
-import { optimizedImageUrl } from "@/lib/imageOptimization";
+import { optimizedImageUrl, PROMO_CARD_IMAGE_QUALITY, PROMO_CARD_IMAGE_WIDTH } from "@/lib/imageOptimization";
 import { forgetRawOrderAccessToken } from "@/lib/orderHistory";
 
 const OrderTrackingCard = dynamic(
@@ -202,6 +202,56 @@ function restaurantIsAvailableNow(restaurant: Restaurant, nowMs = Date.now()): b
   return !Number.isFinite(pausedUntil) || pausedUntil <= nowMs;
 }
 
+// "Kommer snart" = restaurangen är påväg in i plattformen men får inte
+// beställas från ännu. Den ska SYNAS (den bygger förväntan och visar att
+// utbudet växer) men aldrig gå att öppna, och aldrig ta första platsen från
+// en restaurang man faktiskt kan beställa från.
+function restaurantIsComingSoon(restaurant: { comingSoon?: boolean | null }): boolean {
+  return restaurant.comingSoon === true;
+}
+
+// Sorteringsrang för rälsar och Aktuellt: beställningsbar först, stängd
+// sedan, "kommer snart" alltid sist.
+function restaurantOrderRank(restaurant: Restaurant, nowMs: number): number {
+  if (restaurantIsComingSoon(restaurant)) return 2;
+  return restaurantIsAvailableNow(restaurant, nowMs) ? 0 : 1;
+}
+
+/**
+ * Kortets yttre klickyta. En "kommer snart"-restaurang renderas helt utan
+ * länk: restaurangsidan svarar 404 så länge flaggan är kvar, och en <a href>
+ * hade fortfarande gått att öppna med cmd-klick, tangentbord eller
+ * "öppna i ny flik". Kortet syns — det går bara inte att gå in i.
+ */
+function RestaurantCardShell({
+  restaurant,
+  href,
+  onClick,
+  className,
+  style,
+  children,
+}: {
+  restaurant: Restaurant;
+  href: string;
+  onClick: (event: React.MouseEvent) => void;
+  className?: string;
+  style?: React.CSSProperties;
+  children: React.ReactNode;
+}) {
+  if (restaurantIsComingSoon(restaurant)) {
+    return (
+      <div className={className} style={style} aria-disabled="true">
+        {children}
+      </div>
+    );
+  }
+  return (
+    <Link href={href} prefetch={false} onClick={onClick} className={className} style={style}>
+      {children}
+    </Link>
+  );
+}
+
 interface City {
   id: string;
   name: string;
@@ -234,7 +284,13 @@ const PROMO_SNAP = PROMO_CARD_WIDTH + PROMO_CARD_GAP;
 const HOME_PROMO_IMAGE_SIZES = "(max-width: 640px) calc(100vw - 40px), 520px";
 const RESTAURANT_RAIL_IMAGE_SIZES = "(max-width: 639px) 230px, (max-width: 767px) 260px, (max-width: 1023px) 50vw, (max-width: 1279px) 33vw, 25vw";
 const RESTAURANT_LIST_IMAGE_SIZES = "(max-width: 1023px) calc(100vw - 32px), (max-width: 1535px) 50vw, 33vw";
-const ABOVE_THE_FOLD_RESTAURANT_IMAGE_LIMIT = 0;
+// Första rälsens synliga kort laddas eagerly. Gränsen stod på 0 sedan
+// "avoid competing restaurant image preloads" (55083c24) — men det som
+// konkurrerade var next/image `priority`, som lägger ett <link rel=preload>
+// i <head> före promo-kortets bild. Här sätts därför bara loading="eager"
+// + fetchPriority="high": bilderna startar direkt vid parse i stället för
+// att vänta på hydrering + IntersectionObserver, utan någon preload-tagg.
+const ABOVE_THE_FOLD_RESTAURANT_IMAGE_LIMIT = 3;
 
 type PromoCardItem =
   | { id: string; kind: "sponsor"; sponsor: SponsorData }
@@ -590,7 +646,7 @@ function ChampionPromoCard({ module, onOpen }: { module: HomePulseModule; onOpen
           role="img"
           aria-label={restaurant.name}
           className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url("${optimizedImageUrl(image, 1800, 90)}")` }}
+          style={{ backgroundImage: `url("${optimizedImageUrl(image, PROMO_CARD_IMAGE_WIDTH, PROMO_CARD_IMAGE_QUALITY)}")` }}
         />
       ) : <span className="absolute inset-0" style={{ background: pulseGradient(module.theme) }} />}
       <span className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/10 to-black/75" />
@@ -617,7 +673,7 @@ function HighlightPromoCard({ restaurant, badge, onOpen }: { restaurant: PulseRa
           role="img"
           aria-label={restaurant.name}
           className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url("${optimizedImageUrl(image, 1800, 90)}")` }}
+          style={{ backgroundImage: `url("${optimizedImageUrl(image, PROMO_CARD_IMAGE_WIDTH, PROMO_CARD_IMAGE_QUALITY)}")` }}
         />
       ) : <span className="absolute inset-0" style={{ background: pulseGradient("sky") }} />}
       <span className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/10 to-black/70" />
@@ -642,22 +698,41 @@ function HighlightPromoCard({ restaurant, badge, onOpen }: { restaurant: PulseRa
 // läsbarhetsgradient. Ingen färgtoning och ingen vit informationshalva.
 function CurrentRestaurantPromoCard({ restaurant, badge, onOpen }: { restaurant: Restaurant; badge: string; onOpen: (slug: string) => void }) {
   const image = absoluteMediaUrl(restaurant.heroImageUrl || restaurant.imageUrl);
-  return (
-    <button type="button" onClick={() => onOpen(restaurant.slug)} className="swift-promo-card overflow-hidden text-left">
+  // "Kommer snart" får plats i Aktuellt, men i grått och utan klickyta:
+  // kortet är en förhandsvisning av utbudet, inte en väg in i restaurangen.
+  const comingSoon = restaurantIsComingSoon(restaurant);
+  const body = (
+    <>
       {image ? (
-        <span role="img" aria-label={restaurant.name} className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url("${optimizedImageUrl(image, 1800, 90)}")` }} />
+        <span role="img" aria-label={restaurant.name} className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url("${optimizedImageUrl(image, PROMO_CARD_IMAGE_WIDTH, PROMO_CARD_IMAGE_QUALITY)}")` }} />
       ) : (
         <span className="absolute inset-0 bg-[#222328]" />
       )}
       <span className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/5 to-black/80" />
       <span className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
-        <span className="mb-2 inline-flex h-6 max-w-full items-center truncate rounded-full bg-white/94 px-2.5 text-[10px] font-black uppercase tracking-[0.04em] text-[var(--ink)]">{badge}</span>
+        <span className="mb-2 inline-flex h-6 max-w-full items-center truncate rounded-full bg-white/94 px-2.5 text-[10px] font-black uppercase tracking-[0.04em] text-[var(--ink)]">
+          {comingSoon ? "Kommer snart" : badge}
+        </span>
         <span className="block truncate text-[24px] font-black leading-tight text-white">{restaurant.name}</span>
         <span className="mt-1 flex min-w-0 items-center gap-2">
           <span className="min-w-0 truncate text-[12px] font-bold text-white/88">{restaurant.cuisine || "Restaurang"}</span>
-          {(restaurant.featuredClass === 1 || restaurant.featuredClass === 2) && <FeaturedBadge featuredClass={restaurant.featuredClass} />}
+          {!comingSoon && (restaurant.featuredClass === 1 || restaurant.featuredClass === 2) && <FeaturedBadge featuredClass={restaurant.featuredClass} />}
         </span>
       </span>
+    </>
+  );
+
+  if (comingSoon) {
+    return (
+      <div className="swift-promo-card overflow-hidden text-left grayscale opacity-80" aria-disabled="true">
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <button type="button" onClick={() => onOpen(restaurant.slug)} className="swift-promo-card overflow-hidden text-left">
+      {body}
     </button>
   );
 }
@@ -1433,8 +1508,16 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
     return list.sort((a, b) => {
       const aInZone = zoneRestaurantIds === null || !orderType || orderType === "PICKUP" || zoneRestaurantIds.includes(a.id);
       const bInZone = zoneRestaurantIds === null || !orderType || orderType === "PICKUP" || zoneRestaurantIds.includes(b.id);
-      const aRank = aInZone && restaurantIsAvailableNow(a, availabilityNow) ? 0 : aInZone ? 1 : 2;
-      const bRank = bInZone && restaurantIsAvailableNow(b, availabilityNow) ? 0 : bInZone ? 1 : 2;
+      // Öppet → stängt → kommer snart → utanför zonen. "Kommer snart" går
+      // inte att beställa från och ska aldrig ta platsen från en stängd
+      // restaurang som öppnar igen i kväll.
+      const rank = (restaurant: Restaurant, inZone: boolean) => {
+        if (!inZone) return 3;
+        if (restaurantIsComingSoon(restaurant)) return 2;
+        return restaurantIsAvailableNow(restaurant, availabilityNow) ? 0 : 1;
+      };
+      const aRank = rank(a, aInZone);
+      const bRank = rank(b, bInZone);
       if (aRank !== bRank) return aRank - bRank;
       const aPremium = (a.featuredClass === 1 || a.featuredClass === 2) ? 1 : 0;
       const bPremium = (b.featuredClass === 1 || b.featuredClass === 2) ? 1 : 0;
@@ -1553,8 +1636,10 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
     // läcker någonsin till kunden.
     const result: PromoCardItem[] = [];
     const usedSlugs = new Set<string>();
+    // Samlar fler kandidater än de fem som visas: "kommer snart" sorteras ned
+    // sist, och då måste det finnas beställningsbara kort kvar att lyfta upp.
     const add = (item: PromoCardItem, slug?: string | null) => {
-      if (result.length >= 5) return;
+      if (result.length >= 12) return;
       const key = slug?.trim().toLowerCase();
       if (key && usedSlugs.has(key)) return;
       result.push(item);
@@ -1580,7 +1665,9 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
       .slice()
       .sort((left, right) => (left.sortOrder ?? 0) - (right.sortOrder ?? 0))
       .forEach((section) => {
-        const restaurant = section.restaurants[0];
+        // Kategorins ansikte utåt ska vara någon man kan beställa från.
+        const restaurant = section.restaurants.find((candidate) => !restaurantIsComingSoon(candidate))
+          ?? section.restaurants[0];
         if (!restaurant) return;
         const key = `${section.slug} ${section.title}`.toLowerCase();
         const badge = key.includes("fri") ? "Fri leverans"
@@ -1593,7 +1680,15 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
     // En ny stad kan ha få historiska signaler. Visa då ett verkligt alternativ
     // från API-listan, aldrig placeholder-data.
     filtered.forEach((restaurant) => add({ id: `fallback-${restaurant.id}`, kind: "currentRestaurant", restaurant, badge: "Utvalt idag" }, restaurant.slug));
-    return result;
+
+    // "Kommer snart" hör hemma i Aktuellt — men sist. Stabil partition så
+    // ordningen inom varje grupp är den som byggdes ovan.
+    const isComingSoonCard = (item: PromoCardItem) =>
+      item.kind === "currentRestaurant" && restaurantIsComingSoon(item.restaurant);
+    return [
+      ...result.filter((item) => !isComingSoonCard(item)),
+      ...result.filter(isComingSoonCard),
+    ].slice(0, 5);
   }, [sponsors, pulseModules, resolvedHomeCategorySections, filtered]);
   const renderedPromoCards = showAllPromoCards ? promoCards : promoCards.slice(0, 1);
 
@@ -1625,8 +1720,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
     const byId = new Map(eligible.map((restaurant) => [restaurant.id, restaurant]));
     const openFirst = (list: Restaurant[]) => list.slice().sort((left, right) => {
       const openDifference =
-        Number(restaurantIsAvailableNow(right, availabilityNow)) -
-        Number(restaurantIsAvailableNow(left, availabilityNow));
+        restaurantOrderRank(left, availabilityNow) - restaurantOrderRank(right, availabilityNow);
       return openDifference || left.name.localeCompare(right.name, "sv");
     });
 
@@ -1636,8 +1730,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
       .map((restaurant) => restaurant.id);
     const popularFallback = eligible.slice().sort((left, right) => {
       const openDifference =
-        Number(restaurantIsAvailableNow(right, availabilityNow)) -
-        Number(restaurantIsAvailableNow(left, availabilityNow));
+        restaurantOrderRank(left, availabilityNow) - restaurantOrderRank(right, availabilityNow);
       if (openDifference) return openDifference;
       const reviewDifference = (right.ratingCount || 0) - (left.ratingCount || 0);
       if (reviewDifference) return reviewDifference;
@@ -1677,8 +1770,8 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
         typeof item.eta === "number" && Number.isFinite(item.eta) && item.eta > 0
       ))
       .sort((left, right) => (
-        Number(restaurantIsAvailableNow(right.restaurant, availabilityNow)) -
-          Number(restaurantIsAvailableNow(left.restaurant, availabilityNow)) ||
+        restaurantOrderRank(left.restaurant, availabilityNow) -
+          restaurantOrderRank(right.restaurant, availabilityNow) ||
         left.eta - right.eta ||
         left.restaurant.name.localeCompare(right.restaurant.name, "sv")
       ))
@@ -1691,8 +1784,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
       day: "2-digit",
     }).format(new Date());
     const discover = eligible.slice().sort((left, right) => (
-      Number(restaurantIsAvailableNow(right, availabilityNow)) -
-        Number(restaurantIsAvailableNow(left, availabilityNow)) ||
+      restaurantOrderRank(left, availabilityNow) - restaurantOrderRank(right, availabilityNow) ||
       stableDailyRank(`${today}:${left.id}`) - stableDailyRank(`${today}:${right.id}`)
     ));
 
@@ -1834,6 +1926,12 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
   };
 
   const openRestaurantSlug = (slug: string) => {
+    // Sista spärren: promo-korten i Aktuellt renderas redan utan klickyta när
+    // restaurangen är "kommer snart", men ett kort som byggts ur en annan
+    // datakälla (puls, sponsor) får inte heller kunna skicka kunden till en
+    // restaurangsida som svarar 404.
+    const target = restaurants.find((restaurant) => restaurant.slug === slug);
+    if (target && restaurantIsComingSoon(target)) return;
     router.push(`/restaurants/${slug}`);
   };
 
@@ -1860,8 +1958,8 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
     const sortedSection = deliverableRestaurants
       .map((restaurant, index) => ({ restaurant, index }))
       .sort((left, right) => (
-        Number(restaurantIsAvailableNow(right.restaurant, availabilityNow)) -
-          Number(restaurantIsAvailableNow(left.restaurant, availabilityNow)) ||
+        restaurantOrderRank(left.restaurant, availabilityNow) -
+          restaurantOrderRank(right.restaurant, availabilityNow) ||
         left.index - right.index
       ))
       .map(({ restaurant }) => restaurant);
@@ -1897,9 +1995,9 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
               key={`${title}-${r.id}`}
               className={`w-[clamp(252px,73.6vw,292px)] shrink-0 snap-start transition-all duration-300 md:w-[300px] lg:w-[320px] active:opacity-80 ${dimmed ? "grayscale opacity-80" : ""}`}
             >
-              <Link
+              <RestaurantCardShell
+                restaurant={r}
                 href={getRestaurantHref(r)}
-                prefetch={false}
                 onClick={(e) => handleRestaurantClick(e, r)}
                 className="group relative block h-full rounded-2xl flex flex-col overflow-hidden transition-all duration-300 ease-out hover:shadow-xl hover:-translate-y-1"
                 style={{ backgroundColor: "var(--bg-secondary)", boxShadow: "0 2px 12px rgba(17,17,19,0.06)" }}
@@ -1962,7 +2060,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                       src={getCardImage(r)}
                       alt={r.name}
                       sizes={RESTAURANT_RAIL_IMAGE_SIZES}
-                      priority={shouldPrioritizeImage}
+                      priority={false}
                       loading={shouldPrioritizeImage ? "eager" : "lazy"}
                       fetchPriority={shouldPrioritizeImage ? "high" : "auto"}
                       className="h-full w-full object-cover"
@@ -2027,7 +2125,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                     );
                   })()}
                 </div>
-              </Link>
+              </RestaurantCardShell>
             </div>
           );
         })}
@@ -2415,9 +2513,9 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                           felt slow on cold-cache loads. Now: instant render
                           with a CSS active:scale tap feedback only. */}
                       <div className={`transition-all duration-200 active:scale-[0.99] ${dimmed ? "grayscale opacity-80" : ""}`}>
-                        <Link
+                        <RestaurantCardShell
+                          restaurant={r}
                           href={getRestaurantHref(r)}
-                          prefetch={false}
                           onClick={(e) => handleRestaurantClick(e, r)}
                           className="group block overflow-hidden rounded-[20px] border border-[var(--line)] bg-white transition-shadow duration-200 relative swift-card-shadow"
                         >
@@ -2431,7 +2529,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                                 src={getCardImage(r)}
                                 alt={r.name}
                                 sizes={RESTAURANT_LIST_IMAGE_SIZES}
-                                priority={shouldPrioritizeListImage}
+                                priority={false}
                                 loading={shouldPrioritizeListImage ? "eager" : "lazy"}
                                 fetchPriority={shouldPrioritizeListImage ? "high" : "auto"}
                                 className="h-full w-full object-cover"
@@ -2572,7 +2670,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                               );
                             })()}
                           </div>
-                        </Link>
+                        </RestaurantCardShell>
                       </div>
                     </React.Fragment>
                   );
