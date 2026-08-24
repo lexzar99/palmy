@@ -4,20 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSPrope
 import { Circle as CircleIcon, Loader2, MapPin, Navigation2, PenLine, Search, Trash2, X, ZoomIn } from "lucide-react";
 import type { ZoneRecord } from "@/modules/zones/api";
 import { Button, DurationInput, Field, Input, MoneyInput, NumberInput, SwitchField } from "@/shared/components/ui";
-
-const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || "";
-
-declare global {
-  interface Window {
-    google: any;
-    _mapsZoneEditorCb?: () => void;
-    gm_authFailure?: () => void;
-  }
-}
-
-type MapsState = "idle" | "loading" | "ready" | "auth_error" | "load_error";
-let mapsState: MapsState = "idle";
-const mapsWaiters: Array<{ ok: () => void; err: (error: unknown) => void }> = [];
+import { loadGoogleMaps, onGoogleMapsAuthError } from "@/shared/utils/google-maps";
 
 // Distinkta färger per zon så ringarna går att skilja åt på kartan (panelens
 // fyrkant använder samma colorAt(index), så de matchar). Orange är UI-temat,
@@ -50,53 +37,6 @@ const normalizeDraft = (value: string, fallback: number, min: number, integer = 
   const numeric = Math.max(min, parsed ?? fallback);
   return integer ? Math.round(numeric) : numeric;
 };
-
-function loadGoogleMaps(onAuthError: () => void): Promise<void> {
-  window.gm_authFailure = () => {
-    mapsState = "auth_error";
-    onAuthError();
-    mapsWaiters.forEach((waiter) => waiter.err(new Error("auth")));
-    mapsWaiters.length = 0;
-  };
-
-  if (mapsState === "ready" || window.google?.maps) {
-    mapsState = "ready";
-    return Promise.resolve();
-  }
-
-  if (mapsState === "auth_error" || mapsState === "load_error") {
-    return Promise.reject(new Error(mapsState));
-  }
-
-  if (mapsState === "loading") {
-    return new Promise((ok, err) => mapsWaiters.push({ ok, err }));
-  }
-
-  mapsState = "loading";
-  return new Promise((ok, err) => {
-    mapsWaiters.push({ ok, err });
-    window._mapsZoneEditorCb = () => {
-      mapsState = "ready";
-      mapsWaiters.forEach((waiter) => waiter.ok());
-      mapsWaiters.length = 0;
-    };
-
-    const script = document.createElement("script");
-    // DrawingManager (libraries=drawing) togs bort i Maps JS API v3.65. Vi laddar
-    // därför inget drawing-bibliotek och pinnar ingen version — ritverktyget är
-    // egen kod ovanpå kartans mus-events (se drawControls längre ner).
-    // geometry behövs för att mäta cirkelns radie medan man drar.
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&libraries=geometry&callback=_mapsZoneEditorCb`;
-    script.async = true;
-    script.defer = true;
-    script.onerror = (error) => {
-      mapsState = "load_error";
-      mapsWaiters.forEach((waiter) => waiter.err(error));
-      mapsWaiters.length = 0;
-    };
-    document.head.appendChild(script);
-  });
-}
 
 interface Props {
   zones: ZoneRecord[];
@@ -161,9 +101,14 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
   );
 
   useEffect(() => {
-    loadGoogleMaps(() => setAuthError(true))
+    const unsubscribe = onGoogleMapsAuthError(() => setAuthError(true));
+    loadGoogleMaps()
       .then(() => setMapsReady(true))
-      .catch(() => setLoadError(true));
+      .catch((error: unknown) => {
+        if (error instanceof Error && error.message === "auth_error") setAuthError(true);
+        else setLoadError(true);
+      });
+    return unsubscribe;
   }, []);
 
   const renderOverlay = useCallback((zone: ZoneRecord, index: number, isSelected: boolean) => {

@@ -2,35 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || "";
+import { loadGoogleMaps } from "@/shared/utils/google-maps";
 
 type GoogleWindow = Window & {
   google?: any;
-  _viaeatsLiveMapReady?: () => void;
 };
-
-let mapsPromise: Promise<void> | null = null;
-
-function loadGoogleMaps(): Promise<void> {
-  if (typeof window === "undefined") return Promise.resolve();
-  const w = window as GoogleWindow;
-  if (w.google?.maps) return Promise.resolve();
-  if (!MAPS_KEY) return Promise.reject(new Error("Google Maps key saknas"));
-  if (mapsPromise) return mapsPromise;
-  mapsPromise = new Promise((resolve, reject) => {
-    w._viaeatsLiveMapReady = () => resolve();
-    const existing = document.querySelector<HTMLScriptElement>('script[data-viaeats-live-map="1"]');
-    if (existing) return;
-    const script = document.createElement("script");
-    script.dataset.viaeatsLiveMap = "1";
-    script.async = true;
-    script.defer = true;
-    script.onerror = () => reject(new Error("Google Maps kunde inte laddas"));
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&v=3.62&callback=_viaeatsLiveMapReady`;
-    document.head.appendChild(script);
-  });
-  return mapsPromise;
-}
 
 export interface LiveMapMarker {
   id: string;
@@ -125,7 +101,11 @@ export function LiveMap({
           mapRef.current.setZoom(14);
         }
       })
-      .catch((e) => setError(e?.message || "Kartan kunde inte laddas"));
+      .catch((e) => {
+        // Laddaren signalerar med koder, kartan visar text för användaren.
+        const code = e instanceof Error ? e.message : "";
+        setError(code === "auth_error" ? "Google Maps kunde inte autentiseras" : "Kartan kunde inte laddas");
+      });
     return () => {
       cancelled = true;
     };
