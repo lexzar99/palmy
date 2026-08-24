@@ -82,13 +82,11 @@ function loadGoogleMaps(onAuthError: () => void): Promise<void> {
     };
 
     const script = document.createElement("script");
-    // VIKTIGT: pinna v=3.62. DrawingManager (libraries=drawing) togs BORT i Maps
-    // JS API v3.65 → utan pinning kastade `new g.maps.drawing.DrawingManager()`
-    // och hela zon-sidan kraschade ("This page couldn't load"). 3.62 har kvar
-    // drawing-biblioteket. (Koden nedan guardar dessutom mot att det saknas, så
-    // sidan degraderar till visning/redigering i stället för att krascha om
-    // Google någon gång rensar bort den pinnade versionen.)
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&v=3.62&libraries=drawing,geometry&callback=_mapsZoneEditorCb`;
+    // DrawingManager (libraries=drawing) togs bort i Maps JS API v3.65. Vi laddar
+    // därför inget drawing-bibliotek och pinnar ingen version — ritverktyget är
+    // egen kod ovanpå kartans mus-events (se drawControls längre ner).
+    // geometry behövs för att mäta cirkelns radie medan man drar.
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&libraries=geometry&callback=_mapsZoneEditorCb`;
     script.async = true;
     script.defer = true;
     script.onerror = (error) => {
@@ -113,7 +111,13 @@ interface Props {
 export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, centerLng, onCenterChange, mapHeight = 720 }: Props) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
-  const drawingManager = useRef<any>(null);
+  const drawControls = useRef<{ start: (type: "circle" | "polygon") => void; cancel: () => void } | null>(null);
+  const drawMode = useRef<"circle" | "polygon" | null>(null);
+  const drawPreview = useRef<any>(null);
+  const drawVertices = useRef<any[]>([]);
+  const drawPoints = useRef<any[]>([]);
+  const drawCenter = useRef<any>(null);
+  const drawRadius = useRef(0);
   const overlays = useRef<Map<string, any>>(new Map());
   const centerMarker = useRef<any>(null);
   const zonesRef = useRef<ZoneRecord[]>(zones);
@@ -285,92 +289,208 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
     });
     mapInstance.current = map;
 
-    // Guard: DrawingManager togs bort i Maps JS API v3.65. Saknas det (t.ex. om
-    // den pinnade versionen rensas av Google) hoppar vi över rit-verktyget i
-    // stället för att krascha sidan — kartan + redigering av befintliga zoner
-    // fungerar ändå, och rita-knapparna är redan no-op när drawingManager=null.
-    if (g.maps.drawing?.DrawingManager) {
-    const manager = new g.maps.drawing.DrawingManager({
-      drawingMode: null,
-      drawingControl: false,
-      circleOptions: {
-        fillColor: "#ffffff",
-        fillOpacity: 0.22,
-        strokeColor: "#ffffff",
-        strokeOpacity: 0.95,
-        strokeWeight: 3,
-        editable: true,
-        draggable: true,
-      },
-      polygonOptions: {
-        fillColor: "#ffffff",
-        fillOpacity: 0.22,
-        strokeColor: "#ffffff",
-        strokeOpacity: 0.95,
-        strokeWeight: 3,
-        editable: true,
-        draggable: true,
-      },
-    });
-    manager.setMap(map);
-    drawingManager.current = manager;
+    // Eget ritverktyg. DrawingManager togs bort i Maps JS API v3.65, så cirklar
+    // och polygoner ritas med kartans egna mus-events i stället. Beteendet är
+    // detsamma som tidigare: cirkel = klicka och dra, polygon = klicka punkter
+    // och dubbelklicka (eller Enter) för att avsluta. Escape avbryter.
+    const previewStyle = {
+      fillColor: "#ffffff",
+      fillOpacity: 0.22,
+      strokeColor: "#ffffff",
+      strokeOpacity: 0.95,
+      strokeWeight: 3,
+      clickable: false,
+      zIndex: 60,
+    };
 
-    g.maps.event.addListener(manager, "circlecomplete", (circle: any) => {
-      const center = circle.getCenter();
-      const radius = Math.max(0.1, Math.round((circle.getRadius() / 1000) * 10) / 10);
-      circle.setMap(null);
-      manager.setDrawingMode(null);
+    const metersPerPixel = () => {
+      const lat = ((map.getCenter()?.lat?.() as number) ?? 0) * (Math.PI / 180);
+      return (156543.03392 * Math.cos(lat)) / Math.pow(2, map.getZoom() || 12);
+    };
+
+    const clearPreview = () => {
+      drawPreview.current?.setMap(null);
+      drawPreview.current = null;
+      drawVertices.current.forEach((marker: any) => marker.setMap(null));
+      drawVertices.current = [];
+      drawPoints.current = [];
+      drawCenter.current = null;
+      drawRadius.current = 0;
+    };
+
+    const resetMapInteraction = () => {
+      map.setOptions({ draggable: true, disableDoubleClickZoom: false, draggableCursor: null });
+    };
+
+    const stopDrawing = () => {
+      clearPreview();
+      drawMode.current = null;
+      resetMapInteraction();
       setDrawing(null);
+    };
 
+    const createZone = (shape: Pick<ZoneRecord, "type"> & Partial<ZoneRecord>) => {
       const current = zonesRef.current;
       const index = current.length;
       const nextZone: ZoneRecord = {
         id: uid(),
         name: cityName ? `${cityName} Zone ${index + 1}` : `Zone ${index + 1}`,
+        deliveryFee: 39,
+        minOrder: 199,
+        isActive: true,
+        color: colorAt(index).main,
+        ...shape,
+      };
+
+      onChange([...current, nextZone]);
+      setSelectedId(nextZone.id);
+    };
+
+    const renderCirclePreview = () => {
+      if (!drawCenter.current) return;
+      if (drawPreview.current) {
+        drawPreview.current.setCenter(drawCenter.current);
+        drawPreview.current.setRadius(drawRadius.current);
+        return;
+      }
+      drawPreview.current = new g.maps.Circle({ ...previewStyle, map, center: drawCenter.current, radius: drawRadius.current });
+    };
+
+    const renderPolygonPreview = (cursor?: any) => {
+      const path = cursor ? [...drawPoints.current, cursor] : [...drawPoints.current];
+      if (drawPreview.current) {
+        drawPreview.current.setPath(path);
+        return;
+      }
+      drawPreview.current = new g.maps.Polyline({ ...previewStyle, map, path });
+    };
+
+    const addVertexMarker = (position: any) => {
+      drawVertices.current.push(
+        new g.maps.Marker({
+          position,
+          map,
+          clickable: false,
+          zIndex: 61,
+          icon: {
+            path: g.maps.SymbolPath.CIRCLE,
+            scale: 5,
+            fillColor: "#ffffff",
+            fillOpacity: 1,
+            strokeColor: "#111113",
+            strokeWeight: 2,
+          },
+        }),
+      );
+    };
+
+    const finishCircle = () => {
+      if (drawMode.current !== "circle" || !drawCenter.current) return;
+      const center = drawCenter.current;
+      const meters = drawRadius.current;
+      stopDrawing();
+      // Ett klick utan drag ska inte skapa en zon av misstag.
+      if (meters < 50) return;
+      createZone({
         type: "circle",
         centerLat: center.lat(),
         centerLng: center.lng(),
-        radiusKm: radius,
-        deliveryFee: 39,
-        minOrder: 199,
-        isActive: true,
-        color: colorAt(index).main,
-      };
+        radiusKm: Math.max(0.1, Math.round((meters / 1000) * 10) / 10),
+      });
+    };
 
-      onChange([...current, nextZone]);
-      setSelectedId(nextZone.id);
-    });
+    const finishPolygon = () => {
+      if (drawMode.current !== "polygon") return;
+      const points = [...drawPoints.current];
+      stopDrawing();
+      if (points.length < 3) return;
 
-    g.maps.event.addListener(manager, "polygoncomplete", (polygon: any) => {
-      const points = polygon.getPath().getArray();
       const coordinates: [number, number][] = points.map((point: any) => [point.lng(), point.lat()]);
-      if (coordinates.length > 0 && (coordinates[0][0] !== coordinates[coordinates.length - 1][0] || coordinates[0][1] !== coordinates[coordinates.length - 1][1])) {
-        coordinates.push(coordinates[0]);
+      const first = coordinates[0];
+      const last = coordinates[coordinates.length - 1];
+      if (first[0] !== last[0] || first[1] !== last[1]) coordinates.push([first[0], first[1]]);
+
+      createZone({ type: "polygon", polygon: coordinates });
+    };
+
+    const listeners: any[] = [];
+
+    listeners.push(
+      map.addListener("mousedown", (event: any) => {
+        if (drawMode.current !== "circle" || !event.latLng) return;
+        drawCenter.current = event.latLng;
+        drawRadius.current = 0;
+        renderCirclePreview();
+      }),
+    );
+
+    listeners.push(
+      map.addListener("mousemove", (event: any) => {
+        if (!event.latLng) return;
+        if (drawMode.current === "circle" && drawCenter.current) {
+          drawRadius.current = g.maps.geometry.spherical.computeDistanceBetween(drawCenter.current, event.latLng);
+          renderCirclePreview();
+        } else if (drawMode.current === "polygon" && drawPoints.current.length > 0) {
+          renderPolygonPreview(event.latLng);
+        }
+      }),
+    );
+
+    listeners.push(map.addListener("mouseup", () => finishCircle()));
+
+    listeners.push(
+      map.addListener("click", (event: any) => {
+        if (drawMode.current === "circle") return;
+        if (drawMode.current !== "polygon") {
+          setSelectedId(null);
+          return;
+        }
+        if (!event.latLng) return;
+
+        // Ett dubbelklick ger två click-events före dblclick — hoppa över den
+        // dubbletten så polygonen inte får en punkt ovanpå föregående.
+        const previous = drawPoints.current[drawPoints.current.length - 1];
+        if (previous && g.maps.geometry.spherical.computeDistanceBetween(previous, event.latLng) < metersPerPixel() * 4) return;
+
+        drawPoints.current.push(event.latLng);
+        addVertexMarker(event.latLng);
+        renderPolygonPreview();
+      }),
+    );
+
+    listeners.push(map.addListener("dblclick", () => finishPolygon()));
+
+    const handleWindowMouseUp = () => finishCircle();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!drawMode.current) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        stopDrawing();
+      } else if (event.key === "Enter" && drawMode.current === "polygon") {
+        event.preventDefault();
+        finishPolygon();
       }
+    };
 
-      polygon.setMap(null);
-      manager.setDrawingMode(null);
-      setDrawing(null);
+    window.addEventListener("mouseup", handleWindowMouseUp);
+    window.addEventListener("keydown", handleKeyDown);
 
-      const current = zonesRef.current;
-      const index = current.length;
-      const nextZone: ZoneRecord = {
-        id: uid(),
-        name: cityName ? `${cityName} Zone ${index + 1}` : `Zone ${index + 1}`,
-        type: "polygon",
-        polygon: coordinates,
-        deliveryFee: 39,
-        minOrder: 199,
-        isActive: true,
-        color: colorAt(index).main,
-      };
-
-      onChange([...current, nextZone]);
-      setSelectedId(nextZone.id);
-    });
-    } // slut på DrawingManager-guard
-
-    map.addListener("click", () => setSelectedId(null));
+    drawControls.current = {
+      start: (type) => {
+        clearPreview();
+        drawMode.current = type;
+        setDrawing(type);
+        setSelectedId(null);
+        map.setOptions({
+          // Cirkeln ritas med drag, då får kartan inte panorera samtidigt.
+          draggable: type !== "circle",
+          disableDoubleClickZoom: type === "polygon",
+          draggableCursor: "crosshair",
+        });
+      },
+      cancel: stopDrawing,
+    };
 
     if (centerLat != null && centerLng != null) {
       placeCenter(centerLat, centerLng);
@@ -381,9 +501,12 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
     const overlayMap = overlays.current;
 
     return () => {
-      // drawingManager.current i stället för det guard-scopade `manager`
-      // (null om DrawingManager saknades).
-      drawingManager.current?.setMap(null);
+      drawControls.current = null;
+      drawMode.current = null;
+      listeners.forEach((listener) => listener.remove());
+      window.removeEventListener("mouseup", handleWindowMouseUp);
+      window.removeEventListener("keydown", handleKeyDown);
+      clearPreview();
       if (centerMarker.current) centerMarker.current.setMap(null);
       overlayMap.forEach((overlay) => overlay.setMap(null));
       overlayMap.clear();
@@ -488,18 +611,9 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
     if (hasGeometry) mapInstance.current.fitBounds(bounds, 50);
   }, [zones]);
 
-  const startDraw = (type: "circle" | "polygon") => {
-    if (!drawingManager.current) return;
-    const g = window.google;
-    setDrawing(type);
-    setSelectedId(null);
-    drawingManager.current.setDrawingMode(type === "circle" ? g.maps.drawing.OverlayType.CIRCLE : g.maps.drawing.OverlayType.POLYGON);
-  };
+  const startDraw = (type: "circle" | "polygon") => drawControls.current?.start(type);
 
-  const cancelDraw = () => {
-    drawingManager.current?.setDrawingMode(null);
-    setDrawing(null);
-  };
+  const cancelDraw = () => drawControls.current?.cancel();
 
   const updateZone = (zoneId: string, patch: Partial<ZoneRecord>) => onChange(zones.map((zone) => (zone.id === zoneId ? { ...zone, ...patch } : zone)));
 
