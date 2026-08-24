@@ -47,8 +47,8 @@ export const cartPagePending = {
     // Fields — additional placeholders/labels not in the existing set
     "cart.fields.emailPlaceholderReceipt": "E-post (krävs för kvitto)",
     "cart.fields.addressPlaceholderFull": "Din Gatuadress, Postnummer...",
-    "cart.fields.noteLabel": "Extranotering",
-    "cart.fields.notePlaceholderExample": "T.ex. portkod 1234, ingen lök i kebaben...",
+    "cart.fields.noteLabel": "Extra notering / allergier",
+    "cart.fields.notePlaceholderExample": "T.ex. allergisk mot nötter, portkod 1234, ingen lök…",
 
     // Saved addresses & default badge
     "cart.savedAddresses": "3 sparade adresser",
@@ -156,8 +156,8 @@ export const cartPagePending = {
     // Fields — additional placeholders/labels
     "cart.fields.emailPlaceholderReceipt": "Email (required for receipt)",
     "cart.fields.addressPlaceholderFull": "Street address, postcode...",
-    "cart.fields.noteLabel": "Additional note",
-    "cart.fields.notePlaceholderExample": "E.g. gate code 1234, no onions in the kebab...",
+    "cart.fields.noteLabel": "Note / allergies",
+    "cart.fields.notePlaceholderExample": "E.g. allergic to nuts, gate code 1234, no onion…",
 
     // Saved addresses & default badge
     "cart.savedAddresses": "3 saved addresses",
