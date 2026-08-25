@@ -2,9 +2,11 @@
 
 import { useEffect } from "react";
 
+import { hasMarketingConsent, subscribeConsent } from "@/lib/cookieConsent";
+
 // Meta Pixel-ID:n är publik konfigurationsdata. Vercel kan överstyra den med
 // NEXT_PUBLIC_META_PIXEL_ID utan att koden behöver ändras.
-const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID || "1850021916382355";
+const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID || "888461340780014";
 
 type Fbq = ((...args: unknown[]) => void) & { loaded?: boolean; queue?: unknown[] };
 
@@ -42,20 +44,29 @@ function ensurePixel() {
 
 export default function MetaPixel() {
   useEffect(() => {
-    // Initialise on mount so Meta's Test Events can see the page immediately
-    // and so the Lead listener is ready before the form can be submitted.
-    ensurePixel();
+    // Pixeln är en marknadsföringscookie och får bara laddas när kunden har
+    // godkänt det i cookierutan. Integritetspolicyn lovar det, och utan
+    // samtycke sätts inget Meta-skript alls.
+    const start = () => {
+      if (!hasMarketingConsent()) return;
+      ensurePixel();
+    };
 
-    // Lead-eventet skickas först efter att personen uttryckligen godkänt
-    // manuell kontakt i launchformuläret. Det gör att vi inte spårar besökare
-    // som bara avvisat cookies eller aldrig skickat formuläret.
+    start();
+
     const onLead = () => {
+      if (!hasMarketingConsent()) return;
       ensurePixel();
       window.fbq?.("track", "Lead");
     };
 
+    // Startar pixeln i efterhand om kunden godkänner cookies senare i besöket.
+    const unsubscribe = subscribeConsent(start);
     window.addEventListener("viaeats:meta-lead", onLead);
-    return () => window.removeEventListener("viaeats:meta-lead", onLead);
+    return () => {
+      unsubscribe();
+      window.removeEventListener("viaeats:meta-lead", onLead);
+    };
   }, []);
 
   return null;

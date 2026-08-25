@@ -3,6 +3,17 @@
 import { useState, useCallback, useEffect, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { Cookie, X, Check, Sliders, Shield } from "lucide-react";
+import {
+  CONSENT_COOKIE_MAX_AGE,
+  CONSENT_COOKIE_NAME,
+  CONSENT_EVENT,
+  CONSENT_STORAGE_KEY,
+  readConsent,
+  readCookieConsent,
+  readStoredConsent,
+  subscribeConsent,
+  type Consent,
+} from "@/lib/cookieConsent";
 
 /**
  * CookieConsent — GDPR-kompatibel samtyckesbanner.
@@ -23,54 +34,9 @@ import { Cookie, X, Check, Sliders, Shield } from "lucide-react";
  * är `"accepted"`. Vid `"essential-only"` / `"rejected"` händer ingenting.
  */
 
-type Consent = "accepted" | "essential-only" | "rejected";
-const STORAGE_KEY = "viaeats_cookie_consent";
-const COOKIE_NAME = STORAGE_KEY;
-const CONSENT_EVENT = "viaeats:cookie-consent";
-const CONSENT_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
-
-function normalizeConsent(value: string | null | undefined): Consent | null {
-  if (value === "accepted" || value === "essential-only" || value === "rejected") return value;
-  // Backåtkomp: gamla bannern lagrade "true" — behandla som "accepted".
-  if (value === "true") return "accepted";
-  return null;
-}
-
-function readStoredConsent(): Consent | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return normalizeConsent(window.localStorage.getItem(STORAGE_KEY));
-  } catch {
-    return null;
-  }
-}
-
-function readCookieConsent(): Consent | null {
-  if (typeof document === "undefined") return null;
-  const match = document.cookie
-    .split("; ")
-    .find((row) => row.startsWith(`${COOKIE_NAME}=`));
-  if (!match) return null;
-  return normalizeConsent(decodeURIComponent(match.split("=").slice(1).join("=")));
-}
-
-function readConsent(): Consent | null {
-  return readStoredConsent() ?? readCookieConsent();
-}
-
-function subscribeConsent(callback: () => void) {
-  if (typeof window === "undefined") return () => {};
-  window.addEventListener("storage", callback);
-  window.addEventListener(CONSENT_EVENT, callback);
-  return () => {
-    window.removeEventListener("storage", callback);
-    window.removeEventListener(CONSENT_EVENT, callback);
-  };
-}
-
 function writeStoredConsent(value: Consent) {
   try {
-    window.localStorage.setItem(STORAGE_KEY, value);
+    window.localStorage.setItem(CONSENT_STORAGE_KEY, value);
   } catch {
     // localStorage kan vara blockerad; cookien bär servervärdet vidare.
   }
@@ -79,7 +45,7 @@ function writeStoredConsent(value: Consent) {
 function writeConsentCookie(value: Consent) {
   if (typeof document === "undefined") return;
   const secure = window.location.protocol === "https:" ? "; Secure" : "";
-  document.cookie = `${COOKIE_NAME}=${encodeURIComponent(value)}; Path=/; Max-Age=${CONSENT_COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
+  document.cookie = `${CONSENT_COOKIE_NAME}=${encodeURIComponent(value)}; Path=/; Max-Age=${CONSENT_COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
 }
 
 function notifyConsentChanged() {
