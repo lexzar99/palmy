@@ -45,3 +45,8 @@ export function optimizedImageUrl(src: string, width = 640, quality = 82) {
 // images.qualities, annars svarar optimizern 400.
 export const PROMO_CARD_IMAGE_WIDTH = 1080;
 export const PROMO_CARD_IMAGE_QUALITY = 75;
+
+// Restaurangsidans hero är en låg remsa (h-40 / sm:h-56), inte en fullskärms-
+// bild. 1080 px täcker en retinamobil och de flesta laptops.
+export const RESTAURANT_HERO_IMAGE_WIDTH = 1080;
+export const RESTAURANT_HERO_IMAGE_QUALITY = 75;

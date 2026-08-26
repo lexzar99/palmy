@@ -35,6 +35,7 @@ import { checkDeliveryStreet, isDeliverableStreet } from "@/lib/deliveryAddress"
 import { useCartStore } from "@/store/cartStore";
 import BogoPickerModal from "@/components/BogoPickerModal";
 import { rememberActiveOrder } from "@/lib/activeOrder";
+import { trackMetaInitiateCheckout, trackMetaPurchase } from "@/lib/metaEvents";
 // Betalning sker via ett provider-neutralt checkout-flöde med exakt två val:
 // direkt Swish (native app-hopp/QR) och EN hosted Stripe Checkout-sida som
 // visar hela uppsättningen — Apple Pay, Klarna, kort och Google Pay — på
@@ -2021,6 +2022,13 @@ export default function CartPage() {
       total: total,
     });
     rememberActiveOrder(orderId, { phone });
+    // Meta-konvertering. Providerreturen kan ha laddat om sidan och tömt
+    // varukorgen, så ordervärdet läses i andra hand från nyckeln som sattes
+    // när ordern skapades. Hjälparen skickar bara ett Purchase per order.
+    trackMetaPurchase({
+      orderId,
+      value: total > 0 ? total : Number(localStorage.getItem("pending_order_value") || 0),
+    });
     clearCart();
     // Betald order förbrukar aktiva dealen — nolla kontraktets båda nycklar
     // (Swift: HomeView nollar efter betald order).
@@ -2032,6 +2040,7 @@ export default function CartPage() {
         localStorage.removeItem("pending_order_id");
         localStorage.removeItem("pending_order_token");
         localStorage.removeItem("pending_order_phone");
+        localStorage.removeItem("pending_order_value");
       }
     } catch {
       /* noop */
@@ -2063,6 +2072,7 @@ export default function CartPage() {
       localStorage.removeItem("pending_order_id");
       localStorage.removeItem("pending_order_token");
       localStorage.removeItem("pending_order_phone");
+      localStorage.removeItem("pending_order_value");
       clearPendingPaymentMetadata(localStorage);
     } catch {
       /* noop */
@@ -2776,6 +2786,11 @@ export default function CartPage() {
       // is read elsewhere solely to migrate checkouts created by old clients.
       localStorage.setItem("pending_order_id", orderId);
       localStorage.setItem("pending_order_phone", (formData.customerPhone || "").trim());
+      // Ordervärdet överlever redirecten till betalningen, så Purchase kan
+      // rapporteras med rätt belopp även när kunden kommer tillbaka till en
+      // omladdad sida med tömd varukorg.
+      localStorage.setItem("pending_order_value", String(total));
+      trackMetaInitiateCheckout({ orderId, value: total });
       writePendingPaymentProvider(localStorage, checkoutProvider);
       if (deferredStripePayment) setEmbeddedStripeOrderId(orderId);
       else setPendingOrderId(orderId);

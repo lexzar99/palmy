@@ -7,6 +7,7 @@ import { X, Plus, Minus, Check } from "lucide-react";
 import { useCartStore, type BogoChoice } from "@/store/cartStore";
 import ConfirmModal from "./ConfirmModal";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import { trackMetaAddToCart } from "@/lib/metaEvents";
 import { useToast } from "./Toast";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 
@@ -307,6 +308,10 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         extras: selectedExtras,
         note: note.trim() || undefined,
         ...(bogoFreeFromDealId ? { bogoFreeFromDealId } : {}),
+      });
+      trackMetaAddToCart({
+        value: bogoFreeFromDealId ? 0 : effectiveBasePrice * quantity,
+        contentName: product.name,
       });
       if (bogoFreeFromDealId) {
         const choice: BogoChoice = {

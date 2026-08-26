@@ -21,7 +21,7 @@ import { type BogoPickerProduct } from "@/components/BogoPickerModal";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import EmptyState from "@/components/EmptyState";
 import { rehydrateMenuCategories, MENU_FORMAT_PARAM } from "@/lib/menu";
-import { optimizedImageUrl } from "@/lib/imageOptimization";
+import { optimizedImageUrl, RESTAURANT_HERO_IMAGE_QUALITY, RESTAURANT_HERO_IMAGE_WIDTH } from "@/lib/imageOptimization";
 
 // Tunga modaler laddas först vid interaktion (köp/adress/BOGO) → mindre initial
 // JS för restaurang-sidan = snabbare första rendering/hydration.
@@ -851,12 +851,15 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, embed
     <div className="pb-32 md:pt-20 selection:bg-gold-500/30" style={{ backgroundColor: "var(--bg-primary)" }}>
       {/* ── Hero: kompakt — bilden är kontext, inte huvudinnehåll ────────── */}
       <div className="relative w-full h-40 sm:h-56 overflow-hidden">
+        {/* Heron är en 160 px hög remsa (224 px från sm). Den begärde 3840 px i
+            kvalitet 90 = 111 kB till en mobil som behöver 42 kB — och det här
+            är sidan annonsklick landar på. */}
         {heroImage ? (
           <span
             role="img"
             aria-label={restaurant?.name || ""}
             className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url("${optimizedImageUrl(heroImage, 3840, 90)}")` }}
+            style={{ backgroundImage: `url("${optimizedImageUrl(heroImage, RESTAURANT_HERO_IMAGE_WIDTH, RESTAURANT_HERO_IMAGE_QUALITY)}")` }}
           />
         ) : (
           <div className="w-full h-full" style={{ backgroundImage: "linear-gradient(135deg, var(--bg-deep), var(--bg-primary))" }} />
