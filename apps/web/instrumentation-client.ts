@@ -27,6 +27,24 @@ function initSentryClient() {
     replaysSessionSampleRate: 0.0,
     replaysOnErrorSampleRate: 1.0,
     integrations: [],
+    // Brus från in-app-webbläsare, inte fel i viaeats.
+    //
+    // Facebooks och Instagrams Android-webbläsare injicerar ett eget
+    // mätskript (`navigation_performance_logger_android`). När användaren
+    // lämnar sidan rivs WebViewens JS→Java-brygga innan skriptets egen
+    // beforeunload-hanterare hunnit köra, och det kastar "Java object is
+    // gone". Felet sker under unload, inget går sönder för kunden, och vi
+    // kan inte åtgärda kod vi inte äger.
+    //
+    // Det spelar roll just nu: all annonstrafik landar i exakt den
+    // webbläsaren, så utan filtret dränks riktiga fel i det här bruset.
+    ignoreErrors: [
+      "Java object is gone",
+      "Error invoking postMessage",
+    ],
+    denyUrls: [
+      /navigation_performance_logger_android/i,
+    ],
   });
   // Replay LAZY-laddas efter init (Sentry CDN) istället för statisk import —
   // den statiska referensen drog in ~50 kB gzip replay-kod i VARJE sidladdning.
