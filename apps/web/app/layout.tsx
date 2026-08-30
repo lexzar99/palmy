@@ -12,6 +12,13 @@ import PlatformBanner from "@/components/PlatformBanner";
 import OfflineBanner from "@/components/OfflineBanner";
 import DeferredGlobalClients from "@/components/DeferredGlobalClients";
 import MetaPixel from "@/components/MetaPixel";
+// Vercel Analytics — cookielös besöksmätning.
+//
+// Meta-pixeln och Sentry ligger båda bakom marknadsföringssamtycke och ser
+// därför bara en del av trafiken. Den här mäter utan cookies och utan att
+// spara personuppgifter, alltså utan samtyckesgrind, och är det enda stället
+// där vi ser hur många som faktiskt kommer in och varifrån.
+import { Analytics } from "@vercel/analytics/next";
 
 // ViaEats-typografin: mjuk men stadig, med höga vikter för ett appnära uttryck.
 //
@@ -121,6 +128,7 @@ export default function RootLayout({
           <EmbeddedNav />
           <CookieConsent />
           <MetaPixel />
+          <Analytics />
           <DeferredGlobalClients />
         </Providers>
       </body>
