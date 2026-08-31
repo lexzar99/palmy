@@ -38,7 +38,11 @@ function siteBaseUrl(): string {
  * domänen följer bilden med via WEB_BASE_URL.
  */
 function wordmarkUrl(): string {
-  return `${siteBaseUrl()}/email/viaeats-wordmark.png`;
+  // www är den kanoniska värden — apex 308-redirectar dit. Alla mejlklienter
+  // följer inte redirects för bilder, så vi pekar direkt på slutmålet i
+  // stället för att gå via siteBaseUrl().
+  const base = process.env.EMAIL_ASSET_BASE_URL || 'https://www.viaeats.se';
+  return `${base}/email/viaeats-wordmark.png`;
 }
 
 /** Adressen kunden kan svara till. Ett mejl utan svarsväg känns automatiskt. */
