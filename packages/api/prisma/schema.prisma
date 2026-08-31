@@ -456,6 +456,11 @@ model DiscountCode {
   // X-Client-Type-header och avvisar koden om plattformen inte matchar. Alla
   // äldre koder är ALL → oförändrat beteende.
   platform                String    @default("ALL")
+  // När true räknas rabatten BARA på de rader som inte redan är nedsatta
+  // (menypris-rea, produkt-/kategorideal eller BOGO-gratisvara). Kunden får
+  // alltså inte rabatt ovanpå rabatt. false (default) = historiskt beteende:
+  // procenten räknas på hela subtotalen. Styrs per kod i admin.
+  excludeDiscountedItems  Boolean   @default(false)
 }
 
 model Deal {

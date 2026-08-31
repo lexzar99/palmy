@@ -25,6 +25,7 @@ import { menuCacheBust } from './menu';
 import { bustCache } from '../lib/ttlCache';
 import { parseMenuImport, runMenuImport } from '../lib/menuImport';
 import { runMenuSyncSafe } from '../lib/menuSync';
+import { LAUNCH_SHARED_COUPON_CODE } from '../lib/launchWelcomeEmail';
 import {
   isRefundRequiredTerminalStatus,
   refundProviderLabel,
@@ -3634,6 +3635,8 @@ const formatDiscountCodeForAdmin = (discount: any) => ({
   freeDelivery: Boolean(discount.freeDelivery),
   // Var koden gäller: ALL | APP (bara mobilappen) | WEB (bara webben).
   platform: (discount.platform || 'ALL').toUpperCase(),
+  // true = rabatten räknas bara på varor som inte redan är nedsatta.
+  excludeDiscountedItems: Boolean(discount.excludeDiscountedItems),
   createdAt: discount.createdAt,
   updatedAt: discount.updatedAt,
 });
@@ -4861,7 +4864,7 @@ router.post('/discounts', async (req, res) => {
       return res.status(403).json({ error: 'Kräver super admin-behörighet' });
     }
 
-    const { code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId, applicableRestaurantIds, freeDelivery, platform } = req.body;
+    const { code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId, applicableRestaurantIds, freeDelivery, platform, excludeDiscountedItems } = req.body;
 
     const parsedRestaurantIds = Array.isArray(applicableRestaurantIds)
       ? applicableRestaurantIds.filter((v: unknown): v is string => typeof v === 'string')
@@ -4882,6 +4885,9 @@ router.post('/discounts', async (req, res) => {
       freeDelivery: type === 'FREE_DELIVERY' ? false : Boolean(freeDelivery),
       // Plattform: ALL (default) | APP (bara mobilappen) | WEB (bara webben).
       platform: normalizeDiscountPlatform(platform),
+      // Gäller koden ovanpå redan rabatterade varor eller inte. FREE_DELIVERY
+      // biter på leveransavgiften, inte på varorna → flaggan är meningslös där.
+      excludeDiscountedItems: type === 'FREE_DELIVERY' ? false : Boolean(excludeDiscountedItems),
     };
     if (restaurantId && parsedRestaurantIds.length === 0) discountData.restaurantId = restaurantId;
     else if (parsedRestaurantIds.length === 1) discountData.restaurantId = parsedRestaurantIds[0];
@@ -4920,7 +4926,7 @@ router.patch('/discounts/:id', async (req, res) => {
       return res.status(403).json({ error: 'Kräver super admin-behörighet' });
     }
 
-    const { isActive, code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId, applicableRestaurantIds, freeDelivery, platform } = req.body;
+    const { isActive, code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId, applicableRestaurantIds, freeDelivery, platform, excludeDiscountedItems } = req.body;
     // GROWTH_AGENT får aldrig aktivera en kupong (isActive=true). Bara Jalle.
     if (isGrowthAgent(req as AuthRequest) && isActive === true) {
       return res.status(403).json({ error: 'Tillväxtagenten kan inte aktivera kuponger. Jalle aktiverar i admin.' });
@@ -4940,6 +4946,9 @@ router.patch('/discounts/:id', async (req, res) => {
       updateData.freeDelivery = type === 'FREE_DELIVERY' ? false : Boolean(freeDelivery);
     }
     if (platform !== undefined) updateData.platform = normalizeDiscountPlatform(platform);
+    if (excludeDiscountedItems !== undefined) {
+      updateData.excludeDiscountedItems = type === 'FREE_DELIVERY' ? false : Boolean(excludeDiscountedItems);
+    }
     if (applicableRestaurantIds !== undefined) {
       const parsed = Array.isArray(applicableRestaurantIds)
         ? applicableRestaurantIds.filter((v: unknown): v is string => typeof v === 'string')
@@ -5366,6 +5375,16 @@ router.get('/customers/overview', authenticate, async (req: AuthRequest, res) =>
   }
 });
 
+/**
+ * Koden leadet faktiskt fick i välkomstmejlet. Nya leads bär en intern
+ * referens i `couponCode` (LEAD-xxxx) och får den delade kännedomskoden i
+ * mejlet; leads från den gamla manuella kampanjen har sin personliga kod kvar.
+ */
+const leadCouponCode = (raw: unknown): string => {
+  const value = String(raw || '');
+  return value.startsWith('LEAD-') ? LAUNCH_SHARED_COUPON_CODE : value;
+};
+
 type LaunchLeadCursor = {
   createdAt: Date;
   id: string;
@@ -5477,7 +5496,7 @@ router.get('/launch-campaign', authenticate, requireSuperAdmin, async (req: Auth
         id: lead.id,
         name: lead.name,
         email: lead.email,
-        couponCode: lead.couponCode,
+        couponCode: leadCouponCode(lead.couponCode),
         status: lead.status,
         createdAt: lead.createdAt,
         couponSentAt: lead.couponSentAt,

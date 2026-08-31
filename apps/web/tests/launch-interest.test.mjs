@@ -16,15 +16,37 @@ test("launch interest asks for explicit identity and stores the return-state coo
   assert.match(gate, /href="\/terms"/);
 });
 
-test("launch interest creates an inactive coupon for manual follow-up without automatic email", () => {
+test("launch interest mails the shared coupon and never lets a failed send drop the lead", () => {
   assert.match(api, /router\.post\('\/interest'/);
-  assert.match(api, /isActive: false/);
-  assert.match(api, /value: 30/);
-  assert.match(api, /prisma\.\$transaction/);
-  assert.match(api, /manualFollowUp: true/);
-  assert.doesNotMatch(api, /sendEmail/);
-  assert.doesNotMatch(api, /couponSentAt/);
-  assert.match(gate, /följer upp manuellt/);
+  // Leadet sparas FÖRE utskicket. Kunden ska ligga i listan även när
+  // mejltransporten är nere.
+  assert.match(api, /launchLead\.create\([\s\S]*?\)\s*;[\s\S]*?sendLaunchWelcomeEmail/);
+  // Ingen personlig engångskod skapas längre — alla får den delade koden.
+  assert.doesNotMatch(api, /discountCode\.create/);
+  assert.match(api, /LAUNCH_SHARED_COUPON_CODE/);
+  // couponSentAt sätts bara när transporten bekräftat leverans.
+  assert.match(api, /if \(emailed\)/);
+  assert.match(api, /couponSentAt: new Date\(\)/);
+  // En omregistrering mejlar bara om koden aldrig kom fram.
+  assert.match(api, /!existing\.couponSentAt/);
+  assert.match(gate, /mejlat din rabattkod/);
+});
+
+test("the welcome email carries the coupon, a way back to the site and an unsubscribe path", () => {
+  const welcome = fs.readFileSync(
+    new URL("../../../packages/api/src/lib/launchWelcomeEmail.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(welcome, /LAUNCH_SHARED_COUPON_CODE = 'VIAEATS30'/);
+  assert.match(welcome, /renderBrandedEmail/);
+  // Både HTML och plaintext — ett mejl utan text-del rankas som skräppost.
+  assert.match(welcome, /const html = renderBrandedEmail/);
+  assert.match(welcome, /const text = \[/);
+  assert.match(welcome, /return \{ subject:[^}]*html, text \}/);
+  assert.match(welcome, /List-Unsubscribe/);
+  assert.match(welcome, /List-Unsubscribe-Post/);
+  // Fail-open: utskicket får aldrig kasta upp i registreringen.
+  assert.match(welcome, /catch \(error\)[\s\S]*?return false/);
 });
 
 test("launch page stores no visitor session, referrer or event telemetry", () => {

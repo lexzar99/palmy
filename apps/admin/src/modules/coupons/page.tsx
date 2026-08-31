@@ -42,6 +42,8 @@ type FormState = {
   freeDelivery: boolean;
   // Var koden gäller: ALL (överallt) | APP (bara mobilappen) | WEB (bara webben).
   platform: "ALL" | "APP" | "WEB";
+  // Får koden användas ovanpå redan rabatterade varor eller inte.
+  excludeDiscountedItems: boolean;
 };
 
 const emptyForm = (): FormState => ({
@@ -57,6 +59,7 @@ const emptyForm = (): FormState => ({
   isActive: true,
   freeDelivery: false,
   platform: "ALL",
+  excludeDiscountedItems: false,
 });
 
 const typeLabel: Record<DiscountRecord["discountType"], string> = {
@@ -107,6 +110,7 @@ export function CouponsPage() {
         isActive: editing.isActive,
         freeDelivery: editing.freeDelivery ?? false,
         platform: editing.platform ?? "ALL",
+        excludeDiscountedItems: editing.excludeDiscountedItems ?? false,
       });
     } else {
       setForm(emptyForm());
@@ -133,6 +137,9 @@ export function CouponsPage() {
         freeDelivery: f.discountType !== "free_delivery" && f.freeDelivery,
         // Var koden gäller: ALL | APP (bara mobilappen) | WEB (bara webben).
         platform: f.platform,
+        // Rabatt ovanpå rabatt eller inte. Meningslös för free_delivery
+        // (den biter på leveransavgiften, inte på varorna).
+        excludeDiscountedItems: f.discountType !== "free_delivery" && f.excludeDiscountedItems,
       };
       if (editing) {
         return updateDiscount(editing.id, payload);
@@ -400,6 +407,40 @@ export function CouponsPage() {
                   Kombinera med fri leverans — kunden får rabatten OCH gratis leverans i samma kupong.
                 </span>
               </label>
+            </Field>
+          )}
+
+          {/* Rabatt ovanpå rabatt. Styr om procenten räknas på hela korgen
+              eller bara på de varor som inte redan är nedsatta. Gäller inte
+              free_delivery, som biter på leveransavgiften. */}
+          {form.discountType !== "free_delivery" && (
+            <Field label="Redan rabatterade varor">
+              <div className="space-y-2">
+                <label className="flex items-start gap-3 cursor-pointer select-none">
+                  <input
+                    type="radio"
+                    name="excludeDiscountedItems"
+                    checked={!form.excludeDiscountedItems}
+                    onChange={() => setField("excludeDiscountedItems", false)}
+                    className="mt-0.5 h-4 w-4 accent-[var(--accent)] cursor-pointer"
+                  />
+                  <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                    Får användas på allt — rabatten räknas på hela varukorgen, även varor som redan är nedsatta.
+                  </span>
+                </label>
+                <label className="flex items-start gap-3 cursor-pointer select-none">
+                  <input
+                    type="radio"
+                    name="excludeDiscountedItems"
+                    checked={form.excludeDiscountedItems}
+                    onChange={() => setField("excludeDiscountedItems", true)}
+                    className="mt-0.5 h-4 w-4 accent-[var(--accent)] cursor-pointer"
+                  />
+                  <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                    Bara på ordinarie pris — rabatten räknas enbart på varor som inte redan är nedsatta (rea, produktdeal, BOGO). Är hela korgen rabatterad nekas koden.
+                  </span>
+                </label>
+              </div>
             </Field>
           )}
 

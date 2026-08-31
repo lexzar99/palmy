@@ -20,6 +20,10 @@ export interface DiscountRecord {
   freeDelivery: boolean;
   // Var koden gäller: ALL (överallt) | APP (bara mobilappen) | WEB (bara webben).
   platform: "ALL" | "APP" | "WEB";
+  // true = rabatten räknas bara på varor som inte redan är nedsatta
+  // (menypris-rea, produkt-/kategorideal, BOGO). Kunden får inte rabatt
+  // ovanpå rabatt. false = procenten räknas på hela varukorgen.
+  excludeDiscountedItems: boolean;
   createdAt: string;
   updatedAt: string;
 }

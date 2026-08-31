@@ -115,9 +115,9 @@ export default function LaunchGate() {
             </nav>
             <button type="button" onClick={claimInterest} disabled={interestRegistered} className="mt-7 max-w-full rounded-full bg-[#f0531c] px-5 py-3.5 text-left text-sm font-black text-white transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:cursor-default disabled:opacity-80 sm:w-fit sm:px-6 sm:py-4">{interestRegistered ? "Tack — ditt intresse är registrerat" : "Ge mig 30 % rabatt första veckan"}</button>
             {interestRegistered ? (
-              <p className="mt-4 max-w-md text-sm font-bold leading-relaxed text-[#f8f0e6]/80">Tack för ditt intresse. Vi följer upp manuellt via e-post inför lanseringen.</p>
+              <p className="mt-4 max-w-md text-sm font-bold leading-relaxed text-[#f8f0e6]/80">Tack för ditt intresse. Vi har mejlat din rabattkod — kolla skräpposten om den inte dykt upp.</p>
             ) : (
-              <p className="mt-4 max-w-md text-xs font-semibold leading-relaxed text-[#f8f0e6]/50">Knappen öppnar ett kort formulär. Vi sparar bara namn, e-post och ditt uttryckliga samtycke för manuell uppföljning.</p>
+              <p className="mt-4 max-w-md text-xs font-semibold leading-relaxed text-[#f8f0e6]/50">Knappen öppnar ett kort formulär. Vi sparar bara namn, e-post och ditt uttryckliga samtycke, och mejlar dig rabattkoden.</p>
             )}
             {showInterestForm ? (
               <form onSubmit={submitInterest} className="mt-5 max-w-md rounded-3xl border border-white/10 bg-white/10 p-5">

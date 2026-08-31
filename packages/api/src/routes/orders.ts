@@ -765,6 +765,11 @@ router.post('/', async (req: Request, res: Response) => {
 
     let subtotal = 0;
     let hasCatalogDiscountedItems = false;
+    // Underlaget för kuponger med excludeDiscountedItems: bara de rader som
+    // INTE redan är nedsatta (menypris-rea, produkt-/kategorideal eller
+    // BOGO-gratisvara). Räknas parallellt med subtotal så en kod som
+    // "30 % på ej rabatterade varor" aldrig ger rabatt ovanpå rabatt.
+    let discountableSubtotal = 0;
     const orderItems: any[] = [];
 
     for (const item of data.items) {
@@ -877,6 +882,13 @@ router.post('/', async (req: Request, res: Response) => {
       const lineItemOre = (catalogBaseOre + extrasTotal) * item.quantity;
       const itemSubtotal = lineItemOre;
       subtotal += itemSubtotal;
+      // Samma regel som kassan (apps/web/app/cart/page.tsx): bara det nedsatta
+      // baspriset undantas — tillval är aldrig rabatterade och räknas därför
+      // med även på en rea-rad. BOGO-raden ligger till fullpris i subtotal när
+      // en kupong används (kupongen nollar auto-dealen) och räknas därmed med.
+      discountableSubtotal += itemHasCatalogDiscount
+        ? extrasTotal * item.quantity
+        : itemSubtotal;
 
       orderItems.push({
         productId: product.id,
@@ -942,13 +954,22 @@ router.post('/', async (req: Request, res: Response) => {
           // som vid utgången/otillräcklig minOrder ovan.
           const platformAllowed = discountPlatformAllowed((code as any).platform, req);
 
+          // excludeDiscountedItems → rabatten räknas bara på de rader som
+          // inte redan är nedsatta. Underlaget är alltid ≤ subtotal, så
+          // minOrder-kontrollen ovan (mot hela subtotalen) står kvar
+          // oförändrad: tröskeln gäller vad kunden handlar för, inte vad
+          // kupongen får bita på.
+          const codeBaseOre = (code as any).excludeDiscountedItems
+            ? discountableSubtotal
+            : subtotal;
+
           if (!isExpired && subtotal >= code.minOrder && restaurantAllowed && platformAllowed) {
             if (code.type === 'PERCENTAGE') {
-              manualFoodDiscountAmount = Math.round(subtotal * code.value / 100);
+              manualFoodDiscountAmount = Math.round(codeBaseOre * code.value / 100);
             } else if (code.type === 'FREE_DELIVERY') {
               manualDeliveryDiscountAmount = deliveryFee;
             } else {
-              manualFoodDiscountAmount = Math.min(code.value, subtotal);
+              manualFoodDiscountAmount = Math.min(code.value, codeBaseOre);
             }
             // Stackbar fri leverans-flagga: PERCENTAGE eller FIXED kupong
             // kan ha freeDelivery=true → leveransavgiften absorberas också.
@@ -962,7 +983,13 @@ router.post('/', async (req: Request, res: Response) => {
             ) {
               manualDeliveryDiscountAmount = deliveryFee;
             }
-            validatedCode = code.code;
+            // Hela varukorgen redan rabatterad → koden biter inte på något.
+            // Vi sätter INTE validatedCode då; annars hade ordern burit en
+            // kod som gav 0 kr och kunden trott att rabatten var uttagen.
+            // /api/discount/validate nekar redan koden i kassan av samma skäl.
+            if (manualFoodDiscountAmount > 0 || manualDeliveryDiscountAmount > 0) {
+              validatedCode = code.code;
+            }
           }
         } else {
           // 2. Check personalized customer deals.

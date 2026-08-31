@@ -420,4 +420,34 @@ const draftClosed = resolveRestaurantAvailability(
 );
 assert.equal(draftClosed.opensAt, null, 'utkast ska inte utlova en öppningstid');
 
+// ── Kuponger som inte gäller på redan rabatterade varor ─────────────────────
+// DiscountCode.excludeDiscountedItems → rabatten räknas på `discountableSubtotal`
+// (raderna utan nedsatt baspris), aldrig på hela subtotalen. Servern är
+// sanningen; kassan visar bara en förhandsvisning av samma tal.
+const discountRouteSource = fs.readFileSync(path.join(__dirname, '../routes/discount.ts'), 'utf8');
+assert.match(orderRouteSource, /let discountableSubtotal = 0;/);
+assert.match(
+  orderRouteSource,
+  /discountableSubtotal \+= itemHasCatalogDiscount\s*\?\s*extrasTotal \* item\.quantity\s*:\s*itemSubtotal;/,
+  'tillval är aldrig rabatterade och ska räknas med även på en rea-rad',
+);
+assert.match(
+  orderRouteSource,
+  /const codeBaseOre = \(code as any\)\.excludeDiscountedItems\s*\?\s*discountableSubtotal\s*:\s*subtotal;/,
+);
+assert.match(orderRouteSource, /manualFoodDiscountAmount = Math\.round\(codeBaseOre \* code\.value \/ 100\);/);
+assert.match(orderRouteSource, /manualFoodDiscountAmount = Math\.min\(code\.value, codeBaseOre\);/);
+// En kod som inte biter på något får aldrig hamna på ordern som "använd".
+assert.match(
+  orderRouteSource,
+  /if \(manualFoodDiscountAmount > 0 \|\| manualDeliveryDiscountAmount > 0\) \{\s+validatedCode = code\.code;/,
+);
+// minOrder mäts fortfarande mot hela subtotalen — tröskeln gäller vad kunden
+// handlar för, inte vad kupongen får bita på.
+assert.match(orderRouteSource, /subtotal >= code\.minOrder/);
+// Kassan nekas redan i validate när hela korgen är rabatterad.
+assert.match(discountRouteSource, /Koden gäller bara varor som inte redan är rabatterade/);
+assert.match(discountRouteSource, /discountAmountOre = Math\.round\(discountableOre \* discount\.value \/ 100\);/);
+assert.match(discountRouteSource, /excludeDiscountedItems,/);
+
 console.log('backend availability + money + placement contracts: ok');

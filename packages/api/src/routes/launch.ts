@@ -3,6 +3,7 @@ import rateLimit from 'express-rate-limit';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
+import { LAUNCH_SHARED_COUPON_CODE, sendLaunchWelcomeEmail } from '../lib/launchWelcomeEmail';
 
 const router = Router();
 
@@ -20,8 +21,15 @@ const InterestSchema = z.object({
   marketingConsent: z.literal(true),
 }).strict();
 
-function launchCouponCode() {
-  return `LUND30-${randomBytes(5).toString('hex').toUpperCase()}`;
+/**
+ * Intern referens per lead. Alla leads får numera samma delade kupong
+ * (LAUNCH_SHARED_COUPON_CODE), men kolumnen `LaunchLead.couponCode` är unik
+ * och NOT NULL — den bär därför en referens, inte en kod kunden kan lösa in.
+ * `leadCouponCode()` i admin.ts översätter referensen till den kod kunden
+ * faktiskt fick i mejlet.
+ */
+function launchLeadRef() {
+  return `LEAD-${randomBytes(6).toString('hex').toUpperCase()}`;
 }
 
 /**
@@ -39,11 +47,17 @@ router.post('/interest', interestLimiter, async (req, res) => {
     const existing = await launchLead.findUnique({ where: { email } });
 
     if (existing) {
+      // Redan registrerad. Vi mejlar bara om koden aldrig kom fram — annars
+      // skulle varje omregistrering bli ett nytt utskick till samma person.
+      const resend = !existing.couponSentAt
+        ? await sendLaunchWelcomeEmail({ to: email, name: input.name })
+        : false;
       await launchLead.update({
         where: { id: existing.id },
         data: {
           name: input.name,
           marketingConsentAt: now,
+          ...(resend ? { couponSentAt: now, status: 'COUPON_SENT' } : {}),
         },
       });
       res.cookie('viaeats_launch_interest', '1', {
@@ -53,33 +67,39 @@ router.post('/interest', interestLimiter, async (req, res) => {
         path: '/',
         maxAge: 180 * 24 * 60 * 60 * 1000,
       });
-      return res.json({ ok: true, alreadyRegistered: true, manualFollowUp: true });
+      return res.json({
+        ok: true,
+        alreadyRegistered: true,
+        couponCode: LAUNCH_SHARED_COUPON_CODE,
+      });
     }
 
-    const code = launchCouponCode();
-    await prisma.$transaction(async (tx: any) => {
-      const createdCode = await tx.discountCode.create({
-        data: {
-          code,
-          description: 'Launch-intresse — 30 % rabatt första veckan',
-          type: 'PERCENTAGE',
-          value: 30,
-          minOrder: 0,
-          isActive: false,
-          maxUsages: 1,
-          platform: 'ALL',
-        },
-      });
-      return tx.launchLead.create({
-        data: {
-          name: input.name,
-          email,
-          couponCode: createdCode.code,
-          status: 'INTERESTED',
-          marketingConsentAt: now,
-        },
-      });
+    // Leadet sparas först. Mejlet är ett sidoeffektsteg som aldrig får fälla
+    // registreringen — en kund som anmält sig ska ligga i listan även om
+    // mejltransporten är nere.
+    const lead = await launchLead.create({
+      data: {
+        name: input.name,
+        email,
+        couponCode: launchLeadRef(),
+        status: 'INTERESTED',
+        marketingConsentAt: now,
+      },
     });
+
+    const emailed = await sendLaunchWelcomeEmail({ to: email, name: input.name });
+    if (emailed) {
+      await launchLead
+        .update({
+          where: { id: lead.id },
+          data: { couponSentAt: new Date(), status: 'COUPON_SENT' },
+        })
+        .catch((error: unknown) => {
+          // Mejlet ÄR skickat. Att statusen inte hann sparas är en admin-vy-bugg,
+          // inte ett kundproblem — logga och gå vidare.
+          console.error('[launch/interest] kunde inte markera kupongen som skickad:', error);
+        });
+    }
 
     res.cookie('viaeats_launch_interest', '1', {
       httpOnly: false,
@@ -91,7 +111,10 @@ router.post('/interest', interestLimiter, async (req, res) => {
     return res.status(201).json({
       ok: true,
       alreadyRegistered: false,
-      manualFollowUp: true,
+      couponCode: LAUNCH_SHARED_COUPON_CODE,
+      // false = mejlet gick inte fram; admin ser leadet som INTERESTED och
+      // kan följa upp manuellt från Launch-kampanjvyn.
+      couponEmailed: emailed,
     });
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: error.issues[0]?.message || 'Kontrollera uppgifterna' });

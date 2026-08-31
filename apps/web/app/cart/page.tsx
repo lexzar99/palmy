@@ -1168,15 +1168,21 @@ export default function CartPage() {
     const { campaign } = selectedPersonalDeal;
     if (subtotal < (campaign.minOrder || 0)) return 0;
 
+    // Underlaget koden får bita på. excludeDiscountedItems → bara varor som
+    // inte redan är nedsatta (samma regel som POST /api/orders). minOrder
+    // mäts fortfarande mot hela subtotalen: tröskeln gäller vad kunden
+    // handlar för, inte vad kupongen får bita på.
+    const codeBase = campaign.excludeDiscountedItems ? discountableSubtotal : subtotal;
+
     // Bas-rabatt: procent eller fast belopp.
     let amount = 0;
     if (campaign.discountType === "PERCENTAGE") {
-      amount = (subtotal * campaign.discountValue) / 100;
+      amount = (codeBase * campaign.discountValue) / 100;
     } else if (campaign.discountType === "FREE_DELIVERY") {
       // Standalone fri-leverans-kupong: rabatten = deliveryFee.
       amount = deliveryFee;
     } else {
-      amount = Math.min(campaign.discountValue, subtotal);
+      amount = Math.min(campaign.discountValue, codeBase);
     }
 
     // Stackbar fri leverans-flagga (Eriks bugg-fix): backend lagrar
@@ -1193,7 +1199,7 @@ export default function CartPage() {
     }
 
     return amount;
-  }, [selectedPersonalDeal, subtotal, deliveryFee]);
+  }, [selectedPersonalDeal, subtotal, discountableSubtotal, deliveryFee]);
   const personalDeliveryDiscount = personalDiscount > 0 && selectedPersonalDeal && (
     selectedPersonalDeal.campaign?.discountType === "FREE_DELIVERY" ||
     selectedPersonalDeal.campaign?.freeDelivery
@@ -1622,7 +1628,10 @@ export default function CartPage() {
         method: "POST",
         // X-Client-Type: web → backend kan neka app-only-rabattkoder på webben.
         headers: { "Content-Type": "application/json", "X-Client-Type": "web" },
-        body: JSON.stringify({ code: promoCodeInput.trim(), subtotal }),
+        // discountableSubtotal = summan av de varor som inte redan är
+        // nedsatta. Backend räknar rabatten på det underlaget för koder med
+        // excludeDiscountedItems, så förhandsvisningen här matchar ordern.
+        body: JSON.stringify({ code: promoCodeInput.trim(), subtotal, discountableSubtotal }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -1647,6 +1656,10 @@ export default function CartPage() {
             // kunden tar bort varor och hamnar under tröskeln.
             minOrder: typeof data.minOrder === "number" ? data.minOrder : 0,
             freeDelivery: Boolean(data.freeDelivery),
+            // true = koden biter bara på varor som inte redan är nedsatta.
+            // Sparas så rabatten räknas om på rätt underlag när kunden ändrar
+            // i korgen efter att koden applicerats.
+            excludeDiscountedItems: Boolean(data.excludeDiscountedItems),
           }
         });
         setSelectedAccountDealId(null);

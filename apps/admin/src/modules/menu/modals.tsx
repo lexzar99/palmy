@@ -160,7 +160,7 @@ export function CategoryModal({ open, restaurantId, category, onClose }: { open:
 export function ProductModal({ open, restaurantId, product, categories, extraGroups, existingDeals, onClose }: { open: boolean; restaurantId: string; product: ProductRecord | null; categories: CategoryRecord[]; extraGroups: ExtraGroupRecord[]; existingDeals: AutomaticDealRecord[]; onClose: () => void }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ name: "", description: "", note: "", price: "", vatPercent: "", categoryId: "", imageUrl: "", isActive: true, isVegan: false, isVegetarian: false, isGlutenFree: false, position: "0", displayMode: "FULL" as "FULL" | "COMPACT", hideDescription: false, localPriceLocked: false, discountActive: false, discountPercent: "", extraGroupIds: [] as string[] });
+  const [form, setForm] = useState({ name: "", description: "", note: "", price: "", vatPercent: "", categoryId: "", imageUrl: "", isActive: true, isVegan: false, isVegetarian: false, isGlutenFree: false, position: "0", displayMode: "FULL" as "FULL" | "COMPACT", hideDescription: false, localPriceLocked: false, discountActive: false, discountMode: "PERCENT" as "PERCENT" | "PRICE", discountPercent: "", discountPrice: "", extraGroupIds: [] as string[] });
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -188,7 +188,11 @@ export function ProductModal({ open, restaurantId, product, categories, extraGro
             hideDescription: product.hideDescription ?? false,
             localPriceLocked: product.localPriceLocked ?? false,
             discountActive: product.discountActive ?? false,
+            // discountPrice vinner över discountPercent i prisberäkningen
+            // (lib/deals.ts) → läget hydreras från vilket fält som är satt.
+            discountMode: product.discountPrice != null ? "PRICE" : "PERCENT",
             discountPercent: product.discountPercent == null ? "" : String(product.discountPercent),
+            discountPrice: product.discountPrice == null ? "" : String(product.discountPrice),
             extraGroupIds: product.extraGroups.map((group) => group.id),
           }
         : {
@@ -208,7 +212,9 @@ export function ProductModal({ open, restaurantId, product, categories, extraGro
             hideDescription: false,
             localPriceLocked: false,
             discountActive: false,
+            discountMode: "PERCENT",
             discountPercent: "",
+            discountPrice: "",
             extraGroupIds: [],
           },
     );
@@ -221,17 +227,34 @@ export function ProductModal({ open, restaurantId, product, categories, extraGro
       const price = parseNumberDraft(form.price);
       const position = parseIntegerDraft(form.position);
       const discountPercent = parseNumberDraft(form.discountPercent);
+      const discountPrice = parseNumberDraft(form.discountPrice);
       if (price === null || price < 0) throw new Error("Pris måste vara 0 kr eller högre");
       if (position === null || position < 0) throw new Error("Position måste vara 0 eller högre");
-      // Backend kräver discountPercent 1-95 när satt; percent 0 eller toggle av = rensa rabatten.
-      const discountOn = form.discountActive && discountPercent !== null && discountPercent > 0;
+      // Två sätt att sätta samma rabatt. PERCENT: backend kräver 1–95.
+      // PRICE: admin skriver kampanjpriset och procenten räknas fram —
+      // priset måste vara lägre än ordinarie, annars visas ingen rabatt alls
+      // (createPromotionCandidate i lib/deals.ts kastar kandidaten).
+      const priceModeOn = form.discountMode === "PRICE";
+      const discountOn = form.discountActive && (
+        priceModeOn
+          ? discountPrice !== null && discountPrice > 0 && discountPrice < price
+          : discountPercent !== null && discountPercent > 0
+      );
+      if (form.discountActive && priceModeOn && !discountOn) {
+        throw new Error("Kampanjpriset måste vara högre än 0 kr och lägre än ordinarie pris");
+      }
       const payload = {
         ...form,
         price,
         vatPercent: form.vatPercent ? Number(form.vatPercent) : null,
         position,
         discountActive: discountOn,
-        discountPercent: discountOn ? Math.min(95, Math.max(1, Math.round(discountPercent))) : null,
+        // Exakt ETT av fälten sätts. Sätts båda vinner discountPrice i
+        // prisberäkningen och procenten blir en tyst lögn i admin.
+        discountPercent: discountOn && !priceModeOn
+          ? Math.min(95, Math.max(1, Math.round(discountPercent as number)))
+          : null,
+        discountPrice: discountOn && priceModeOn ? discountPrice : null,
         restaurantId,
       };
       if (product) {
@@ -282,7 +305,17 @@ export function ProductModal({ open, restaurantId, product, categories, extraGro
   const numericPrice = parseNumberDraft(form.price);
   const numericPosition = parseIntegerDraft(form.position);
   const numericDiscount = parseNumberDraft(form.discountPercent);
-  const discountValid = !form.discountActive || (numericDiscount !== null && numericDiscount >= 1 && numericDiscount <= 95);
+  const numericDiscountPrice = parseNumberDraft(form.discountPrice);
+  // Procenten som ett kampanjpris motsvarar. Samma avrundning som servern
+  // (lib/deals.ts) så admin ser exakt det kunden kommer se i menyn.
+  const derivedDiscountPercent = numericPrice !== null && numericPrice > 0 && numericDiscountPrice !== null && numericDiscountPrice > 0 && numericDiscountPrice < numericPrice
+    ? Math.max(1, Math.round((1 - numericDiscountPrice / numericPrice) * 100))
+    : null;
+  const discountValid = !form.discountActive || (
+    form.discountMode === "PRICE"
+      ? derivedDiscountPercent !== null
+      : numericDiscount !== null && numericDiscount >= 1 && numericDiscount <= 95
+  );
   const canSave = form.name.trim().length > 0
     && Boolean(form.categoryId)
     && numericPrice !== null
@@ -398,21 +431,52 @@ export function ProductModal({ open, restaurantId, product, categories, extraGro
         <div className="md:col-span-2 surface-muted px-4 py-4">
           <SwitchField label="Rabatt aktiv" hint="Använd produktens egen rabatt, separat från kampanjdeals." checked={form.discountActive} onChange={(discountActive) => setForm((current) => ({ ...current, discountActive }))} />
           {form.discountActive ? (
-            <div className="mt-3 grid items-end gap-4 md:grid-cols-2">
-              <Field label="Rabatt %">
-                <PercentInput
-                  min={1}
-                  max={95}
-                  step={1}
-                  value={form.discountPercent}
-                  onValueChange={(discountPercent) => setForm((current) => ({ ...current, discountPercent }))}
-                />
+            <div className="mt-3 space-y-3">
+              {/* Två sätt att sätta samma rabatt: skriv procenten, eller skriv
+                  kampanjpriset och låt procenten räknas fram. Exakt ett fält
+                  sparas — se payloaden i saveMutation. */}
+              <Field label="Sätt rabatten som">
+                <Select
+                  value={form.discountMode}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, discountMode: event.target.value as "PERCENT" | "PRICE" }))
+                  }
+                >
+                  <option value="PERCENT">Rabatt i procent</option>
+                  <option value="PRICE">Kampanjpris i kronor</option>
+                </Select>
               </Field>
-              <p className="pb-2.5 text-[13px] text-[var(--text-secondary)]">
-                {numericPrice !== null && numericDiscount !== null && numericDiscount >= 1
-                  ? `${numericPrice.toFixed(2)} kr → ${(numericPrice * (1 - Math.min(95, numericDiscount) / 100)).toFixed(2)} kr`
-                  : "Ange 1–95 % för att aktivera rabatten."}
-              </p>
+              <div className="grid items-end gap-4 md:grid-cols-2">
+                {form.discountMode === "PRICE" ? (
+                  <Field label="Kampanjpris">
+                    <MoneyInput
+                      min={0}
+                      step={1}
+                      value={form.discountPrice}
+                      onValueChange={(discountPrice) => setForm((current) => ({ ...current, discountPrice }))}
+                    />
+                  </Field>
+                ) : (
+                  <Field label="Rabatt %">
+                    <PercentInput
+                      min={1}
+                      max={95}
+                      step={1}
+                      value={form.discountPercent}
+                      onValueChange={(discountPercent) => setForm((current) => ({ ...current, discountPercent }))}
+                    />
+                  </Field>
+                )}
+                <p className="pb-2.5 text-[13px] text-[var(--text-secondary)]">
+                  {form.discountMode === "PRICE"
+                    ? derivedDiscountPercent !== null && numericPrice !== null
+                      ? `${numericPrice.toFixed(2)} kr → ${(numericDiscountPrice as number).toFixed(2)} kr (−${derivedDiscountPercent} %)`
+                      : "Ange ett kampanjpris lägre än ordinarie pris."
+                    : numericPrice !== null && numericDiscount !== null && numericDiscount >= 1
+                      ? `${numericPrice.toFixed(2)} kr → ${(numericPrice * (1 - Math.min(95, numericDiscount) / 100)).toFixed(2)} kr`
+                      : "Ange 1–95 % för att aktivera rabatten."}
+                </p>
+              </div>
             </div>
           ) : null}
         </div>

@@ -1,15 +1,21 @@
 // Email-transport för ViaEats.
 //
 // Användarvänd transaktionsmejl (verifiering, lösenordsåterställning) hanteras
-// av SUPABASE auth. sendEmail() här används för interna utskick (t.ex.
-// kapacitets-varningar). Transports — priority-ordning:
+// av SUPABASE auth. sendEmail() här används för plattformens egna utskick
+// (välkomstmejl, kapacitets-varningar). Transports — priority-ordning:
 //
-//   1. **Gmail SMTP** (om GMAIL_USER + GMAIL_APP_PASSWORD är satta)
+//   1. **Resend HTTPS-API** (om RESEND_API_KEY är satt) — går över port 443
+//      och blockeras därför inte av Railway. Detta är produktionstransporten.
+//   2. **Gmail SMTP** (om GMAIL_USER + GMAIL_APP_PASSWORD är satta)
 //      — Funkar lokalt; från Railway kan port 587 vara blockerad.
-//   2. **Console-log** (fallback) — loggar mejlet till stdout.
+//   3. **Console-log** (fallback) — loggar mejlet till stdout.
 //
 // Anrop misslyckas aldrig hårt — fail-open (loggar, kastar ej).
-// (Brevo/Resend/Twilio borttagna — Supabase + Gmail/console räcker.)
+//
+// LEVERANSBARHET: att koden skickar räcker inte för att mejlet ska landa i
+// inkorgen. Avsändardomänen måste vara verifierad hos Resend med SPF, DKIM och
+// DMARC i DNS, och EMAIL_FROM måste ligga på den domänen. Se
+// docs/EMAIL_RESEND_RUNBOOK.md.
 
 import * as nodemailer from 'nodemailer';
 
@@ -32,6 +38,14 @@ export type EmailMessage = {
    * adressen (om Resend-transport).
    */
   from?: string;
+  /**
+   * Extra SMTP-headers. Används för List-Unsubscribe på utskick som inte är
+   * rena transaktionsmejl — Gmail och Outlook rankar ner avsändare som saknar
+   * den på marknadsföring.
+   */
+  headers?: Record<string, string>;
+  /** Svarsadress om den skiljer sig från avsändaren. */
+  replyTo?: string;
 };
 
 // Cloud-hostar (Railway, Heroku, Fly.io) blockerar ofta utgående SMTP-port
@@ -40,6 +54,49 @@ export type EmailMessage = {
 // Resend API) blockas inte eftersom de går via port 443. För Railway: använd
 // Brevo HTTPS API. För lokal dev: Gmail SMTP funkar.
 const SMTP_TIMEOUT_MS = 10_000; // Fail-fast istället för att hänga 60s+
+
+// ── Resend HTTPS-transport (om konfigurerad) ─────────────────────────────────
+// Gratisnivån räcker för launch (3 000 mejl/mån, 100/dygn). Vi använder fetch
+// direkt istället för SDK:n — en POST är hela integrationen och vi slipper ett
+// beroende till i API:t.
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const RESEND_ENDPOINT = 'https://api.resend.com/emails';
+
+async function sendViaResend(msg: EmailMessage, from: string): Promise<boolean> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SMTP_TIMEOUT_MS);
+  try {
+    const response = await fetch(RESEND_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from,
+        to: [msg.to],
+        subject: msg.subject,
+        text: msg.text,
+        ...(msg.html ? { html: msg.html } : {}),
+        ...(msg.replyTo ? { reply_to: msg.replyTo } : {}),
+        ...(msg.headers ? { headers: msg.headers } : {}),
+      }),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      console.error(`[email] resend send failed (${response.status}): ${body.slice(0, 500)}`);
+      return false;
+    }
+    console.log(`[email] Resend sent to ${msg.to}`);
+    return true;
+  } catch (err) {
+    console.error('[email] resend send failed:', err);
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 // ── Gmail SMTP transport (om konfigurerad) ────────────────────────────────────
 // VARNING: Cloud-hostar blockerar ofta SMTP-port 587 → timeout. Gmail funkar
@@ -104,6 +161,14 @@ function parseFromAddress(from: string): { name?: string; email: string } {
 export async function sendEmail(msg: EmailMessage): Promise<boolean> {
   const from = msg.from || await resolveDefaultFrom();
 
+  // Resend först: HTTPS, alltså den enda transporten som pålitligt kommer ut
+  // från Railway. Misslyckas den faller vi vidare till Gmail/console istället
+  // för att tappa mejlet tyst.
+  if (RESEND_API_KEY) {
+    const sent = await sendViaResend(msg, from);
+    if (sent) return true;
+  }
+
   // Gmail SMTP (om konfigurerad). Funkar lokalt; från Railway kan port 587 vara
   // blockerad → faller då igenom till console-loggen nedan.
   if (gmailTransporter) {
@@ -114,6 +179,8 @@ export async function sendEmail(msg: EmailMessage): Promise<boolean> {
         subject: msg.subject,
         text: msg.text,
         html: msg.html,
+        replyTo: msg.replyTo,
+        headers: msg.headers,
       });
       console.log(`[email] Gmail sent to ${msg.to}`);
       return true;

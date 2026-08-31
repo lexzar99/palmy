@@ -29,7 +29,7 @@ const validateLimiter = rateLimit({
 // POST /api/discount/validate
 router.post('/validate', validateLimiter, async (req, res) => {
   try {
-    const { code, subtotal } = req.body;
+    const { code, subtotal, discountableSubtotal } = req.body;
 
     if (!code) {
       res.status(400).json({ error: 'Rabattkod krävs' });
@@ -73,6 +73,15 @@ router.post('/validate', validateLimiter, async (req, res) => {
     }
 
     const subtotalOre = Math.round((Number(subtotal) || 0) * 100);
+    // Underlaget som koden får bita på. Kassan skickar `discountableSubtotal`
+    // (kr) = summan av de varor som inte redan är nedsatta. Saknas fältet
+    // (äldre klient) faller vi tillbaka på hela subtotalen — servern räknar
+    // ändå om vid orderläggning, som alltid är sanningen.
+    const excludeDiscountedItems = Boolean((discount as any).excludeDiscountedItems);
+    const discountableOre = excludeDiscountedItems && discountableSubtotal !== undefined
+      ? Math.max(0, Math.min(subtotalOre, Math.round((Number(discountableSubtotal) || 0) * 100)))
+      : subtotalOre;
+
     if (subtotalOre < discount.minOrder) {
       res.status(400).json({
         error: `Minsta ordersumma för denna kod är ${discount.minOrder / 100} kr`,
@@ -92,15 +101,26 @@ router.post('/validate', validateLimiter, async (req, res) => {
         // om kunden senare tar bort varor och hamnar under tröskeln.
         minOrder: discount.minOrder / 100,
         freeDelivery: true,
+        excludeDiscountedItems,
       });
       return;
     }
 
     let discountAmountOre = 0;
     if (discount.type === 'PERCENTAGE') {
-      discountAmountOre = Math.round(subtotalOre * discount.value / 100);
+      discountAmountOre = Math.round(discountableOre * discount.value / 100);
     } else {
-      discountAmountOre = Math.min(discount.value, subtotalOre);
+      discountAmountOre = Math.min(discount.value, discountableOre);
+    }
+
+    // Koden gäller bara ej rabatterade varor och kunden har enbart sådana i
+    // korgen → neka här istället för att applicera en kod som ger 0 kr.
+    // Samma regel som i POST /api/orders (server-sanning).
+    if (excludeDiscountedItems && discountAmountOre <= 0 && !(discount as any).freeDelivery) {
+      res.status(400).json({
+        error: 'Koden gäller bara varor som inte redan är rabatterade',
+      });
+      return;
     }
 
     res.json({
@@ -119,6 +139,9 @@ router.post('/validate', validateLimiter, async (req, res) => {
       // ut total = subtotal - discountAmount - (freeDelivery ? deliveryFee : 0).
       // Utan denna såg kunden bara halva rabatten i kassan (Eriks bugg).
       freeDelivery: Boolean((discount as any).freeDelivery),
+      // Klienten använder flaggan för att räkna rabatten på rätt underlag när
+      // kunden ändrar i korgen efter att koden applicerats.
+      excludeDiscountedItems,
     });
   } catch {
     res.status(500).json({ error: 'Serverfel' });
