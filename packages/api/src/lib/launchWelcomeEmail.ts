@@ -83,7 +83,7 @@ export function renderLaunchWelcomeEmail(params: { name: string; code: string })
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Här kommer din kod för viaeats</title>
+    <title>Du var först — här är din kod</title>
   </head>
   <body style="margin:0;padding:0;background:${CREAM};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${CREAM};">
@@ -136,7 +136,10 @@ export function renderLaunchWelcomeEmail(params: { name: string; code: string })
     `viaeats · Lund · avregistrera: ${site}/contact`,
   ].join('\n');
 
-  return { subject: 'Här kommer din kod för viaeats', html, text };
+  // Rubriken spelar på att de anmälde sig innan lansering och har väntat.
+  // Inga siffror eller utrop — procent i ämnesraden är den starkaste
+  // kampanjsignalen till Gmail.
+  return { subject: 'Du var först — här är din kod', html, text };
 }
 
 /**
