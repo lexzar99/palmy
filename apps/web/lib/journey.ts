@@ -15,6 +15,98 @@ import { API_URL } from "@/lib/api";
 
 const SESSION_KEY = "viaeats_journey_session";
 const UTM_KEY = "viaeats_journey_utm";
+const CHANNEL_KEY = "viaeats_journey_channel";
+
+/**
+ * Domänmönster → kanal. Ordningen spelar roll: `l.instagram.com` måste testas
+ * före `facebook.com`, eftersom Metas länkomdirigering går via båda.
+ *
+ * Listan täcker det som faktiskt driver trafik till en svensk matleverans-
+ * sajt. En okänd domän blir kanalen "Hänvisad" med domänen kvar i `referrer`,
+ * så en ny källa syns i rapporten i stället för att försvinna i "Direkt".
+ */
+const CHANNEL_RULES: Array<{ match: RegExp; channel: string }> = [
+  { match: /(^|\.)(mail\.google\.com|inbox\.google\.com)$/, channel: "Gmail" },
+  { match: /(^|\.)(mail\.yahoo\.|outlook\.(live|office)\.com|mail\.proton)/, channel: "E-post" },
+  { match: /(^|\.)(instagram\.com|ig\.me)$/, channel: "Instagram" },
+  { match: /(^|\.)(facebook\.com|fb\.me|fb\.com|messenger\.com)$/, channel: "Facebook" },
+  { match: /(^|\.)(tiktok\.com)$/, channel: "TikTok" },
+  { match: /(^|\.)(google\.[a-z.]+|googleadservices\.com)$/, channel: "Google" },
+  { match: /(^|\.)(bing\.com|duckduckgo\.com|ecosia\.org|yahoo\.com)$/, channel: "Annan sökmotor" },
+  { match: /(^|\.)(snapchat\.com)$/, channel: "Snapchat" },
+  { match: /(^|\.)(t\.co|x\.com|twitter\.com)$/, channel: "X" },
+  { match: /(^|\.)(linkedin\.com|lnkd\.in)$/, channel: "LinkedIn" },
+  { match: /(^|\.)(reddit\.com)$/, channel: "Reddit" },
+  { match: /(^|\.)(youtube\.com|youtu\.be)$/, channel: "YouTube" },
+];
+
+/** Domäner som är vi själva — intern navigering är ingen trafikkälla. */
+const EGNA_DOMANER = /(^|\.)(viaeats\.se|localhost)$/;
+
+/**
+ * Var besökaren kom ifrån.
+ *
+ * Prioritetsordning, och den spelar roll:
+ *   1. `utm_source` — den enda signalen vi själva satt, och därmed den enda
+ *      vi vet är sann. Mejlutskicket ska tillskrivas mejlet även om kunden
+ *      öppnade länken i Gmails webbläsare.
+ *   2. `fbclid` / `gclid` — annonsklick. Meta och Google strippar ofta
+ *      referraren på annonstrafik, men klick-id:t överlever.
+ *   3. Referrerns domän.
+ *   4. Ingen referrer alls → "Direkt" (skrivet i adressfältet, bokmärke,
+ *      eller en app som inte skickar referrer).
+ */
+function classifyChannel(): { channel: string; referrer: string | null } {
+  if (typeof window === "undefined") return { channel: "Direkt", referrer: null };
+
+  const params = new URLSearchParams(window.location.search);
+  const utm = params.get("utm_source");
+  let referrerHost: string | null = null;
+  try {
+    referrerHost = document.referrer ? new URL(document.referrer).hostname.toLowerCase() : null;
+  } catch {
+    referrerHost = null;
+  }
+
+  if (utm) return { channel: utm, referrer: referrerHost };
+
+  // Annonsklick: Meta och Google skickar ofta ingen referrer, men klick-id:t
+  // finns i URL:en. Utan det hade all annonstrafik hamnat under "Direkt".
+  if (params.get("fbclid")) return { channel: "Facebook/Instagram-annons", referrer: referrerHost };
+  if (params.get("gclid")) return { channel: "Google-annons", referrer: referrerHost };
+
+  if (!referrerHost) return { channel: "Direkt", referrer: null };
+  if (EGNA_DOMANER.test(referrerHost)) return { channel: "Direkt", referrer: referrerHost };
+
+  for (const rule of CHANNEL_RULES) {
+    if (rule.match.test(referrerHost)) return { channel: rule.channel, referrer: referrerHost };
+  }
+  return { channel: "Hänvisad", referrer: referrerHost };
+}
+
+/**
+ * Kanalen för hela besöket, bestämd vid landningen.
+ *
+ * Måste låsas där: referraren finns bara på den första sidvisningen, och
+ * efter ett klick vidare i menyn är den vi själva. Utan det hade varje besök
+ * skrivits om till "Direkt" så fort kunden klickade sig vidare.
+ */
+function rememberChannel(): { channel: string; referrer?: string } {
+  if (typeof window === "undefined") return { channel: "Direkt" };
+  try {
+    const stored = window.sessionStorage.getItem(CHANNEL_KEY);
+    if (stored) return JSON.parse(stored);
+    const resolved = classifyChannel();
+    const value = { channel: resolved.channel, ...(resolved.referrer ? { referrer: resolved.referrer } : {}) };
+    window.sessionStorage.setItem(CHANNEL_KEY, JSON.stringify(value));
+    return value;
+  } catch {
+    // Blockerad sessionStorage: klassificera om per steg. Sämre — referraren
+    // är borta efter första sidan — men bättre än ingen kanal alls.
+    const fallback = classifyChannel();
+    return { channel: fallback.channel, ...(fallback.referrer ? { referrer: fallback.referrer } : {}) };
+  }
+}
 
 export type JourneyStep =
   | "LANDED"
@@ -101,6 +193,7 @@ export function trackJourney(step: JourneyStep, payload: JourneyPayload = {}): v
       sessionId,
       step,
       ...rememberUtm(),
+      ...rememberChannel(),
       ...(payload.restaurantId ? { restaurantId: payload.restaurantId } : {}),
       ...(payload.productId ? { productId: payload.productId } : {}),
       ...(payload.orderId ? { orderId: payload.orderId } : {}),

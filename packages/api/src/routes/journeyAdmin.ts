@@ -39,6 +39,8 @@ router.get('/', authenticate, requireSuperAdmin, async (req: AuthRequest, res) =
       email: string | null;
       utmSource: string | null;
       utmCampaign: string | null;
+      channel: string | null;
+      referrer: string | null;
       firstSeen: Date;
       lastSeen: Date;
       restaurantIds: string[];
@@ -52,6 +54,8 @@ router.get('/', authenticate, requireSuperAdmin, async (req: AuthRequest, res) =
          MAX(email)                                                AS email,
          MAX("utmSource")                                          AS "utmSource",
          MAX("utmCampaign")                                        AS "utmCampaign",
+         MAX(channel)                                              AS channel,
+         MAX(referrer)                                             AS referrer,
          MIN("createdAt")                                          AS "firstSeen",
          MAX("createdAt")                                          AS "lastSeen",
          ARRAY_REMOVE(ARRAY_AGG(DISTINCT "restaurantId"), NULL)    AS "restaurantIds",
@@ -89,6 +93,8 @@ router.get('/', authenticate, requireSuperAdmin, async (req: AuthRequest, res) =
         email: s.email,
         utmSource: s.utmSource,
         utmCampaign: s.utmCampaign,
+        channel: s.channel,
+        referrer: s.referrer,
         firstSeen: s.firstSeen,
         lastSeen: s.lastSeen,
         orderId: s.orderId,
@@ -131,9 +137,11 @@ router.get('/', authenticate, requireSuperAdmin, async (req: AuthRequest, res) =
     const outcomes = new Map<string, number>();
     for (const p of people) outcomes.set(p.outcome, (outcomes.get(p.outcome) || 0) + 1);
 
+    // Grupperas på kanal, inte på rå utm_source: frågan är vilken plattform
+    // som driver trafik, och de flesta besök bär ingen utm alls.
     const bySource = new Map<string, { sessions: number; orders: number }>();
     for (const p of people) {
-      const key = p.utmSource || 'direkt';
+      const key = p.channel || p.utmSource || 'Direkt';
       const row = bySource.get(key) || { sessions: 0, orders: 0 };
       row.sessions += 1;
       if (p.ordered) row.orders += 1;

@@ -1748,6 +1748,12 @@ model JourneyEvent {
   /// en tratt kan filtreras på kanal utan att join:a mot första raden.
   utmSource    String?
   utmCampaign  String?
+  /// Referrerns domän i råform, sparad så kanalklassificeringen går att
+  /// granska när en kanal ser fel ut.
+  referrer     String?
+  /// Normaliserad kanal: Google, Instagram, Facebook, Gmail, Direkt …
+  /// Klassificeringen görs i apps/web/lib/journey.ts, där referraren finns.
+  channel      String?
   /// Stegspecifika detaljer: avvisad adress, felkod från PSP, valt orderType.
   meta         Json?
   createdAt    DateTime @default(now())
@@ -1755,5 +1761,6 @@ model JourneyEvent {
   @@index([sessionId, createdAt])
   @@index([step, createdAt])
   @@index([phone, createdAt])
+  @@index([channel, createdAt])
   @@index([createdAt])
 }

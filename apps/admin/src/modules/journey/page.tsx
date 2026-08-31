@@ -55,7 +55,7 @@ export function JourneyPage() {
     const q = filter.trim().toLowerCase();
     if (!q) return all;
     return all.filter((p) =>
-      [p.phone, p.email, p.outcome, p.deepestStepLabel, p.utmSource, p.rejectedAddress, ...p.restaurants]
+      [p.phone, p.email, p.outcome, p.deepestStepLabel, p.channel, p.referrer, p.utmSource, p.rejectedAddress, ...p.restaurants]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q)),
     );
@@ -185,7 +185,7 @@ export function JourneyPage() {
         </Surface>
 
         <Surface>
-          <SectionHeader title="Varifrån de kom" description="Kanal och hur många som beställde" />
+          <SectionHeader title="Varifrån de kom" description="Plattform och hur många som beställde" />
           <div className="mt-4 space-y-3">
             {data.sources.length === 0 ? (
               <p className="text-[13px] text-[var(--text-secondary)]">Ingen data ännu.</p>
@@ -293,7 +293,10 @@ export function JourneyPage() {
                       {p.restaurants.length > 0 ? p.restaurants.join(", ") : "—"}
                     </td>
                     <td className="py-3 pr-4 text-[var(--text-secondary)]">
-                      {p.utmSource || "direkt"}
+                      <div>{p.channel || "Direkt"}</div>
+                      {p.referrer && p.channel === "Hänvisad" ? (
+                        <div className="text-[12px] opacity-70">{p.referrer}</div>
+                      ) : null}
                     </td>
                     <td className="py-3 text-[var(--text-secondary)]">{tid(p.lastSeen)}</td>
                   </tr>

@@ -37,6 +37,8 @@ const EventSchema = z.object({
   email: z.string().trim().max(254).nullish(),
   utmSource: z.string().trim().max(64).nullish(),
   utmCampaign: z.string().trim().max(64).nullish(),
+  channel: z.string().trim().max(64).nullish(),
+  referrer: z.string().trim().max(255).nullish(),
   meta: z.record(z.unknown()).nullish(),
 }).strict();
 
@@ -64,6 +66,8 @@ router.post('/', journeyLimiter, async (req, res) => {
         email,
         utmSource: input.utmSource || null,
         utmCampaign: input.utmCampaign || null,
+        channel: input.channel || null,
+        referrer: input.referrer || null,
         meta: (input.meta as any) ?? undefined,
       },
     });

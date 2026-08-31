@@ -18,6 +18,10 @@ export interface JourneyPerson {
   email: string | null;
   utmSource: string | null;
   utmCampaign: string | null;
+  /** Normaliserad kanal: Google, Instagram, Facebook, Gmail, Direkt … */
+  channel: string | null;
+  /** Referrerns domän i råform, för att granska en kanal som ser fel ut. */
+  referrer: string | null;
   firstSeen: string;
   lastSeen: string;
   orderId: string | null;
