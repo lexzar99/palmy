@@ -67,14 +67,34 @@ function replyToAddress(): string | undefined {
   return process.env.EMAIL_REPLY_TO || undefined;
 }
 
-function firstName(name: string): string {
-  return name.trim().split(/\s+/)[0] || name.trim();
+/**
+ * Tilltalsnamnet, eller null när fältet inte bär ett namn.
+ *
+ * Listorna från Meta innehåller rader som "??" och "a.shala28" — fältet är
+ * fritext och folk skriver användarnamn, emoji eller ingenting. "Hej ??!"
+ * är värre än att inte hälsa med namn alls, så vi kräver att första ordet
+ * består av bokstäver: minst två, och inga siffror eller @.
+ */
+function firstName(name: string): string | null {
+  const first = (name || '').trim().split(/\s+/)[0] || '';
+  const cleaned = first.replace(/[.,;:!?]+$/, '');
+  if (cleaned.length < 2) return null;
+  if (/[@0-9]/.test(cleaned)) return null;
+  const letters = cleaned.match(/\p{L}/gu)?.length ?? 0;
+  if (letters < 2) return null;
+  return cleaned;
+}
+
+/** "Hej Anna!" när namnet duger, annars bara "Hej!". */
+function greeting(name: string): string {
+  const first = firstName(name);
+  return first ? `Hej ${first}!` : 'Hej!';
 }
 
 export function renderLaunchWelcomeEmail(params: { name: string; code: string }) {
   const site = siteBaseUrl();
   const code = params.code;
-  const hello = `Hej ${firstName(params.name)}!`;
+  const hello = greeting(params.name);
 
   // Inline-styles genomgående — Gmail strippar <style>-block. Layouten är
   // tabellbaserad av samma skäl: flexbox och grid renderas inte i Outlook.
