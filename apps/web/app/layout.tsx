@@ -19,6 +19,8 @@ import MetaPixel from "@/components/MetaPixel";
 // spara personuppgifter, alltså utan samtyckesgrind, och är det enda stället
 // där vi ser hur många som faktiskt kommer in och varifrån.
 import { Analytics } from "@vercel/analytics/next";
+// Kundresan: ett steg per sak besökaren gör, så vi ser var flödet tar slut.
+import JourneyTracker from "@/components/JourneyTracker";
 
 // ViaEats-typografin: mjuk men stadig, med höga vikter för ett appnära uttryck.
 //
@@ -129,6 +131,7 @@ export default function RootLayout({
           <CookieConsent />
           <MetaPixel />
           <Analytics />
+          <JourneyTracker />
           <DeferredGlobalClients />
         </Providers>
       </body>

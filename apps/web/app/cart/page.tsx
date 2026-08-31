@@ -33,6 +33,7 @@ import { ensureKioskAccess } from "@/lib/kioskAccessClient";
 import { EMBED_PARENT_ORIGIN_PARAM, partnerOriginForRestaurant, readEmbedParentOrigin, trustedPartnerOrigin } from "@/lib/embedPartner";
 import { checkDeliveryStreet, isDeliverableStreet } from "@/lib/deliveryAddress";
 import { useCartStore } from "@/store/cartStore";
+import { trackJourney } from "@/lib/journey";
 import BogoPickerModal from "@/components/BogoPickerModal";
 import { rememberActiveOrder } from "@/lib/activeOrder";
 import { trackMetaInitiateCheckout, trackMetaPurchase } from "@/lib/metaEvents";
@@ -1684,6 +1685,14 @@ export default function CartPage() {
     return () => clearTimeout(safety);
   }, [fetchContext]);
 
+  // Kundresan: kassan är öppnad. Skiljer "övergav varukorgen" från "kom till
+  // kassan och backade" — två helt olika problem att laga.
+  useEffect(() => {
+    trackJourney("CART_OPENED", { restaurantId: currentRestaurantId });
+    // Endast vid mount: en omrendering är inte ett nytt besök i kassan.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Auto-fill address from localStorage and run zone check
   const initialZoneCheckDone = useRef(false);
   useEffect(() => {
@@ -2229,6 +2238,14 @@ export default function CartPage() {
           return;
         }
         if (paymentOutcome === "terminal") {
+          // Kundresan: kunden kom hela vägen och betalningen sa nej. Skiljs
+          // från "lämnade mitt i betalningen" — det ena är vårt fel, det andra
+          // kundens ändrade sig.
+          trackJourney("PAYMENT_FAILED", {
+            orderId,
+            phone: formData.customerPhone || null,
+            meta: { paymentStatus: res.data?.paymentStatus ?? null, passive },
+          });
           setVerifyingPayment(false);
           setSwishCheckout(null);
           setHostedCheckoutUrl(null);
@@ -2484,6 +2501,22 @@ export default function CartPage() {
     options: StartCheckoutOptions = {},
   ): Promise<PreparedStripePayment | void> => {
     e.preventDefault();
+
+    // Kundresan: kunden har fyllt i sina uppgifter och tryckt på betala. Allt
+    // som händer efter den här punkten är hinder vi själva reser — zonen,
+    // betalningen — och det är dem tratten ska kunna peka ut.
+    trackJourney("ORDER_TYPE_CHOSEN", {
+      restaurantId: currentRestaurantId,
+      meta: { orderType },
+    });
+    if (formData.customerPhone) {
+      trackJourney("CONTACT_ENTERED", {
+        restaurantId: currentRestaurantId,
+        phone: formData.customerPhone,
+        email: formData.customerEmail || null,
+      });
+    }
+
     const checkoutExperience = options.checkoutExperience || "hosted";
     const deferredStripePayment = checkoutExperience === "embedded" && checkoutMethod !== "swish";
     const rejectCheckout = (message: string) => {
@@ -2655,6 +2688,14 @@ export default function CartPage() {
           });
           if (!zRes.data.available) {
             setAddressZoneStatus("error");
+            // Kundresan: den här kunden ville beställa och vi sa nej. Adressen
+            // sparas så adminvyn kan visa VAR vi tappar folk geografiskt —
+            // det är underlaget för att veta vilken zon som ska utökas.
+            trackJourney("ADDRESS_REJECTED", {
+              restaurantId: currentRestaurantId,
+              phone: formData.customerPhone || null,
+              meta: { rejectedAddress: formData.deliveryStreet || null, reason: "utanför zonen" },
+            });
             rejectCheckout(t("cart.errors.zoneNotCovered"));
             if (!deferredStripePayment) setLoading(false);
             return;
@@ -2670,6 +2711,11 @@ export default function CartPage() {
             minOrderAmount: freshMin,
           }));
           setAddressZoneStatus("ok");
+          trackJourney("ADDRESS_ACCEPTED", {
+            restaurantId: currentRestaurantId,
+            phone: formData.customerPhone || null,
+            meta: { deliveryFee: freshFee },
+          });
         } catch (zoneErr: any) {
           // Tidigare "fail open" — släppte igenom ordern även om zon-API:n
           // failade. Konsekvens: kunden kunde beställa till en adress som
@@ -2678,6 +2724,13 @@ export default function CartPage() {
           // sanningskällan för zone-täckning.
           console.warn("[cart] zone check failed:", zoneErr?.message || zoneErr);
           setAddressZoneStatus("error");
+          // Också ett avhopp orsakat av oss, men av annan sort än "vi kör inte
+          // dit" — reason skiljer dem åt i rapporten.
+          trackJourney("ADDRESS_REJECTED", {
+            restaurantId: currentRestaurantId,
+            phone: formData.customerPhone || null,
+            meta: { rejectedAddress: formData.deliveryStreet || null, reason: "zonkollen svarade inte" },
+          });
           rejectCheckout(t("cart.errors.zoneCheckFailed"));
           if (!deferredStripePayment) setLoading(false);
           return;
@@ -2804,6 +2857,16 @@ export default function CartPage() {
       // omladdad sida med tömd varukorg.
       localStorage.setItem("pending_order_value", String(total));
       trackMetaInitiateCheckout({ orderId, value: total });
+      // Kundresan: ordern finns nu i databasen. Att den ännu inte är betald är
+      // just poängen — nästa steg avgör om den blir en beställning eller ett
+      // avhopp mitt i betalningen.
+      trackJourney("ORDER_PLACED", {
+        orderId,
+        restaurantId: currentRestaurantId,
+        phone: formData.customerPhone || null,
+        email: formData.customerEmail || null,
+        meta: { total, orderType, provider: checkoutProvider },
+      });
       writePendingPaymentProvider(localStorage, checkoutProvider);
       if (deferredStripePayment) setEmbeddedStripeOrderId(orderId);
       else setPendingOrderId(orderId);
@@ -2842,6 +2905,12 @@ export default function CartPage() {
       const returnUrl = embedParentOrigin
         ? `${embedParentOrigin}/meny.html?${returnParams.toString()}`
         : `${window.location.origin}/${swishAppSwitchReturn ? "pay/back" : "cart"}?${returnParams.toString()}`;
+      trackJourney("PAYMENT_STARTED", {
+        orderId,
+        restaurantId: currentRestaurantId,
+        phone: formData.customerPhone || null,
+        meta: { provider: checkoutProvider, method: checkoutMethod },
+      });
       const payRes = await axios.post(`/api/platform/payments/create`, {
         orderId,
         returnUrl,

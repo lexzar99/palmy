@@ -9,6 +9,7 @@ import {
   ClipboardList,
   Code2,
   ContactRound,
+  Footprints,
   Gauge,
   Gift,
   History,
@@ -81,6 +82,7 @@ export const ADMIN_ROUTES: AdminRouteDefinition[] = [
   route({ id: "coupons", href: "/coupons", label: "Kuponger", icon: TicketPercent, section: "growth", keywords: "kupong rabattkod kod" }),
   route({ id: "referrals", href: "/referrals", label: "Värva vän", icon: UserPlus, section: "growth", keywords: "referral värva vän välkomst" }),
   route({ id: "launch-campaign", href: "/launch-campaign", label: "Launch-kampanj", shortLabel: "Launch", icon: BarChart3, section: "growth", keywords: "launch intresse leads rabatt kampanj statistik funnel" }),
+  route({ id: "journey", href: "/journey", label: "Kundresan", icon: Footprints, section: "growth", keywords: "funnel tratt avhopp varukorg kassa zon adress betalning konvertering beteende steg" }),
   route({ id: "push", href: "/push", label: "Push-notiser", shortLabel: "Push", icon: BellRing, section: "growth", keywords: "notification meddelande" }),
 
   // Ordningen följer arbetsgången: se perioden i stort, granska en enskild

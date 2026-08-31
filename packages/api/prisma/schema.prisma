@@ -1725,3 +1725,35 @@ model OrderTimingStat {
   @@index([restaurantId, dayOfWeek, hourOfDay])
   @@index([restaurantId, recordedAt])
 }
+
+/// Kundresan steg för steg. Varje rad är en sak besökaren gjorde.
+///
+/// Besökaren är anonym tills hon skriver sitt telefonnummer i kassan. Därför
+/// bär raderna ett `sessionId` från första sidvisningen; när numret dyker upp
+/// backfillas sessionens tidigare rader så hela flödet kan tillskrivas
+/// personen. Utan det hade allt före kassan varit omöjligt att koppla ihop.
+model JourneyEvent {
+  id           String   @id @default(cuid())
+  sessionId    String
+  /// Se JOURNEY_STEPS i lib/journey.ts — servern avvisar okända värden.
+  step         String
+  restaurantId String?
+  productId    String?
+  orderId      String?
+  /// Identitet, ifylld så fort den är känd.
+  phone        String?
+  email        String?
+  userId       String?
+  /// Kampanjmärkning från landningen, kopierad till sessionens alla rader så
+  /// en tratt kan filtreras på kanal utan att join:a mot första raden.
+  utmSource    String?
+  utmCampaign  String?
+  /// Stegspecifika detaljer: avvisad adress, felkod från PSP, valt orderType.
+  meta         Json?
+  createdAt    DateTime @default(now())
+
+  @@index([sessionId, createdAt])
+  @@index([step, createdAt])
+  @@index([phone, createdAt])
+  @@index([createdAt])
+}

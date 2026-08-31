@@ -19,6 +19,7 @@ import { useCartStore } from "@/store/cartStore";
 import { useFavorites } from "@/lib/favoritesStore";
 import { type BogoPickerProduct } from "@/components/BogoPickerModal";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
+import { trackJourney } from "@/lib/journey";
 import EmptyState from "@/components/EmptyState";
 import { rehydrateMenuCategories, MENU_FORMAT_PARAM } from "@/lib/menu";
 import { optimizedImageUrl, RESTAURANT_HERO_IMAGE_QUALITY, RESTAURANT_HERO_IMAGE_WIDTH } from "@/lib/imageOptimization";
@@ -305,6 +306,16 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, embed
     }
     setHydrated(true);
   }, []);
+
+  // Kundresan: besökaren öppnade en meny. Väntar på restaurangen så namnet
+  // följer med — ett id i adminvyn säger ingenting om var folk faktiskt var.
+  useEffect(() => {
+    if (!restaurant?.id) return;
+    trackJourney("RESTAURANT_VIEWED", {
+      restaurantId: restaurant.id,
+      meta: { name: restaurant.name, slug: restaurantSlug },
+    });
+  }, [restaurant?.id, restaurant?.name, restaurantSlug]);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [pendingProduct, setPendingProduct] = useState<any>(null);

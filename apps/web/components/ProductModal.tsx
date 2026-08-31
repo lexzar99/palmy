@@ -10,6 +10,7 @@ import { useFocusTrap } from "@/lib/useFocusTrap";
 import { trackMetaAddToCart } from "@/lib/metaEvents";
 import { useToast } from "./Toast";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
+import { trackJourney } from "@/lib/journey";
 
 interface ProductModalProps {
   product: any;
@@ -47,6 +48,19 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
   // inga transformerade förfäder (t.ex. sid-animationer) bryter position:fixed.
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
+
+  // Kundresan: att öppna modalen är steget mellan "bläddrade i menyn" och
+  // "la i korgen". Utan det går de två inte att skilja åt i tratten.
+  // editCartItemId betyder att kunden redigerar en rad hon redan lagt in —
+  // det är inte ett nytt intresse för rätten.
+  useEffect(() => {
+    if (editCartItemId) return;
+    trackJourney("PRODUCT_VIEWED", {
+      restaurantId,
+      productId: product?.id,
+      meta: { name: product?.name, price: product?.price },
+    });
+  }, [product?.id, product?.name, product?.price, restaurantId, editCartItemId]);
 
   const [quantity, setQuantity] = useState(initialQuantity ?? 1);
   const [selectedExtras, setSelectedExtras] = useState<any[]>([]);

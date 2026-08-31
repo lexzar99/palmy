@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { trackJourney } from '@/lib/journey';
 
 export interface CartItem {
   cartItemId: string; // Unikt id för denna specifika rad i korgen
@@ -62,6 +63,13 @@ export const useCartStore = create<CartStore>()(
       deliveryOverrides: {},
       bogoChoice: null,
       addItem: (item) => set((state) => {
+        // Kundresan: alla tre inläggningsvägar går genom addItem, så ett
+        // anrop här fångar dem. trackJourney väntar aldrig och kastar aldrig.
+        trackJourney('ADDED_TO_CART', {
+          restaurantId: item.restaurantId,
+          productId: item.productId,
+          meta: { name: item.name, price: item.price, quantity: item.quantity },
+        });
         const isDifferentRestaurant = state.items.length > 0 && state.restaurantId !== item.restaurantId;
         const nextRestaurantSlug = item.restaurantSlug ?? state.restaurantSlug ?? null;
         

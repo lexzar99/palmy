@@ -50,6 +50,8 @@ import terminalReleaseAdminRoutes, { terminalUpdateRouter, terminalDownloadRoute
 import legacyPaymentClientRoutes from './routes/paymentsLegacyClient';
 import paymentRoutes from './routes/payments';
 import discountRoutes from './routes/discount';
+import journeyRoutes from './routes/journey';
+import journeyAdminRoutes from './routes/journeyAdmin';
 import settingsRoutes from './routes/settings';
 import dealsRoutes from './routes/deals';
 import homePulseRoutes from './routes/homePulse';
@@ -454,6 +456,9 @@ app.use('/api/public', publicInviteRouter);
 app.use('/api/payments', legacyPaymentClientRoutes); // Endast gammal Stripe-webhook + 410 för gamla klienter
 app.use('/api/payments', paymentRoutes); // Provider-neutralt create/status/webhooks
 app.use('/api/discount', discountRoutes);
+// Kundresans steg. Publik: besökaren är anonym när de första stegen sker.
+app.use('/api/journey', journeyRoutes);
+app.use('/api/admin/journey', journeyAdminRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/deals', dealsRoutes);
 app.use('/api/home', homePulseRoutes);
