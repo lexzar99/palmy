@@ -38,9 +38,17 @@ test("the welcome email carries the coupon, a way back to the site and an unsubs
     "utf8",
   );
   assert.match(welcome, /LAUNCH_SHARED_COUPON_CODE = 'VIAEATS30'/);
-  assert.match(welcome, /renderBrandedEmail/);
+  // Ordmärket är en bild: Gmail laddar inga webfonts, så Baloo 2 kan inte
+  // sättas som text. Bilden ligger i webbens publika katalog och följer med
+  // domänen via WEB_BASE_URL.
+  assert.match(welcome, /\/email\/viaeats-wordmark\.png/);
+  assert.match(welcome, /alt="viaeats"/);
+  // Varumärkespaletten, inte den generella guld-mallen.
+  assert.match(welcome, /const NAVY = '#0A2340'/);
+  assert.match(welcome, /const ORANGE = '#F04F1A'/);
+  assert.match(welcome, /const CREAM = '#FEF7F0'/);
   // Både HTML och plaintext — ett mejl utan text-del rankas som skräppost.
-  assert.match(welcome, /const html = renderBrandedEmail/);
+  assert.match(welcome, /const html = `<!DOCTYPE html>/);
   assert.match(welcome, /const text = \[/);
   assert.match(welcome, /return \{ subject:[^}]*html, text \}/);
   assert.match(welcome, /List-Unsubscribe/);

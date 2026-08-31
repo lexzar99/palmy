@@ -1,16 +1,16 @@
 /**
  * Välkomstmejlet som går ut när någon anmäler sitt intresse på viaeats.se.
  *
- * Ett enda syfte: säga tack, ge kunden kännedomskoden och leda in dem på
- * sajten. Koden är delad (samma för alla) och obegränsad — poängen är att
- * folk ska lära känna viaeats, inte att ransonera rabatten.
+ * Ett enda syfte: ge kunden koden och leda in dem på sajten. Kort med flit —
+ * mejlet har ett budskap, och varje extra stycke gör att koden syns sämre.
  *
- * Mejlet är marknadsföring, inte transaktion: det skickas bara efter att
- * kunden kryssat i marknadsföringssamtycke, och det bär List-Unsubscribe så
- * Gmail/Outlook inte rankar ner avsändaren.
+ * Mallen är egen och följer varumärkesguiden (navy/orange/cream), till
+ * skillnad från den generella `renderBrandedEmail` som är guld på mörkt och
+ * används för interna driftmejl. Ordmärket är en bild eftersom Gmail inte
+ * laddar webfonts — Baloo 2 kan alltså inte sättas som text i mejl.
  */
 
-import { renderBrandedEmail, sendEmail } from './email';
+import { sendEmail } from './email';
 
 /** Kännedomskoden. Raden ligger i DiscountCode och går att redigera i admin. */
 export const LAUNCH_SHARED_COUPON_CODE = 'VIAEATS30';
@@ -18,12 +18,27 @@ export const LAUNCH_SHARED_COUPON_CODE = 'VIAEATS30';
 /** Rabatt i procent — bara för mejltexten. DiscountCode-raden är sanningen. */
 const LAUNCH_SHARED_COUPON_PERCENT = 30;
 
+// Varumärkespaletten (Logotyp/VIAEATS_BRAND_GUIDE.md). På cream bär navy både
+// rubrik och brödtext; orange används bara som accent och knappyta.
+const NAVY = '#0A2340';
+const ORANGE = '#F04F1A';
+const CREAM = '#FEF7F0';
+const SLATE = '#5A6472';
+
 function siteBaseUrl(): string {
   return (
     process.env.WEB_BASE_URL ||
     process.env.NEXT_PUBLIC_SITE_URL ||
     'https://viaeats.se'
   );
+}
+
+/**
+ * Ordmärket ligger i webbens publika katalog och deployas med den. Byts
+ * domänen följer bilden med via WEB_BASE_URL.
+ */
+function wordmarkUrl(): string {
+  return `${siteBaseUrl()}/email/viaeats-wordmark.png`;
 }
 
 /** Adressen kunden kan svara till. Ett mejl utan svarsväg känns automatiskt. */
@@ -35,51 +50,69 @@ function firstName(name: string): string {
   return name.trim().split(/\s+/)[0] || name.trim();
 }
 
-/** Kupongrutan i mejlet. Inline-styles — Gmail strippar <style>-block. */
-function couponBox(code: string): string {
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 4px 0 4px;">
-  <tr>
-    <td align="center" style="border: 2px dashed #E7B24B; border-radius: 14px; padding: 18px 16px; background: #fff8ea;">
-      <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.5px; color: #6b6b6b; text-transform: uppercase;">Din kod</div>
-      <div style="margin-top: 6px; font-size: 30px; font-weight: 900; letter-spacing: 3px; color: #0b0a0f;">${code}</div>
-      <div style="margin-top: 6px; font-size: 13px; line-height: 19px; color: #6b6b6b;">${LAUNCH_SHARED_COUPON_PERCENT} % rabatt · använd den hur många gånger du vill</div>
-    </td>
-  </tr>
-</table>`;
-}
-
 export function renderLaunchWelcomeEmail(params: { name: string; code: string }) {
   const site = siteBaseUrl();
   const code = params.code;
-  const greeting = `Hej ${firstName(params.name)}!`;
+  const hello = `Hej ${firstName(params.name)}!`;
 
-  const html = renderBrandedEmail({
-    headline: 'Tack för att du registrerade dig',
-    greeting,
-    intro: [
-      'Kul att ha dig med oss. viaeats är matleverans i Lund byggd för att vara enklare — färre steg till maten, och en bättre affär för restaurangerna du beställer från.',
-      `Som tack får du ${LAUNCH_SHARED_COUPON_PERCENT} % rabatt med koden nedan. Den gäller på ordinarie priser och du kan använda den om och om igen — dela den gärna med någon som också borde testa.`,
-      couponBox(code),
-      'Skriv in koden i kassan så dras rabatten av direkt.',
-    ],
-    cta: { label: 'Beställ på viaeats', url: site },
-    footnote:
-      `Koden gäller varor till ordinarie pris och kan inte kombineras med varor som redan är nedsatta. Vi vill att du blir nöjd — svara på det här mejlet om något strular, så löser vi det. Du får det här mejlet för att du anmälde ditt intresse på viaeats.se. <a href="${site}/contact" style="color: #6b6b6b;">Avregistrera dig här</a>.`,
-  });
+  // Inline-styles genomgående — Gmail strippar <style>-block. Layouten är
+  // tabellbaserad av samma skäl: flexbox och grid renderas inte i Outlook.
+  const html = `<!DOCTYPE html>
+<html lang="sv">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Här kommer din kod för viaeats</title>
+  </head>
+  <body style="margin:0;padding:0;background:${CREAM};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${CREAM};">
+      <tr>
+        <td align="center" style="padding:40px 20px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:420px;background:#ffffff;border-radius:20px;">
+            <tr>
+              <td align="center" style="padding:36px 32px 34px;">
+
+                <img src="${wordmarkUrl()}" width="150" alt="viaeats" style="display:block;width:150px;max-width:60%;height:auto;border:0;" />
+
+                <p style="margin:26px 0 0;font-size:16px;line-height:24px;color:${NAVY};">${hello}</p>
+
+                <p style="margin:6px 0 0;font-size:15px;line-height:23px;color:${SLATE};">Här är din kod.</p>
+
+                <p style="margin:20px 0 0;font-size:30px;line-height:36px;font-weight:800;letter-spacing:2px;color:${NAVY};">${code}</p>
+
+                <p style="margin:10px 0 0;font-size:14px;line-height:21px;color:${SLATE};">${LAUNCH_SHARED_COUPON_PERCENT} % på ordinarie priser. Använd den så ofta du vill.</p>
+
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:28px auto 0;">
+                  <tr>
+                    <td align="center" style="border-radius:12px;background:${ORANGE};">
+                      <a href="${site}" style="display:inline-block;padding:14px 34px;font-size:15px;font-weight:800;color:${NAVY};text-decoration:none;">Beställ mat</a>
+                    </td>
+                  </tr>
+                </table>
+
+              </td>
+            </tr>
+          </table>
+
+          <p style="margin:20px 0 0;font-size:11px;line-height:17px;color:${SLATE};">
+            viaeats · Lund · <a href="${site}/contact" style="color:${SLATE};">avregistrera</a>
+          </p>
+
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
 
   const text = [
-    greeting,
+    hello,
     '',
-    'Tack för att du registrerade dig hos viaeats.',
+    `Här är din kod: ${code}`,
+    `${LAUNCH_SHARED_COUPON_PERCENT} % på ordinarie priser. Använd den så ofta du vill.`,
     '',
-    `Som tack får du ${LAUNCH_SHARED_COUPON_PERCENT} % rabatt med koden: ${code}`,
-    'Koden gäller varor till ordinarie pris och kan användas hur många gånger du vill.',
+    site,
     '',
-    `Beställ här: ${site}`,
-    '',
-    'Vi vill att du blir nöjd — svara på det här mejlet om något strular.',
-    '',
-    `Du får det här mejlet för att du anmälde ditt intresse på viaeats.se. Avregistrera dig: ${site}/contact`,
+    `viaeats · Lund · avregistrera: ${site}/contact`,
   ].join('\n');
 
   return { subject: 'Här kommer din kod för viaeats', html, text };
