@@ -13,19 +13,36 @@ och 100 per dygn — långt över vad launch behöver.
 Gmail-transporten är kvar som lokal dev-väg och console-loggen som sista
 fallback. Prioritetsordningen i `sendEmail()` är Resend → Gmail → console.
 
-## Steg 1: konto och domän
+## Läget 2026-08-31
 
-1. Skapa konto på resend.com (gratis, inget kort).
-2. **Domains → Add Domain** → `viaeats.se`.
-3. Resend visar tre DNS-poster. Lägg in dem hos den som har DNS för
-   viaeats.se. Poster ser ut ungefär så här (kopiera de exakta värdena från
-   Resend — de nedan är formen, inte värdena):
+- Resend-kontot finns och ägs av `jalleshaher@gmail.com`.
+- Nyckeln i `packages/api/.env` är en **send-only**-nyckel: den kan skicka
+  mejl men inte lista eller lägga till domäner. Domänen måste därför läggas
+  till i Resends webbgränssnitt, inte via API.
+- **`viaeats.se` är ännu INTE verifierad hos Resend.** Utskick från
+  `lund@viaeats.se` svarar `403 The viaeats.se domain is not verified`.
+  Tills domänen är verifierad kan Resend bara skicka till kontoägarens egen
+  adress, från `onboarding@resend.dev`.
+- DNS för viaeats.se ligger på **Cloudflare** (`ernest`/`elma.ns.cloudflare.com`).
+- Vald avsändare: **`lund@viaeats.se`**. MX pekar på Google, så adressen tar
+  emot svar — viktigt, eftersom mejlet ber kunden svara om något strular.
 
-   | Typ | Namn | Värde |
-   |---|---|---|
-   | TXT | `send.viaeats.se` | `v=spf1 include:amazonses.com ~all` |
-   | TXT | `resend._domainkey.viaeats.se` | `p=MIGfMA0G…` (DKIM-nyckeln) |
-   | MX  | `send.viaeats.se` | `feedback-smtp.eu-west-1.amazonses.com` (prio 10) |
+## Steg 1: lägg till domänen i Resend
+
+1. Logga in på resend.com som `jalleshaher@gmail.com`.
+2. **Domains → Add Domain** → `viaeats.se`, region `eu-west-1`.
+3. Resend visar tre DNS-poster. Lägg in dem i **Cloudflare** (DNS → Records).
+   Formen ser ut så här; kopiera de exakta värdena från Resend:
+
+   | Typ | Namn | Värde | Proxy |
+   |---|---|---|---|
+   | TXT | `send` | `v=spf1 include:amazonses.com ~all` | DNS only |
+   | TXT | `resend._domainkey` | `p=MIGfMA0G…` (DKIM-nyckeln) | DNS only |
+   | MX  | `send` | `feedback-smtp.eu-west-1.amazonses.com` (prio 10) | DNS only |
+
+   Posterna ligger på subdomänen `send.viaeats.se` och rör alltså **inte**
+   den befintliga SPF-posten (`v=spf1 include:_spf.mx.cloudflare.net ~all`)
+   eller Google-MX:en på apex. Ingenting av dagens mejl påverkas.
 
 4. Vänta tills Resend visar domänen som **Verified** (oftast minuter, ibland
    upp till ett dygn).
@@ -47,8 +64,8 @@ veckor, skärp till `p=quarantine`.
 | Variabel | Värde | Vad den gör |
 |---|---|---|
 | `RESEND_API_KEY` | API-nyckeln från Resend | Slår på Resend-transporten. Saknas den faller `sendEmail()` tillbaka på Gmail/console och inga mejl går ut. |
-| `EMAIL_FROM` | `viaeats <hej@viaeats.se>` | Avsändaren. **Måste ligga på den verifierade domänen** — annars avvisar Resend utskicket. |
-| `EMAIL_REPLY_TO` | t.ex. `support@viaeats.se` | Svarsadress. Valfri, men ett mejl utan svarsväg känns automatiskt och rankas sämre. |
+| `EMAIL_FROM` | `viaeats <lund@viaeats.se>` | Avsändaren. **Måste ligga på den verifierade domänen** — annars avvisar Resend utskicket. Ersätter det gamla `FoodGO <no-reply@foodgo.se>`, som skulle ha hamnat i skräpposten direkt. |
+| `EMAIL_REPLY_TO` | `lund@viaeats.se` | Svarsadress. Ett mejl utan svarsväg känns automatiskt och rankas sämre. |
 | `WEB_BASE_URL` | `https://viaeats.se` | Länkmål i mejlet. Faller tillbaka på `https://viaeats.se`. |
 
 Sätts ingen `EMAIL_FROM` läser `resolveDefaultFrom()` avsändaren från
