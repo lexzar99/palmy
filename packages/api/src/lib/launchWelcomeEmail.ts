@@ -34,6 +34,23 @@ function siteBaseUrl(): string {
 }
 
 /**
+ * Länkmål med kampanjmärkning. Vercel Analytics (cookielöst, redan installerat
+ * i apps/web/app/layout.tsx) grupperar besök på utm_source, så antalet som
+ * klickar sig in från mejlet går att läsa av utan egen mätinfrastruktur.
+ *
+ * `content` skiljer knappen från de andra länkarna i samma mejl — annars går
+ * det inte att se om folk trycker på knappen eller på fotens länk.
+ */
+function trackedUrl(path: string, content: string): string {
+  const url = new URL(path, siteBaseUrl());
+  url.searchParams.set('utm_source', 'valkomstmejl');
+  url.searchParams.set('utm_medium', 'email');
+  url.searchParams.set('utm_campaign', 'viaeats30');
+  url.searchParams.set('utm_content', content);
+  return url.toString();
+}
+
+/**
  * Ordmärket ligger i webbens publika katalog och deployas med den. Byts
  * domänen följer bilden med via WEB_BASE_URL.
  */
@@ -89,7 +106,7 @@ export function renderLaunchWelcomeEmail(params: { name: string; code: string })
                 <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:28px auto 0;">
                   <tr>
                     <td align="center" style="border-radius:12px;background:${ORANGE};">
-                      <a href="${site}" style="display:inline-block;padding:14px 34px;font-size:15px;font-weight:800;color:${NAVY};text-decoration:none;">Beställ mat</a>
+                      <a href="${trackedUrl('/', 'knapp')}" style="display:inline-block;padding:14px 34px;font-size:15px;font-weight:800;color:${NAVY};text-decoration:none;">Beställ mat</a>
                     </td>
                   </tr>
                 </table>
@@ -114,7 +131,7 @@ export function renderLaunchWelcomeEmail(params: { name: string; code: string })
     `Här är din kod: ${code}`,
     `${LAUNCH_SHARED_COUPON_PERCENT} % på ordinarie priser. Använd den så ofta du vill.`,
     '',
-    site,
+    trackedUrl('/', 'text'),
     '',
     `viaeats · Lund · avregistrera: ${site}/contact`,
   ].join('\n');
