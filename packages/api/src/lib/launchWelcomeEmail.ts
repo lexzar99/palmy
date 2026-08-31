@@ -82,7 +82,7 @@ export function renderLaunchWelcomeEmail(params: { name: string; code: string })
     `Du får det här mejlet för att du anmälde ditt intresse på viaeats.se. Avregistrera dig: ${site}/contact`,
   ].join('\n');
 
-  return { subject: 'Tack för att du registrerade dig — här är din kod', html, text };
+  return { subject: 'Här kommer din kod för viaeats', html, text };
 }
 
 /**
