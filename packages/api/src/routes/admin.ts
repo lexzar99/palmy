@@ -45,6 +45,7 @@ import { buildAdminReceiptData, getServerPrintArtifact, warmServerPrintArtifacts
 import { deleteServerTerminalTestOrder } from '../lib/terminalTestOrder';
 import { recordOrderOnWay, recordOrderDelivered } from '../lib/orderTimingStats';
 import { learnedEta, suggestedDeliveryEtaMinutes } from '../lib/learnedEta';
+import { orderChannelFromAuditChanges } from '../lib/orderChannel';
 
 const router = Router();
 router.use(authenticate);
@@ -561,6 +562,21 @@ router.get('/orders', async (req, res) => {
       prisma.order.count({ where }),
     ]);
 
+    const channelRows = orders.length > 0
+      ? await prisma.auditLog.findMany({
+          where: {
+            action: 'ORDER_CHANNEL_CAPTURED',
+            resourceType: 'Order',
+            resourceId: { in: orders.map((order) => order.id) },
+          },
+          select: { resourceId: true, changes: true },
+          orderBy: { createdAt: 'asc' },
+        })
+      : [];
+    const channelByOrderId = new Map(
+      channelRows.map((row) => [row.resourceId, orderChannelFromAuditChanges(row.changes)]),
+    );
+
     // Customer context: lifetime order/refund counts per userId for any
     // user-linked orders in this page. Single grouped query, no N+1.
     const userIds = Array.from(new Set(orders.map((o) => o.userId).filter((id): id is string => Boolean(id))));
@@ -605,6 +621,7 @@ router.get('/orders', async (req, res) => {
         const stats = o.userId ? statsByUser.get(o.userId) : undefined;
         const base = {
           ...o,
+          channel: channelByOrderId.get(o.id) || null,
           totalOre: o.total,
           totalMoney: moneyDto(o.total),
           total: o.total / 100,
@@ -693,6 +710,17 @@ router.get('/orders/:id', async (req, res) => {
       return;
     }
 
+    const channelRow = await prisma.auditLog.findFirst({
+      where: {
+        action: 'ORDER_CHANNEL_CAPTURED',
+        resourceType: 'Order',
+        resourceId: order.id,
+      },
+      select: { changes: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    const orderChannel = orderChannelFromAuditChanges(channelRow?.changes);
+
     if (!isSuperAdmin(req as AuthRequest)) {
       const rid = requireRestaurantScope(req as AuthRequest, res);
       if (!rid) return;
@@ -737,6 +765,7 @@ router.get('/orders/:id', async (req, res) => {
     const showFullPII = canSeeCustomerPII(req as AuthRequest);
     const base = {
       ...order,
+      channel: orderChannel,
       courier,
       totalOre: order.total,
       totalMoney: moneyDto(order.total),

@@ -19,6 +19,18 @@ import { formatCheckoutSek } from "../lib/checkoutMoney.ts";
 const cart = fs.readFileSync(new URL("../app/cart/page.tsx", import.meta.url), "utf8");
 const menu = fs.readFileSync(new URL("../components/MenuContent.tsx", import.meta.url), "utf8");
 const embedScript = fs.readFileSync(new URL("../public/embed.js", import.meta.url), "utf8");
+const palmyraHome = fs.readFileSync(new URL("../../../palmyra-pizzeria-site-upload/index.html", import.meta.url), "utf8");
+const palmyraMenu = fs.readFileSync(new URL("../../../palmyra-pizzeria-site-upload/meny.html", import.meta.url), "utf8");
+const palmyraLoader = fs.readFileSync(new URL("../../../palmyra-pizzeria-site-upload/embed.js", import.meta.url), "utf8");
+
+test("Palmyras uppladdningssida använder den centrala viaeats-embedden", () => {
+  assert.match(palmyraMenu, /data-viaeats-menu="palmyra-pizzeria-lund"/);
+  assert.match(palmyraMenu, /data-viaeats-fullscreen="1"/);
+  assert.match(palmyraMenu, /family=Baloo\+2/);
+  assert.match(palmyraLoader, /https:\/\/www\.viaeats\.se\/embed\.js/);
+  assert.match(palmyraHome, /href="meny\.html"/);
+  assert.doesNotMatch(`${palmyraHome}\n${palmyraMenu}\n${palmyraLoader}`, /gloriafood|data-glf|fbgcdn/i);
+});
 
 test("direct Swish checkout uses the server app link and Commerce QR", () => {
   assert.match(cart, /choosePaymentMethod\(event, method\.id\)/);
@@ -34,7 +46,7 @@ test("direct Swish checkout uses the server app link and Commerce QR", () => {
 
 test("Swish payment choice uses the official logo and requested copy", () => {
   assert.match(cart, /src="\/swish-logo\.svg"/);
-  assert.match(cart, /Betala med Swish smidigt och enkelt/);
+  assert.match(cart, /\{ id: "swish", label: "Swish", hint: "Betala direkt", provider: "swish" \}/);
   assert.doesNotMatch(cart, /Öppnar Swish direkt/);
 });
 
@@ -169,7 +181,7 @@ test("payment methods are native Swish plus one hosted Stripe page", () => {
   assert.match(cart, /checkoutMethod: checkoutProvider === "stripe" && checkoutMethod !== "stripe_all" \? checkoutMethod : undefined/);
   assert.match(cart, /window\.location\.assign\(checkoutUrl\)/);
   assert.match(cart, /STRIPE_HOSTED_FLOW_VERSION = "stripe-hosted-v1"/);
-  assert.match(cart, /\{methods\.map\(renderPaymentMethodChoice\)\}/);
+  assert.match(cart, /\{methods\.map\(\(method\) => renderPaymentMethodChoice\(method, keyPrefix\)\)\}/);
   assert.match(cart, /preserveLoadingForNavigation = true;[\s\S]*?window\.location\.assign\(checkoutUrl\)/);
   assert.match(cart, /!preserveLoadingForNavigation\) setLoading\(false\)/);
   assert.doesNotMatch(cart, /renderPayMenu|payMenuOpen|mollieOptionsOpen/);
@@ -189,10 +201,11 @@ test("the hosted row's mark shows Apple Pay and Klarna first, then card and Goog
   assert.doesNotMatch(cart, /method === "apple_pay"|method === "google_pay"|/);
 });
 
-test("payment methods never render inside the mobile sticky layer", () => {
-  const stickyBlock = cart.match(/className="sticky z-\[90\][\s\S]*?<\/div>\n\s*<\/div>\n\s*<\/motion\.div>/)?.[0] || "";
-  assert.match(stickyBlock, /onClick=\{openPaymentStep\}/);
-  assert.doesNotMatch(stickyBlock, /paymentMethods\.map|renderPaymentStep|StripeInlineCheckout|swishCheckout/);
+test("payment methods stay in the dedicated full-screen payment step", () => {
+  assert.doesNotMatch(cart, /className="sticky z-\[90\]"/);
+  assert.match(cart, /\{paymentStepOpen \? renderPaymentStep\(\) : \(/);
+  assert.match(cart, /const renderPaymentStep = \(\) => \{/);
+  assert.match(cart, /\{methods\.map\(\(method\) => renderPaymentMethodChoice\(method, "step-"\)\)\}/);
 });
 
 test("an authorization-shaped 404 preserves recovery proof", () => {

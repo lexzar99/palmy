@@ -1000,6 +1000,13 @@ function OrderRowBase({ order, nowMs, isAdvancing, onOpen, onOpenCustomer, onAdv
   const next = nextAction(order.status, isDelivery);
   const isPending = order.status === "PENDING";
   const isLate = tis?.tone === "danger";
+  const channelLabel = order.channel === "PARTNER_EMBED"
+    ? "Privat embed"
+    : order.channel === "VIAEATS_APP"
+      ? "viaeats app"
+      : order.channel === "VIAEATS_WEB"
+        ? "viaeats webb"
+        : null;
 
   const renderAction = () => {
     if (isPending && next) {
@@ -1050,7 +1057,10 @@ function OrderRowBase({ order, nowMs, isAdvancing, onOpen, onOpenCustomer, onAdv
           <span className={`${MONO} truncate text-[12px] font-bold text-[var(--text-primary)]`}>{order.orderNumber}</span>
         </div>
 
-        <span className="truncate font-semibold text-[var(--text-primary)]">{order.restaurantName || "—"}</span>
+        <span className="min-w-0">
+          <span className="block truncate font-semibold text-[var(--text-primary)]">{order.restaurantName || "—"}</span>
+          {channelLabel ? <span className="block truncate text-[10.5px] font-semibold text-[var(--text-muted)]">{channelLabel}</span> : null}
+        </span>
 
         {order.userId ? (
           <button
@@ -1099,6 +1109,7 @@ function OrderRowBase({ order, nowMs, isAdvancing, onOpen, onOpenCustomer, onAdv
               {isLive ? <span className="live-dot" aria-hidden /> : null}
               <span className={`${MONO} text-[11.5px] font-bold text-[var(--text-primary)]`}>{order.orderNumber}</span>
               <span className="text-[11px] text-[var(--text-muted)]">{orderTypeLabel(order.type)}</span>
+              {channelLabel ? <Badge tone={order.channel === "PARTNER_EMBED" ? "info" : "neutral"}>{channelLabel}</Badge> : null}
               {order.scheduledFor ? <Badge tone="warning">Förbeställd</Badge> : null}
             </div>
             <div className="mt-1.5 flex min-w-0 items-baseline gap-2">

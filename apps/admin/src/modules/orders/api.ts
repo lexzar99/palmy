@@ -91,6 +91,8 @@ export interface AdminOrder {
   refundReason?: string | null;
   scheduledFor?: string | null;
   paymentStatus?: string | null;
+  /** Beställningsyta, sparad server-side när ordern skapas. */
+  channel?: "PARTNER_EMBED" | "VIAEATS_WEB" | "VIAEATS_APP" | null;
   paymentRefunds?: PaymentRefundLedgerEntry[];
   customerStats?: CustomerStats | null;
   // Tilldelad kurir + statusövergångs-tider (null = avhämtning/self/ej tilldelad)

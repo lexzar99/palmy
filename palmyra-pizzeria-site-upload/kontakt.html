@@ -85,7 +85,6 @@ nav.scrolled { border-color: var(--ink); }
 .btn.small { padding: 10px 18px; box-shadow: 3px 3px 0 var(--ink); }
 .btn.ghost { background: transparent; color: var(--ink); }
 .btn.ghost:hover { background: var(--card); }
-
 .powered {
   display: inline-flex; align-items: center; gap: 5px;
   font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
@@ -221,35 +220,6 @@ section { padding: 78px 0 0; }
 #deals .dish, #populart .dish { animation: fadeup .5s ease both; }
 @keyframes fadeup { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
 
-/* ---------- Hela menyn (embed, restylad till tryckt meny) ---------- */
-#helameny { display: none; }
-#helameny.loaded { display: block; }
-#helameny .ve-embed { --ve-accent: var(--red); --ve-ink: var(--ink); --ve-muted: var(--muted); font-family: var(--sans); }
-#helameny .ve-chips { top: 62px; background: var(--paper); border-bottom: 1.5px solid var(--ink); gap: 0; padding: 8px 0 0; }
-#helameny .ve-chip {
-  background: transparent; border: none; border-radius: 0;
-  font-size: 11px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase;
-  color: var(--muted); padding: 10px 1px 12px; margin-right: 22px;
-  border-bottom: 2.5px solid transparent;
-}
-#helameny .ve-chip.ve-active { background: transparent; color: var(--red); border-bottom-color: var(--red); }
-#helameny .ve-cat h3 {
-  font-family: var(--display); font-weight: 800; font-size: 24px; letter-spacing: -0.5px;
-  margin: 10px 0 4px;
-}
-#helameny .ve-items { gap: 0 44px; }
-#helameny .ve-item {
-  background: transparent; border: none; border-radius: 0;
-  border-bottom: 1px dashed rgba(33, 23, 9, 0.32);
-  padding: 14px 2px;
-}
-#helameny .ve-item:hover { transform: none; box-shadow: none; background: var(--card); }
-#helameny .ve-item h4 { font-family: var(--display); font-weight: 700; font-size: 16px; }
-#helameny .ve-item p { font-size: 12.5px; }
-#helameny .ve-price { font-family: var(--display); font-weight: 800; font-size: 14px; }
-#helameny .ve-photo { width: 52px; height: 52px; border-radius: 50%; border: 1px solid var(--line); }
-#helameny .ve-tag { color: var(--green); background: rgba(44, 107, 58, 0.1); }
-
 /* ---------- Paneler (beställ, om oss, kontakt) ---------- */
 .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
 @media (max-width: 720px) { .panels { grid-template-columns: 1fr; } }
@@ -280,6 +250,10 @@ section { padding: 78px 0 0; }
   padding: 28px 26px; display: flex; flex-direction: column; gap: 18px;
 }
 .line-item b { display: block; font-family: var(--display); font-weight: 800; font-size: 17px; }
+.hours-list { display: grid; gap: 5px; margin-top: 6px; font-size: 13px; }
+.hours-row { display: flex; justify-content: space-between; gap: 16px; }
+.hours-day { color: var(--muted); font-weight: 700; }
+.hours-time { font-weight: 800; text-align: right; white-space: nowrap; }
 .line-item .label {
   display: block; font-size: 10px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;
   color: var(--red); margin-bottom: 3px;
@@ -369,14 +343,13 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
       <span class="place">Pizzeria · Lund</span>
     </a>
     <div class="nav-links">
-      <a href="./#helameny">Meny</a>
+      <a href="meny.html">Meny</a>
       <a href="./#bestall">Beställ</a>
       <a href="om.html">Om oss</a>
       <a href="kontakt.html" class="active">Kontakt</a>
     </div>
     <div style="display:flex; align-items:center; gap:12px">
-      <a class="powered" href="https://www.viaeats.se" target="_blank" rel="noopener">Powered by <b>ViaEats</b></a>
-      <a class="btn small" href="https://www.viaeats.se/restaurants/palmyra-pizzeria-lund" target="_blank" rel="noopener">Beställ</a>
+      <a class="btn small" href="meny.html">Beställ</a>
     </div>
   </div>
 </nav>
@@ -410,11 +383,20 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
         </div>
         <div class="line-item">
           <span class="label">Öppettider</span>
-          <b id="open-status">Se beställningssidan</b>
-          <span class="sub">Aktuella tider och öppetstatus visas live</span>
+          <b id="open-status">Öppet enligt tiderna nedan</b>
+          <div class="hours-list">
+            <div class="hours-row"><span class="hours-day">Måndag</span><span class="hours-time">11:00–21:00</span></div>
+            <div class="hours-row"><span class="hours-day">Tisdag</span><span class="hours-time">11:00–21:00</span></div>
+            <div class="hours-row"><span class="hours-day">Onsdag</span><span class="hours-time">11:00–00:00</span></div>
+            <div class="hours-row"><span class="hours-day">Torsdag</span><span class="hours-time">11:00–02:00</span></div>
+            <div class="hours-row"><span class="hours-day">Fredag</span><span class="hours-time">11:00–02:00</span></div>
+            <div class="hours-row"><span class="hours-day">Lördag</span><span class="hours-time">11:30–02:00</span></div>
+            <div class="hours-row"><span class="hours-day">Söndag</span><span class="hours-time">11:00–21:00</span></div>
+          </div>
+          <span class="sub">Vid helgdagar kan tiderna ändras, ring oss om du är osäker.</span>
         </div>
         <div style="display:flex; flex-wrap:wrap; gap:12px; margin-top:auto">
-          <a class="btn" href="https://www.viaeats.se/restaurants/palmyra-pizzeria-lund" target="_blank" rel="noopener">Beställ online</a>
+          <a class="btn" href="meny.html">Beställ online</a>
           <a class="btn ghost" href="https://www.google.com/maps/search/?api=1&amp;query=55.70213%2C13.19673" target="_blank" rel="noopener">Öppna i kartor</a>
         </div>
       </div>
@@ -446,19 +428,19 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
   <div class="wrap foot-inner">
     <div class="foot-name">Palmyra Pizzeria</div>
     <div class="foot-links">
-      <a href="./#helameny">Meny</a>
+      <a href="meny.html">Meny</a>
       <a href="om.html">Om oss</a>
       <a href="kontakt.html">Kontakt</a>
     </div>
     <div class="foot-row">
       <p>Palma De Lund HB · Kiliansgatan 14, Lund · <a href="tel:046120612">046-12 06 12</a> · <a href="mailto:info@palmyrapizzeria.se">info@palmyrapizzeria.se</a></p>
-      <a class="powered" href="https://www.viaeats.se" target="_blank" rel="noopener">Powered by <b>ViaEats</b></a>
+      <a class="powered" href="https://www.viaeats.se" target="_blank" rel="noopener">Powered by <b>viaeats</b></a>
     </div>
   </div>
 </footer>
 
 <div class="order-bar">
-  <a class="btn" href="https://www.viaeats.se/restaurants/palmyra-pizzeria-lund" target="_blank" rel="noopener">Beställ online</a>
+  <a class="btn" href="meny.html">Beställ online</a>
 </div>
 
 <script>
@@ -481,20 +463,48 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
     navigator.serviceWorker.register('sw.js');
   }
 
-  // Live öppetstatus i kontaktkortet
-  const API = ['localhost', '127.0.0.1'].includes(location.hostname)
-    ? 'http://localhost:4000'
-    : 'https://api.viaeats.se';
-  fetch(`${API}/api/restaurants/palmyra-pizzeria-lund`)
-    .then((res) => res.ok ? res.json() : null)
-    .then((data) => {
-      const r = data && (data.restaurant || data);
-      if (!r) return;
-      const el = document.getElementById('open-status');
-      el.textContent = r.isOpen !== false ? 'Öppet just nu' : 'Stängt just nu';
-      el.style.color = r.isOpen !== false ? 'var(--green)' : 'var(--red)';
-    })
-    .catch(() => {});
+  // ---------- Öppet/stängt, räknat lokalt ur öppettiderna ovan ----------
+  // Minuter från midnatt, söndag först. Värden över 1440 = stänger efter midnatt.
+  const OPEN_HOURS = [
+    [660, 1260],  // söndag 11:00–21:00
+    [660, 1260],  // måndag 11:00–21:00
+    [660, 1260],  // tisdag 11:00–21:00
+    [660, 1440],  // onsdag 11:00–00:00
+    [660, 1560],  // torsdag 11:00–02:00
+    [660, 1560],  // fredag 11:00–02:00
+    [690, 1560],  // lördag 11:30–02:00
+  ];
+  const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const clockFormat = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Stockholm', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false
+  });
+
+  function isOpenNow() {
+    const parts = {};
+    for (const part of clockFormat.formatToParts(new Date())) parts[part.type] = part.value;
+    const day = WEEKDAYS.indexOf(parts.weekday);
+    if (day < 0) return null;
+    const minutes = (Number(parts.hour) % 24) * 60 + Number(parts.minute);
+    const today = OPEN_HOURS[day];
+    const yesterday = OPEN_HOURS[(day + 6) % 7];
+    if (minutes >= today[0] && minutes < today[1]) return true;
+    // Nattöppet som började igår räknas fortfarande som öppet.
+    if (yesterday[1] > 1440 && minutes + 1440 < yesterday[1]) return true;
+    return false;
+  }
+
+  const openStatus = document.getElementById('open-status');
+  function renderStatus() {
+    const open = isOpenNow();
+    if (open === null) return;
+    openStatus.textContent = open ? 'Öppet just nu' : 'Stängt just nu';
+    openStatus.style.color = open ? 'var(--green)' : 'var(--red)';
+  }
+
+  renderStatus();
+  const statusTimer = window.setInterval(renderStatus, 60000);
+  window.addEventListener('pagehide', () => window.clearInterval(statusTimer), { once: true });
 </script>
+
 </body>
 </html>

@@ -1,13 +1,12 @@
 /**
- * ViaEats Partner Embed — loader
+ * viaeats partner-embed — tunn loader.
  *
- * All embed-logik ligger i https://www.viaeats.se/embed.js och deployas med
- * ViaEats webbapp. Den här filen är avsiktligt bara en laddare: den behöver
- * aldrig laddas upp till webbhotellet igen, och embed-fixar (t.ex. Swish
- * app-switch eller nya betalvärdar) når kunderna direkt vid nästa deploy.
+ * All beställningslogik ligger i https://www.viaeats.se/embed.js och följer
+ * därför automatiskt med när viaeats webbapp uppdateras. Den här filen ska
+ * bara ligga kvar på Palmyras webbhotell som stabil ingång.
  *
  *   <main data-viaeats-menu="palmyra-pizzeria-lund"></main>
- *   <script src="embed.js?v=9" defer></script>
+ *   <script src="embed.js?v=10" defer></script>
  */
 (function () {
   "use strict";

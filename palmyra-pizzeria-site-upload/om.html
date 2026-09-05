@@ -85,7 +85,6 @@ nav.scrolled { border-color: var(--ink); }
 .btn.small { padding: 10px 18px; box-shadow: 3px 3px 0 var(--ink); }
 .btn.ghost { background: transparent; color: var(--ink); }
 .btn.ghost:hover { background: var(--card); }
-
 .powered {
   display: inline-flex; align-items: center; gap: 5px;
   font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
@@ -221,35 +220,6 @@ section { padding: 78px 0 0; }
 #deals .dish, #populart .dish { animation: fadeup .5s ease both; }
 @keyframes fadeup { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
 
-/* ---------- Hela menyn (embed, restylad till tryckt meny) ---------- */
-#helameny { display: none; }
-#helameny.loaded { display: block; }
-#helameny .ve-embed { --ve-accent: var(--red); --ve-ink: var(--ink); --ve-muted: var(--muted); font-family: var(--sans); }
-#helameny .ve-chips { top: 62px; background: var(--paper); border-bottom: 1.5px solid var(--ink); gap: 0; padding: 8px 0 0; }
-#helameny .ve-chip {
-  background: transparent; border: none; border-radius: 0;
-  font-size: 11px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase;
-  color: var(--muted); padding: 10px 1px 12px; margin-right: 22px;
-  border-bottom: 2.5px solid transparent;
-}
-#helameny .ve-chip.ve-active { background: transparent; color: var(--red); border-bottom-color: var(--red); }
-#helameny .ve-cat h3 {
-  font-family: var(--display); font-weight: 800; font-size: 24px; letter-spacing: -0.5px;
-  margin: 10px 0 4px;
-}
-#helameny .ve-items { gap: 0 44px; }
-#helameny .ve-item {
-  background: transparent; border: none; border-radius: 0;
-  border-bottom: 1px dashed rgba(33, 23, 9, 0.32);
-  padding: 14px 2px;
-}
-#helameny .ve-item:hover { transform: none; box-shadow: none; background: var(--card); }
-#helameny .ve-item h4 { font-family: var(--display); font-weight: 700; font-size: 16px; }
-#helameny .ve-item p { font-size: 12.5px; }
-#helameny .ve-price { font-family: var(--display); font-weight: 800; font-size: 14px; }
-#helameny .ve-photo { width: 52px; height: 52px; border-radius: 50%; border: 1px solid var(--line); }
-#helameny .ve-tag { color: var(--green); background: rgba(44, 107, 58, 0.1); }
-
 /* ---------- Paneler (beställ, om oss, kontakt) ---------- */
 .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
 @media (max-width: 720px) { .panels { grid-template-columns: 1fr; } }
@@ -368,14 +338,13 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
       <span class="place">Pizzeria · Lund</span>
     </a>
     <div class="nav-links">
-      <a href="./#helameny">Meny</a>
+      <a href="meny.html">Meny</a>
       <a href="./#bestall">Beställ</a>
       <a href="om.html" class="active">Om oss</a>
       <a href="kontakt.html">Kontakt</a>
     </div>
     <div style="display:flex; align-items:center; gap:12px">
-      <a class="powered" href="https://www.viaeats.se" target="_blank" rel="noopener">Powered by <b>ViaEats</b></a>
-      <a class="btn small" href="https://www.viaeats.se/restaurants/palmyra-pizzeria-lund" target="_blank" rel="noopener">Beställ</a>
+      <a class="btn small" href="meny.html">Beställ</a>
     </div>
   </div>
 </nav>
@@ -388,10 +357,10 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
       <div class="prose reveal d2">
         <p>Palmyra är pizzerian på Kiliansgatan, ett stenkast från Domkyrkan mitt i Lund. Här görs maten när du beställer den, inte innan.</p>
         <p>Menyn är bred på riktigt: <strong>pizzor i alla klasser</strong>, mozzarellapizzor, inbakade, veganska, <strong>kebab på tallrik och i rulle</strong>, burgare, crispy chicken, sallader och bakad potatis. Hungrig på något stort? Det är vår gren.</p>
-        <p>Beställningen sköts genom ViaEats, med kortbetalning, orderstatus i realtid och hemleverans i Lund. Eller så ringer du oss som folk alltid har gjort.</p>
+        <p>Beställningen gör du direkt här på sajten, med Swish eller kort och hemleverans i Lund. Eller så ringer du oss som folk alltid har gjort.</p>
       </div>
       <div class="hero-ctas reveal d3">
-        <a class="btn" href="https://www.viaeats.se/restaurants/palmyra-pizzeria-lund" target="_blank" rel="noopener">Se menyn och beställ</a>
+        <a class="btn" href="meny.html">Se menyn och beställ</a>
         <a class="btn ghost" href="kontakt.html">Kontakta oss</a>
       </div>
     </div>
@@ -410,18 +379,18 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
       <div class="panel reveal">
         <span class="no">Steg 1</span>
         <h3>Välj i menyn</h3>
-        <p>Hela menyn finns på startsidan och på beställningssidan, med bilder, tillval och aktuella priser.</p>
+        <p>Hela menyn öppnas direkt på sidan, med tillval och aktuella priser.</p>
       </div>
       <div class="panel reveal d1">
         <span class="no">Steg 2</span>
         <h3>Beställ och betala</h3>
-        <p>Kortbetalning direkt i beställningen. Välj hemleverans i Lund eller avhämtning på Kiliansgatan.</p>
+        <p>Betala med Swish eller kort direkt i beställningen. Välj hemleverans i Lund eller avhämtning på Kiliansgatan.</p>
       </div>
       <div class="panel red reveal d2">
         <span class="no">Steg 3</span>
         <h3>Följ din order</h3>
-        <p>Du ser status i realtid tills maten står vid dörren eller är klar att hämtas, varm ur ugnen.</p>
-        <a class="btn" href="https://www.viaeats.se/restaurants/palmyra-pizzeria-lund" target="_blank" rel="noopener">Beställ nu</a>
+        <p>Du får en bekräftelse direkt. Sen kör vi hem maten i Lund, eller har den varm och klar för avhämtning.</p>
+        <a class="btn" href="meny.html">Beställ nu</a>
       </div>
       <div class="panel reveal d3">
         <span class="no">Alltid</span>
@@ -436,19 +405,19 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
   <div class="wrap foot-inner">
     <div class="foot-name">Palmyra Pizzeria</div>
     <div class="foot-links">
-      <a href="./#helameny">Meny</a>
+      <a href="meny.html">Meny</a>
       <a href="om.html">Om oss</a>
       <a href="kontakt.html">Kontakt</a>
     </div>
     <div class="foot-row">
       <p>Palma De Lund HB · Kiliansgatan 14, Lund · <a href="tel:046120612">046-12 06 12</a> · <a href="mailto:info@palmyrapizzeria.se">info@palmyrapizzeria.se</a></p>
-      <a class="powered" href="https://www.viaeats.se" target="_blank" rel="noopener">Powered by <b>ViaEats</b></a>
+      <a class="powered" href="https://www.viaeats.se" target="_blank" rel="noopener">Powered by <b>viaeats</b></a>
     </div>
   </div>
 </footer>
 
 <div class="order-bar">
-  <a class="btn" href="https://www.viaeats.se/restaurants/palmyra-pizzeria-lund" target="_blank" rel="noopener">Beställ online</a>
+  <a class="btn" href="meny.html">Beställ online</a>
 </div>
 
 <script>
@@ -471,5 +440,6 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
     navigator.serviceWorker.register('sw.js');
   }
 </script>
+
 </body>
 </html>

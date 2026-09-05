@@ -79,6 +79,7 @@ import {
   checkoutTotalMatches,
 } from '../lib/checkoutIntegrity';
 import { resolvePlatformFundedDiscount } from '../lib/discountFunding';
+import { orderChannelAuditChanges, resolveOrderChannel } from '../lib/orderChannel';
 
 const router = Router();
 
@@ -1558,6 +1559,14 @@ router.post('/', async (req: Request, res: Response) => {
     // concurrent duplicate the DB throws P2002 — we catch ONLY that, regenerate
     // (generateOrderNumber re-reads the latest number so it advances), and retry,
     // instead of 500-ing an order whose payment may already have gone through.
+    const clientType = req.headers['x-client-type'];
+    const kioskRestaurantSlug = validKioskAccessProof(req.headers[KIOSK_ACCESS_HEADER]);
+    const orderChannel = resolveOrderChannel({
+      clientType,
+      kioskRestaurantSlug,
+      restaurantSlug: restaurant?.slug || null,
+    });
+
     let order: any = null;
     for (let orderAttempt = 1; orderAttempt <= 8; orderAttempt++) {
       const nextNumber = await generateOrderNumber();
@@ -1634,6 +1643,23 @@ router.post('/', async (req: Request, res: Response) => {
         restaurant: { select: { name: true } },
         items: true,
       },
+          });
+
+          // Kanalbindningen sparas på en befintlig, orderindexerad audit-rad.
+          // Det undviker en riskabel produktionsmigration samtidigt som varje
+          // ny order entydigt kan skiljas mellan privat embed, webb och app.
+          await tx.auditLog.create({
+            data: {
+              action: 'ORDER_CHANNEL_CAPTURED',
+              resourceType: 'Order',
+              resourceId: created.id,
+              changes: orderChannelAuditChanges(orderChannel, {
+                clientType,
+                restaurantSlug: restaurant?.slug || null,
+              }),
+              ipAddress: req.ip || null,
+              userAgent: req.get('user-agent') || null,
+            },
           });
 
           if (appliedUserDealId) {
@@ -1741,6 +1767,7 @@ router.post('/', async (req: Request, res: Response) => {
       // Emit till admin via Socket.IO
       const orderForSocket = {
         ...order,
+        channel: orderChannel,
         totalOre: order.total,
         totalMoney: moneyDto(order.total),
         total: order.total / 100,
@@ -1802,6 +1829,7 @@ router.post('/', async (req: Request, res: Response) => {
     res.status(200).json({
       orderId: order.id,
       orderNumber: order.orderNumber,
+      channel: orderChannel,
       total: order.total / 100,
       appliedDealTitle: order.appliedDealTitle,
       estimatedTime: order.estimatedTime ?? estimatedTime,

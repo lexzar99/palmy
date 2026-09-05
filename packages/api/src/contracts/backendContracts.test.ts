@@ -12,6 +12,12 @@ import {
   customerAuthMethod,
   hasVerifiedSupabasePhone,
 } from '../lib/customerAuthPolicy';
+import {
+  ORDER_CHANNELS,
+  orderChannelAuditChanges,
+  orderChannelFromAuditChanges,
+  resolveOrderChannel,
+} from '../lib/orderChannel';
 
 const now = new Date('2026-07-10T12:00:00.000Z');
 const scheduleClosed = JSON.stringify({ regular: {} });
@@ -196,6 +202,28 @@ assert.equal(customerAuthMethod({
 assert.equal(hasVerifiedSupabasePhone({ phone: '+46700000000', phone_confirmed_at: null }), false);
 assert.equal(hasVerifiedSupabasePhone({ phone: '+46700000000', phone_confirmed_at: '2026-07-15T12:00:00.000Z' }), true);
 
+// Orderkällan kommer från verifierad requestkontext. Palmyras kioskbevis måste
+// matcha restaurangen; ett påhittat eller felbundet embed-värde blir vanlig webb.
+assert.equal(resolveOrderChannel({ clientType: 'web' }), ORDER_CHANNELS.web);
+assert.equal(resolveOrderChannel({ clientType: 'iOS' }), ORDER_CHANNELS.app);
+assert.equal(resolveOrderChannel({ clientType: 'android' }), ORDER_CHANNELS.app);
+assert.equal(resolveOrderChannel({
+  clientType: 'web',
+  kioskRestaurantSlug: 'palmyra-pizzeria-lund',
+  restaurantSlug: 'palmyra-pizzeria-lund',
+}), ORDER_CHANNELS.partnerEmbed);
+assert.equal(resolveOrderChannel({
+  clientType: 'web',
+  kioskRestaurantSlug: 'annan-restaurang',
+  restaurantSlug: 'palmyra-pizzeria-lund',
+}), ORDER_CHANNELS.web);
+const appChannelAudit = orderChannelAuditChanges(ORDER_CHANNELS.app, {
+  clientType: 'iOS',
+  restaurantSlug: 'palmyra-pizzeria-lund',
+});
+assert.equal(orderChannelFromAuditChanges(appChannelAudit), ORDER_CHANNELS.app);
+assert.equal(orderChannelFromAuditChanges('{"channel":"OKAND"}'), null);
+
 // Customer auth is passwordless. Legacy password/email-link endpoints must be
 // intercepted by the 410 guard before their compatibility handlers can run;
 // the admin /login password+2FA endpoint is intentionally not retired.
@@ -273,6 +301,10 @@ const orderRouteSource = fs.readFileSync(path.join(__dirname, '../routes/orders.
 const paymentProviderSource = fs.readFileSync(path.join(__dirname, '../lib/payments/index.ts'), 'utf8');
 const paymentRouteSource = fs.readFileSync(path.join(__dirname, '../routes/payments.ts'), 'utf8');
 assert.match(orderRouteSource, /MOLLIE_CHECKOUT_REQUIRED/);
+assert.match(orderRouteSource, /validKioskAccessProof\(req\.headers\[KIOSK_ACCESS_HEADER\]\)/);
+assert.match(orderRouteSource, /resolveOrderChannel\(/);
+assert.match(orderRouteSource, /action: 'ORDER_CHANNEL_CAPTURED'/);
+assert.match(adminRouteSource, /orderChannelFromAuditChanges/);
 assert.match(paymentProviderSource, /case 'stripe'/);
 assert.match(paymentProviderSource, /case 'swish'/);
 assert.match(paymentProviderSource, /configuredCheckoutProviderNames/);
