@@ -21,6 +21,9 @@
     .powered { color: #776a52; font-size: 11px; font-weight: 700; white-space: nowrap; }
     .powered a { color: #c22016; font-weight: 800; text-decoration: none; }
     [data-viaeats-menu] { width: 100%; flex: 1 1 auto; min-height: 0; }
+    .menu-loading { display: grid; min-height: 220px; place-items: center; margin: 0; color: #776a52; font-size: 14px; font-weight: 700; }
+    .menu-error { margin: 24px auto; max-width: 520px; padding: 20px; text-align: center; color: #8f241a; }
+    .menu-error a { color: #c22016; font-weight: 800; }
     @media (min-width: 768px) {
       .menu-heading { padding-left: clamp(28px, 5vw, 80px); padding-right: clamp(28px, 5vw, 80px); }
       [data-viaeats-menu] { max-width: 1120px; margin: 0 auto; padding: 0 clamp(28px, 5vw, 80px); }
@@ -33,8 +36,21 @@
       <a class="menu-home-link" href="index.html" aria-label="Tillbaka till Palmyra Pizzeria">← Tillbaka</a>
       <span class="powered">Powered by <a href="https://www.viaeats.se" target="_blank" rel="noopener">viaeats</a></span>
     </header>
-    <main data-viaeats-menu="palmyra-pizzeria-lund" data-viaeats-fullscreen="1"></main>
+    <main data-viaeats-menu="palmyra-pizzeria-lund" data-viaeats-fullscreen="1" aria-busy="true">
+      <p class="menu-loading">Laddar Palmyras meny…</p>
+    </main>
   </div>
-  <script src="embed.js?v=11" defer></script>
+  <script>
+    function showMenuFallback() {
+      var host = document.querySelector('[data-viaeats-menu]');
+      if (!host || host.querySelector('iframe')) return;
+      host.removeAttribute('aria-busy');
+      host.innerHTML = '<p class="menu-error">Menyn kunde inte laddas just nu. <a href="https://www.viaeats.se/embed/palmyra-pizzeria-lund">Öppna Palmyras beställning på viaeats</a> eller ring 046-12 06 12.</p>';
+    }
+    window.addEventListener('DOMContentLoaded', function () {
+      window.setTimeout(showMenuFallback, 8000);
+    });
+  </script>
+  <script src="https://www.viaeats.se/embed.js?v=20260905" defer onerror="showMenuFallback()"></script>
 </body>
 </html>
