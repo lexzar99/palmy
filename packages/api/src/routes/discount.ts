@@ -2,6 +2,8 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import prisma from '../lib/prisma';
 import { discountPlatformAllowed } from '../lib/clientPlatform';
+import { KIOSK_ACCESS_HEADER, validKioskAccessProof } from '../lib/kioskAccess';
+import { isPartnerEmbedDiscountEnabled } from '../lib/partnerEmbedDiscounts';
 
 const router = Router();
 
@@ -42,6 +44,12 @@ router.post('/validate', validateLimiter, async (req, res) => {
 
     if (!discount) {
       res.status(404).json({ error: 'Ogiltig rabattkod' });
+      return;
+    }
+
+    const privateEmbed = Boolean(validKioskAccessProof(req.headers[KIOSK_ACCESS_HEADER]));
+    if (privateEmbed && !(await isPartnerEmbedDiscountEnabled('discount-code', discount.id))) {
+      res.status(400).json({ error: 'Rabattkoden gäller bara på viaeats.se eller i appen' });
       return;
     }
 

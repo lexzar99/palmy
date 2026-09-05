@@ -29,6 +29,13 @@ test("Palmyras uppladdningssida använder den centrala viaeats-embedden", () => 
   assert.match(palmyraMenu, /family=Baloo\+2/);
   assert.match(palmyraLoader, /https:\/\/www\.viaeats\.se\/embed\.js/);
   assert.match(palmyraHome, /href="meny\.html"/);
+  assert.match(palmyraHome, /Powered by <b>viaeats<\/b>/);
+  assert.match(palmyraHome, /utm_source=palmyra-rabatt/);
+  assert.match(palmyraHome, /få 30 % rabatt/);
+  assert.match(palmyraMenu, /Powered by <a[^>]+>viaeats<\/a>/);
+  assert.match(menu, /channel: "partner_embed"/);
+  assert.match(cart, /\.\.\.\(embedMode \? \{ channel: "partner_embed" \} : \{\}\)/);
+  assert.match(cart, /api\/platform\/discount\/validate/);
   assert.doesNotMatch(`${palmyraHome}\n${palmyraMenu}\n${palmyraLoader}`, /gloriafood|data-glf|fbgcdn/i);
 });
 

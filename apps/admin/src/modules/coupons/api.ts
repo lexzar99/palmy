@@ -24,6 +24,8 @@ export interface DiscountRecord {
   // (menypris-rea, produkt-/kategorideal, BOGO). Kunden får inte rabatt
   // ovanpå rabatt. false = procenten räknas på hela varukorgen.
   excludeDiscountedItems: boolean;
+  // Avstängd som standard. Måste slås på explicit för restaurangens privata embed.
+  partnerEmbedEnabled: boolean;
   createdAt: string;
   updatedAt: string;
 }

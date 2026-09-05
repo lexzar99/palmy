@@ -24,8 +24,8 @@ async function getRestaurant(slug: string) {
 async function getEmbedData(slug: string) {
   const [restaurantResponse, menuResponse, dealsResponse] = await Promise.all([
     getRestaurant(slug),
-    fetch(`${API_URL}/api/menu/categories?slug=${encodeURIComponent(slug)}&format=${MENU_FORMAT_PARAM}&v=20260719`, { cache: "no-store" }),
-    fetch(`${API_URL}/api/deals?slug=${encodeURIComponent(slug)}`, { cache: "no-store" }),
+    fetch(`${API_URL}/api/menu/categories?slug=${encodeURIComponent(slug)}&format=${MENU_FORMAT_PARAM}&channel=partner_embed&v=20260719`, { cache: "no-store" }),
+    fetch(`${API_URL}/api/deals?slug=${encodeURIComponent(slug)}&channel=partner_embed`, { cache: "no-store" }),
   ]);
   if (!restaurantResponse) return null;
   const menu = menuResponse.ok ? await menuResponse.json() : null;

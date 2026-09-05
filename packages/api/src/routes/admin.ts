@@ -45,7 +45,12 @@ import { buildAdminReceiptData, getServerPrintArtifact, warmServerPrintArtifacts
 import { deleteServerTerminalTestOrder } from '../lib/terminalTestOrder';
 import { recordOrderOnWay, recordOrderDelivered } from '../lib/orderTimingStats';
 import { learnedEta, suggestedDeliveryEtaMinutes } from '../lib/learnedEta';
-import { orderChannelFromAuditChanges } from '../lib/orderChannel';
+import { customerNameWithOrderChannel, orderChannelFromAuditChanges } from '../lib/orderChannel';
+import {
+  partnerEmbedEnabledIds,
+  removePartnerEmbedDiscountSetting,
+  setPartnerEmbedDiscountEnabled,
+} from '../lib/partnerEmbedDiscounts';
 
 const router = Router();
 router.use(authenticate);
@@ -619,9 +624,11 @@ router.get('/orders', async (req, res) => {
     res.json({
       orders: liveOrders.map((o) => {
         const stats = o.userId ? statsByUser.get(o.userId) : undefined;
+        const orderChannel = channelByOrderId.get(o.id) || null;
         const base = {
           ...o,
-          channel: channelByOrderId.get(o.id) || null,
+          channel: orderChannel,
+          customerName: customerNameWithOrderChannel(o.customerName, orderChannel),
           totalOre: o.total,
           totalMoney: moneyDto(o.total),
           total: o.total / 100,
@@ -766,6 +773,7 @@ router.get('/orders/:id', async (req, res) => {
     const base = {
       ...order,
       channel: orderChannel,
+      customerName: customerNameWithOrderChannel(order.customerName, orderChannel),
       courier,
       totalOre: order.total,
       totalMoney: moneyDto(order.total),
@@ -3121,7 +3129,7 @@ const parseJsonArray = (value: unknown): string[] => {
   }
 };
 
-const formatDealForAdmin = (deal: any) => ({
+const formatDealForAdmin = (deal: any, partnerEmbedEnabled = false) => ({
   ...deal,
   scopeType: getDealScopeType(deal),
   dealType:
@@ -3173,6 +3181,7 @@ const formatDealForAdmin = (deal: any) => ({
   appCtaAction: deal.appCtaAction ?? 'CLAIM',
   appCtaTarget: deal.appCtaTarget ?? null,
   appTheme: deal.appTheme ?? null,
+  partnerEmbedEnabled,
 });
 
 // Deaktivera deals som krockar med scope för en NYAKTIVERAD deal eller en
@@ -3399,6 +3408,7 @@ const normalizeDealInputForDb = (body: any) => {
   delete next.scopeType;
   delete next.targetIds;
   delete next.restaurant;
+  delete next.partnerEmbedEnabled;
   // kr-varianter används bara för konvertering till *-Ore-fälten nedan,
   // de finns inte som kolumner i Prisma-schemat
   delete next.bogoMaxRewardPrice;
@@ -3645,7 +3655,7 @@ const formatStaffMember = async (admin: {
 // Handle för adminprofilen: 3–30 tecken, bokstäver/siffror/._-
 const STAFF_USERNAME_PATTERN = /^[a-z0-9._-]{3,30}$/i;
 
-const formatDiscountCodeForAdmin = (discount: any) => ({
+const formatDiscountCodeForAdmin = (discount: any, partnerEmbedEnabled = false) => ({
   id: discount.id,
   code: discount.code,
   description: discount.description || null,
@@ -3666,6 +3676,7 @@ const formatDiscountCodeForAdmin = (discount: any) => ({
   platform: (discount.platform || 'ALL').toUpperCase(),
   // true = rabatten räknas bara på varor som inte redan är nedsatta.
   excludeDiscountedItems: Boolean(discount.excludeDiscountedItems),
+  partnerEmbedEnabled,
   createdAt: discount.createdAt,
   updatedAt: discount.updatedAt,
 });
@@ -3766,16 +3777,17 @@ router.get('/deals', async (req, res) => {
     });
     // Utfall per deal: hämtade (UserDeal-claims) och inlösta (status USED).
     const dealIds = deals.map((d) => d.id);
-    const [claimGroups, usedGroups] = dealIds.length
+    const [claimGroups, usedGroups, partnerEmbedIds] = dealIds.length
       ? await Promise.all([
           (prisma as any).userDeal.groupBy({ by: ['dealId'], where: { dealId: { in: dealIds } }, _count: { _all: true } }),
           (prisma as any).userDeal.groupBy({ by: ['dealId'], where: { dealId: { in: dealIds }, status: 'USED' }, _count: { _all: true } }),
+          partnerEmbedEnabledIds('deal', dealIds),
         ])
-      : [[], []];
+      : [[], [], new Set<string>()];
     const claimsByDeal = new Map<string, number>(claimGroups.map((g: any) => [g.dealId, g._count._all]));
     const usedByDeal = new Map<string, number>(usedGroups.map((g: any) => [g.dealId, g._count._all]));
     res.json(deals.map((d) => ({
-      ...formatDealForAdmin(d),
+      ...formatDealForAdmin(d, partnerEmbedIds.has(d.id)),
       stats: { claims: claimsByDeal.get(d.id) ?? 0, redeemed: usedByDeal.get(d.id) ?? 0 },
     })));
   } catch {
@@ -3790,7 +3802,8 @@ router.get('/deals/:id', async (req, res) => {
       include: { restaurant: { select: { id: true, name: true, slug: true } } },
     });
     if (!deal) return res.status(404).json({ error: 'Deal hittades inte' });
-    res.json(formatDealForAdmin(deal));
+    const partnerEmbedEnabled = await partnerEmbedEnabledIds('deal', [deal.id]);
+    res.json(formatDealForAdmin(deal, partnerEmbedEnabled.has(deal.id)));
   } catch {
     res.status(500).json({ error: 'Serverfel' });
   }
@@ -3798,7 +3811,7 @@ router.get('/deals/:id', async (req, res) => {
 
 router.post('/deals', async (req, res) => {
   try {
-    const { restaurantId, ...rest } = req.body;
+    const { restaurantId, partnerEmbedEnabled, ...rest } = req.body;
 
     // Permission check: Merchant must have a restaurant, Super Admin can be global (null)
     const scopedRestaurantId = isSuperAdmin(req as AuthRequest)
@@ -3848,6 +3861,9 @@ router.post('/deals', async (req, res) => {
     const deal = await prisma.deal.create({
       data: normalized as any,
     });
+    if (partnerEmbedEnabled === true) {
+      await setPartnerEmbedDiscountEnabled('deal', deal.id, true);
+    }
 
     await audit(req as AuthRequest, 'DEAL_CREATE', {
       resourceType: 'Deal',
@@ -3885,7 +3901,7 @@ router.post('/deals', async (req, res) => {
       })();
     }
 
-    res.status(201).json(formatDealForAdmin(deal));
+    res.status(201).json(formatDealForAdmin(deal, partnerEmbedEnabled === true));
   } catch (error) {
     console.error('Create deal error:', error);
     res.status(500).json({ error: sanitizeError(error, 'Kunde inte skapa deal') });
@@ -3895,7 +3911,7 @@ router.post('/deals', async (req, res) => {
 router.patch('/deals/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { restaurantId, ...data } = req.body;
+    const { restaurantId, partnerEmbedEnabled, ...data } = req.body;
     const existing = await prisma.deal.findUnique({
       where: { id },
       select: { id: true, restaurantId: true, isActive: true, triggerType: true, popupEnabled: true },
@@ -3965,14 +3981,23 @@ router.patch('/deals/:id', async (req, res) => {
       where: { id },
       data: normalizedData,
     });
+    if (partnerEmbedEnabled !== undefined) {
+      await setPartnerEmbedDiscountEnabled('deal', deal.id, Boolean(partnerEmbedEnabled));
+    }
+    const partnerEmbedIds = await partnerEmbedEnabledIds('deal', [deal.id]);
 
     await audit(req as AuthRequest, 'DEAL_UPDATE', {
       resourceType: 'Deal',
       resourceId: deal.id,
-      changes: { isActive: nextIsActive, scopeChanged, scopeType: nextScopeType },
+      changes: {
+        isActive: nextIsActive,
+        scopeChanged,
+        scopeType: nextScopeType,
+        ...(partnerEmbedEnabled !== undefined ? { partnerEmbedEnabled: Boolean(partnerEmbedEnabled) } : {}),
+      },
     });
     broadcastMenuChange((deal as any).restaurantId ?? null, { kind: 'deal', dealId: deal.id });
-    res.json(formatDealForAdmin(deal));
+    res.json(formatDealForAdmin(deal, partnerEmbedIds.has(deal.id)));
   } catch (error) {
     console.error('Update deal error:', error);
     res.status(500).json({ error: sanitizeError(error, 'Serverfel') });
@@ -3997,6 +4022,7 @@ router.delete('/deals/:id', async (req, res) => {
     }
 
     await prisma.deal.delete({ where: { id } });
+    await removePartnerEmbedDiscountSetting('deal', id);
     await audit(req as AuthRequest, 'DEAL_DELETE', {
       resourceType: 'Deal',
       resourceId: id,
@@ -4881,7 +4907,8 @@ router.get('/discounts', async (_req, res) => {
     const codes = await prisma.discountCode.findMany({
       orderBy: { createdAt: 'desc' },
     });
-    res.json(codes.map(formatDiscountCodeForAdmin));
+    const partnerEmbedIds = await partnerEmbedEnabledIds('discount-code', codes.map((code) => code.id));
+    res.json(codes.map((code) => formatDiscountCodeForAdmin(code, partnerEmbedIds.has(code.id))));
   } catch {
     res.status(500).json({ error: 'Serverfel' });
   }
@@ -4893,7 +4920,7 @@ router.post('/discounts', async (req, res) => {
       return res.status(403).json({ error: 'Kräver super admin-behörighet' });
     }
 
-    const { code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId, applicableRestaurantIds, freeDelivery, platform, excludeDiscountedItems } = req.body;
+    const { code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId, applicableRestaurantIds, freeDelivery, platform, excludeDiscountedItems, partnerEmbedEnabled } = req.body;
 
     const parsedRestaurantIds = Array.isArray(applicableRestaurantIds)
       ? applicableRestaurantIds.filter((v: unknown): v is string => typeof v === 'string')
@@ -4934,12 +4961,15 @@ router.post('/discounts', async (req, res) => {
     const discount = await prisma.discountCode.create({
       data: discountData,
     });
+    if (partnerEmbedEnabled === true) {
+      await setPartnerEmbedDiscountEnabled('discount-code', discount.id, true);
+    }
     await audit(req as AuthRequest, 'DISCOUNT_CREATE', {
       resourceType: 'DiscountCode',
       resourceId: discount.id,
       changes: { code: discount.code, type: discount.type, value: discount.value },
     });
-    res.status(201).json(formatDiscountCodeForAdmin(discount));
+    res.status(201).json(formatDiscountCodeForAdmin(discount, partnerEmbedEnabled === true));
   } catch (error: unknown) {
     if ((error as { code?: string }).code === 'P2002') {
       res.status(400).json({ error: 'Rabattkod finns redan' });
@@ -4955,7 +4985,7 @@ router.patch('/discounts/:id', async (req, res) => {
       return res.status(403).json({ error: 'Kräver super admin-behörighet' });
     }
 
-    const { isActive, code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId, applicableRestaurantIds, freeDelivery, platform, excludeDiscountedItems } = req.body;
+    const { isActive, code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId, applicableRestaurantIds, freeDelivery, platform, excludeDiscountedItems, partnerEmbedEnabled } = req.body;
     // GROWTH_AGENT får aldrig aktivera en kupong (isActive=true). Bara Jalle.
     if (isGrowthAgent(req as AuthRequest) && isActive === true) {
       return res.status(403).json({ error: 'Tillväxtagenten kan inte aktivera kuponger. Jalle aktiverar i admin.' });
@@ -4992,12 +5022,19 @@ router.patch('/discounts/:id', async (req, res) => {
       where: { id: req.params.id },
       data: updateData,
     });
+    if (partnerEmbedEnabled !== undefined) {
+      await setPartnerEmbedDiscountEnabled('discount-code', updated.id, Boolean(partnerEmbedEnabled));
+    }
+    const partnerEmbedIds = await partnerEmbedEnabledIds('discount-code', [updated.id]);
     await audit(req as AuthRequest, 'DISCOUNT_UPDATE', {
       resourceType: 'DiscountCode',
       resourceId: updated.id,
-      changes: updateData,
+      changes: {
+        ...updateData,
+        ...(partnerEmbedEnabled !== undefined ? { partnerEmbedEnabled: Boolean(partnerEmbedEnabled) } : {}),
+      },
     });
-    res.json(formatDiscountCodeForAdmin(updated));
+    res.json(formatDiscountCodeForAdmin(updated, partnerEmbedIds.has(updated.id)));
   } catch {
     res.status(500).json({ error: 'Serverfel' });
   }
@@ -5012,6 +5049,7 @@ router.delete('/discounts/:id', async (req, res) => {
     await prisma.discountCode.delete({
       where: { id: req.params.id },
     });
+    await removePartnerEmbedDiscountSetting('discount-code', req.params.id);
     await audit(req as AuthRequest, 'DISCOUNT_DELETE', {
       resourceType: 'DiscountCode',
       resourceId: req.params.id,
@@ -5153,12 +5191,17 @@ router.get('/orders/:id/print-artifact', async (req: any, res: any) => {
 router.get('/orders/:id/receipt-data', async (req: any, res: any) => {
   try {
     const authReq = req as AuthRequest;
-    const [order, templateRow] = await Promise.all([
+    const [order, templateRow, channelRow] = await Promise.all([
       prisma.order.findUnique({
         where: { id: req.params.id },
         include: { items: true, restaurant: true }
       }),
       prisma.receiptTemplate.findUnique({ where: { id: 'global' } }),
+      prisma.auditLog.findFirst({
+        where: { action: 'ORDER_CHANNEL_CAPTURED', resourceType: 'Order', resourceId: req.params.id },
+        select: { changes: true },
+        orderBy: { createdAt: 'asc' },
+      }).catch(() => null),
     ]);
     if (!order) return res.status(404).json({ error: 'Order hittades inte' });
 
@@ -5176,7 +5219,10 @@ router.get('/orders/:id/receipt-data', async (req: any, res: any) => {
       templateElements = [];
     }
 
-    const previewData = buildAdminReceiptData(order);
+    const previewData = buildAdminReceiptData({
+      ...order,
+      channel: orderChannelFromAuditChanges(channelRow?.changes),
+    });
     res.json({
       ...previewData,
       footer: 'Tack för din beställning! — ViaEats',

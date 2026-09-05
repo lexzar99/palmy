@@ -72,3 +72,8 @@ test("utm_source vinner över referrern", () => {
   const referrerIndex = fn.indexOf('for (const rule of CHANNEL_RULES)');
   assert.ok(utmIndex > 0 && referrerIndex > utmIndex, "utm måste testas före referrern");
 });
+
+test("ett nytt kampanjklick skriver över äldre sessionskanal", () => {
+  assert.match(src, /if \(new URLSearchParams\(window\.location\.search\)\.get\("utm_source"\)\)/);
+  assert.match(src, /window\.sessionStorage\.setItem\(CHANNEL_KEY, JSON\.stringify\(value\)\)/);
+});

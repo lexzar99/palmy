@@ -1,6 +1,7 @@
 import prisma from './prisma';
 import sharp from 'sharp';
 import path from 'path';
+import { customerNameWithOrderChannel, orderChannelFromAuditChanges } from './orderChannel';
 
 export type ThermalPaperWidth = '58mm' | '72mm' | '80mm';
 
@@ -231,7 +232,7 @@ export function buildAdminReceiptData(order: any) {
       paymentStatus: order.paymentStatus,
     },
     customer: {
-      name: order.customerName,
+      name: customerNameWithOrderChannel(order.customerName, order.channel),
       phone: order.customerPhone,
       email: order.customerEmail,
       street: order.deliveryStreet,
@@ -796,23 +797,31 @@ export async function getStandaloneTestPrintArtifact(
 export async function getServerPrintArtifact(orderId: string, requestedWidth: unknown): Promise<PrintArtifact | null> {
   const paperWidth = normalizePaperWidth(requestedWidth);
   const latestKey = `${orderId}:${paperWidth}`;
-  const [order, template] = await Promise.all([
+  const [order, template, channelRow] = await Promise.all([
     prisma.order.findUnique({
       where: { id: orderId },
       include: { items: true, restaurant: true },
     }),
     prisma.receiptTemplate.findUnique({ where: { id: 'global' } }),
+    prisma.auditLog.findFirst({
+      where: { action: 'ORDER_CHANNEL_CAPTURED', resourceType: 'Order', resourceId: orderId },
+      select: { changes: true },
+      orderBy: { createdAt: 'asc' },
+    }).catch(() => null),
   ]);
   // Servergenererade terminal-testordrar raderas direkt efter accept. Deras
   // redan uppvärmda bitmap måste ändå kunna hämtas av plattan några hundra ms
   // senare, så den senaste artefakten får leva kvar i det begränsade minnet.
   if (!order) return latestArtifactByOrder.get(latestKey) || null;
+  const channel = orderChannelFromAuditChanges(channelRow?.changes);
+  const printableOrder = { ...order, channel };
   const fingerprint = [
     RECEIPT_RENDERER_VERSION,
     order.id,
     order.updatedAt.toISOString(),
     order.status,
     order.estimatedTime ?? '',
+    channel ?? '',
     template?.updatedAt?.toISOString() || '',
     paperWidth,
   ].join(':');
@@ -823,7 +832,7 @@ export async function getServerPrintArtifact(orderId: string, requestedWidth: un
 
   const rendering = (async (): Promise<PrintArtifact> => {
     const artifact: PrintArtifact = {
-      bytes: await buildEscPosBitmap(order, template, paperWidth),
+      bytes: await buildEscPosBitmap(printableOrder, template, paperWidth),
       fingerprint,
       orderId: order.id,
       orderNumber: order.orderNumber,

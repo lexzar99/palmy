@@ -22,6 +22,7 @@ import {
   PageHeader,
   Select,
   Surface,
+  Toggle,
 } from "@/shared/components/ui";
 import { formatDate, formatNumber } from "@/shared/utils/format";
 import { getRestaurantOverview, restaurantsQueryKey, type ControlCenterRestaurantSnapshot } from "@/modules/restaurants/api";
@@ -44,6 +45,7 @@ type FormState = {
   platform: "ALL" | "APP" | "WEB";
   // Får koden användas ovanpå redan rabatterade varor eller inte.
   excludeDiscountedItems: boolean;
+  partnerEmbedEnabled: boolean;
 };
 
 const emptyForm = (): FormState => ({
@@ -60,6 +62,7 @@ const emptyForm = (): FormState => ({
   freeDelivery: false,
   platform: "ALL",
   excludeDiscountedItems: false,
+  partnerEmbedEnabled: false,
 });
 
 const typeLabel: Record<DiscountRecord["discountType"], string> = {
@@ -111,6 +114,7 @@ export function CouponsPage() {
         freeDelivery: editing.freeDelivery ?? false,
         platform: editing.platform ?? "ALL",
         excludeDiscountedItems: editing.excludeDiscountedItems ?? false,
+        partnerEmbedEnabled: editing.partnerEmbedEnabled ?? false,
       });
     } else {
       setForm(emptyForm());
@@ -140,6 +144,7 @@ export function CouponsPage() {
         // Rabatt ovanpå rabatt eller inte. Meningslös för free_delivery
         // (den biter på leveransavgiften, inte på varorna).
         excludeDiscountedItems: f.discountType !== "free_delivery" && f.excludeDiscountedItems,
+        partnerEmbedEnabled: f.partnerEmbedEnabled,
       };
       if (editing) {
         return updateDiscount(editing.id, payload);
@@ -165,6 +170,14 @@ export function CouponsPage() {
       setEditing(null);
     },
     onError: () => setFormError("Kunde inte radera kupong."),
+  });
+
+  const togglePartnerEmbedMutation = useMutation({
+    mutationFn: ({ id, partnerEmbedEnabled }: { id: string; partnerEmbedEnabled: boolean }) =>
+      updateDiscount(id, { partnerEmbedEnabled }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: discountsQueryKey });
+    },
   });
 
   const openCreate = () => {
@@ -242,6 +255,7 @@ export function CouponsPage() {
                   <th className="pb-3 pr-4">Minbelopp</th>
                   <th className="pb-3 pr-4">Restaurang/Alla</th>
                   <th className="pb-3 pr-4">Status</th>
+                  <th className="pb-3 pr-4">Privat sida</th>
                   <th className="pb-3 pr-4">Använde</th>
                   <th className="pb-3 pr-4">Skapad</th>
                   <th className="pb-3"></th>
@@ -282,6 +296,14 @@ export function CouponsPage() {
                     </td>
                     <td className="py-3 pr-4">
                       <Badge tone={record.isActive ? "success" : "neutral"}>{record.isActive ? "Aktiv" : "Inaktiv"}</Badge>
+                    </td>
+                    <td className="py-3 pr-4">
+                      <Toggle
+                        checked={record.partnerEmbedEnabled}
+                        disabled={togglePartnerEmbedMutation.isPending}
+                        onChange={(partnerEmbedEnabled) => togglePartnerEmbedMutation.mutate({ id: record.id, partnerEmbedEnabled })}
+                        ariaLabel={`${record.code}: ${record.partnerEmbedEnabled ? "dölj på" : "visa på"} privat sida`}
+                      />
                     </td>
                     <td className="py-3 pr-4 tabular-nums text-[var(--text-secondary)]">
                       {formatNumber(record.usedCount)}{record.maxUses != null ? ` / ${formatNumber(record.maxUses)}` : ""}
@@ -529,6 +551,20 @@ export function CouponsPage() {
               <option value="active">Aktiv</option>
               <option value="inactive">Inaktiv</option>
             </Select>
+          </Field>
+
+          <Field label="Privat hemsida">
+            <label className="flex cursor-pointer items-start gap-3 select-none">
+              <input
+                type="checkbox"
+                checked={form.partnerEmbedEnabled}
+                onChange={(e) => setField("partnerEmbedEnabled", e.target.checked)}
+                className="mt-0.5 h-4 w-4 cursor-pointer accent-[var(--accent)]"
+              />
+              <span className="text-sm text-[var(--text-secondary)]">
+                Låt kupongen gälla i restaurangens privata embed. Av som standard betyder endast viaeats.se och appen.
+              </span>
+            </label>
           </Field>
         </form>
       </Modal>

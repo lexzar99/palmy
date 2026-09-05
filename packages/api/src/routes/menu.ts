@@ -3,6 +3,7 @@ import prisma from '../lib/prisma';
 import { getDealScopeType, isDealAvailableNow, parseApplicableRestaurantIds, parseDealTargetIds, resolveDisplayPromotionForProduct, PARTNER_DEAL_MARKER } from '../lib/deals';
 import { predictedProductUrl, predictedHeroUrl, slugifyPathSegment } from '../lib/r2';
 import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
+import { partnerEmbedEnabledIds } from '../lib/partnerEmbedDiscounts';
 
 const router = Router();
 
@@ -26,8 +27,11 @@ const menuCache = new Map<string, MenuCacheEntry>();
 let menuCacheBytes = 0;
 // Format ingår i nyckeln: default- och normalized-svaren har olika form och
 // får aldrig dela cache-rad.
-const cacheKey = (rid: string | null, format: string = 'default') => `r:${rid ?? '_global'}:${format}`;
+type MenuChannel = 'viaeats' | 'partner_embed';
+const cacheKey = (rid: string | null, format: string = 'default', channel: MenuChannel = 'viaeats') =>
+  `r:${rid ?? '_global'}:${format}:${channel}`;
 const MENU_FORMATS = ['default', 'normalized'] as const;
+const MENU_CHANNELS: MenuChannel[] = ['viaeats', 'partner_embed'];
 
 function deleteMenuCacheEntry(key: string): void {
   const existing = menuCache.get(key);
@@ -68,8 +72,10 @@ export function menuCacheBust(restaurantId: string | null = null) {
     return;
   }
   for (const fmt of MENU_FORMATS) {
-    deleteMenuCacheEntry(cacheKey(restaurantId, fmt));
-    deleteMenuCacheEntry(cacheKey(null, fmt));
+    for (const channel of MENU_CHANNELS) {
+      deleteMenuCacheEntry(cacheKey(restaurantId, fmt, channel));
+      deleteMenuCacheEntry(cacheKey(null, fmt, channel));
+    }
   }
 }
 
@@ -121,6 +127,8 @@ router.get('/categories', async (req, res) => {
     // kedjemeny 5–10× (en dryckesgrupp med 30 val dupliceras annars i varje
     // produkt). Default-formatet är oförändrat → Flutter/RN/äldre web opåverkade.
     const normalized = req.query.format === 'normalized';
+    const menuChannel: MenuChannel = req.query.channel === 'partner_embed' ? 'partner_embed' : 'viaeats';
+    const isPartnerEmbed = menuChannel === 'partner_embed';
 
     // Hämta restaurang inkl. slug + city så vi kan bygga R2 predicted URLs
     // för bilder som saknas i databasen (Auto-discovery vid manuell R2-upload).
@@ -163,7 +171,11 @@ router.get('/categories', async (req, res) => {
 
     // Cache hit? Vi shufflar populär-raden per request även vid HIT så
     // discovery-känslan inte tappas på cached svar.
-    const ck = cacheKey(hasRestaurantScope ? (resolvedRestaurantId ?? null) : null, normalized ? 'normalized' : 'default');
+    const ck = cacheKey(
+      hasRestaurantScope ? (resolvedRestaurantId ?? null) : null,
+      normalized ? 'normalized' : 'default',
+      menuChannel,
+    );
     const now = Date.now();
     pruneMenuCache(now);
     const cached = menuCache.get(ck);
@@ -265,15 +277,23 @@ router.get('/categories', async (req, res) => {
       queryActiveMenuByRestaurantId(primaryRestaurantId),
       queryProductPopularity(primaryRestaurantId),
     ]);
-    const activeDeals = primaryRestaurantId
+    const queriedDeals = primaryRestaurantId
       ? await prisma.deal.findMany({
           where: {
             isActive: true,
-            OR: [{ showOnSite: true }, { appCtaTarget: PARTNER_DEAL_MARKER }],
+            ...(isPartnerEmbed ? {} : { OR: [{ showOnSite: true }, { appCtaTarget: PARTNER_DEAL_MARKER }] }),
           },
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
         })
       : [];
+    const allowedPartnerDealIds = isPartnerEmbed
+      ? await partnerEmbedEnabledIds('deal', queriedDeals.map((deal) => deal.id))
+      : null;
+    const activeDeals = isPartnerEmbed
+      ? queriedDeals
+          .filter((deal) => allowedPartnerDealIds?.has(deal.id))
+          .map((deal) => ({ ...deal, showOnSite: true }))
+      : queriedDeals;
 
     // Fallback logic if no categories found (e.g. invalid restaurantId)
     if (hasRestaurantScope && categories.length === 0) {
@@ -339,7 +359,14 @@ router.get('/categories', async (req, res) => {
           extraGroupsField = { extraGroups: sortedPegs.map(buildGroup) };
         }
         return ({
-        ...toDisplayDiscount(prod, cat.id, primaryRestaurantId, activeDeals),
+        ...toDisplayDiscount(
+          isPartnerEmbed
+            ? { ...prod, discountActive: false, discountPercent: null, discountPrice: null }
+            : prod,
+          cat.id,
+          primaryRestaurantId,
+          activeDeals,
+        ),
         id: prod.id,
         name: prod.name,
         slug: prod.slug,

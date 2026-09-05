@@ -504,12 +504,18 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, embed
       if (restaurantId) params.restaurantId = restaurantId;
       if (restaurantSlug) params.slug = restaurantSlug;
       // format=normalized → mindre payload; rehydreras nedan till samma form.
-      const menuParams = { ...params, format: MENU_FORMAT_PARAM, v: "20260702" };
+      const channelParams = embedMode ? { channel: "partner_embed" } : {};
+      const menuParams = { ...params, ...channelParams, format: MENU_FORMAT_PARAM, v: "20260702" };
 
       const [menuRes, restaurantRes, dealsRes] = await Promise.all([
         axios.get(`${API_URL}/api/menu/categories`, { params: menuParams }),
         restaurantSlug ? axios.get(`${API_URL}/api/restaurants/${restaurantSlug}`) : Promise.resolve({ data: null }),
-        axios.get(`${API_URL}/api/deals`, { params: restaurantId ? { restaurantId } : restaurantSlug ? { slug: restaurantSlug } : {} }),
+        axios.get(`${API_URL}/api/deals`, {
+          params: {
+            ...(restaurantId ? { restaurantId } : restaurantSlug ? { slug: restaurantSlug } : {}),
+            ...channelParams,
+          },
+        }),
       ]);
 
       // Rehydrera (normalized → inbäddade extraGroups). Tål även default/array.
@@ -540,7 +546,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, embed
     } finally {
       if (!ssrSeed) setLoading(false);
     }
-  }, [restaurantId, restaurantSlug, checkZone, initialData]);
+  }, [restaurantId, restaurantSlug, checkZone, embedMode, initialData]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {

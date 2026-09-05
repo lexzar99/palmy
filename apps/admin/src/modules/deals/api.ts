@@ -19,6 +19,7 @@ export interface AutomaticDealRecord {
   isGlobal: boolean;
   showOnSite: boolean;
   showAsBanner: boolean;
+  partnerEmbedEnabled: boolean;
   popupEnabled: boolean;
   imageUrl?: string | null;
   popupHeadline?: string | null;

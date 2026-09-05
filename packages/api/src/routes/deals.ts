@@ -10,6 +10,8 @@ import { themeForKey } from '../lib/themeRotation';
 import { abHiddenDealIds } from '../lib/abTests';
 import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
 import { moneyDto } from '../utils/money';
+import { KIOSK_ACCESS_HEADER, validKioskAccessProof } from '../lib/kioskAccess';
+import { partnerEmbedEnabledIds } from '../lib/partnerEmbedDiscounts';
 
 const router = Router();
 
@@ -19,6 +21,10 @@ const router = Router();
 // telefon. Query: subtotal (kr), phone (valfri), loggedIn ("1"/"0").
 router.get('/welcome-offer', async (req, res) => {
   try {
+    const privateEmbed = req.query.channel === 'partner_embed'
+      || Boolean(validKioskAccessProof(req.headers[KIOSK_ACCESS_HEADER]));
+    if (privateEmbed) return res.json({ active: false });
+
     const subtotalKr = Math.max(0, Number(req.query.subtotal) || 0);
     const phone = typeof req.query.phone === 'string' ? req.query.phone.trim() : '';
     const isLoggedIn = req.query.loggedIn === '1' || req.query.loggedIn === 'true';
@@ -1059,6 +1065,7 @@ router.get('/:id/restaurants', async (req, res) => {
 // GET /api/deals/banners?slug=xxx — aktiva banner-deals för en restaurangs sida
 router.get('/banners', async (req, res) => {
   try {
+    const privateEmbed = req.query.channel === 'partner_embed';
     let targetRestaurantId = typeof req.query.restaurantId === 'string' ? req.query.restaurantId : null;
 
     if (!targetRestaurantId && typeof req.query.slug === 'string' && req.query.slug.trim()) {
@@ -1087,9 +1094,13 @@ router.get('/banners', async (req, res) => {
       },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
     });
+    const partnerEmbedIds = privateEmbed
+      ? await partnerEmbedEnabledIds('deal', deals.map((deal) => deal.id))
+      : null;
 
     res.json(
       deals
+        .filter((deal) => !privateEmbed || partnerEmbedIds?.has(deal.id))
         .filter((deal) => isDealAvailableNow(deal))
         .map((deal) => formatDealForClient(deal)),
     );
@@ -1101,11 +1112,12 @@ router.get('/banners', async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
+    const privateEmbed = req.query.channel === 'partner_embed';
     // Cache 30s keyed by restaurant scope: public deals are identical for all
     // anonymous callers of the same restaurant. Collapses the deal-fetch herd.
-    const dealsKey = (typeof req.query.restaurantId === 'string' && req.query.restaurantId)
+    const dealsKey = `${privateEmbed ? 'partner_embed' : 'viaeats'}:${(typeof req.query.restaurantId === 'string' && req.query.restaurantId)
       || (typeof req.query.slug === 'string' && req.query.slug.trim())
-      || 'all';
+      || 'all'}`;
     const out = await cached('deals:public', dealsKey, 30_000, async () => {
     let targetRestaurantId = typeof req.query.restaurantId === 'string' ? req.query.restaurantId : null;
 
@@ -1127,7 +1139,7 @@ router.get('/', async (req, res) => {
 
     const deals = await prisma.deal.findMany({
       where: {
-        showOnSite: true,
+        ...(privateEmbed ? {} : { showOnSite: true }),
         isActive: true,
         triggerType: { not: 'BOGO_CATEGORY' },
         // Personliga mallar (welcome/referral) ska aldrig listas publikt.
@@ -1152,8 +1164,14 @@ router.get('/', async (req, res) => {
         { createdAt: 'desc' },
       ],
     });
+    const partnerEmbedIds = privateEmbed
+      ? await partnerEmbedEnabledIds('deal', deals.map((deal) => deal.id))
+      : null;
+    const visibleDeals = privateEmbed
+      ? deals.filter((deal) => partnerEmbedIds?.has(deal.id))
+      : deals;
 
-    const comboProductIds = [...new Set(deals.flatMap((deal) => parseDealProductIds(deal.comboProductIds)))];
+    const comboProductIds = [...new Set(visibleDeals.flatMap((deal) => parseDealProductIds(deal.comboProductIds)))];
     const comboProducts = comboProductIds.length
       ? await prisma.product.findMany({
           where: { id: { in: comboProductIds } },
@@ -1164,7 +1182,7 @@ router.get('/', async (req, res) => {
     const productNameMap = new Map(comboProducts.map((product) => [product.id, product.name]));
 
     return (
-      deals
+      visibleDeals
         .filter((deal) => isDealAvailableNow(deal) && isBasketDeal(deal))
         .map((deal) =>
           formatDealForClient(deal, {
@@ -1195,7 +1213,13 @@ router.get('/', async (req, res) => {
 // Body: { restaurantId: string, items: Array<{productId: string, quantity: number}> }
 router.post('/evaluate-cart', evaluateCartLimiter, async (req, res) => {
   try {
-    const { restaurantId, items } = req.body as { restaurantId?: string; items?: Array<{ productId: string; quantity: number }> };
+    const { restaurantId, items, channel } = req.body as {
+      restaurantId?: string;
+      items?: Array<{ productId: string; quantity: number }>;
+      channel?: string;
+    };
+    const privateEmbed = channel === 'partner_embed'
+      || Boolean(validKioskAccessProof(req.headers[KIOSK_ACCESS_HEADER]));
     if (!restaurantId || !Array.isArray(items) || items.length === 0) {
       return res.json({ discountAmountOre: 0, discountAmountKr: 0, message: null, dealTitle: null, maxFreeItems: 0 });
     }
@@ -1259,12 +1283,16 @@ router.post('/evaluate-cart', evaluateCartLimiter, async (req, res) => {
         ],
       },
     });
+    const partnerEmbedIds = privateEmbed
+      ? await partnerEmbedEnabledIds('deal', deals.map((deal) => deal.id))
+      : null;
 
     let bestDeal: (typeof deals)[number] | null = null;
     let bestDiscount = 0;
     let bestMaxFreeItems = 0;
 
     for (const deal of deals) {
+      if (privateEmbed && !partnerEmbedIds?.has(deal.id)) continue;
       if (!isDealAvailableNow(deal, now)) continue;
       const evaluation = evaluateDeal(deal, {
         subtotalOre,

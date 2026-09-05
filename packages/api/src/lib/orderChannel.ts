@@ -53,3 +53,14 @@ export function orderChannelFromAuditChanges(value: string | null | undefined): 
     return null;
   }
 }
+
+export function customerNameWithOrderChannel(
+  customerName: string | null | undefined,
+  channel: OrderChannel | null | undefined,
+): string {
+  const name = String(customerName || '').trim();
+  if (!name || !channel) return name;
+  if (/\s[–-]\s(?:privat|viaeats)$/i.test(name)) return name;
+  const label = channel === ORDER_CHANNELS.partnerEmbed ? 'privat' : 'viaeats';
+  return `${name} – ${label}`;
+}

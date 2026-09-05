@@ -429,7 +429,13 @@ export default function CartPage() {
     }
     let cancelled = false;
     axios
-      .get(`/api/platform/menu/categories`, { params: { slug: cartRestaurantSlug, format: "normalized" } })
+      .get(`/api/platform/menu/categories`, {
+        params: {
+          slug: cartRestaurantSlug,
+          format: "normalized",
+          ...(embedMode ? { channel: "partner_embed" } : {}),
+        },
+      })
       .then((res) => {
         if (cancelled) return;
         const categories = Array.isArray(res.data?.categories) ? res.data.categories : [];
@@ -439,7 +445,7 @@ export default function CartPage() {
         if (!cancelled) setMenuProducts([]);
       });
     return () => { cancelled = true; };
-  }, [cartRestaurantSlug]);
+  }, [cartRestaurantSlug, embedMode]);
 
   // Ordningen slumpas en gång per meny — inte per render, annars skulle raden
   // hoppa runt varje gång kassan uppdateras.
@@ -602,6 +608,12 @@ export default function CartPage() {
   // grön/orange ikonfärg.
   const [referralMessage, setReferralMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [applyingCode, setApplyingCode] = useState(false);
+  useEffect(() => {
+    if (!embedMode) return;
+    setAccountDeals([]);
+    setSelectedAccountDealId(null);
+    setAppDealQuote(null);
+  }, [embedMode]);
   useEffect(() => {
     // Förvälj aktiv deal från kontraktet (sätts av hemskärmens deals-rail,
     // rewards eller en tidigare vänkod). Kassan nollar snapshot när den själv
@@ -1404,11 +1416,16 @@ export default function CartPage() {
     try {
       const [settingsRes, dealsRes, userRes, pDealsRes, restaurantRes, accountDealsRes] = await Promise.all([
         axios.get(`${API_URL}/api/settings`).catch(() => ({ data: {} })),
-        axios.get(`${API_URL}/api/deals`, { params: currentRestaurantId ? { restaurantId: currentRestaurantId } : {} }).catch(() => ({ data: [] })),
+        axios.get(`${API_URL}/api/deals`, {
+          params: {
+            ...(currentRestaurantId ? { restaurantId: currentRestaurantId } : {}),
+            ...(embedMode ? { channel: "partner_embed" } : {}),
+          },
+        }).catch(() => ({ data: [] })),
         axios.get(`/api/platform/profile`).catch(() => ({ data: null })),
-        axios.get(`/api/platform/profile/deals`).catch(() => ({ data: [] })),
+        embedMode ? Promise.resolve({ data: [] }) : axios.get(`/api/platform/profile/deals`).catch(() => ({ data: [] })),
         currentRestaurantId ? axios.get(`${API_URL}/api/restaurants/${currentRestaurantId}`).catch(() => ({ data: null })) : Promise.resolve({ data: null }),
-        axios.get<{ deals: UserAccountDeal[] }>(`/api/platform/account/deals`).catch(() => ({ data: { deals: [] } })),
+        embedMode ? Promise.resolve({ data: { deals: [] as UserAccountDeal[] } }) : axios.get<{ deals: UserAccountDeal[] }>(`/api/platform/account/deals`).catch(() => ({ data: { deals: [] } })),
       ]);
 
       // Only spread non-fee fields from global settings to avoid overwriting zone-specific fees
@@ -1450,7 +1467,7 @@ export default function CartPage() {
       }
 
       setDeals(dealsRes.data || []);
-      setPersonalDeals(pDealsRes.data || []);
+      setPersonalDeals(embedMode ? [] : (pDealsRes.data || []));
 
       // Account-deals: filtrera ACTIVE av relevant typ. Ordna med "närmaste
       // utgång" först så användaren ser de mest tids-känsliga rabatterna.
@@ -1470,7 +1487,7 @@ export default function CartPage() {
       // profile refresh may still return a guest profile, and replacing the
       // local list with [] here used to leave the coupon looking active while
       // dropping its userDealId before order creation (0 kr discount).
-      setAccountDeals((current) => (acctDeals.length > 0 ? acctDeals : current));
+      setAccountDeals((current) => embedMode ? [] : (acctDeals.length > 0 ? acctDeals : current));
 
       if (userRes.data) {
         setUser(userRes.data);
@@ -1525,7 +1542,7 @@ export default function CartPage() {
     } finally {
       setPageLoading(false);
     }
-  }, [currentRestaurantId]);
+  }, [currentRestaurantId, embedMode]);
 
   // Vänkods-fallback (Swift-paritet, CartView.applyCode): körs när rabatt-
   // koden inte gäller. POST /api/account/redeem-code skapar REFERRAL_INVITEE-
@@ -1534,6 +1551,11 @@ export default function CartPage() {
   // så det generiska rabattkodsfelet döljs.
   const tryRedeemReferral = async (code: string): Promise<boolean> => {
     if (!code) return false;
+    if (embedMode) {
+      setError(null);
+      setReferralMessage({ ok: false, text: "Vänkoder gäller när du beställer på viaeats.se eller i appen." });
+      return true;
+    }
     if (!formData.customerPhone?.trim()) {
       setError(null);
       setReferralMessage({ ok: false, text: "Fyll i telefonnumret för beställningen innan du använder vänkoden." });
@@ -1625,17 +1647,13 @@ export default function CartPage() {
       // att räkna ut lokalt. Tidigare lokal beräkning exkluderade extras
       // → om en rabattkod hade minOrder-krav kunde backend rejecta felaktigt
       // när kunden hade extras som faktiskt gjorde att de mötte minOrder.
-      const res = await fetch(`${API_URL}/api/discount/validate`, {
-        method: "POST",
-        // X-Client-Type: web → backend kan neka app-only-rabattkoder på webben.
-        headers: { "Content-Type": "application/json", "X-Client-Type": "web" },
-        // discountableSubtotal = summan av de varor som inte redan är
-        // nedsatta. Backend räknar rabatten på det underlaget för koder med
-        // excludeDiscountedItems, så förhandsvisningen här matchar ordern.
-        body: JSON.stringify({ code: promoCodeInput.trim(), subtotal, discountableSubtotal }),
+      const res = await axios.post(`/api/platform/discount/validate`, {
+        code: promoCodeInput.trim(),
+        subtotal,
+        discountableSubtotal,
       });
-      if (res.ok) {
-        const data = await res.json();
+      if (res.status >= 200 && res.status < 300) {
+        const data = res.data;
         // discountType reflekterar backend-type:n exakt. freeDelivery är
         // en SEPARAT flagga som stackar på PERCENTAGE/FIXED. Tidigare
         // klassificerade vi felaktigt en FIXED+freeDelivery-kupong som
@@ -1664,15 +1682,14 @@ export default function CartPage() {
           }
         });
         setSelectedAccountDealId(null);
-      } else {
-        // Rabattkoden gällde inte → Swift-fallbacken: prova väns referral-kod.
-        const err = await res.json().catch(() => ({} as any));
-        const handled = await tryRedeemReferral(promoCodeInput.trim());
-        if (!handled) setError(err.error || t("cart.errors.invalidPromo"));
       }
-    } catch {
+    } catch (error: any) {
+      if (embedMode) {
+        setError(error?.response?.data?.error || t("cart.errors.invalidPromo"));
+        return;
+      }
       const handled = await tryRedeemReferral(promoCodeInput.trim());
-      if (!handled) setError(t("cart.errors.invalidPromo"));
+      if (!handled) setError(error?.response?.data?.error || t("cart.errors.invalidPromo"));
     } finally {
       setApplyingCode(false);
     }
@@ -1838,6 +1855,7 @@ export default function CartPage() {
         const res = await axios.post(`${API_URL}/api/deals/evaluate-cart`, {
           restaurantId: currentRestaurantId,
           items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+          ...(embedMode ? { channel: "partner_embed" } : {}),
         });
         const data = res.data;
         // Visa BOGO-preview när det finns rabatt ELLER när kunden har gratis-
@@ -1877,12 +1895,13 @@ export default function CartPage() {
       }
     }, 400);
     return () => clearTimeout(timer);
-  }, [items, currentRestaurantId, setBogoChoice, t, hasCatalogDiscountedItems]);
+  }, [items, currentRestaurantId, setBogoChoice, t, hasCatalogDiscountedItems, embedMode]);
 
   // Välkomsterbjudande — hämta server-side beräknat erbjudande för kassan.
   // subtotal + telefon (för första-N-order) + verifieringsstatus skickas med så
   // backend kan avgöra eligibility. Debounce så telefon-typning inte hammrar.
   useEffect(() => {
+    if (embedMode) { setWelcomeOffer(null); return; }
     if (hasCatalogDiscountedItems || discountableSubtotal <= 0) { setWelcomeOffer(null); return; }
     const phone = (formData.customerPhone || "").trim();
     const timer = setTimeout(async () => {
@@ -1909,7 +1928,7 @@ export default function CartPage() {
       }
     }, 400);
     return () => clearTimeout(timer);
-  }, [discountableSubtotal, formData.customerPhone, user, hasCatalogDiscountedItems]);
+  }, [discountableSubtotal, formData.customerPhone, user, hasCatalogDiscountedItems, embedMode]);
 
   // Auto-dismiss BOGO-lost-notice efter 8s så banner inte hänger kvar
   // permanent på sidan.
@@ -2353,6 +2372,7 @@ export default function CartPage() {
       // bara när serverns quote säger applicable (Swift-paritet); annars
       // skulle backend avvisa ordern på t.ex. minOrder.
       userDealId: (() => {
+        if (embedMode) return undefined;
         if (!selectedAccountDealId) return undefined;
         if (appDealQuote?.userDealId === selectedAccountDealId) {
           return appDealQuote.applicable ? selectedAccountDealId : undefined;

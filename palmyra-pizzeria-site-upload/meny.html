@@ -15,9 +15,11 @@
     html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #fbf5e8; }
     body { color: #211709; font-family: "Baloo 2", system-ui, -apple-system, "Segoe UI", sans-serif; }
     .menu-page { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
-    .menu-heading { flex: 0 0 auto; display: flex; align-items: center; padding: max(8px, env(safe-area-inset-top)) 12px 8px; border-bottom: 1.5px solid #211709; background: #fbf5e8; }
+    .menu-heading { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: max(8px, env(safe-area-inset-top)) 12px 8px; border-bottom: 1.5px solid #211709; background: #fbf5e8; }
     .menu-home-link { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 0 10px; border: 1px solid rgba(33,23,9,.28); border-radius: 999px; color: #211709; text-decoration: none; font-size: 12px; font-weight: 800; white-space: nowrap; }
     .menu-home-link:active { transform: scale(.98); }
+    .powered { color: #776a52; font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .powered a { color: #c22016; font-weight: 800; text-decoration: none; }
     [data-viaeats-menu] { width: 100%; flex: 1 1 auto; min-height: 0; }
     @media (min-width: 768px) {
       .menu-heading { padding-left: clamp(28px, 5vw, 80px); padding-right: clamp(28px, 5vw, 80px); }
@@ -29,9 +31,10 @@
   <div class="menu-page">
     <header class="menu-heading">
       <a class="menu-home-link" href="index.html" aria-label="Tillbaka till Palmyra Pizzeria">← Tillbaka</a>
+      <span class="powered">Powered by <a href="https://www.viaeats.se" target="_blank" rel="noopener">viaeats</a></span>
     </header>
     <main data-viaeats-menu="palmyra-pizzeria-lund" data-viaeats-fullscreen="1"></main>
   </div>
-  <script src="embed.js?v=10" defer></script>
+  <script src="embed.js?v=11" defer></script>
 </body>
 </html>

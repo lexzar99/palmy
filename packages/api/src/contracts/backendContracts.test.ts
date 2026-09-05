@@ -13,11 +13,16 @@ import {
   hasVerifiedSupabasePhone,
 } from '../lib/customerAuthPolicy';
 import {
+  customerNameWithOrderChannel,
   ORDER_CHANNELS,
   orderChannelAuditChanges,
   orderChannelFromAuditChanges,
   resolveOrderChannel,
 } from '../lib/orderChannel';
+import {
+  partnerEmbedDiscountSettingKey,
+  partnerEmbedEnabledIdsFromRows,
+} from '../lib/partnerEmbedDiscounts';
 
 const now = new Date('2026-07-10T12:00:00.000Z');
 const scheduleClosed = JSON.stringify({ regular: {} });
@@ -223,6 +228,17 @@ const appChannelAudit = orderChannelAuditChanges(ORDER_CHANNELS.app, {
 });
 assert.equal(orderChannelFromAuditChanges(appChannelAudit), ORDER_CHANNELS.app);
 assert.equal(orderChannelFromAuditChanges('{"channel":"OKAND"}'), null);
+assert.equal(customerNameWithOrderChannel('Anna', ORDER_CHANNELS.partnerEmbed), 'Anna – privat');
+assert.equal(customerNameWithOrderChannel('Anna', ORDER_CHANNELS.web), 'Anna – viaeats');
+assert.equal(customerNameWithOrderChannel('Anna – privat', ORDER_CHANNELS.partnerEmbed), 'Anna – privat');
+assert.equal(partnerEmbedDiscountSettingKey('deal', 'deal-1'), 'partner_embed_discount:deal:deal-1');
+assert.deepEqual(
+  [...partnerEmbedEnabledIdsFromRows('deal', [
+    { key: 'partner_embed_discount:deal:deal-1' },
+    { key: 'partner_embed_discount:discount-code:code-1' },
+  ])],
+  ['deal-1'],
+);
 
 // Customer auth is passwordless. Legacy password/email-link endpoints must be
 // intercepted by the 410 guard before their compatibility handlers can run;
@@ -298,6 +314,8 @@ assert.doesNotMatch(adminRouteSource, /prisma\.order\.(?:delete|deleteMany)\s*\(
 // New production checkouts use the pending-order -> explicitly enabled PSP
 // flow. Provider/ref bindings remain immutable after the order is created.
 const orderRouteSource = fs.readFileSync(path.join(__dirname, '../routes/orders.ts'), 'utf8');
+const menuRouteSource = fs.readFileSync(path.join(__dirname, '../routes/menu.ts'), 'utf8');
+const dealsRouteSource = fs.readFileSync(path.join(__dirname, '../routes/deals.ts'), 'utf8');
 const paymentProviderSource = fs.readFileSync(path.join(__dirname, '../lib/payments/index.ts'), 'utf8');
 const paymentRouteSource = fs.readFileSync(path.join(__dirname, '../routes/payments.ts'), 'utf8');
 assert.match(orderRouteSource, /MOLLIE_CHECKOUT_REQUIRED/);
@@ -305,6 +323,13 @@ assert.match(orderRouteSource, /validKioskAccessProof\(req\.headers\[KIOSK_ACCES
 assert.match(orderRouteSource, /resolveOrderChannel\(/);
 assert.match(orderRouteSource, /action: 'ORDER_CHANNEL_CAPTURED'/);
 assert.match(adminRouteSource, /orderChannelFromAuditChanges/);
+assert.match(adminRouteSource, /partnerEmbedEnabled/);
+assert.match(orderRouteSource, /isPartnerEmbedDiscountEnabled\('discount-code'/);
+assert.match(orderRouteSource, /!skipAutoDeals && !isPartnerEmbedOrder/);
+assert.match(orderRouteSource, /Personliga viaeats-rabatter gäller på viaeats\.se eller i appen/);
+assert.match(menuRouteSource, /channel === 'partner_embed'/);
+assert.match(menuRouteSource, /discountActive: false, discountPercent: null, discountPrice: null/);
+assert.match(dealsRouteSource, /partnerEmbedEnabledIds\('deal'/);
 assert.match(paymentProviderSource, /case 'stripe'/);
 assert.match(paymentProviderSource, /case 'swish'/);
 assert.match(paymentProviderSource, /configuredCheckoutProviderNames/);

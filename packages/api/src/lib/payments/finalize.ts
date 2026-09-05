@@ -13,6 +13,7 @@ import prisma from '../prisma';
 import { getIO } from '../socket';
 import { incrementDiscountUsageIfNotCounted } from '../discountUsage';
 import { notifyPartnerDevicesOfNewOrder } from '../partnerFcm';
+import { customerNameWithOrderChannel, orderChannelFromAuditChanges } from '../orderChannel';
 
 export type PaymentProviderName = 'mollie' | 'stripe' | 'adyen' | 'swish';
 
@@ -212,8 +213,16 @@ export async function finalizePaymentSuccess(
 
   // Pending-payment-order: nu bekräftad → broadcasta till restaurang.
   if (isAwaitingPayment) {
+    const channelRow = await prisma.auditLog.findFirst({
+      where: { action: 'ORDER_CHANNEL_CAPTURED', resourceType: 'Order', resourceId: updatedOrder.id },
+      select: { changes: true },
+      orderBy: { createdAt: 'asc' },
+    }).catch(() => null);
+    const orderChannel = orderChannelFromAuditChanges(channelRow?.changes);
     const orderForSocket = {
       ...updatedOrder,
+      channel: orderChannel,
+      customerName: customerNameWithOrderChannel(updatedOrder.customerName, orderChannel),
       total: (updatedOrder as any).total / 100,
       deliveryFee: (updatedOrder as any).deliveryFee / 100,
       discountAmount: (updatedOrder as any).discountAmount / 100,

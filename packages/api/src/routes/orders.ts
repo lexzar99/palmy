@@ -79,7 +79,8 @@ import {
   checkoutTotalMatches,
 } from '../lib/checkoutIntegrity';
 import { resolvePlatformFundedDiscount } from '../lib/discountFunding';
-import { orderChannelAuditChanges, resolveOrderChannel } from '../lib/orderChannel';
+import { customerNameWithOrderChannel, ORDER_CHANNELS, orderChannelAuditChanges, resolveOrderChannel } from '../lib/orderChannel';
+import { isPartnerEmbedDiscountEnabled, partnerEmbedEnabledIds } from '../lib/partnerEmbedDiscounts';
 
 const router = Router();
 
@@ -510,6 +511,15 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
 
+    const clientType = req.headers['x-client-type'];
+    const kioskRestaurantSlug = validKioskAccessProof(req.headers[KIOSK_ACCESS_HEADER]);
+    const orderChannel = resolveOrderChannel({
+      clientType,
+      kioskRestaurantSlug,
+      restaurantSlug: restaurant.slug || null,
+    });
+    const isPartnerEmbedOrder = orderChannel === ORDER_CHANNELS.partnerEmbed;
+
     // En gästorder ska fortfarande ge admin en kundrad med namn + telefon.
     // Registrerade användare länkas aldrig genom ett osignerat telefonnummer;
     // bara en befintlig gästprofil återanvänds. Det förhindrar att en felaktig
@@ -733,9 +743,13 @@ router.post('/', async (req: Request, res: Response) => {
     // Fail closed at the entrance to pricing. Every downstream catalog- and
     // basket-deal calculation sees only deals explicitly scoped to this
     // restaurant (or an intentionally global deal).
+    const partnerEmbedDealIds = isPartnerEmbedOrder
+      ? await partnerEmbedEnabledIds('deal', allActiveDeals.map((deal) => deal.id))
+      : null;
     const activeDeals = allActiveDeals.filter((deal) =>
+      (!isPartnerEmbedOrder || partnerEmbedDealIds?.has(deal.id)) &&
       dealMatchesRestaurant(deal, restaurant.id),
-    );
+    ).map((deal) => isPartnerEmbedOrder ? ({ ...deal, showOnSite: true }) : deal);
     const productIds = [...new Set(data.items.map((i) => i.productId))];
     const requireActiveCatalog = !confirmedPayment || isPendingPayment;
     const products = await prisma.product.findMany({
@@ -860,7 +874,9 @@ router.post('/', async (req: Request, res: Response) => {
 
       const extrasTotal = validatedExtras.reduce((sum, e) => sum + Math.round(e.priceAddon * 100) * ((e as any).quantity ?? 1), 0);
       const displayPromotion = resolveDisplayPromotionForProduct({
-        product,
+        product: isPartnerEmbedOrder
+          ? { ...product, discountActive: false, discountPercent: null, discountPrice: null }
+          : product,
         categoryId: (product as any).categoryId,
         restaurantId: restaurant.id,
         deals: activeDeals.filter((deal) => isDealAvailableNow(deal, now)),
@@ -936,6 +952,12 @@ router.post('/', async (req: Request, res: Response) => {
         });
 
         if (code) {
+          if (
+            isPartnerEmbedOrder &&
+            !(await isPartnerEmbedDiscountEnabled('discount-code', code.id))
+          ) {
+            throw new OrderValidationError('Rabattkoden gäller bara på viaeats.se eller i appen');
+          }
           const isExpired = (code.validUntil && code.validUntil < now) ||
             (code.maxUsages !== null && code.usageCount >= code.maxUsages);
 
@@ -992,6 +1014,8 @@ router.post('/', async (req: Request, res: Response) => {
               validatedCode = code.code;
             }
           }
+        } else if (isPartnerEmbedOrder) {
+          throw new OrderValidationError('Rabattkoden gäller inte på restaurangens privata sida');
         } else {
           // 2. Check personalized customer deals.
           // OBS: `code` är @unique → slå upp PÅ KODEN ENSAM. Tidigare krävdes
@@ -1157,7 +1181,7 @@ router.post('/', async (req: Request, res: Response) => {
     let welcomeAppliedTitle: string | null = null;
     let welcomeAppliedDealId: string | null = null;
     let automaticWelcomeApplied = false;
-    if (!skipAutoDeals) {
+    if (!skipAutoDeals && !isPartnerEmbedOrder) {
       try {
         const welcomeOffer = await getWelcomeOffer();
         if (welcomeOffer) {
@@ -1229,6 +1253,9 @@ router.post('/', async (req: Request, res: Response) => {
     let appliedUserDealId: string | null = null;
     let appliedUserDealAmountKr: number | null = null;
     let appliedUserDealType: string | null = null;
+    if (data.userDealId && isPartnerEmbedOrder) {
+      throw new OrderValidationError('Personliga viaeats-rabatter gäller på viaeats.se eller i appen');
+    }
     if (data.userDealId && orderUserId) {
       const userDeal = await (prisma as any).userDeal.findFirst({
         where: {
@@ -1559,14 +1586,6 @@ router.post('/', async (req: Request, res: Response) => {
     // concurrent duplicate the DB throws P2002 — we catch ONLY that, regenerate
     // (generateOrderNumber re-reads the latest number so it advances), and retry,
     // instead of 500-ing an order whose payment may already have gone through.
-    const clientType = req.headers['x-client-type'];
-    const kioskRestaurantSlug = validKioskAccessProof(req.headers[KIOSK_ACCESS_HEADER]);
-    const orderChannel = resolveOrderChannel({
-      clientType,
-      kioskRestaurantSlug,
-      restaurantSlug: restaurant?.slug || null,
-    });
-
     let order: any = null;
     for (let orderAttempt = 1; orderAttempt <= 8; orderAttempt++) {
       const nextNumber = await generateOrderNumber();
@@ -1768,6 +1787,7 @@ router.post('/', async (req: Request, res: Response) => {
       const orderForSocket = {
         ...order,
         channel: orderChannel,
+        customerName: customerNameWithOrderChannel(order.customerName, orderChannel),
         totalOre: order.total,
         totalMoney: moneyDto(order.total),
         total: order.total / 100,

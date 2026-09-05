@@ -189,6 +189,17 @@ section { padding: 78px 0 0; }
 .panel .btn { margin-top: 12px; }
 .panel.red .btn { background: var(--card); color: var(--red); }
 .panel.red .btn:hover { background: #fff; }
+.viaeats-promo {
+  margin-top: 22px; padding: 24px 26px;
+  display: grid; grid-template-columns: 1fr auto; gap: 22px; align-items: center;
+  border: 1.5px solid var(--ink); border-radius: 14px; box-shadow: 5px 5px 0 var(--ink);
+  background: #0a2340; color: #fbf5e8;
+}
+.viaeats-promo .eyebrow { font-family: "Baloo 2", var(--display); font-size: 12px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase; color: #f04f1a; }
+.viaeats-promo h3 { margin-top: 4px; font-family: "Baloo 2", var(--display); font-size: clamp(24px, 3vw, 32px); line-height: 1.05; }
+.viaeats-promo p { margin-top: 7px; max-width: 68ch; font-size: 14px; line-height: 1.55; color: rgba(251,245,232,.82); }
+.viaeats-promo .btn { flex: none; background: #f04f1a; }
+@media (max-width: 720px) { .viaeats-promo { grid-template-columns: 1fr; } .viaeats-promo .btn { width: 100%; } }
 
 /* ---------- Hitta hit / kontaktkort ---------- */
 .find { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: stretch; }
@@ -378,6 +389,14 @@ footer .powered { background: transparent; border-color: rgba(243, 234, 217, .3)
         <a class="btn ghost" href="meny.html">Beställ och hämta</a>
       </div>
     </div>
+    <aside class="viaeats-promo reveal d2" aria-label="Beställ via viaeats">
+      <div>
+        <div class="eyebrow">Powered by viaeats</div>
+        <h3>Mer för maten. Mindre till mellanhänder.</h3>
+        <p>viaeats vill vara bättre än Foodora – med lägre priser, starkare restauranger och din order prioriterad från kök till dörr. Beställ Palmyra på viaeats och få 30 % rabatt. Dela sedan med en vän så får du ytterligare 30 %.</p>
+      </div>
+      <a class="btn" href="https://www.viaeats.se/r/palmyra-pizzeria-lund?utm_source=palmyra-rabatt&amp;utm_medium=partner-site&amp;utm_campaign=valj-viaeats">Beställ på viaeats</a>
+    </aside>
   </div>
 </section>
 

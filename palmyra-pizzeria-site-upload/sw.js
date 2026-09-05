@@ -1,4 +1,4 @@
-const CACHE='palmyra-v15-viaeats';
+const CACHE='palmyra-v16-viaeats';
 const ASSETS=['./','index.html','meny.html','om.html','kontakt.html','manifest.webmanifest','embed.js'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)));self.skipWaiting();});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});

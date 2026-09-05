@@ -94,6 +94,15 @@ function classifyChannel(): { channel: string; referrer: string | null } {
 function rememberChannel(): { channel: string; referrer?: string } {
   if (typeof window === "undefined") return { channel: "Direkt" };
   try {
+    // Ett explicit kampanjklick är ett nytt, avsiktligt inflöde även om samma
+    // flik tidigare besökt viaeats. Skriv därför över en äldre sessionskanal
+    // när länken bär utm_source (t.ex. Palmyras "Beställ på viaeats").
+    if (new URLSearchParams(window.location.search).get("utm_source")) {
+      const resolved = classifyChannel();
+      const value = { channel: resolved.channel, ...(resolved.referrer ? { referrer: resolved.referrer } : {}) };
+      window.sessionStorage.setItem(CHANNEL_KEY, JSON.stringify(value));
+      return value;
+    }
     const stored = window.sessionStorage.getItem(CHANNEL_KEY);
     if (stored) return JSON.parse(stored);
     const resolved = classifyChannel();

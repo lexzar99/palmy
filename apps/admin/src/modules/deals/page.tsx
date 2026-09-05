@@ -58,6 +58,11 @@ export function DealsPage() {
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => updateAutomaticDeal(id, { isActive }),
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: dealsQueryKey }); },
   });
+  const togglePartnerEmbedMutation = useMutation({
+    mutationFn: ({ id, partnerEmbedEnabled }: { id: string; partnerEmbedEnabled: boolean }) =>
+      updateAutomaticDeal(id, { partnerEmbedEnabled }),
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: dealsQueryKey }); },
+  });
 
   const appDeals = useMemo(
     () => (automaticDeals.data || []).filter((d) => d.appEnabled && !isBogoDeal(d)),
@@ -146,6 +151,8 @@ export function DealsPage() {
           onOpen={(deal) => router.push(`/deals/kampanj/${deal.id}`)}
           onToggle={(deal, next) => toggleDealMutation.mutate({ id: deal.id, isActive: next })}
           togglePending={toggleDealMutation.isPending}
+          onTogglePartnerEmbed={(deal, next) => togglePartnerEmbedMutation.mutate({ id: deal.id, partnerEmbedEnabled: next })}
+          partnerEmbedTogglePending={togglePartnerEmbedMutation.isPending}
         />
       )}
 
@@ -238,6 +245,8 @@ function DealTable({
   onOpen,
   onToggle,
   togglePending,
+  onTogglePartnerEmbed,
+  partnerEmbedTogglePending,
 }: {
   deals: AutomaticDealRecord[];
   emptyTitle: string;
@@ -248,9 +257,11 @@ function DealTable({
   onOpen: (deal: AutomaticDealRecord) => void;
   onToggle: (deal: AutomaticDealRecord, next: boolean) => void;
   togglePending: boolean;
+  onTogglePartnerEmbed: (deal: AutomaticDealRecord, next: boolean) => void;
+  partnerEmbedTogglePending: boolean;
 }) {
   const typeLabelFn = getTypeLabel();
-  const cols = "1.6fr 0.8fr 0.9fr 0.9fr 0.9fr 90px 56px";
+  const cols = "1.5fr 0.75fr 0.85fr 0.85fr 0.85fr 90px 100px 48px";
   return (
     <Surface className="overflow-hidden p-0">
       {deals.length === 0 ? (
@@ -268,6 +279,7 @@ function DealTable({
             <span>Period</span>
             <span>Utfall</span>
             <span>Status</span>
+            <span>Privat sida</span>
             <span />
           </div>
           {deals.map((deal, i) => {
@@ -289,6 +301,14 @@ function DealTable({
                 <span className="text-[var(--text-secondary)]">{dealOutcomeLabel(deal)}</span>
                 <span>
                   <Toggle checked={deal.isActive} disabled={togglePending} onChange={(next) => onToggle(deal, next)} />
+                </span>
+                <span>
+                  <Toggle
+                    checked={deal.partnerEmbedEnabled}
+                    disabled={partnerEmbedTogglePending}
+                    onChange={(next) => onTogglePartnerEmbed(deal, next)}
+                    ariaLabel={`${deal.title}: ${deal.partnerEmbedEnabled ? "dölj på" : "visa på"} privat sida`}
+                  />
                 </span>
                 <span className="flex justify-end">
                   <button type="button" onClick={() => onOpen(deal)} aria-label={`Öppna ${deal.title}`} className="text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]">
