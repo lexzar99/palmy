@@ -9,6 +9,7 @@ import styles from "@/modules/finance/finance-workspace.module.css";
 // ersätter den.
 const NAV_ITEMS = [
   { href: "/finance", label: "Ekonomi" },
+  { href: "/finance/restaurangekonomi", label: "Restaurangekonomi" },
   { href: "/finance/payouts", label: "Utbetalningar" },
   { href: "/finance/avstamning", label: "Avstämning" },
   { href: "/finance/installningar", label: "Provision" },

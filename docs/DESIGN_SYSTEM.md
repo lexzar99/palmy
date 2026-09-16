@@ -252,7 +252,8 @@ ink-2, svart pill `Gå hem`. Inga träffar = 56 px grå platta med lupp, titel
 - Inga orange knappar, orange rubriker eller orange understrykningar.
 - Inga `border: 1px solid` runt kort. Inga skuggor på rader.
 - Inga emojis, ingen versal-italic, inga "✨"-badges.
-- Ingen `transform`-animation på element som innehåller `position: fixed`.
+- Ingen `transform`-animation på element som innehåller `position: fixed`
+  eller `position: sticky` (`.ve-fade-in` animerar därför bara opacitet).
 - Ingen `next/image` för bildvärdar som inte är konfigurerade — använd
   `PlainImage` (vanlig `<img>` + `optimizedImageUrl`).
 - Blanda inte Baloo 2 och systemtypsnittet på samma yta.
@@ -321,9 +322,11 @@ Hemsidan behåller sin struktur men taggarna på restaurang- och Aktuellt-
 korten är vita glaspills (`rgba(255,255,255,.92)`) med ikon: krona i amber
 för Utvald, tagg/gåva i orange för rabatt, cykel i grönt för fri leverans.
 "viaeats deals"-kortet ligger under första rälsen som vitt kort med orange
-taggplatta. Emblemet är `public/brand/viaeats-smiley.png` (den riktiga
-orange smileyn) via `components/ViaEatsWordmark.tsx`; `mark` ger bara
-smileyn.
+taggplatta. Emblemet är det **breda lockupet** `public/brand/viaeats-lockup.png`
+(ren orange smiley + ordmärket "viaeats" i navy, transparent bakgrund,
+komponerat ur varumärkespaketet) via `components/ViaEatsWordmark.tsx`;
+`mark` ger bara smileyn (`viaeats-smiley-mark.png`). Den utfasade
+symbolvarianten med bil och påse används aldrig.
 
 ### Orderspårning (`app/order/[id]/page.tsx`)
 Sidan öppnar med en **scen**: ett fält i fasens gradient som täcker toppen,

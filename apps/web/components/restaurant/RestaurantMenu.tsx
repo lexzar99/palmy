@@ -726,20 +726,20 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
       {/* ── Kollapsande toppbar (mobil): glas + titel tonar in med scrollen ── */}
       <div ref={barRef} className="md:hidden fixed inset-x-0 top-0 z-40 pointer-events-none" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
         <div className="absolute inset-0 ve-glass" style={{ opacity: collapse, boxShadow: collapse > 0.98 ? "inset 0 -0.5px 0 var(--ve-line)" : undefined }} />
-        <div className="relative h-[52px] px-4 flex items-center justify-between">
+        <div className="relative grid h-[52px] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center px-4">
           {embedMode ? <span /> : (
-            <button type="button" onClick={goBack} aria-label={t("common.back")} className="ve-glass-btn pointer-events-auto w-10 h-10 rounded-full grid place-items-center" style={barButtonStyle}>
+            <button type="button" onClick={goBack} aria-label={t("common.back")} className="ve-glass-btn pointer-events-auto w-10 h-10 justify-self-start rounded-full grid place-items-center" style={barButtonStyle}>
               <ChevronLeft size={20} strokeWidth={2.4} className="-ml-0.5" />
             </button>
           )}
           <span
             aria-hidden={collapse < 0.5}
-            className="absolute left-1/2 top-1/2 max-w-[54%] truncate text-[16px] font-semibold"
-            style={{ color: "var(--ve-ink)", letterSpacing: "-0.015em", opacity: collapse, transform: `translate(-50%, calc(-50% + ${((1 - collapse) * 8).toFixed(2)}px))` }}
+            className="max-w-[56vw] justify-self-center truncate text-center text-[16px] font-semibold"
+            style={{ color: "var(--ve-ink)", letterSpacing: "-0.015em", opacity: collapse, transform: `translateY(${((1 - collapse) * 8).toFixed(2)}px)` }}
           >
             {restaurant?.name}
           </span>
-          <div className="flex items-center gap-2 pointer-events-auto">
+          <div className="flex items-center justify-end gap-2 pointer-events-auto">
             <button type="button" onClick={() => setShowInfoModal(true)} aria-label={t("menu.info")} className="ve-glass-btn w-10 h-10 rounded-full grid place-items-center" style={barButtonStyle}>
               <Info size={18} strokeWidth={2.2} />
             </button>

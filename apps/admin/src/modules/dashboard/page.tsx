@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { PeriodPicker, readPeriod, periodQuery, periodLabel } from "@/modules/finance/finance-pickers";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowUpRight,
@@ -19,11 +21,6 @@ import {
   financeSummaryQueryKey,
   getFinanceSummary,
 } from "@/modules/finance/api";
-import {
-  monthId,
-  monthLabel,
-  monthRange,
-} from "@/modules/finance/finance-workspace";
 import { getOrders, ordersQueryKey } from "@/modules/orders/api";
 import { OrderDetailsModal } from "@/modules/orders/page";
 import { useAdminSession } from "@/shared/hooks/use-admin-session";
@@ -39,18 +36,10 @@ import styles from "./oversikt.module.css";
 export function DashboardPage() {
   const session = useAdminSession();
   const [activeOrder, setActiveOrder] = useState<string | null>(null);
-  const months = useMemo(
-    () =>
-      Array.from({ length: 2 }, (_, index) => {
-        const date = new Date();
-        return monthId(
-          new Date(date.getFullYear(), date.getMonth() - index, 1),
-        );
-      }),
-    [],
-  );
-  const [month, setMonth] = useState(months[0]);
-  const { from, to } = monthRange(month);
+  const router = useRouter();
+  const params = useSearchParams();
+  const period = readPeriod(params);
+  const { from, to } = period;
   const overview = useQuery({
     queryKey: overviewQueryKey(),
     queryFn: () => getDashboardOverview(),
@@ -59,6 +48,7 @@ export function DashboardPage() {
   const finance = useQuery({
     queryKey: financeSummaryQueryKey(from, to),
     queryFn: () => getFinanceSummary(from, to),
+    refetchInterval: 60_000,
   });
   const orders = useQuery({
     queryKey: ordersQueryKey("ALL", 1, 5),
@@ -98,13 +88,8 @@ export function DashboardPage() {
         <Loader2 size={18} className="animate-spin" /> Hämtar dagens läge…
       </div>
     );
-  const yesterday = data.trend7d.at(-2);
-  const delta =
-    yesterday && yesterday.netSales > 0
-      ? ((data.today.netSales - yesterday.netSales) / yesterday.netSales) * 100
-      : null;
   const peak = Math.max(1, ...data.trend7d.map((point) => point.netSales));
-  const financeHref = `/finance?month=${month}&from=${from}&to=${to}`;
+  const financeHref = `/finance?${periodQuery(period)}`;
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -124,34 +109,22 @@ export function DashboardPage() {
           }).format(new Date(data.generatedAt))}
         </span>
       </header>
-      <div className={styles.stats}>
+      <div className={styles.periodBar}>
+        <h2>Översikt</h2>
+        <PeriodPicker period={period} allowAllTime onChange={(next) => router.replace(`/dashboard?${periodQuery(next)}`, { scroll: false })} />
+      </div>
+      <div className={styles.stats} aria-busy={finance.isFetching}>
         <div>
-          <p>Försäljning idag</p>
-          <strong>{formatCurrency(data.today.netSales)}</strong>
-          <small>
-            {delta === null ? (
-              "Efter återbetalningar"
-            ) : (
-              <>
-                <span
-                  className={delta >= 0 ? styles.positive : styles.negative}
-                >
-                  {delta >= 0 ? "+" : ""}
-                  {delta.toFixed(1).replace(".", ",")} %
-                </span>{" "}
-                mot igår
-              </>
-            )}
-          </small>
+          <p>Försäljning · {periodLabel(period).toLocaleLowerCase("sv-SE")}</p>
+          <strong>{finance.isError ? "—" : finance.data ? formatCurrency(finance.data.settlement.netSales) : "…"}</strong>
+          <small>{finance.isError ? "Kunde inte hämtas" : "Efter återbetalningar"}</small>
         </div>
         <div>
-          <p>Ordrar idag</p>
-          <strong>{data.today.orders}</strong>
-          <small>
-            {data.today.orders
-              ? `${formatCurrency(data.today.netSales / data.today.orders)} i snitt`
-              : "Inga beställningar än"}
-          </small>
+          <p>Ordrar · vald period</p>
+          <strong>{finance.isError ? "—" : finance.data ? finance.data.totals.orderCount : "…"}</strong>
+          <small>{finance.isError ? "Försök igen nedan" : finance.data?.totals.orderCount
+            ? `${formatCurrency(finance.data.settlement.netSales / finance.data.totals.orderCount)} i snitt`
+            : finance.data ? "Inga beställningar under perioden" : "Hämtar perioden…"}</small>
         </div>
         <Link href="/orders">
           <p>Pågående</p>
@@ -310,20 +283,7 @@ export function DashboardPage() {
       <section className={styles.panel}>
         <div className={styles.panelHead}>
           <h2>Ekonomi</h2>
-          <label>
-            <span className="sr-only">Ekonomiperiod</span>
-            <select
-              className={styles.month}
-              value={month}
-              onChange={(event) => setMonth(event.target.value)}
-            >
-              {months.map((value) => (
-                <option key={value} value={value}>
-                  {monthLabel(value)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <span>{periodLabel(period)}</span>
         </div>
         {finance.isError ? (
           <div className={styles.inlineState}>
@@ -341,7 +301,7 @@ export function DashboardPage() {
                   {formatCurrency(finance.data.totals.grossTotal)}
                 </strong>
               </Link>
-              <Link href={`/finance/payouts?month=${month}`}>
+              <Link href={`/finance/restaurangekonomi?${periodQuery(period)}`}>
                 <small>Restaurangernas netto</small>
                 <strong>
                   {formatCurrency(finance.data.settlement.payout)}

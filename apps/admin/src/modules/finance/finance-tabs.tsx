@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { readPeriod, periodQuery } from "./finance-pickers";
 import styles from "@/modules/finance/finance-tabs.module.css";
 
 /**
@@ -29,11 +30,14 @@ const TABS = [
     label: "Utbetalningar",
     match: (path: string) => path.startsWith("/finance/payouts"),
   },
+  { href: "/finance/avstamning", label: "Avstämning", match: (path: string) => path === "/finance/avstamning" },
+  { href: "/finance/installningar", label: "Inställningar", match: (path: string) => path.startsWith("/finance/installningar") },
 ];
 
 export function FinanceTabs({ month }: { month?: string }) {
   const pathname = usePathname();
-  const query = month ? `?month=${month}` : "";
+  const params = useSearchParams();
+  const query = `?${periodQuery(readPeriod(params.has("from") ? params : new URLSearchParams(month ? { month } : {})))}`;
 
   return (
     <nav className={styles.tabs} aria-label="Ekonomi">

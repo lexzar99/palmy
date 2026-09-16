@@ -538,11 +538,11 @@ export function RestaurantEconomyPage({ restaurantId = null }: { restaurantId?: 
                   </div>
                   {active.rows.map((item, index) => (
                     <div className={`${styles.checkGrid} ${styles.checkRow}`} key={`${item.a}-${index}`}>
-                      <span className={styles.checkCellStrong}>{item.a}</span>
-                      <span className={styles.checkCell}>{item.b}</span>
-                      <span className={styles.checkCell}>{item.c}</span>
-                      <span className={styles.checkCellStrong}>{item.d}</span>
-                      <span>
+                      <span data-label={active.columns[0]} className={styles.checkCellStrong}>{item.a}</span>
+                      <span data-label={active.columns[1]} className={styles.checkCell}>{item.b}</span>
+                      <span data-label={active.columns[2]} className={styles.checkCell}>{item.c}</span>
+                      <span data-label={active.columns[3]} className={styles.checkCellStrong}>{item.d}</span>
+                      <span data-label={active.columns[4]}>
                         <span className={`${styles.pill} ${TONE_STYLE[item.tone]}`}>{item.e}</span>
                       </span>
                     </div>

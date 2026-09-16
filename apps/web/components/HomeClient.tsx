@@ -2241,53 +2241,54 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
   return (
     <div className="viaeats-app-bg min-h-screen pb-36 md:pt-24" style={{ color: "var(--text-primary)" }}>
       <div className="sticky top-0 z-[1400] border-b border-[var(--border-muted)] bg-white/75 backdrop-blur-xl md:static md:border-0 md:bg-transparent md:backdrop-blur-0" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
-        <header className="mx-auto max-w-7xl px-4 py-3.5 md:px-7 md:pb-6 md:pt-0">
-          <div className="flex items-center gap-3">
+        {/* Kompakt sticky-header: adressraden ett snäpp mindre, sökfältet
+            en 40 px-pill. Tar så lite höjd som möjligt från maten under. */}
+        <header className="mx-auto max-w-7xl px-4 pb-2.5 pt-2 md:px-7 md:pb-6 md:pt-0">
+          <div className="flex items-center gap-2">
             <button type="button" onClick={() => setShowAddressModal(true)} className="min-w-0 flex flex-1 items-center text-left">
               <span className="min-w-0">
-                <span className="block text-[12px] font-bold tracking-[-0.01em] text-[var(--muted)]">
+                <span className="block text-[11px] font-semibold text-[var(--muted)]">
                   {orderType === "DELIVERY" ? t("home.address.deliverTo") : t("home.address.pickupIn")}
                 </span>
-                <span className="mt-0.5 flex min-w-0 items-center gap-1.5">
-                  <span className="truncate text-[15px] font-black leading-tight tracking-normal text-[var(--ink)]">
+                <span className="flex min-w-0 items-center gap-1">
+                  <span className="truncate text-[14px] font-black leading-tight text-[var(--ink)]">
                     {address || detectedCityName || "Välj adress"}
                   </span>
-                  <ChevronDown size={14} strokeWidth={2.6} className="shrink-0 text-[var(--ink)] opacity-70" />
+                  <ChevronDown size={13} strokeWidth={2.6} className="shrink-0 text-[var(--ink)] opacity-70" />
                 </span>
               </span>
             </button>
 
             <Link
               href="/discover"
-              className="relative flex h-[42px] w-[42px] shrink-0 items-center justify-center text-[var(--ink)]"
+              className="relative flex h-9 w-9 shrink-0 items-center justify-center text-[var(--ink)]"
               aria-label="Favoriter"
             >
-              <Heart size={18} fill={favorites.size > 0 ? "var(--orange)" : "none"} strokeWidth={2.2} className={favorites.size > 0 ? "text-[var(--orange)]" : ""} />
+              <Heart size={17} fill={favorites.size > 0 ? "var(--orange)" : "none"} strokeWidth={2.2} className={favorites.size > 0 ? "text-[var(--orange)]" : ""} />
               {favorites.size > 0 && (
-                <span className="absolute -right-1 -top-1 flex min-h-[17px] min-w-[17px] items-center justify-center rounded-full bg-[var(--orange)] px-1 text-[9px] font-black text-white">
+                <span className="absolute -right-0.5 -top-0.5 flex min-h-[16px] min-w-[16px] items-center justify-center rounded-full bg-[var(--orange)] px-1 text-[9px] font-black text-white">
                   {favorites.size > 99 ? "99+" : favorites.size}
                 </span>
               )}
             </Link>
           </div>
 
-          <div className="mt-4">
-            <label className="flex h-[55px] flex-1 items-center gap-3 rounded-[17px] border border-[var(--line)] bg-white px-4 shadow-[0_5px_18px_rgba(17,33,56,0.06)]">
-              <Search size={20} strokeWidth={2.2} className="shrink-0 text-[var(--muted)]" />
+          <div className="mt-2">
+            <label className="flex h-10 flex-1 items-center gap-2.5 rounded-full bg-white px-3.5" style={{ boxShadow: "inset 0 0 0 0.5px rgba(60,60,67,0.12), 0 1px 2px rgba(0,0,0,0.03)" }}>
+              <Search size={16} strokeWidth={2.4} className="shrink-0 text-[var(--muted)]" />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Sök restaurang, sushi, pizza..."
-                className="h-full min-w-0 flex-1 bg-transparent text-[16px] font-semibold text-[var(--ink)] outline-none placeholder:text-[var(--muted)] md:text-[14px]"
+                className="h-full min-w-0 flex-1 bg-transparent text-[16px] font-medium text-[var(--ink)] outline-none placeholder:text-[var(--muted)] md:text-[14px]"
               />
               {query && (
-                <button type="button" onClick={() => setQuery("")} className="text-[var(--muted)]" aria-label="Rensa sök">
-                  <X size={16} fill="currentColor" />
+                <button type="button" onClick={() => setQuery("")} className="grid h-6 w-6 place-items-center rounded-full text-white" style={{ backgroundColor: "#8E8E93" }} aria-label="Rensa sök">
+                  <X size={12} strokeWidth={3} />
                 </button>
               )}
             </label>
           </div>
-
         </header>
       </div>
 

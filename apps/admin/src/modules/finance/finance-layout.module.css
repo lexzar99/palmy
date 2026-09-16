@@ -1,0 +1,11 @@
+/* Detaljvyerna delar samma typografi och tillgängliga reglage. */
+.finance { min-width: 0; }
+.finance :global(.font-black), .finance :global(.font-extrabold) { font-weight: 650; }
+.finance :global(.font-bold) { font-weight: 600; }
+.finance :is(button, a, input, select, textarea):focus-visible { outline: 2px solid var(--brand-orange-ink); outline-offset: 3px; }
+.finance :is(input, select, textarea) { accent-color: var(--brand-orange-ink); }
+.finance :global(.btn) { min-height: 42px; }
+@media (max-width: 720px) {
+  .finance :is(input, select, textarea) { font-size: 16px; }
+  .finance :global(.btn) { min-height: 44px; }
+}

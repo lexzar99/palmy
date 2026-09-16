@@ -6,7 +6,7 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 30px 34px;
+  padding: 4px 0 0;
 }
 
 /* ── Sidhuvud ───────────────────────────────────────────────────────────── */
@@ -21,7 +21,7 @@
 .crumbs {
   margin: 0;
   font-size: 10.5px;
-  font-weight: 900;
+  font-weight: 650;
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -46,7 +46,7 @@
 .title {
   margin: 0;
   font-size: 30px;
-  font-weight: 900;
+  font-weight: 650;
   letter-spacing: -0.03em;
   color: var(--text-primary);
 }
@@ -54,7 +54,7 @@
 .subtitle {
   margin: 5px 0 0;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--text-secondary);
 }
 
@@ -79,7 +79,7 @@
   border-radius: 9px;
   background: transparent;
   font-size: 12.5px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text-secondary);
   cursor: pointer;
 }
@@ -102,7 +102,7 @@
   background: var(--bg-panel);
   color: var(--text-primary);
   font-size: 12.5px;
-  font-weight: 900;
+  font-weight: 650;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -126,7 +126,7 @@
   border-radius: 12px;
   background: var(--warning-soft);
   font-size: 12.5px;
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1.5;
   color: var(--warning-text);
 }
@@ -135,7 +135,7 @@
 
 .kpis {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -149,7 +149,7 @@
 .kpiLabel {
   margin: 0;
   font-size: 10.5px;
-  font-weight: 900;
+  font-weight: 650;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -158,7 +158,7 @@
 .kpiValue {
   margin: 8px 0 0;
   font-size: 24px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
@@ -166,17 +166,11 @@
 .kpiMeta {
   margin: 3px 0 0;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--text-muted);
 }
 
-.kpiNavy {
-  border: 0;
-  background: var(--brand-navy);
-
-  --text-primary: #ffffff;
-  --text-muted: rgba(254, 247, 240, 0.55);
-}
+.kpiNavy {  background: var(--bg-panel); border: 1px solid var(--border-subtle); box-shadow: inset 0 2px 0 var(--brand-orange-ink); }
 
 /* ── Tvåspaltiga kroppen ────────────────────────────────────────────────── */
 
@@ -211,7 +205,7 @@
 .panelTitle {
   margin: 0;
   font-size: 16px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--text-primary);
 }
 
@@ -232,7 +226,7 @@
 .specLabel {
   margin: 0;
   font-size: 10.5px;
-  font-weight: 900;
+  font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -263,14 +257,14 @@
 
 .lineName {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--text-secondary);
 }
 
 .lineValue {
   flex: none;
   font-size: 13.5px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -293,14 +287,14 @@
 
 .totalName {
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--text-primary);
 }
 
 .totalValue {
   flex: none;
   font-size: 16px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -316,7 +310,7 @@
 .historyLabel {
   margin: 0 0 8px;
   font-size: 10.5px;
-  font-weight: 900;
+  font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -333,21 +327,21 @@
 .historyTitle {
   display: block;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text-primary);
 }
 
 .historyMeta {
   display: block;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--text-muted);
 }
 
 .historyAmount {
   flex: none;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -369,7 +363,7 @@
 .payoutFootLabel {
   display: block;
   font-size: 12.5px;
-  font-weight: 800;
+  font-weight: 600;
   color: rgba(254, 247, 240, 0.6);
 }
 
@@ -377,7 +371,7 @@
   display: block;
   margin-top: 4px;
   font-size: 32px;
-  font-weight: 900;
+  font-weight: 650;
   letter-spacing: -0.04em;
   color: #ffffff;
   font-variant-numeric: tabular-nums;
@@ -387,7 +381,7 @@
   display: block;
   margin-top: 4px;
   font-size: 11.5px;
-  font-weight: 700;
+  font-weight: 500;
   color: rgba(254, 247, 240, 0.45);
 }
 
@@ -399,7 +393,7 @@
   background: transparent;
   color: var(--brand-cream);
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -416,7 +410,7 @@
   border: 0;
   background: none;
   font-size: 12.5px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text-secondary);
   cursor: pointer;
 }
@@ -436,7 +430,7 @@
 .checkTitle {
   margin: 0;
   font-size: 21px;
-  font-weight: 900;
+  font-weight: 650;
   letter-spacing: -0.02em;
   color: var(--text-primary);
 }
@@ -445,7 +439,7 @@
   margin: 6px 0 0;
   max-width: 520px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1.55;
   color: var(--text-secondary);
 }
@@ -466,7 +460,7 @@
 .checkStatLabel {
   margin: 0;
   font-size: 10.5px;
-  font-weight: 900;
+  font-weight: 650;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -475,7 +469,7 @@
 .checkStatValue {
   margin: 7px 0 0;
   font-size: 20px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
@@ -483,7 +477,7 @@
 .checkStatDetail {
   margin: 3px 0 0;
   font-size: 11.5px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--text-muted);
 }
 
@@ -503,7 +497,7 @@
 
 .checkColumn {
   font-size: 10.5px;
-  font-weight: 900;
+  font-weight: 650;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -516,14 +510,14 @@
 
 .checkCellStrong {
   font-size: 12.5px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
 
 .checkCell {
   font-size: 12.5px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
@@ -531,7 +525,7 @@
 .checkEmpty {
   margin: 18px 0 0;
   font-size: 12.5px;
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1.55;
   color: var(--text-muted);
 }
@@ -550,7 +544,7 @@
 
 .checkFixText {
   font-size: 12.5px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--brand-orange-ink);
 }
 
@@ -566,7 +560,7 @@
   border-radius: 11px;
   background: var(--bg-panel);
   font-size: 12.5px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text-primary);
   cursor: pointer;
 }
@@ -576,7 +570,7 @@
   padding: 0 16px;
   background: var(--brand-orange);
   color: #ffffff;
-  font-weight: 900;
+  font-weight: 650;
   white-space: nowrap;
 }
 
@@ -584,7 +578,7 @@
   align-self: flex-start;
   margin-top: 18px;
   font-size: 12.5px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--brand-navy-ink);
   text-decoration: none;
 }
@@ -617,13 +611,13 @@
 .sideTitle {
   margin: 0;
   font-size: 15px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--text-primary);
 }
 
 .sideSummary {
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text-muted);
 }
 
@@ -662,7 +656,7 @@
   height: 22px;
   border-radius: 99px;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 650;
 }
 
 .checkItemBody {
@@ -673,7 +667,7 @@
 .checkItemTitle {
   display: block;
   font-size: 12.5px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text-primary);
 }
 
@@ -681,13 +675,13 @@
   display: block;
   margin-top: 1px;
   font-size: 11.5px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--text-muted);
 }
 
 .chevron {
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 650;
   color: color-mix(in srgb, var(--text-muted) 62%, transparent);
 }
 
@@ -696,7 +690,7 @@
 .adjustNote {
   margin: 5px 0 0;
   font-size: 11.5px;
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1.5;
   color: var(--text-muted);
 }
@@ -716,7 +710,7 @@
   border-radius: 11px;
   background: var(--bg-panel);
   font-size: 15px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--text-primary);
   cursor: pointer;
 }
@@ -731,7 +725,7 @@
   background: var(--bg-panel);
   font-family: inherit;
   font-size: 15px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--text-primary);
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -766,13 +760,13 @@
 
 .previewLabel {
   font-size: 12.5px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text-secondary);
 }
 
 .previewValue {
   font-size: 17px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
@@ -786,7 +780,7 @@
   background: var(--text-primary);
   color: var(--bg-panel);
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 650;
   cursor: pointer;
 }
 
@@ -803,7 +797,7 @@
 .recipientLabel {
   margin: 0;
   font-size: 10.5px;
-  font-weight: 900;
+  font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -812,14 +806,14 @@
 .recipientName {
   margin: 8px 0 0;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text-primary);
 }
 
 .recipientLine {
   margin: 3px 0 0;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--text-secondary);
 }
 
@@ -830,7 +824,7 @@
   padding: 5px 12px;
   border-radius: 99px;
   font-size: 11.5px;
-  font-weight: 900;
+  font-weight: 650;
 }
 
 .badge {
@@ -839,7 +833,7 @@
   padding: 6px 12px;
   border-radius: 99px;
   font-size: 11.5px;
-  font-weight: 900;
+  font-weight: 650;
 }
 
 .pill {
@@ -847,7 +841,7 @@
   padding: 3px 9px;
   border-radius: 99px;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 650;
 }
 
 .toneOk {
@@ -880,7 +874,7 @@
 .error {
   margin: 10px 0 0;
   font-size: 12.5px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--danger-text);
 }
 
@@ -903,7 +897,7 @@
 
 @media (max-width: 720px) {
   .page {
-    padding: 20px 16px;
+    padding: 0;
   }
 
   .header {
@@ -924,3 +918,33 @@
     gap: 4px 12px;
   }
 }
+
+/* Gemensam rytm för ekonomivyerna. */
+.header { flex-wrap: wrap; align-items: center; }
+.headerActions { flex-wrap: wrap; max-width: 100%; }
+.title { font-size: clamp(26px, 3vw, 32px); line-height: 1.15; }
+.page { min-width: 0; gap: 22px; }
+
+.kpi { min-width: 0; }
+.kpiValue, .payoutFootValue { overflow-wrap: anywhere; line-height: 1.2; }
+.kpiLabel, .crumbs, .specLabel, .historyLabel, .recipientLabel { text-transform: none; letter-spacing: 0; font-size: 12px; }
+.titleRow, .payoutFoot, .checkHead, .checkFix, .checkFixActions, .preview { flex-wrap: wrap; }
+.segmentButtonActive, .segmentButtonActive:hover, .checkItemActive { color: var(--brand-orange-ink); background: var(--brand-orange-soft); }
+.payoutFoot { border: 1px solid var(--border-subtle); background: var(--bg-panel-muted); }
+.payoutFootLabel, .payoutFootMeta { color: var(--text-muted); }
+.payoutFootValue { color: var(--brand-orange-ink); }
+.payoutFootButton { color: var(--text-primary); border-color: var(--border-strong); }
+.actionButtonPrimary, .smallButtonPrimary { background: var(--brand-orange-soft); color: var(--brand-orange-ink); border: 1px solid color-mix(in srgb, var(--brand-orange-ink) 25%, transparent); }
+@media (max-width: 720px) {
+ .panel, .sidePanel { padding: 20px; }
+ .headerActions { width: 100%; }
+ .checkFix { padding: 16px; }
+ .payoutFoot { padding: 18px; }
+ .payoutFootValue { font-size: 28px; }
+ .checkGrid { grid-template-columns: 1fr; }
+ .checkColumns { display: none; }
+ .checkRow > span { display: flex; justify-content: space-between; gap: 12px; }
+ .checkRow > span::before { color: var(--text-muted); font-weight: 500; }
+}
+
+@media (max-width: 720px) { .checkRow > span::before { content: attr(data-label); } }

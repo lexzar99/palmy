@@ -474,3 +474,8 @@
   text-transform: none;
   letter-spacing: 0;
 }
+
+.periodBar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.periodBar h2 { font-size: 15px; font-weight: 600; color: var(--text-secondary); }
+.stats > div:first-child strong { color: var(--brand-orange-ink); }
+.stats strong { overflow-wrap: anywhere; }

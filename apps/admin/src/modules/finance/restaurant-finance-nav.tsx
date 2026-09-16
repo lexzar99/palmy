@@ -53,9 +53,9 @@ export function RestaurantFinanceNav({
             key={item.view}
             href={`/finance/${restaurantId}${item.suffix}${query}`}
             aria-current={current ? "page" : undefined}
-            className={`inline-flex min-h-9 flex-none items-center rounded-lg px-3 text-xs font-extrabold transition-colors ${
+            className={`inline-flex min-h-11 flex-none items-center rounded-lg px-3 text-xs font-semibold transition-colors ${
               current
-                ? "bg-[var(--brand-navy)] text-white"
+                ? "bg-[var(--brand-orange-soft)] text-[var(--brand-orange-ink)]"
                 : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
             }`}
           >

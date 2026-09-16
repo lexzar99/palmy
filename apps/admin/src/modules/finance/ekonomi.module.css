@@ -5,7 +5,7 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
-  padding: 30px 34px;
+  padding: 4px 0 0;
 }
 
 /* ── Sidhuvud ───────────────────────────────────────────────────────────── */
@@ -20,7 +20,7 @@
 .eyebrow {
   margin: 0;
   font-size: 10.5px;
-  font-weight: 900;
+  font-weight: 650;
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -29,7 +29,7 @@
 .title {
   margin: 6px 0 0;
   font-size: 30px;
-  font-weight: 900;
+  font-weight: 650;
   letter-spacing: -0.03em;
   color: var(--text-primary);
 }
@@ -50,7 +50,7 @@
   border-radius: 12px;
   background: var(--bg-panel);
   font-size: 12.5px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text-secondary);
   cursor: pointer;
 }
@@ -73,7 +73,7 @@
   background: var(--text-primary);
   color: var(--bg-panel);
   font-size: 12.5px;
-  font-weight: 900;
+  font-weight: 650;
   cursor: pointer;
   text-decoration: none;
 }
@@ -103,7 +103,7 @@
   border-radius: 10px;
   background: none;
   font-size: 12.5px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text-primary);
   cursor: pointer;
   text-align: left;
@@ -115,7 +115,7 @@
 
 .periodPresetRange {
   font-size: 11.5px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--text-muted);
 }
 
@@ -128,7 +128,7 @@
 .periodCustomLabel {
   margin: 0 0 8px;
   font-size: 10.5px;
-  font-weight: 900;
+  font-weight: 650;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -150,14 +150,14 @@
   background: var(--bg-panel);
   font-family: inherit;
   font-size: 12.5px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--text-primary);
   outline: none;
 }
 
 .periodArrow {
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text-muted);
 }
 
@@ -170,7 +170,7 @@
   background: var(--text-primary);
   color: var(--bg-panel);
   font-size: 12.5px;
-  font-weight: 900;
+  font-weight: 650;
   cursor: pointer;
 }
 
@@ -178,7 +178,7 @@
 
 .columns {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -205,14 +205,14 @@
   border-radius: 99px;
   background: color-mix(in srgb, var(--text-primary) 6%, transparent);
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--text-secondary);
 }
 
 .cardLabel {
   margin: 0;
   font-size: 10.5px;
-  font-weight: 900;
+  font-weight: 650;
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -221,7 +221,7 @@
 .cardValue {
   margin: 14px 0 0;
   font-size: 34px;
-  font-weight: 900;
+  font-weight: 650;
   letter-spacing: -0.035em;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
@@ -230,7 +230,7 @@
 .cardCaption {
   margin: 5px 0 0;
   font-size: 12.5px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--text-muted);
 }
 
@@ -255,7 +255,7 @@
 
 .lineLabel {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--text-secondary);
 }
 
@@ -263,7 +263,7 @@
 .lineValue {
   flex: none;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -298,13 +298,13 @@
 
 .cardTotalLabel {
   font-size: 12.5px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--text-primary);
 }
 
 .cardTotalValue {
   font-size: 17px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
@@ -312,16 +312,7 @@
 /* Navy-kortet är navy i båda lägena. Samma token-override-trick som
    .hero-card, så allt nästlat skinnar om sig själv i stället för att varje
    rad bär en egen färg. */
-.cardNavy {
-  border: 0;
-  background: var(--brand-navy);
-
-  --text-primary: #ffffff;
-  --text-secondary: rgba(254, 247, 240, 0.7);
-  --text-muted: rgba(254, 247, 240, 0.55);
-  --border-subtle: rgba(254, 247, 240, 0.13);
-  --bg-panel-muted: rgba(254, 247, 240, 0.1);
-}
+.cardNavy {  background: var(--bg-panel); border: 1px solid var(--border-subtle); box-shadow: inset 0 2px 0 var(--brand-orange-ink); }
 
 .cardNavy .step {
   background: rgba(254, 247, 240, 0.14);
@@ -361,14 +352,14 @@
 .tableTitle {
   margin: 0;
   font-size: 16px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--text-primary);
 }
 
 .tableSubtitle {
   margin: 3px 0 0;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--text-muted);
 }
 
@@ -384,7 +375,7 @@
   padding: 6px 12px;
   border-radius: 99px;
   font-size: 11.5px;
-  font-weight: 900;
+  font-weight: 650;
 }
 
 .countDraft {
@@ -418,7 +409,7 @@
 
 .columnHeader {
   font-size: 10.5px;
-  font-weight: 900;
+  font-weight: 650;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -441,7 +432,7 @@
 .rowName {
   display: block;
   font-size: 13.5px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text-primary);
 }
 
@@ -449,7 +440,7 @@
   display: block;
   margin-top: 2px;
   font-size: 11.5px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--text-muted);
 }
 
@@ -460,25 +451,25 @@
 
 .cellSoft {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--text-secondary);
 }
 
 .cellStrong {
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text-primary);
 }
 
 .cellPayout {
   font-size: 13.5px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--text-primary);
 }
 
 .cellAdjust {
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .status {
@@ -486,7 +477,7 @@
   padding: 4px 10px;
   border-radius: 99px;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 650;
 }
 
 .statusDraft {
@@ -511,13 +502,13 @@
 
 .totalsCell {
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--text-primary);
 }
 
 .totalsPayout {
   font-size: 13.5px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--text-primary);
 }
 
@@ -556,7 +547,7 @@
 
 @media (max-width: 720px) {
   .page {
-    padding: 20px 16px;
+    padding: 0;
   }
 
   .header {
@@ -567,4 +558,46 @@
   .headerActions {
     flex-wrap: wrap;
   }
+}
+
+/* Gemensam rytm för ekonomivyerna. */
+.header { flex-wrap: wrap; align-items: center; }
+.headerActions { flex-wrap: wrap; max-width: 100%; }
+.title { font-size: clamp(26px, 3vw, 32px); line-height: 1.15; }
+.page { min-width: 0; gap: 22px; }
+
+.card { min-width: 0; padding: 22px; }
+.cardValue { font-size: clamp(26px, 2.4vw, 34px); overflow-wrap: anywhere; line-height: 1.2; }
+.cardLabel, .eyebrow { text-transform: none; letter-spacing: 0; font-size: 12px; }
+.step, .cardNavy .step { background: var(--brand-orange-soft); color: var(--brand-orange-ink); }
+.cardNavy .cardCaption { color: var(--text-muted); }
+.lineDim { color: var(--text-muted); }
+.cardTotal { flex-wrap: wrap; white-space: normal; }
+.cardTotalValue { color: var(--brand-orange-ink); }
+.tableHead, .counts { flex-wrap: wrap; }
+.grid { gap: 12px; }
+.rowName, .rowMeta { overflow-wrap: anywhere; }
+@media (min-width: 1000px) and (max-width: 1180px) { .columns { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 720px) { .card { padding: 20px; } .tableHead { padding: 18px; } }
+
+/* Samma underlag som på datorn, i läsbara rader på mindre skärmar. */
+@media (max-width: 1180px) {
+ .table { overflow: hidden; }
+ .grid { min-width: 0; }
+ .columnHeaders { display: none; }
+ .row, .totalsRow { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 16px 20px; padding: 20px; }
+ .row > span, .totalsRow > span { min-width: 0; text-align: left; overflow-wrap: anywhere; }
+ .row > span:first-child, .totalsRow > span:first-child { grid-column: 1 / -1; padding-bottom: 10px; border-bottom: 1px solid var(--border-subtle); }
+ .row > span::before, .totalsRow > span::before { display: block; margin-bottom: 5px; color: var(--text-muted); font-size: 11px; font-weight: 500; }
+ .rowName { font-size: 15px; }
+ .row .statusCell { display: block; }
+ .row .chevron { display: none; }
+ .totalsRow > span:empty { display: none; }
+ .row > span:nth-child(2)::before, .totalsRow > span:nth-child(2)::before { content: "Ordrar"; }
+ .row > span:nth-child(3)::before, .totalsRow > span:nth-child(3)::before { content: "Netto"; }
+ .row > span:nth-child(4)::before, .totalsRow > span:nth-child(4)::before { content: "Provision"; }
+ .row > span:nth-child(5)::before, .totalsRow > span:nth-child(5)::before { content: "Betalavgift"; }
+ .row > span:nth-child(6)::before, .totalsRow > span:nth-child(6)::before { content: "Justering"; }
+ .row > span:nth-child(7)::before, .totalsRow > span:nth-child(7)::before { content: "Utbetalning"; }
+ .row > span:nth-child(8)::before, .totalsRow > span:nth-child(8)::before { content: "Status"; }
 }

@@ -23,7 +23,7 @@
   margin-bottom: 5px;
   color: var(--text-muted);
   font-size: 10px;
-  font-weight: 850;
+  font-weight: 650;
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
@@ -31,7 +31,7 @@
 .title {
   color: var(--text-primary);
   font-size: clamp(24px, 3vw, 34px);
-  font-weight: 850;
+  font-weight: 650;
   letter-spacing: -0.04em;
   line-height: 1.05;
 }
@@ -84,7 +84,7 @@
   background: transparent;
   color: var(--text-primary);
   font-size: 12.5px;
-  font-weight: 750;
+  font-weight: 600;
   text-align: center;
 }
 
@@ -99,7 +99,7 @@
   background: var(--bg-panel);
   color: var(--text-secondary);
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 600;
 }
 
 .refreshButton:hover { border-color: var(--border-strong); color: var(--text-primary); }
@@ -126,7 +126,7 @@
   border-radius: 9px;
   color: var(--text-secondary);
   font-size: 12.5px;
-  font-weight: 750;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -151,7 +151,7 @@
 .microLabel {
   color: var(--text-muted);
   font-size: 10px;
-  font-weight: 850;
+  font-weight: 650;
   letter-spacing: 0.095em;
   text-transform: uppercase;
 }
@@ -161,7 +161,7 @@
   overflow: hidden;
   color: var(--text-primary);
   font-size: clamp(21px, 2.1vw, 29px);
-  font-weight: 850;
+  font-weight: 650;
   letter-spacing: -0.045em;
   line-height: 1.1;
   text-overflow: ellipsis;
@@ -190,7 +190,7 @@
 
 .closeIntro { padding: 24px; border-right: 1px solid rgba(255,255,255,.1); }
 .closeIntro .microLabel { color: rgba(255,255,255,.58); }
-.closeTitle { margin-top: 7px; font-size: 22px; font-weight: 850; letter-spacing: -.035em; }
+.closeTitle { margin-top: 7px; font-size: 22px; font-weight: 650; letter-spacing: -.035em; }
 .closeCopy { margin-top: 7px; color: rgba(255,255,255,.66); font-size: 12px; line-height: 1.5; }
 
 .closeSteps {
@@ -228,11 +228,11 @@
   background: rgba(255,255,255,.08);
   color: rgba(255,255,255,.64);
   font-size: 10px;
-  font-weight: 850;
+  font-weight: 650;
 }
 
 .stepDotReady { border-color: rgba(94,234,212,.36); background: rgba(22,163,74,.25); color: #bbf7d0; }
-.stepName { margin-top: 9px; overflow: hidden; font-size: 11px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+.stepName { margin-top: 9px; overflow: hidden; font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .stepValue { margin-top: 3px; color: rgba(255,255,255,.6); font-size: 10.5px; }
 
 .twoColumn {
@@ -258,7 +258,7 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
-.panelTitle { color: var(--text-primary); font-size: 14px; font-weight: 850; }
+.panelTitle { color: var(--text-primary); font-size: 14px; font-weight: 650; }
 .panelSubtitle { margin-top: 3px; color: var(--text-muted); font-size: 11px; }
 
 .actionRow {
@@ -273,15 +273,15 @@
 
 .actionRow:last-child { border-bottom: 0; }
 .actionRow:hover { background: var(--bg-panel-soft); }
-.restaurantName { overflow: hidden; color: var(--text-primary); font-size: 12.5px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.restaurantName { overflow: hidden; color: var(--text-primary); font-size: 12.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .restaurantMeta { margin-top: 3px; overflow: hidden; color: var(--text-muted); font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; }
-.amount { color: var(--text-primary); font-size: 13px; font-weight: 850; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.amount { color: var(--text-primary); font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .statusList { padding: 6px 18px 12px; }
 .statusLine { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--row-divider); }
 .statusLine:last-child { border-bottom: 0; }
-.statusLabel { display: flex; align-items: center; gap: 9px; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
-.statusCount { color: var(--text-primary); font-size: 12px; font-weight: 850; font-variant-numeric: tabular-nums; }
+.statusLabel { display: flex; align-items: center; gap: 9px; color: var(--text-secondary); font-size: 12px; font-weight: 500; }
+.statusCount { color: var(--text-primary); font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .statusDot { width: 7px; height: 7px; border-radius: 999px; background: var(--text-muted); }
 .statusDotWarning { background: var(--warning); }
 .statusDotSuccess { background: var(--success); }
@@ -304,45 +304,45 @@
 
 .filterTabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
 .filterTabs::-webkit-scrollbar { display: none; }
-.filterTab { min-height: 34px; flex: none; padding: 0 11px; border: 0; border-radius: 8px; background: transparent; color: var(--text-secondary); font-size: 11.5px; font-weight: 750; white-space: nowrap; }
+.filterTab { min-height: 34px; flex: none; padding: 0 11px; border: 0; border-radius: 8px; background: transparent; color: var(--text-secondary); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
 .filterTab:hover { background: var(--bg-hover); color: var(--text-primary); }
 .filterTabActive { background: var(--brand-navy-soft); color: var(--brand-navy-ink); }
 
 .ledger { overflow-x: auto; }
 .ledgerTable { width: 100%; min-width: 1000px; border-collapse: collapse; }
-.ledgerTable th { padding: 11px 15px; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 9.5px; font-weight: 850; letter-spacing: .08em; text-align: left; text-transform: uppercase; }
+.ledgerTable th { padding: 11px 15px; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 9.5px; font-weight: 650; letter-spacing: .08em; text-align: left; text-transform: uppercase; }
 .ledgerTable td { padding: 14px 15px; border-bottom: 1px solid var(--row-divider); color: var(--text-secondary); font-size: 11.5px; vertical-align: middle; }
 .ledgerTable tbody tr:last-child td { border-bottom: 0; }
 .ledgerTable tbody tr:hover { background: var(--bg-panel-soft); }
 .numeric { text-align: right !important; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.outcomePrimary { color: var(--text-primary); font-size: 12px; font-weight: 850; }
+.outcomePrimary { color: var(--text-primary); font-size: 12px; font-weight: 650; }
 .outcomeMeta { margin-top: 3px; color: var(--text-muted); font-size: 10px; }
 
 .waterfall { padding: 8px 20px 16px; }
 .waterfallGroup { padding: 8px 0; }
 .waterfallGroup + .waterfallGroup { border-top: 1px solid var(--border-subtle); }
 .waterfallRow { display: flex; align-items: baseline; justify-content: space-between; gap: 20px; padding: 7px 0; color: var(--text-secondary); font-size: 12px; }
-.waterfallRow strong { color: var(--text-primary); font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.waterfallRow strong { color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .waterfallSub { padding-left: 16px; color: var(--text-muted); font-size: 11px; }
 .waterfallTotal { margin-top: 8px; padding: 17px 18px; border-radius: 13px; background: var(--brand-navy); color: white; }
-.waterfallTotalLabel { color: rgba(255,255,255,.62); font-size: 10px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
-.waterfallTotalValue { margin-top: 5px; font-size: clamp(26px, 3vw, 36px); font-weight: 900; letter-spacing: -.045em; font-variant-numeric: tabular-nums; }
+.waterfallTotalLabel { color: rgba(255,255,255,.62); font-size: 10px; font-weight: 650; letter-spacing: .1em; text-transform: uppercase; }
+.waterfallTotalValue { margin-top: 5px; font-size: clamp(26px, 3vw, 36px); font-weight: 650; letter-spacing: -.045em; font-variant-numeric: tabular-nums; }
 
 .detailGrid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, .7fr); gap: 14px; align-items: start; }
 .sticky { position: sticky; top: 20px; }
 .workflowList { padding: 6px 18px 12px; }
 .workflowItem { display: grid; grid-template-columns: 24px minmax(0,1fr); gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--row-divider); }
 .workflowItem:last-child { border-bottom: 0; }
-.workflowIcon { display: inline-flex; width: 22px; height: 22px; align-items: center; justify-content: center; border-radius: 999px; background: var(--bg-page); color: var(--text-muted); font-size: 10px; font-weight: 850; }
+.workflowIcon { display: inline-flex; width: 22px; height: 22px; align-items: center; justify-content: center; border-radius: 999px; background: var(--bg-page); color: var(--text-muted); font-size: 10px; font-weight: 650; }
 .workflowIconReady { background: var(--success-soft); color: var(--success-text); }
 .workflowIconWaiting { background: var(--warning-soft); color: var(--warning-text); }
-.workflowName { color: var(--text-primary); font-size: 11.5px; font-weight: 800; }
+.workflowName { color: var(--text-primary); font-size: 11.5px; font-weight: 600; }
 .workflowDetail { margin-top: 2px; color: var(--text-muted); font-size: 10.5px; line-height: 1.4; }
 
 .choiceGrid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 9px; }
 .choice { padding: 14px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--bg-panel); color: var(--text-secondary); text-align: left; }
 .choiceActive { border-color: color-mix(in srgb, var(--brand-navy) 45%, var(--border-subtle)); background: var(--brand-navy-soft); color: var(--brand-navy-ink); }
-.choiceTitle { display: block; color: inherit; font-size: 12px; font-weight: 850; }
+.choiceTitle { display: block; color: inherit; font-size: 12px; font-weight: 650; }
 .choiceMeta { display: block; margin-top: 4px; color: var(--text-muted); font-size: 10.5px; }
 
 .saveBar { position: sticky; bottom: 12px; z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 13px 15px; border: 1px solid var(--border-strong); border-radius: 14px; background: color-mix(in srgb, var(--bg-panel) 94%, transparent); box-shadow: var(--shadow-panel); backdrop-filter: blur(16px); }
@@ -377,7 +377,7 @@
   .closeStep + .closeStep::before { display: none; }
   .stepName, .stepValue { margin-top: 0; }
   .actionRow { grid-template-columns: minmax(0,1fr) auto; gap: 10px; padding-inline: 14px; }
-  .actionRow > :nth-child(2) { display: none; }
+  .actionRow > :nth-child(2) { grid-column: 1; }
   .filterBar { align-items: stretch; }
   .search { min-width: 100%; }
   .filterTabs { width: 100%; }
@@ -387,9 +387,35 @@
   .ledgerTable tr { position: relative; padding: 14px 42px 14px 14px; border-bottom: 1px solid var(--row-divider); }
   .ledgerTable td { padding: 3px 0; border: 0; }
   .ledgerTable td[data-mobile-hidden="true"] { display: none; }
-  .ledgerTable td[data-mobile-label]::before { content: attr(data-mobile-label); margin-right: 7px; color: var(--text-muted); font-size: 9px; font-weight: 800; text-transform: uppercase; }
+  .ledgerTable td[data-mobile-label]::before { content: attr(data-mobile-label); margin-right: 7px; color: var(--text-muted); font-size: 9px; font-weight: 600; text-transform: uppercase; }
   .ledgerTable .numeric { text-align: left !important; }
   .choiceGrid { grid-template-columns: 1fr; }
   .saveBar { bottom: 7px; }
   .saveSummary { max-width: 52%; }
+}
+
+.shell { border: 0; background: transparent; overflow: visible; }
+.shellTop { padding: 4px 0 22px; flex-wrap: wrap; }
+.nav { padding: 6px; border: 1px solid var(--border-subtle); border-radius: 14px; background: var(--bg-panel); }
+.navLink { min-height: 40px; }
+.navLinkActive, .filterTabActive, .choiceActive { color: var(--brand-orange-ink); background: var(--brand-orange-soft); }
+.choiceActive { border-color: color-mix(in srgb, var(--brand-orange-ink) 35%, var(--border-subtle)); }
+.kpiLabel, .microLabel { text-transform: none; letter-spacing: 0; font-size: 12px; }
+.kpiValue { overflow: visible; white-space: normal; overflow-wrap: anywhere; line-height: 1.2; }
+.closePanel { background: var(--bg-panel); color: var(--text-primary); border: 1px solid var(--border-subtle); }
+.closeIntro { border-color: var(--border-subtle); }
+.closeIntro .microLabel, .closeCopy, .stepValue { color: var(--text-muted); }
+.stepDot { border-color: var(--border-subtle); background: var(--brand-orange-soft); color: var(--brand-orange-ink); }
+.stepDotReady { background: var(--success-soft); color: var(--success-text); }
+.waterfallTotal { background: var(--bg-panel-muted); color: var(--brand-orange-ink); border: 1px solid var(--border-subtle); }
+.waterfallTotalLabel { color: var(--text-secondary); }
+.panelHeader, .saveBar, .waterfallRow, .statusLine { flex-wrap: wrap; }
+.filterTabs { max-width: 100%; }
+@media (max-width: 720px) {
+ .shellTop { padding: 0 0 18px; }
+ .saveBar { bottom: calc(80px + env(safe-area-inset-bottom)); }
+ .kpiGrid { grid-template-columns: 1fr; }
+ .kpiValue { font-size: 26px; }
+ .closeIntro { border-color: var(--border-subtle); }
+ .saveSummary { max-width: 100%; }
 }
