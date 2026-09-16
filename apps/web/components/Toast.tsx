@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { CheckCircle2, AlertCircle, X, Info } from "lucide-react";
+import { Check, AlertCircle, Info } from "lucide-react";
 
 export type ToastTone = "success" | "error" | "info";
 
@@ -21,20 +21,24 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 export function useToast() {
   const ctx = useContext(ToastContext);
   if (!ctx) {
-    // I praktiken kan ProductModal/etc användas utanför ToastProvider under
-    // dev (storybook, isolerade tester). Fall tillbaka till no-op istället
-    // för att krascha rendringen.
+    // ProductSheet m.fl. kan renderas utanför ToastProvider i isolerade
+    // tester — fall tillbaka till no-op i stället för att krascha.
     return { toast: () => {} } as ToastContextValue;
   }
   return ctx;
 }
+
+// Samma typsnittsstack som designsystemet (docs/DESIGN_SYSTEM.md) — toasten
+// är global och kan inte förlita sig på att .ve-root finns på sidan.
+const FONT = '-apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Helvetica Neue", system-ui, sans-serif';
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
 
   const toast = useCallback((message: string, tone: ToastTone = "success") => {
     const id = Date.now() + Math.random();
-    setItems((prev) => [...prev, { id, tone, message }]);
+    // En notis i taget: en ny ersätter den gamla i stället för att stapla.
+    setItems([{ id, tone, message }]);
   }, []);
 
   const dismiss = useCallback((id: number) => {
@@ -44,15 +48,14 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      {/* Container — fixed top-center på desktop, top-banner på mobil */}
       <div
-        className="fixed left-1/2 -translate-x-1/2 z-[2500] flex flex-col gap-2 items-center pointer-events-none w-full max-w-sm px-4"
-        style={{ top: "calc(env(safe-area-inset-top, 0px) + 4.5rem)" }}
+        className="fixed inset-x-0 z-[2500] flex flex-col items-center gap-2 pointer-events-none px-4"
+        style={{ top: "calc(env(safe-area-inset-top, 0px) + 10px)", fontFamily: FONT }}
         role="status"
         aria-live="polite"
         aria-atomic="true"
       >
-        <AnimatePresence>
+        <AnimatePresence mode="popLayout" initial={false}>
           {items.map((t) => (
             <ToastView key={t.id} item={t} onDismiss={() => dismiss(t.id)} />
           ))}
@@ -62,43 +65,42 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Toast — mörk glaspill högst upp, ikon i tonad rund platta, vit text.
+ * Fjädrar ner från kanten, försvinner efter 2,6 s eller vid tryck.
+ */
 function ToastView({ item, onDismiss }: { item: ToastItem; onDismiss: () => void }) {
   useEffect(() => {
-    const t = setTimeout(onDismiss, 3000);
+    const t = setTimeout(onDismiss, 2600);
     return () => clearTimeout(t);
   }, [onDismiss]);
 
-  const Icon = item.tone === "success" ? CheckCircle2 : item.tone === "error" ? AlertCircle : Info;
-  // Monokromt kort; ikonen bär tonen. Success får en tunn guld-vänsterkant
-  // (touch av guld + emerald-bock) eftersom det är en glad success-notis.
-  const iconColor =
-    item.tone === "success" ? "text-emerald-500" : item.tone === "error" ? "text-rose-500" : "text-[color:var(--text-secondary)]";
+  const Icon = item.tone === "success" ? Check : item.tone === "error" ? AlertCircle : Info;
+  const iconBg = item.tone === "success" ? "#30D158" : item.tone === "error" ? "#FF453A" : "rgba(255,255,255,0.22)";
 
   return (
-    <motion.div
+    <motion.button
+      type="button"
       layout
-      initial={{ opacity: 0, y: -20, scale: 0.95 }}
+      onClick={onDismiss}
+      initial={{ opacity: 0, y: -24, scale: 0.92 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -20, scale: 0.95 }}
-      transition={{ type: "spring", bounce: 0.2, duration: 0.3 }}
-      className="pointer-events-auto flex items-center gap-3 w-full rounded-2xl border px-4 py-3 shadow-xl backdrop-blur-md"
+      exit={{ opacity: 0, y: -16, scale: 0.94 }}
+      transition={{ type: "spring", stiffness: 520, damping: 34 }}
+      className="pointer-events-auto flex items-center gap-3 max-w-[92vw] sm:max-w-sm min-h-[48px] pl-2 pr-5 py-2 rounded-full text-left"
       style={{
-        backgroundColor: "var(--bg-secondary)",
-        borderColor: "var(--border-muted)",
-        borderLeft: item.tone === "success" ? "3px solid var(--color-gold-500, #F0531C)" : undefined,
+        backgroundColor: "rgba(29,29,31,0.92)",
+        backdropFilter: "saturate(180%) blur(20px)",
+        WebkitBackdropFilter: "saturate(180%) blur(20px)",
+        boxShadow: "0 2px 6px rgba(0,0,0,0.12), 0 16px 40px rgba(0,0,0,0.22)",
+        color: "#fff",
+        letterSpacing: "-0.01em",
       }}
     >
-      <Icon size={20} strokeWidth={2.5} className={`shrink-0 ${iconColor}`} />
-      <p className="flex-1 text-[14px] font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
-        {item.message}
-      </p>
-      <button
-        onClick={onDismiss}
-        aria-label="Stäng notis"
-        className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
-      >
-        <X size={14} />
-      </button>
-    </motion.div>
+      <span className="w-8 h-8 rounded-full grid place-items-center shrink-0" style={{ backgroundColor: iconBg }}>
+        <Icon size={16} strokeWidth={3} style={{ color: item.tone === "info" ? "#fff" : "#0B0B0C" }} />
+      </span>
+      <span className="text-[15px] font-semibold leading-snug line-clamp-2">{item.message}</span>
+    </motion.button>
   );
 }

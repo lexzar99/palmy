@@ -1,7 +1,8 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
-import MenuContent from "@/components/MenuContent";
+import RestaurantMenu from "@/components/restaurant/RestaurantMenu";
 import { rehydrateMenuCategories } from "@/lib/menu";
+import "@/components/restaurant/restaurant.css";
 
 // ISR: cache the rendered page per slug for 5 min so 1000 same-restaurant loads
 // hit a cached shell instead of 1000 live SSR renders (each re-parsing ~1.5MB).
@@ -225,11 +226,9 @@ export default async function RestaurantPage({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(restaurantJsonLd(restaurant, slug)) }}
         />
       )}
-      <MenuContent
-        restaurantSlug={slug}
-        isStandalone={true}
-        initialData={initialData}
-      />
+      {/* Ny design 2026-09-16 (docs/DESIGN_SYSTEM.md). MenuContent lever kvar
+          för partner-embedden i app/embed/[slug]. */}
+      <RestaurantMenu restaurantSlug={slug} initialData={initialData} />
     </>
   );
 }
