@@ -24,6 +24,8 @@ import {
   ChevronDown,
   Crown,
   ShoppingBag,
+  Tag,
+  Bike,
 } from "lucide-react";
 import { type DealCardData } from "@/components/DealFlipCard";
 import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
@@ -516,10 +518,10 @@ function FeaturedBadge({ featuredClass }: { featuredClass?: number | null }) {
   if (!gold && !silver) return null;
   return (
     <span
-      className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-0.5 rounded-md text-white"
-      style={{ backgroundColor: gold ? "#B7800D" : "#868A94" }}
+      className="inline-flex h-6 items-center gap-1 rounded-full px-2 text-[11.5px] font-semibold"
+      style={{ backgroundColor: "rgba(255,255,255,0.92)", color: gold ? "#B7800D" : "#5B5E66", boxShadow: "0 1px 3px rgba(0,0,0,0.12)" }}
     >
-      <Crown size={11} strokeWidth={2.6} />
+      <Crown size={11} strokeWidth={2.4} fill="currentColor" />
       Utvald
     </span>
   );
@@ -585,7 +587,7 @@ function HomeAppDealCard({
       <div className="flex items-start gap-2.5">
         <div className="min-w-0 flex-1">
           {!!deal.badge && (
-            <span className="mb-1.5 inline-flex h-[22px] items-center rounded-full bg-white/90 px-2 text-[10px] font-black uppercase" style={{ color: pulseChipColor(deal.theme) }}>
+            <span className="mb-1.5 inline-flex h-[22px] items-center rounded-full bg-white/92 px-2 text-[11px] font-semibold" style={{ color: pulseChipColor(deal.theme) }}>
               {deal.badge}
             </span>
           )}
@@ -651,7 +653,7 @@ function ChampionPromoCard({ module, onOpen }: { module: HomePulseModule; onOpen
       ) : <span className="absolute inset-0" style={{ background: pulseGradient(module.theme) }} />}
       <span className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/10 to-black/75" />
       <span className="absolute inset-x-0 bottom-0 p-4">
-        <span className="mb-1.5 inline-flex h-6 items-center gap-1.5 rounded-full bg-[var(--gold)] px-2.5 text-[10px] font-black uppercase text-[#784D08]">
+        <span className="mb-1.5 inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-[11.5px] font-semibold" style={{ backgroundColor: "rgba(255,255,255,0.92)", color: isPersonal ? "#F04F1A" : "#B7800D" }}>
           <BadgeIcon size={11} fill="currentColor" /> {module.title}
         </span>
         <span className="block truncate text-[24px] font-black leading-tight text-white">{restaurant.name}</span>
@@ -683,7 +685,7 @@ function HighlightPromoCard({ restaurant, badge, onOpen }: { restaurant: PulseRa
         </span>
       )}
       <span className="absolute inset-x-0 bottom-0 p-4">
-        <span className="mb-1.5 inline-flex h-6 items-center rounded-full bg-white px-2.5 text-[10px] font-black uppercase text-[var(--ink)]">{badge}</span>
+        <span className="mb-1.5 inline-flex h-6 items-center rounded-full px-2.5 text-[11.5px] font-semibold" style={{ backgroundColor: "rgba(255,255,255,0.92)", color: "#1D1D1F" }}>{badge}</span>
         <span className="block truncate text-[24px] font-black leading-tight text-white">{restaurant.name}</span>
         <span className="mt-1 flex items-center gap-2 text-[12px] font-bold text-white/90">
           {restaurant.cuisine || "Restaurang"}
@@ -710,7 +712,7 @@ function CurrentRestaurantPromoCard({ restaurant, badge, onOpen }: { restaurant:
       )}
       <span className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/5 to-black/80" />
       <span className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
-        <span className="mb-2 inline-flex h-6 max-w-full items-center truncate rounded-full bg-white/94 px-2.5 text-[10px] font-black uppercase tracking-[0.04em] text-[var(--ink)]">
+        <span className="mb-2 inline-flex h-6 max-w-full items-center truncate rounded-full px-2.5 text-[11.5px] font-semibold" style={{ backgroundColor: "rgba(255,255,255,0.92)", color: "#1D1D1F" }}>
           {comingSoon ? "Kommer snart" : badge}
         </span>
         <span className="block truncate text-[24px] font-black leading-tight text-white">{restaurant.name}</span>
@@ -2031,18 +2033,18 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                     <div className={`absolute ${railDimReason ? "top-11" : "top-3"} left-3 right-3 z-20 flex flex-wrap gap-1.5 overflow-hidden`}>
                       <FeaturedBadge featuredClass={r.featuredClass} />
                       {badges.bogo && (
-                        <span className="max-w-full truncate whitespace-nowrap bg-gold-500 text-[12px] font-semibold px-2 py-0.5 rounded-md" style={{ color: "#141416" }}>
-                          {t("home.deal.badge.bogo")}
+                        <span className="inline-flex h-6 max-w-full items-center gap-1 truncate whitespace-nowrap rounded-full px-2 text-[11.5px] font-semibold" style={{ backgroundColor: "rgba(255,255,255,0.92)", color: "#F04F1A", boxShadow: "0 1px 3px rgba(0,0,0,0.12)" }}>
+                          <Gift size={11} strokeWidth={2.4} /> {t("home.deal.badge.bogo")}
                         </span>
                       )}
                       {regularLabel && (
-                        <span className="max-w-full truncate whitespace-nowrap bg-gold-500 text-[12px] font-semibold px-2 py-0.5 rounded-md" style={{ color: "#141416" }}>
-                          {regularLabel}
+                        <span className="inline-flex h-6 max-w-full items-center gap-1 truncate whitespace-nowrap rounded-full px-2 text-[11.5px] font-semibold" style={{ backgroundColor: "rgba(255,255,255,0.92)", color: "#F04F1A", boxShadow: "0 1px 3px rgba(0,0,0,0.12)" }}>
+                          <Tag size={11} strokeWidth={2.4} /> {regularLabel}
                         </span>
                       )}
                       {showFreeDelivery && (
-                        <span className="max-w-full truncate whitespace-nowrap bg-[#237A4A] text-[12px] font-semibold px-2 py-0.5 rounded-md text-white">
-                          Fri leverans
+                        <span className="inline-flex h-6 max-w-full items-center gap-1 truncate whitespace-nowrap rounded-full px-2 text-[11.5px] font-semibold" style={{ backgroundColor: "rgba(255,255,255,0.92)", color: "#1F8A3B", boxShadow: "0 1px 3px rgba(0,0,0,0.12)" }}>
+                          <Bike size={11} strokeWidth={2.4} /> Fri leverans
                         </span>
                       )}
                     </div>
@@ -2052,7 +2054,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                   {railDimReason && (
                     <div className="absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm" style={{ backgroundColor: "rgba(17,17,19,0.82)", backdropFilter: "blur(6px)" }}>
                       {isComingSoon ? <Store size={11} className="text-white" /> : !inZone ? <MapPin size={11} className="text-white" /> : <Clock size={11} className="text-white" />}
-                      <span className="text-[10px] font-black uppercase tracking-wide text-white">{railDimReason}</span>
+                      <span className="text-[11px] font-semibold text-white">{railDimReason}</span>
                     </div>
                   )}
                   {r.heroImageUrl || r.imageUrl ? (
@@ -2153,6 +2155,26 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
   };
 
 
+
+  const dealsCard = (
+    <section className="mb-6">
+      <Link
+        href="/deals"
+        className="flex items-center gap-4 rounded-[22px] px-4 py-4 transition-transform active:scale-[0.99]"
+        style={{ backgroundColor: "#FFFFFF", boxShadow: "0 1px 2px rgba(0,0,0,0.03), 0 10px 30px rgba(0,0,0,0.05)" }}
+      >
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[14px]" style={{ backgroundColor: "#FFF1EB" }}>
+          <Tag size={20} strokeWidth={2.2} style={{ color: "#F04F1A" }} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[12px] font-semibold" style={{ color: "#F04F1A" }}>viaeats deals</span>
+          <span className="mt-0.5 block text-[19px] font-bold leading-tight tracking-[-0.02em]" style={{ color: "#1D1D1F" }}>Mer mat. Bättre pris.</span>
+          <span className="mt-0.5 block truncate text-[13px] font-medium" style={{ color: "#6E6E73" }}>Dagens sänkta priser från restaurangerna</span>
+        </span>
+        <ChevronRight size={20} strokeWidth={2.2} className="shrink-0" style={{ color: "#8E8E93" }} aria-hidden />
+      </Link>
+    </section>
+  );
 
   return (
     <div className="viaeats-app-bg min-h-screen pb-36 md:pt-24" style={{ color: "var(--text-primary)" }}>
@@ -2335,46 +2357,12 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
             {renderFeaturedRail(rail.title, rail.subtitle, rail.restaurants, {
               priorityImageCount: index === 0 ? ABOVE_THE_FOLD_RESTAURANT_IMAGE_LIMIT : 0,
             })}
+            {/* viaeats deals direkt under första rälsen — vitt kort i
+                designsystemet med en liten orange detalj (docs/DESIGN_SYSTEM.md). */}
+            {index === 0 && dealsCard}
           </React.Fragment>
         ))}
-
-        {/* Deals-bannern ligger under rälsarna: startsidans översta yta ska
-            visa mat och restauranger, inte en kampanjruta. Kunden möter den
-            när hen redan bläddrat förbi dagens urval. */}
-        {query.trim() === "" && (
-          <section className="mb-6">
-            <Link
-              href="/deals"
-              className="mx-[-8px] flex items-center gap-4 rounded-[22px] px-5 py-6 text-left transition-transform active:scale-[0.99]"
-              style={{
-                backgroundColor: "var(--deal-blue-chip)",
-                boxShadow: "inset 0 0 0 1px rgba(18,135,245,0.16)",
-              }}
-            >
-              <span className="min-w-0 flex-1">
-                <span className="block text-[11px] font-black uppercase tracking-[0.12em]" style={{ color: "var(--deal-blue)" }}>
-                  ViaEats Deals
-                </span>
-                <span
-                  className="mt-2 block text-[26px] font-black leading-[1.02] tracking-[-0.035em]"
-                  style={{ color: "var(--deal-blue-ink)" }}
-                >
-                  Mer mat. Bättre pris.
-                </span>
-                <span className="mt-1.5 block text-[13px] font-bold" style={{ color: "var(--deal-blue)" }}>
-                  Se dagens sänkta priser
-                </span>
-              </span>
-              <ChevronRight
-                size={26}
-                strokeWidth={2.6}
-                className="shrink-0"
-                style={{ color: "var(--deal-blue-ink)" }}
-                aria-hidden
-              />
-            </Link>
-          </section>
-        )}
+        {query.trim() === "" && launchRails.length === 0 && dealsCard}
 
         {/* GLOBAL TOM-STATE — visas när inga restauranger alls matchar kundens
             stad (varken main-grid, rails, eller HomeCategorySections). Detta är
@@ -2427,24 +2415,6 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
           {isLoggedIn && <WelcomeDealBanner enabled={isLoggedIn} />}
 
           {/* InviteFriendsBanner borttagen — referral-systemet avstängt för launch */}
-
-          {/* Loyalty banner — shown to guests when restaurant list has loaded */}
-          {!isLoggedIn && !loading && !apiError && filtered.length > 0 && (
-            <Link
-              href="/profile"
-              className="mb-6 px-4 py-3.5 rounded-xl flex items-center gap-3.5 transition-colors"
-              style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
-            >
-              <div className="w-9 h-9 shrink-0 rounded-lg flex items-center justify-center" style={{ backgroundColor: "var(--gold-soft)" }}>
-                <Gift size={16} strokeWidth={1.8} style={{ color: "var(--gold-ink)" }} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[14px] font-semibold leading-snug" style={{ color: "var(--text-primary)" }}>{t("home.loyalty.title")}</p>
-                <p className="text-[13px] leading-snug mt-0.5" style={{ color: "var(--text-secondary)" }}>{t("home.loyalty.subtitle")}</p>
-              </div>
-              <ChevronRight size={16} strokeWidth={2} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
-            </Link>
-          )}
 
           <div className="flex items-center justify-between mb-4 px-1">
             <div>
@@ -2545,7 +2515,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                             {dimReason && (
                               <div className="absolute top-3 left-3 z-10 px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm" style={{ backgroundColor: "rgba(17,17,19,0.82)", backdropFilter: "blur(6px)" }}>
                                 {isComingSoon ? <Store size={11} className="text-white" /> : isOutOfZone ? <MapPin size={11} className="text-white" /> : <Clock size={11} className="text-white" />}
-                                <span className="text-[10px] font-black uppercase tracking-wide text-white">{dimReason}</span>
+                                <span className="text-[11px] font-semibold text-white">{dimReason}</span>
                               </div>
                             )}
 
@@ -2592,18 +2562,18 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                                 <div className="absolute bottom-3 left-3 right-3 z-10 flex flex-wrap gap-1.5 overflow-hidden">
                                   <FeaturedBadge featuredClass={r.featuredClass} />
                                   {badges.bogo && (
-                                    <span className="max-w-full truncate whitespace-nowrap bg-gold-500 text-[12px] font-semibold px-2 py-0.5 rounded-md" style={{ color: "#141416" }}>
-                                      {t("home.deal.badge.bogo")}
+                                    <span className="inline-flex h-6 max-w-full items-center gap-1 truncate whitespace-nowrap rounded-full px-2 text-[11.5px] font-semibold" style={{ backgroundColor: "rgba(255,255,255,0.92)", color: "#F04F1A", boxShadow: "0 1px 3px rgba(0,0,0,0.12)" }}>
+                                      <Gift size={11} strokeWidth={2.4} /> {t("home.deal.badge.bogo")}
                                     </span>
                                   )}
                                   {regularLabel && (
-                                    <span className="max-w-full truncate whitespace-nowrap bg-gold-500 text-[12px] font-semibold px-2 py-0.5 rounded-md" style={{ color: "#141416" }}>
-                                      {regularLabel}
+                                    <span className="inline-flex h-6 max-w-full items-center gap-1 truncate whitespace-nowrap rounded-full px-2 text-[11.5px] font-semibold" style={{ backgroundColor: "rgba(255,255,255,0.92)", color: "#F04F1A", boxShadow: "0 1px 3px rgba(0,0,0,0.12)" }}>
+                                      <Tag size={11} strokeWidth={2.4} /> {regularLabel}
                                     </span>
                                   )}
                                   {showFreeDelivery && (
-                                    <span className="max-w-full truncate whitespace-nowrap bg-[#237A4A] text-[12px] font-semibold px-2 py-0.5 rounded-md text-white">
-                                      Fri leverans
+                                    <span className="inline-flex h-6 max-w-full items-center gap-1 truncate whitespace-nowrap rounded-full px-2 text-[11.5px] font-semibold" style={{ backgroundColor: "rgba(255,255,255,0.92)", color: "#1F8A3B", boxShadow: "0 1px 3px rgba(0,0,0,0.12)" }}>
+                                      <Bike size={11} strokeWidth={2.4} /> Fri leverans
                                     </span>
                                   )}
                                 </div>

@@ -10,6 +10,7 @@ import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
 import { API_URL } from "@/lib/api";
 import { toE164Phone } from "@/lib/phone";
 import PhoneCountrySelect from "@/components/PhoneCountrySelect";
+import { journeyRegistrationContext } from "@/lib/journey";
 
 // Egen input-stil så komponenten funkar var som helst (profil/ordertracking)
 // utan att sidan behöver injicera auth-input-CSS.
@@ -169,7 +170,7 @@ export default function PhoneAuth({
       // rensar profil-bootstrappen den råa Supabase-cookien → utloggad direkt.
       const ex = await axios.post(
         `${API_URL}/api/auth/phone-token`,
-        {},
+        { journey: journeyRegistrationContext() },
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
       const platformToken = ex.data?.token;
@@ -239,7 +240,7 @@ export default function PhoneAuth({
   );
 
   const goldBtn = (label: string, disabled: boolean) => (
-    <button type="submit" disabled={disabled} className="w-full h-[50px] bg-gold-500 rounded-xl text-[15px] font-semibold flex items-center justify-center gap-2 disabled:opacity-60" style={{ color: "#141416" }}>
+    <button type="submit" disabled={disabled} className="w-full h-[52px] rounded-full text-[16px] font-semibold flex items-center justify-center gap-2 transition-transform active:scale-[0.985] disabled:opacity-60" style={{ backgroundColor: "#1D1D1F", color: "#FFFFFF" }}>
       {loading ? <Loader2 className="animate-spin" size={18} /> : label}
     </button>
   );
@@ -249,8 +250,8 @@ export default function PhoneAuth({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={buttonClassName || "w-full h-[50px] rounded-xl text-[15px] font-semibold flex items-center justify-center gap-2.5 transition-opacity active:scale-[0.99]"}
-        style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--line-strong)", color: "var(--text-primary)" }}
+        className={buttonClassName || "w-full h-[52px] rounded-full text-[16px] font-semibold flex items-center justify-center gap-2.5 transition-transform active:scale-[0.985]"}
+        style={buttonClassName ? undefined : { backgroundColor: "#1D1D1F", color: "#FFFFFF" }}
       >
         <Phone size={17} /> {buttonLabel}
       </button>
@@ -258,7 +259,7 @@ export default function PhoneAuth({
   }
 
   return (
-    <div className="rounded-xl p-4 space-y-3.5" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--line-strong)" }}>
+    <div className="rounded-[18px] p-4 space-y-3.5" style={{ backgroundColor: "var(--bg-secondary)", boxShadow: "inset 0 0 0 0.5px rgba(60,60,67,0.12)" }}>
       <style>{PA_CSS}</style>
       {step === "phone" && (
         <form onSubmit={sendCode} className="space-y-3">

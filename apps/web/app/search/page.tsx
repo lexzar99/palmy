@@ -4,19 +4,20 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import axios from "axios";
 import {
+  Bike,
   ChevronRight,
   Clock,
   Search as SearchIcon,
   SearchX,
   Star,
   Store,
-  Truck,
   Utensils,
   X,
 } from "lucide-react";
-import EmptyState from "@/components/EmptyState";
-import SmartImage from "@/components/SmartImage";
+import PlainImage from "@/components/restaurant/PlainImage";
+import { useDesignBackground } from "@/components/restaurant/useDesignBackground";
 import { API_URL } from "@/lib/api";
+import "@/components/restaurant/restaurant.css";
 
 interface Restaurant {
   id: string;
@@ -195,6 +196,7 @@ function dealForRestaurant(deals: PublicDeal[], restaurantId: string) {
 }
 
 export default function SearchPage() {
+  useDesignBackground();
   const [query, setQuery] = useState("");
   const [selectedTag, setSelectedTag] = useState("");
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
@@ -508,54 +510,54 @@ export default function SearchPage() {
     });
   }, [query, selectedTag, restaurants, orderType, deliverableIds, availabilityNow]);
 
-  return (
-    <div className="min-h-screen bg-[var(--bg-primary)] pb-32 text-[var(--ink)] md:pt-20">
-      <div className="mx-auto max-w-6xl px-5 pb-8 pt-8 sm:px-6 lg:px-10">
-        <header>
-          <p className="text-[12px] font-black text-[var(--orange)]">SÖK</p>
-          <h1 className="mt-1 text-[32px] font-black leading-[1.02] tracking-tight sm:text-5xl">
-            Vad är du sugen på?
-          </h1>
-          <p className="mt-2 text-[14px] font-semibold text-[var(--muted)]">
-            Välj en tagg eller sök direkt.
-          </p>
+  const resultTitle = selectedTag
+    ? categoryOptions.find((category) => category.key === selectedTag)?.label || "Resultat"
+    : query.trim()
+      ? `Resultat för ”${query.trim()}”`
+      : "Alla restauranger";
 
-          <label className="mt-5 flex h-[58px] items-center gap-3 rounded-[18px] border border-[var(--line)] bg-white px-4 shadow-[0_8px_22px_rgba(17,17,19,0.06)]">
-            <SearchIcon size={21} strokeWidth={2.4} className="shrink-0 text-[var(--orange)]" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Restaurang, pizza, kebab..."
-              className="h-full min-w-0 flex-1 bg-transparent text-[16px] font-bold outline-none placeholder:text-[var(--muted)]"
-            />
-            {query && (
-              <button type="button" onClick={() => setQuery("")} aria-label="Rensa sök" className="grid h-9 w-9 place-items-center rounded-full bg-[var(--bg-deep)] text-[var(--muted)]">
-                <X size={16} />
-              </button>
-            )}
-          </label>
+  // Formgivning enligt docs/DESIGN_SYSTEM.md: grå yta, vita kort, bläck som
+  // text. Orange bara som liten detalj: sökikonen, vald kategori och rabatt.
+  return (
+    <div className="ve-root min-h-screen pb-32 md:pt-20">
+      <div className="mx-auto max-w-[680px] px-4 pt-[calc(env(safe-area-inset-top,0px)+16px)] md:pt-8">
+        <header className="px-1">
+          <h1 className="m-0 text-[28px] font-semibold leading-[1.1]" style={{ letterSpacing: "-0.025em", color: "var(--ve-ink)" }}>Sök</h1>
+          <p className="m-0 mt-1.5 text-[15px]" style={{ color: "var(--ve-ink-2)" }}>Vad är du sugen på?</p>
         </header>
+
+        <label className="mt-4 flex h-12 items-center gap-2.5 rounded-full pl-4 pr-2" style={{ backgroundColor: "var(--ve-card)", boxShadow: "inset 0 0 0 0.5px var(--ve-line), var(--ve-shadow-card)" }}>
+          <SearchIcon size={18} strokeWidth={2.4} className="shrink-0" style={{ color: "var(--ve-accent)" }} />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            type="search"
+            enterKeyHint="search"
+            placeholder="Restaurang, pizza, kebab…"
+            className="ve-input h-full min-w-0 flex-1 bg-transparent font-medium outline-none"
+            style={{ color: "var(--ve-ink)" }}
+          />
+          {query && (
+            <button type="button" onClick={() => setQuery("")} aria-label="Rensa sök" className="grid h-7 w-7 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-ink-3)", color: "#fff" }}>
+              <X size={13} strokeWidth={3} />
+            </button>
+          )}
+        </label>
 
         {!loading && categoryOptions.length > 0 && (
           <section className="mt-7" aria-labelledby="food-tags-title">
-            <div className="mb-3 flex items-end justify-between">
-              <h2 id="food-tags-title" className="text-[20px] font-black">Matkategorier</h2>
+            <div className="mb-3 flex items-baseline justify-between px-1">
+              <h2 id="food-tags-title" className="m-0 text-[17px] font-semibold" style={{ letterSpacing: "-0.015em", color: "var(--ve-ink)" }}>Kategorier</h2>
               {selectedTag && (
-                <button type="button" onClick={() => setSelectedTag("")} className="text-[13px] font-black text-[var(--orange)]">
+                <button type="button" onClick={() => setSelectedTag("")} className="text-[14px] font-medium" style={{ color: "var(--ve-accent)" }}>
                   Visa alla
                 </button>
               )}
             </div>
-            {/* En rad som rullar i sidled, aldrig fler än CATEGORY_LIMIT kort.
-                Bilden är en riktig rätt ur menyn — kategorin visar maten den
-                leder till i stället för en färgplatta. */}
-            <div className="-mx-5 flex gap-2.5 overflow-x-auto px-5 pb-2 no-scrollbar sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10">
+            <div className="ve-no-scrollbar -mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1 snap-x">
               {categoryOptions.map((category) => {
                 const active = selectedTag === category.key;
                 const image = categoryImages[category.key];
-                // Kortet blir ett fotokort först när bilden verkligen är
-                // hämtad. Fram till dess — och om den aldrig kommer — står
-                // det rena kortet kvar i stället för en svart ruta.
                 const hasPhoto = Boolean(image) && loadedCategoryImages[category.key];
                 return (
                   <button
@@ -563,18 +565,17 @@ export default function SearchPage() {
                     type="button"
                     onClick={() => setSelectedTag(active ? "" : category.key)}
                     aria-pressed={active}
-                    className="relative h-[112px] w-[134px] shrink-0 overflow-hidden rounded-[18px] text-left transition-transform active:scale-[0.98]"
+                    className="ve-press relative h-[108px] w-[132px] shrink-0 snap-start overflow-hidden rounded-[18px] text-left"
                     style={{
-                      backgroundColor: hasPhoto ? "#2A3744" : "var(--bg-secondary)",
+                      backgroundColor: hasPhoto ? "#2A3744" : "var(--ve-card)",
                       boxShadow: active
-                        ? "inset 0 0 0 2.5px var(--orange)"
-                        : "inset 0 0 0 1px var(--border-muted)",
+                        ? "inset 0 0 0 2px var(--ve-accent), var(--ve-shadow-card)"
+                        : "inset 0 0 0 0.5px var(--ve-line), var(--ve-shadow-card)",
                     }}
                   >
                     {image ? (
-                      // Vanlig img: bilderna ligger på en värd utanför
-                      // next/image-optimeringen ändå, och här behövs
-                      // laddningsbeskedet för att kunna växla utseende.
+                      // Vanlig img: bilderna ligger utanför next/image-optimeringen
+                      // och laddningsbeskedet styr utseendet.
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={image}
@@ -585,33 +586,22 @@ export default function SearchPage() {
                         onError={() => setLoadedCategoryImages((current) => ({ ...current, [category.key]: false }))}
                       />
                     ) : null}
-                    <span
-                      aria-hidden
-                      className="absolute inset-0"
-                      style={{
-                        background: hasPhoto
-                          ? active
-                            ? "linear-gradient(to top, rgba(240,79,26,0.92) 12%, rgba(240,79,26,0.35) 62%, rgba(240,79,26,0.12) 100%)"
-                            : "linear-gradient(to top, rgba(10,15,20,0.82) 8%, rgba(10,15,20,0.24) 58%, rgba(10,15,20,0.04) 100%)"
-                          : active
-                            ? "var(--orange)"
-                            : "transparent",
-                      }}
-                    />
-                    <span className="absolute inset-x-0 bottom-0 flex flex-col gap-0.5 p-3">
-                      <span
-                        className="line-clamp-1 text-[15px] font-black leading-[1.1] tracking-[-0.02em]"
-                        style={{ color: hasPhoto || active ? "#fff" : "var(--ink)" }}
-                      >
+                    {hasPhoto && (
+                      <span aria-hidden className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.18) 55%, rgba(0,0,0,0) 100%)" }} />
+                    )}
+                    <span className="absolute inset-x-0 bottom-0 flex flex-col gap-px p-3">
+                      <span className="line-clamp-1 text-[15px] font-semibold leading-tight" style={{ letterSpacing: "-0.015em", color: hasPhoto ? "#fff" : "var(--ve-ink)" }}>
                         {category.label}
                       </span>
-                      <span
-                        className="text-[11px] font-bold"
-                        style={{ color: hasPhoto || active ? "rgba(255,255,255,0.85)" : "var(--muted)" }}
-                      >
+                      <span className="ve-tabular text-[11.5px]" style={{ color: hasPhoto ? "rgba(255,255,255,0.8)" : "var(--ve-ink-3)" }}>
                         {category.count === 1 ? "1 ställe" : `${category.count} ställen`}
                       </span>
                     </span>
+                    {active && (
+                      <span className="absolute right-2 top-2 h-5 w-5 rounded-full grid place-items-center" style={{ backgroundColor: "var(--ve-accent)" }}>
+                        <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -619,32 +609,26 @@ export default function SearchPage() {
           </section>
         )}
 
-        <section className="mt-8">
-          <div className="mb-4 flex items-end justify-between gap-3">
-            <div>
-              <h2 className="text-[21px] font-black">
-                {selectedTag
-                  ? categoryOptions.find((category) => category.key === selectedTag)?.label || "Resultat"
-                  : query.trim()
-                    ? `Resultat för ”${query.trim()}”`
-                    : "Alla restauranger"}
-              </h2>
-              {!loading && <p className="mt-0.5 text-[12px] font-bold text-[var(--muted)]">{filtered.length} restauranger</p>}
-            </div>
+        <section className="mt-7">
+          <div className="mb-3 flex items-baseline justify-between gap-3 px-1">
+            <h2 className="m-0 min-w-0 truncate text-[17px] font-semibold" style={{ letterSpacing: "-0.015em", color: "var(--ve-ink)" }}>{resultTitle}</h2>
+            {!loading && <span className="ve-tabular shrink-0 text-[13px]" style={{ color: "var(--ve-ink-3)" }}>{filtered.length} {filtered.length === 1 ? "restaurang" : "restauranger"}</span>}
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {[1, 2, 3, 4].map((index) => <div key={index} className="skeleton h-[142px] rounded-[20px]" />)}
+            <div className="space-y-3">
+              {[1, 2, 3, 4].map((index) => <div key={index} className="ve-skeleton h-[112px] rounded-[20px]" />)}
             </div>
           ) : filtered.length === 0 ? (
-            <EmptyState
-              icon={query || selectedTag ? SearchX : Utensils}
-              title="Inga restauranger matchar"
-              text="Prova en annan tagg eller sökning."
-            />
+            <div className="ve-card px-6 py-12 text-center">
+              <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-fill)" }}>
+                {query || selectedTag ? <SearchX size={22} strokeWidth={2} style={{ color: "var(--ve-ink-3)" }} /> : <Utensils size={22} strokeWidth={2} style={{ color: "var(--ve-ink-3)" }} />}
+              </div>
+              <p className="m-0 text-[17px] font-semibold" style={{ letterSpacing: "-0.015em", color: "var(--ve-ink)" }}>Inga restauranger matchar</p>
+              <p className="m-0 mt-1 text-[14px]" style={{ color: "var(--ve-ink-2)" }}>Prova en annan kategori eller sökning.</p>
+            </div>
           ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-3">
               {filtered.map((restaurant) => {
                 const inZone = orderType !== "DELIVERY" || deliverableIds === null || deliverableIds.has(restaurant.id);
                 const available = inZone && isAvailableNow(restaurant, availabilityNow);
@@ -653,8 +637,7 @@ export default function SearchPage() {
                 const fee = zone?.deliveryFee ?? restaurant.deliveryFee;
                 const deal = dealForRestaurant(deals, restaurant.id);
                 const maxDiscountPercent = Math.max(deal.maxPercent, restaurant.homeDealMaxPercent || 0);
-                const activeDealFreeDelivery =
-                  deal.freeDelivery || restaurant.homeFreeDeliveryReason === "ACTIVE_DEAL";
+                const activeDealFreeDelivery = deal.freeDelivery || restaurant.homeFreeDeliveryReason === "ACTIVE_DEAL";
                 const hasFreeDelivery =
                   inZone && (
                     activeDealFreeDelivery ||
@@ -664,66 +647,65 @@ export default function SearchPage() {
                         (typeof restaurant.deliveryFee === "number" && restaurant.deliveryFee <= 0))
                   );
                 const hasReviews =
-                  typeof restaurant.rating === "number" &&
-                  Number.isFinite(restaurant.rating) &&
-                  typeof restaurant.ratingCount === "number" &&
-                  restaurant.ratingCount > 0;
+                  typeof restaurant.rating === "number" && Number.isFinite(restaurant.rating) &&
+                  typeof restaurant.ratingCount === "number" && restaurant.ratingCount > 0;
+                const statusLabel = available ? "Öppet" : restaurant.comingSoon ? "Kommer snart" : "Stängt";
+                const image = absoluteImage(restaurant.heroImageUrl || restaurant.imageUrl);
                 return (
                   <Link
                     key={restaurant.id}
                     href={`/restaurants/${restaurant.slug}`}
-                    className={`group overflow-hidden rounded-[20px] border border-[var(--line)] bg-white shadow-[0_8px_22px_rgba(17,17,19,0.06)] ${available ? "" : "opacity-55 grayscale"}`}
+                    className="ve-press ve-card flex overflow-hidden"
+                    style={{ opacity: available ? 1 : 0.55 }}
                   >
-                    <div className="flex min-h-[142px]">
-                      <div className="relative w-[38%] shrink-0 overflow-hidden bg-[var(--bg-deep)]">
-                        {restaurant.heroImageUrl || restaurant.imageUrl ? (
-                          <SmartImage
-                            src={absoluteImage(restaurant.heroImageUrl || restaurant.imageUrl)}
-                            alt={restaurant.name}
-                            sizes="(max-width: 640px) 38vw, 220px"
-                            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                          />
-                        ) : (
-                          <div className="grid h-full place-items-center text-[var(--muted)]"><Utensils size={28} /></div>
-                        )}
-                        {(maxDiscountPercent > 0 || hasFreeDelivery) && (
-                          <div className="absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] flex-wrap gap-1">
-                            {maxDiscountPercent > 0 && <span className="rounded-md bg-[var(--orange)] px-2 py-1 text-[10px] font-black text-white">Upp till {maxDiscountPercent}%</span>}
-                            {hasFreeDelivery && <span className="rounded-md bg-[#2E7D4F] px-2 py-1 text-[10px] font-black text-white">Fri leverans</span>}
-                          </div>
-                        )}
+                    <div className="relative w-[112px] shrink-0 overflow-hidden" style={{ backgroundColor: "#EBEBEE", filter: available ? undefined : "grayscale(1)" }}>
+                      {image ? (
+                        <PlainImage src={image} alt={restaurant.name} width={384} className="absolute inset-0 h-full w-full object-cover" />
+                      ) : (
+                        <div className="grid h-full place-items-center"><Utensils size={26} strokeWidth={1.6} style={{ color: "var(--ve-ink-3)", opacity: 0.5 }} /></div>
+                      )}
+                      {(maxDiscountPercent > 0 || hasFreeDelivery) && (
+                        <div className="absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] flex-wrap gap-1">
+                          {maxDiscountPercent > 0 && (
+                            <span className="ve-tabular inline-flex h-[22px] items-center rounded-full px-2 text-[11px] font-semibold" style={{ backgroundColor: "rgba(255,255,255,0.92)", color: "var(--ve-accent)" }}>−{maxDiscountPercent} %</span>
+                          )}
+                          {hasFreeDelivery && (
+                            <span className="inline-flex h-[22px] items-center gap-1 rounded-full px-2 text-[11px] font-semibold" style={{ backgroundColor: "rgba(255,255,255,0.92)", color: "var(--ve-success)" }}><Bike size={11} strokeWidth={2.4} /> Fri</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex min-w-0 flex-1 flex-col justify-between px-4 py-3.5">
+                      <div className="flex items-start gap-2">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="m-0 line-clamp-1 text-[16px] font-semibold leading-snug" style={{ letterSpacing: "-0.015em", color: "var(--ve-ink)" }}>{restaurant.name}</h3>
+                          {(restaurant.cuisine || restaurant.city) && (
+                            <p className="m-0 mt-0.5 truncate text-[13px]" style={{ color: "var(--ve-ink-2)" }}>{[restaurant.cuisine, restaurant.city].filter(Boolean).join(" · ")}</p>
+                          )}
+                        </div>
+                        <ChevronRight size={17} strokeWidth={2.2} className="mt-0.5 shrink-0" style={{ color: "var(--ve-ink-3)" }} />
                       </div>
-                      <div className="flex min-w-0 flex-1 flex-col p-3.5">
-                        <div className="flex items-start gap-2">
-                          <div className="min-w-0 flex-1">
-                            <h3 className="line-clamp-2 text-[17px] font-black leading-tight">{restaurant.name}</h3>
-                            {(restaurant.cuisine || restaurant.city) && (
-                              <p className="mt-1 truncate text-[12px] font-semibold text-[var(--muted)]">{restaurant.cuisine || restaurant.city}</p>
-                            )}
-                          </div>
-                          <ChevronRight size={18} className="mt-0.5 shrink-0 text-[var(--muted)]" />
-                        </div>
-                        <div className="mt-auto flex flex-wrap items-center gap-x-2.5 gap-y-1.5 pt-3 text-[11px] font-bold text-[var(--muted)]">
-                          {hasReviews && (
-                            <span className="flex items-center gap-1 text-[var(--ink)]">
-                              <Star size={11} className="fill-[var(--orange)] text-[var(--orange)]" />
-                              {restaurant.rating!.toFixed(1)} ({restaurant.ratingCount})
-                            </span>
-                          )}
-                          {orderType === "DELIVERY" && inZone && typeof eta === "number" && Number.isFinite(eta) && (
-                            <span className="flex items-center gap-1"><Clock size={11} /> {Math.round(eta)} min</span>
-                          )}
-                          {orderType === "DELIVERY" && inZone && (hasFreeDelivery || (typeof fee === "number" && Number.isFinite(fee))) && (
-                            <span className="flex items-center gap-1"><Truck size={11} /> {hasFreeDelivery || (typeof fee === "number" && fee <= 0) ? "Fri leverans" : `${Math.round(fee as number)} kr`}</span>
-                          )}
-                          {orderType === "PICKUP" && <span className="flex items-center gap-1"><Store size={11} /> Hämta själv</span>}
-                          {!inZone && <span className="text-rose-600">Levererar inte till din adress</span>}
-                          {typeof restaurant.isOpen === "boolean" && (
-                            <span className={`rounded-full px-2 py-1 text-[9px] font-black ${available ? "bg-[#EAF7EF] text-[#246B43]" : "bg-[var(--bg-deep)] text-[var(--muted)]"}`}>
-                              {available ? "Öppet" : restaurant.comingSoon ? "Kommer snart" : "Stängt"}
-                            </span>
-                          )}
-                        </div>
+                      <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px]" style={{ color: "var(--ve-ink-2)" }}>
+                        {hasReviews && (
+                          <span className="ve-tabular inline-flex items-center gap-1 font-medium" style={{ color: "var(--ve-ink)" }}>
+                            <Star size={11} strokeWidth={0} fill="var(--ve-ink)" />
+                            {restaurant.rating!.toFixed(1)} <span style={{ color: "var(--ve-ink-3)" }}>({restaurant.ratingCount})</span>
+                          </span>
+                        )}
+                        {orderType === "DELIVERY" && inZone && typeof eta === "number" && Number.isFinite(eta) && (
+                          <span className="ve-tabular inline-flex items-center gap-1"><Clock size={12} strokeWidth={2} /> {Math.round(eta)} min</span>
+                        )}
+                        {orderType === "DELIVERY" && inZone && (hasFreeDelivery || (typeof fee === "number" && Number.isFinite(fee))) && (
+                          <span className="ve-tabular inline-flex items-center gap-1"><Bike size={12} strokeWidth={2} /> {hasFreeDelivery || (typeof fee === "number" && fee <= 0) ? "Fri leverans" : `${Math.round(fee as number)} kr`}</span>
+                        )}
+                        {orderType === "PICKUP" && <span className="inline-flex items-center gap-1"><Store size={12} strokeWidth={2} /> Hämta själv</span>}
+                        {!inZone && <span style={{ color: "var(--ve-danger)" }}>Levererar inte hit</span>}
+                        {typeof restaurant.isOpen === "boolean" && (
+                          <span className="inline-flex items-center gap-1.5 font-medium" style={{ color: available ? "var(--ve-success)" : "var(--ve-ink-3)" }}>
+                            <span className="h-[6px] w-[6px] rounded-full" style={{ backgroundColor: available ? "var(--ve-success)" : "var(--ve-ink-3)" }} />
+                            {statusLabel}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </Link>

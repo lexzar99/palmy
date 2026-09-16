@@ -309,6 +309,22 @@ Klarna · VISA · Mastercard · G Pay) med chevron. Blockerat läge = grå
 inaktiv pill med orsaken. Betalsteget använder samma kort och en svart pill
 `Öppna Swish`. Redigering av rad öppnar `ProductSheet`.
 
+### Sök, Profil, hemsidans taggar och emblemet
+`app/search/page.tsx`: rubrik 28/600, sökfält som vit pill med **orange
+lupp** (den lilla detaljen), kategorikort 132×108 med foto och 2 px orange
+ring när valt, resultat som vita kort med 112 px bild, `−%`- och
+"Fri"-pills i vitt glas, statuspunkt i grönt/grått.
+`app/profile/page.tsx`: utloggad = emblem + rubrik + svart pill (PhoneAuth),
+inloggad = profilkort med bläckavatar och grön "Verifierad"-pill, radlista
+med ikonplattor (Mina deals får orange platta), röd textknapp för utloggning.
+Hemsidan behåller sin struktur men taggarna på restaurang- och Aktuellt-
+korten är vita glaspills (`rgba(255,255,255,.92)`) med ikon: krona i amber
+för Utvald, tagg/gåva i orange för rabatt, cykel i grönt för fri leverans.
+"viaeats deals"-kortet ligger under första rälsen som vitt kort med orange
+taggplatta. Emblemet är `public/brand/viaeats-smiley.png` (den riktiga
+orange smileyn) via `components/ViaEatsWordmark.tsx`; `mark` ger bara
+smileyn.
+
 ### Flikrad (BottomNav) och Deals
 `components/BottomNav.tsx`: frostat glas (`ve-glass`), hårfin topplinje, fem
 lika breda flikar (ikon 22 px + etikett 10 px), aktiv i bläck, övriga i ink-3,

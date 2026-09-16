@@ -115,7 +115,7 @@ export default function SponsorCard({
         <span className="absolute inset-0 bg-[repeating-linear-gradient(135deg,rgba(255,255,255,0.08)_0_16px,rgba(255,255,255,0)_16px_32px)]" />
         <div className="absolute inset-0 flex flex-col justify-between p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
-            <span className="inline-flex rounded-full bg-white/92 px-3 py-1 text-[10.5px] font-black uppercase tracking-wide text-[#141416] shadow-sm">
+            <span className="inline-flex h-6 items-center rounded-full bg-white/92 px-2.5 text-[11.5px] font-semibold text-[#1D1D1F] shadow-sm">
               {sponsor.category || "Aktuellt"}
             </span>
             {isInteractive && (
@@ -172,10 +172,10 @@ export default function SponsorCard({
         {/* Utvald-pill (guld/silver) uppe till höger — enda flytande pillen. */}
         {isFeatured && (
           <span
-            className="absolute right-4 top-4 z-10 inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-0.5 rounded-md text-white"
-            style={{ backgroundColor: featuredGold ? "#B7800D" : "#868A94" }}
+            className="absolute right-4 top-4 z-10 inline-flex h-6 items-center gap-1 rounded-full px-2 text-[11.5px] font-semibold"
+            style={{ backgroundColor: "rgba(255,255,255,0.92)", color: featuredGold ? "#B7800D" : "#5B5E66", boxShadow: "0 1px 3px rgba(0,0,0,0.12)" }}
           >
-            <Crown size={11} strokeWidth={2.6} />
+            <Crown size={11} strokeWidth={2.4} fill="currentColor" />
             Utvald
           </span>
         )}
@@ -183,7 +183,7 @@ export default function SponsorCard({
         {/* Ett textkluster nere till vänster: orange badge, namn, undertext. */}
         <div className="absolute inset-x-0 bottom-0 p-4">
           {!!sponsor.badge && (
-            <span className="mb-1.5 inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-[10px] font-black uppercase text-white" style={{ backgroundColor: "var(--orange)" }}>
+            <span className="mb-1.5 inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-[11.5px] font-semibold" style={{ backgroundColor: "rgba(255,255,255,0.92)", color: "#F04F1A" }}>
               {sponsor.showcaseKind === "discount" ? (
                 <Tag size={11} fill="currentColor" />
               ) : sponsor.showcaseKind === "trending" ? (
