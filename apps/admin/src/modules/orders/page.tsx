@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, ArrowRight, CalendarClock, CheckCircle2, ChevronDown, MapPin, Phone, ReceiptText, RefreshCw, Search, SlidersHorizontal, UserRound } from "lucide-react";
+import { AlertCircle, ArrowRight, CalendarClock, CheckCircle2, ChevronDown, Phone, ReceiptText, RefreshCw, Search, SlidersHorizontal } from "lucide-react";
 import { getOrder, getOrders, orderDetailQueryKey, ordersQueryKey, refundOrder, REFUND_REASONS, updateOrderStatus, ORDERS_PAGE_SIZE, type AdminOrder } from "@/modules/orders/api";
 import { CustomerModal } from "@/modules/customers/page";
 import { NotesPanel } from "@/shared/components/notes-panel";
@@ -12,7 +12,7 @@ import { LiveMap } from "@/shared/components/live-map";
 import { Badge, Button, ConfirmDialog, DurationInput, EmptyState, ErrorPanel, Field, Input, Modal, MoneyInput, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, orderStatusTone, orderTypeLabel, paymentStatusLabel, refundBadge } from "@/shared/utils/format";
 
-const DELIVERY_STEPS = ["PENDING", "PREPARING", "DELIVERING", "DELIVERED"] as const;
+const DELIVERY_STEPS = ["PENDING", "PREPARING", "READY", "DELIVERING", "DELIVERED"] as const;
 const PICKUP_STEPS = ["PENDING", "PREPARING", "READY", "DELIVERED"] as const;
 const CANCEL_STATUSES = ["CANCELLED", "REJECTED", "DELIVERY_FAILED"];
 const REFUND_PROVIDER_LABELS: Record<string, string> = {
@@ -113,15 +113,7 @@ function formatTimeInStatus(order: AdminOrder, nowMs: number): { label: string; 
 }
 
 // Customer context badge — distills lifetime stats into a single chip
-function customerContextBadge(stats: AdminOrder["customerStats"]): { label: string; tone: "neutral" | "success" | "warning" | "danger" | "info" } | null {
-  if (!stats) return null;
-  if (stats.orderCount <= 1) return { label: "Första order", tone: "info" };
-  // High refund rate is a fraud / dissatisfaction signal
-  if (stats.orderCount >= 3 && stats.refundRate >= 0.5) return { label: `${stats.refundCount}/${stats.orderCount} refunds`, tone: "danger" };
-  if (stats.refundCount >= 5) return { label: `${stats.refundCount} refunds`, tone: "danger" };
-  if (stats.refundCount >= 2) return { label: `${stats.orderCount} ordrar · ${stats.refundCount} refunds`, tone: "warning" };
-  return { label: `${stats.orderCount} ordrar, 0 refunds`, tone: "success" };
-}
+
 
 function parseExtras(value: AdminOrder["items"][number]["selectedExtras"]) {
   if (!value) return [] as Array<{ extraName?: string; name?: string }>;
@@ -157,7 +149,7 @@ function initials(name?: string | null): string {
 function Avatar({ name, size = 38 }: { name?: string | null; size?: number }) {
   return (
     <span
-      className="flex shrink-0 items-center justify-center rounded-full bg-[#111113] font-extrabold text-white"
+      className="order-avatar flex shrink-0 items-center justify-center rounded-full bg-[var(--bg-panel-muted)] font-semibold text-[var(--text-primary)]"
       style={{ width: size, height: size, fontSize: Math.round(size * 0.34) }}
       aria-hidden
     >
@@ -181,7 +173,7 @@ function DetailStatusBadge({ status, isDelivery = true, paymentStatus }: { statu
 function StatusTrack({ status, isDelivery }: { status: string; isDelivery: boolean }) {
   const cancelled = CANCEL_STATUSES.includes(status);
   const steps: readonly string[] = isDelivery ? DELIVERY_STEPS : PICKUP_STEPS;
-  const currentIdx = steps.indexOf(status);
+  const currentIdx = steps.indexOf(status === "ACCEPTED" ? "PREPARING" : status);
   // När en order är avbruten/nekad färgas hela spåret rött med en enda etikett.
   if (cancelled) {
     return (
@@ -386,15 +378,30 @@ function OrderDetailsModalContent({
       open={open}
       onClose={closeDetails}
       size="xl"
+      widthClassName="order-detail-modal"
       title={order ? `Order ${order.orderNumber}` : "Orderdetaljer"}
       description={order ? `${order.restaurantName || "Okänd restaurang"} · ${formatDateTime(order.createdAt)} · ${orderTypeLabel(order.type)}` : undefined}
-      footer={<Button className="w-full sm:w-auto" onClick={onClose}>Stäng</Button>}
+      footer={<div className="order-detail-footer"><span>{order ? orderTypeLabel(order.type) : "Orderdetaljer"}{order?.restaurantSelfDelivery && isDelivery ? " · Restaurangen levererar" : ""}</span>{order && next ? <Button variant="primary" loading={statusMutation.isPending} disabled={Boolean(estimatedTimeError)} onClick={() => applyStatus(next.status)}>{order.status === "PENDING" ? "Acceptera order" : next.label} <ArrowRight size={16} /></Button> : <Button onClick={onClose}>Stäng</Button>}</div>}
     >
-      {orderQuery.isLoading || !order ? (
+      {orderQuery.isError ? (
+        <ErrorPanel title="Ordern kunde inte laddas" action={<Button onClick={() => void orderQuery.refetch()}>Försök igen</Button>} />
+      ) : orderQuery.isLoading || !order ? (
         <div className="surface-muted px-5 py-8 text-center text-sm text-[var(--text-secondary)]">Laddar order…</div>
       ) : (
         <div className="space-y-5">
           <StatusTrack status={order.status} isDelivery={isDelivery} />
+          <div className="order-customer-summary">
+            <Avatar name={order.customerName} />
+            <div className="order-customer-copy">
+              {order.userId && onViewCustomer ? <button type="button" onClick={() => onViewCustomer(order.userId!)}><strong>{order.customerName}</strong></button> : <strong>{order.customerName}</strong>}
+              <p>{isDelivery ? [order.deliveryStreet || "Adress saknas", order.deliveryZip, order.deliveryCity].filter(Boolean).join(", ") : "Avhämtning i restaurangen"}</p>
+              {order.deliveryInstructions ? <small>{deliveryInstructionLabel(order.deliveryInstructions)}</small> : null}
+              <small>{order.customerPhone}{order.customerStats?.orderCount ? ` · ${formatNumber(order.customerStats.orderCount)} ordrar` : ""}</small>
+              {order.customerEmail ? <small>{order.customerEmail}</small> : null}
+              {order.customerStats?.refundCount ? <Badge tone="warning">{order.customerStats.refundCount} återbetalningar</Badge> : null}
+            </div>
+            {order.customerPhone ? <a className="order-customer-phone" href={`tel:${order.customerPhone}`} aria-label={`Ring ${order.customerName}`}><Phone size={17} /></a> : null}
+          </div>
 
           {order.scheduledFor ? (
             <div className="flex flex-col gap-3 rounded-xl border border-[color-mix(in_srgb,var(--warning)_32%,transparent)] bg-[var(--warning-soft)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -402,7 +409,7 @@ function OrderDetailsModalContent({
                 <CalendarClock size={18} className="mt-0.5 shrink-0 text-[var(--warning-text)]" />
                 <div className="min-w-0">
                   <p className="text-[12px] font-extrabold uppercase tracking-[0.08em] text-[var(--warning-text)]">Förbeställning</p>
-                  <p className="mt-0.5 text-[13px] text-[var(--text-secondary)]">Kunden har valt en specifik tid, inte ASAP.</p>
+                  <p className="mt-0.5 text-[13px] text-[var(--text-secondary)]">Vald tid för beställningen.</p>
                 </div>
               </div>
               <time className="shrink-0 text-[14px] font-extrabold tabular-nums text-[var(--text-primary)]" dateTime={order.scheduledFor}>
@@ -414,50 +421,12 @@ function OrderDetailsModalContent({
           {/* Ett rutnät för hela ordern: orderinnehållet till vänster, kund och
               åtgärder som en smal sidokolumn. Tidigare låg allt som fullbreda
               kort staplade på varandra. */}
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.85fr)] lg:items-start">
+          <div className="order-detail-grid">
             {/* ── Sidokolumn: kund, leverans, åtgärder, anteckningar ── */}
-            <div className="order-1 space-y-4 lg:order-2">
+            <div className="order-detail-support">
+              <details className="order-support-details"><summary>Hantera order <ChevronDown size={16} /></summary><div className="space-y-4">
               <div className="space-y-4">
                 <div className="space-y-4">
-                  {/* Kund */}
-                  <div className="surface px-5 py-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="card-label">Kund</p>
-                      {customerContextBadge(order.customerStats) ? (
-                        <Badge tone={customerContextBadge(order.customerStats)!.tone}>{customerContextBadge(order.customerStats)!.label}</Badge>
-                      ) : null}
-                    </div>
-                    <div className="mt-3 flex items-center gap-3">
-                      <Avatar name={order.customerName} size={38} />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[14px] font-bold">{order.customerName}</p>
-                        <p className="truncate text-[12px] text-[var(--text-muted)]">
-                          {order.customerPhone}
-                          {order.customerStats?.orderCount ? ` · ${formatNumber(order.customerStats.orderCount)} ordrar` : ""}
-                        </p>
-                      </div>
-                      {order.userId && onViewCustomer ? (
-                        <button
-                          type="button"
-                          onClick={() => onViewCustomer(order.userId!)}
-                          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-[var(--border-subtle)] px-2 py-1 text-[11px] font-semibold text-[var(--text-secondary)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
-                        >
-                          <UserRound size={11} /> Profil
-                        </button>
-                      ) : null}
-                    </div>
-                    <div className="mt-3 flex items-start gap-2 border-t border-[var(--border-subtle)] pt-3 text-[12.5px] text-[var(--text-secondary)]">
-                      <MapPin size={14} className="mt-0.5 shrink-0 text-[var(--text-muted)]" />
-                      <p className="leading-5">
-                        {isDelivery
-                          ? `${order.deliveryStreet || "Adress saknas"}${order.deliveryZip || order.deliveryCity ? `, ${order.deliveryZip || ""} ${order.deliveryCity || ""}` : ""}`
-                          : "Avhämtning i restaurang"}
-                        {order.deliveryInstructions ? <span className="text-[var(--text-muted)]"> · &ldquo;{deliveryInstructionLabel(order.deliveryInstructions)}&rdquo;</span> : null}
-                      </p>
-                    </div>
-                    {order.customerEmail ? <p className="mt-1.5 truncate text-[12px] text-[var(--text-muted)]">{order.customerEmail}</p> : null}
-                  </div>
-
                   {/* Leverans: ETA + progress + bud-rad. Visas för leveransordrar. */}
                   {isDelivery && (() => {
                     const steps = DELIVERY_STEPS as readonly string[];
@@ -473,8 +442,8 @@ function OrderDetailsModalContent({
                             <DetailStatusBadge status={order.status} isDelivery={isDelivery} paymentStatus={order.paymentStatus} />
                           )}
                         </div>
-                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#F0F0EC]">
-                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "linear-gradient(90deg,#F0531C,#FB7A4A)" }} />
+                        <div className="mt-3 h-1 overflow-hidden rounded-full bg-[var(--bg-panel-muted)]">
+                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "var(--brand-orange-ink)" }} />
                         </div>
                         {order.courier ? (
                           <div className="mt-3 flex items-center gap-3">
@@ -496,7 +465,7 @@ function OrderDetailsModalContent({
                             ) : null}
                           </div>
                         ) : (
-                          <p className="mt-3 text-[12.5px] text-[var(--text-muted)]">Inget bud tilldelat ännu.</p>
+                          <p className="mt-3 text-[12.5px] text-[var(--text-muted)]">{order.restaurantSelfDelivery ? "Restaurangen levererar själv." : "Inget bud tilldelat ännu."}</p>
                         )}
                       </div>
                     );
@@ -537,17 +506,7 @@ function OrderDetailsModalContent({
                     ) : (
                       <>
                         <p className="mt-1.5 text-[13px] text-[var(--text-secondary)]">Just nu: {orderStatusLabel(order.status)}</p>
-                        {next && (
-                          <Button
-                            variant="primary"
-                            className="mt-3 w-full"
-                            loading={statusMutation.isPending}
-                            onClick={() => applyStatus(next.status)}
-                            disabled={Boolean(estimatedTimeError)}
-                          >
-                            {next.label} <ArrowRight size={16} />
-                          </Button>
-                        )}
+
                       </>
                     )}
 
@@ -610,14 +569,15 @@ function OrderDetailsModalContent({
               {order.customerPhone ? (
                 <NotesPanel target={{ customerPhone: order.customerPhone }} title="Anteckningar på kunden" />
               ) : null}
+              </div></details>
             </div>
 
             {/* ── Huvudspår: artiklar, kvitto, bud och återbetalningar ── */}
-            <div className="order-2 space-y-4 lg:order-1">
+            <div className="order-detail-items space-y-4">
               <div className="surface px-5 py-5">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-[14.5px] font-extrabold tracking-[-0.01em]">
-                    Artiklar{order.restaurantName ? ` · ${order.restaurantName}` : ""}
+                    Orderinnehåll
                   </p>
                   <span className="rounded-full bg-[var(--bg-panel-soft)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--text-secondary)] tabular-nums">
                     {formatNumber(order.items.reduce((n, it) => n + it.quantity, 0))} st
@@ -768,8 +728,8 @@ function OrderDetailsModalContent({
               {order.paymentRefunds?.length ? (
                 <div className="surface px-5 py-5">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="card-label">Refund-ledger</p>
-                    <span className="text-[11px] font-semibold text-[var(--text-muted)]">{order.paymentRefunds.length} ekonomisk post</span>
+                    <p className="card-label">Återbetalningar</p>
+                    <span className="text-[11px] font-semibold text-[var(--text-muted)]">{order.paymentRefunds.length} poster</span>
                   </div>
                   <div className="mt-3 space-y-2">
                     {order.paymentRefunds.map((refund) => {
@@ -832,7 +792,7 @@ function OrderDetailsModalContent({
                     <span className="text-[19px] font-extrabold tracking-[-0.02em] tabular-nums">{formatCurrency(order.total)}</span>
                   </div>
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-[var(--text-muted)]">
-                    <span>Betalt med {order.paymentMethod || "—"}</span>
+                    <span>Betalmetod: {order.paymentMethod || "—"}</span>
                     {order.paymentStatus ? <Badge tone={order.paymentStatus === "PAID" ? "success" : order.paymentStatus === "REFUNDED" ? "danger" : order.paymentStatus === "REFUNDING" || order.paymentStatus === "PARTIALLY_REFUNDED" ? "warning" : "neutral"}>{paymentStatusLabel(order.paymentStatus)}</Badge> : null}
                     <span>· {formatDateTime(order.createdAt)}</span>
                   </div>
@@ -965,9 +925,9 @@ function OrderDetailsModalContent({
 
 const LIVE_STATUSES = ["PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERING"];
 
-const MONO = "font-[ui-monospace,Menlo,monospace]";
+const MONO = "order-number";
 // Delad kolumnmall för header + rader (Order · Restaurang · Kund · Status · Tid · Åtgärd).
-const ORDERS_GRID = "80px 1.3fr 1.1fr 1fr 0.8fr 130px";
+const ORDERS_GRID = "80px minmax(0,1.3fr) minmax(0,1.1fr) minmax(0,1fr) minmax(0,0.8fr) 100px";
 
 // Statusbricka för listan. "På väg" (DELIVERING) använder den orange accent-tonen
 // (badge-accent) per designen; övriga går via den semantiska tabellen i orderStatusTone.
@@ -1036,7 +996,7 @@ function OrderRowBase({ order, nowMs, isAdvancing, onOpen, onOpenCustomer, onAdv
         </Button>
       );
     }
-    return <span className="text-[12px] font-bold text-[var(--text-secondary)]">Detaljer ›</span>;
+    return <span className="text-[12px] font-medium text-[var(--text-secondary)]">Visa ›</span>;
   };
 
   return (
@@ -1049,7 +1009,7 @@ function OrderRowBase({ order, nowMs, isAdvancing, onOpen, onOpenCustomer, onAdv
           if (event.target !== event.currentTarget) return;
           if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(order.id); }
         }}
-        className={`order-card hidden items-center gap-3 px-[18px] py-[13px] text-[13px] lg:grid${isPending ? " is-pending" : ""}`}
+        className={`order-card order-card-desktop items-center gap-3 px-[18px] py-[13px] text-[13px]${isPending ? " is-pending" : ""}`}
         style={{ gridTemplateColumns: ORDERS_GRID }}
       >
         <div className="flex min-w-0 items-center gap-2">
@@ -1059,6 +1019,7 @@ function OrderRowBase({ order, nowMs, isAdvancing, onOpen, onOpenCustomer, onAdv
 
         <span className="min-w-0">
           <span className="block truncate font-semibold text-[var(--text-primary)]">{order.restaurantName || "—"}</span>
+          <span className="order-row-total">{formatCurrency(order.total)}</span>
           {channelLabel ? <span className="block truncate text-[10.5px] font-semibold text-[var(--text-muted)]">{channelLabel}</span> : null}
         </span>
 
@@ -1101,7 +1062,7 @@ function OrderRowBase({ order, nowMs, isAdvancing, onOpen, onOpenCustomer, onAdv
           if (event.target !== event.currentTarget) return;
           if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(order.id); }
         }}
-        className={`order-card px-4 py-3 lg:hidden${isPending ? " is-pending" : ""}`}
+        className={`order-card order-card-mobile px-4 py-3${isPending ? " is-pending" : ""}`}
       >
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
           <div className="min-w-0">
@@ -1230,26 +1191,19 @@ export function OrdersPage() {
     return <ErrorPanel title="Kunde inte ladda ordrar" action={<Button onClick={() => void orders.refetch()}><RefreshCw size={14} /> Försök igen</Button>} />;
   }
 
-  const loadedOrders = orders.data.orders;
-  const liveCount = loadedOrders.filter((order) => ["PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERING"].includes(order.status)).length;
-
-  // Flikräknare härleds ur den laddade listan. När ett statusfilter är aktivt
-  // returnerar API:t bara den statusen, så räknarna visar vad som faktiskt är laddat.
-  const statusCount = (s: (typeof statusOptions)[number]) =>
-    s === "ALL" ? loadedOrders.length : loadedOrders.filter((o) => o.status === s).length;
   const statusTabs = statusOptions.map((item) => ({
     value: item,
-    label: `${item === "ALL" ? "Alla" : orderStatusLabel(item)} ${formatNumber(statusCount(item))}`,
+    label: item === "ALL" ? "Alla" : orderStatusLabel(item),
   }));
 
   return (
-    <div className="page-stack">
+    <div className="page-stack orders-workspace">
       <PageHeader
-        breadcrumb="Drift"
+        breadcrumb="Beställningar"
         title="Ordrar"
         actions={
           <>
-            <Badge tone="success">{formatNumber(liveCount)} live</Badge>
+            <span className="text-xs text-[var(--text-muted)]">{formatNumber(orders.data.total)} ordrar</span>
             <Button variant="secondary" loading={orders.isFetching} onClick={() => void orders.refetch()}>
               {!orders.isFetching ? <RefreshCw size={14} /> : null} Uppdatera
             </Button>
@@ -1258,21 +1212,21 @@ export function OrdersPage() {
       />
 
       {/* Sök + statusfilter */}
-      <div className="grid gap-3">
+      <div className="orders-filters">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative w-full sm:max-w-xl">
+          <div className="orders-search relative w-full">
             <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-            <Input className="input-with-leading-icon" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Sök order, kund, telefon, restaurang" />
+            <Input className="input-with-leading-icon" value={search} onChange={(event) => setSearch(event.target.value)} aria-label="Sök bland ordrarna på den här sidan" placeholder="Sök order eller kund" />
           </div>
-          <span className="shrink-0 text-[12px] font-semibold text-[var(--text-muted)]">{formatNumber(filteredOrders.length)} visade</span>
+          <span className="shrink-0 text-[12px] font-semibold text-[var(--text-muted)]">{formatNumber(filteredOrders.length)} på den här sidan</span>
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+        <div className="orders-status-tabs" aria-label="Orderstatus">
           {statusTabs.map((item) => (
             <button
               key={item.value}
               type="button"
               onClick={() => changeStatus(item.value)}
-              className={`chip shrink-0${status === item.value ? " is-active" : ""}`}
+              aria-pressed={status === item.value}
             >
               {item.label}
             </button>
@@ -1284,7 +1238,8 @@ export function OrdersPage() {
         <Surface className="px-6 py-6"><EmptyState title="Inga ordrar i den här vyn" /></Surface>
       ) : (
         <>
-        <div className="grid gap-2">
+        <div className="orders-list">
+          <div className="orders-table-heading" style={{ gridTemplateColumns: ORDERS_GRID }}><span>Order</span><span>Restaurang / belopp</span><span>Kund</span><span>Status</span><span>Tid</span><span className="text-right">Åtgärd</span></div>
           {filteredOrders.map((order) => (
             <OrderRow
               key={order.id}

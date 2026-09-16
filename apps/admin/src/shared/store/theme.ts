@@ -7,11 +7,11 @@ export type Theme = "dark" | "light";
 export const THEME_KEY = "admin:theme";
 
 export function getStoredTheme(): Theme {
-  if (typeof window === "undefined") return "light";
+  if (typeof window === "undefined") return "dark";
   try {
-    return localStorage.getItem(THEME_KEY) === "dark" ? "dark" : "light";
+    return localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark";
   } catch {
-    return "light";
+    return "dark";
   }
 }
 
@@ -23,5 +23,8 @@ export function setStoredTheme(theme: Theme): void {
   }
   if (typeof document !== "undefined") {
     document.documentElement.dataset.theme = theme;
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute("content", theme === "dark" ? "#141518" : "#f5f5f7");
   }
 }

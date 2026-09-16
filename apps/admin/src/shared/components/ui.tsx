@@ -425,6 +425,9 @@ export function Modal({
     panelRef.current?.focus();
 
     const onKeyDown = (event: KeyboardEvent) => {
+      // Bara den översta modalen äger fokus och Escape, även vid återbetalning.
+      const panels = document.querySelectorAll(".modal-panel");
+      if (panels.item(panels.length - 1) !== panelRef.current) return;
       if (event.key === "Escape") {
         event.preventDefault();
         onCloseRef.current();
@@ -433,9 +436,9 @@ export function Modal({
       if (event.key !== "Tab" || !panelRef.current) return;
       const focusable = Array.from(
         panelRef.current.querySelectorAll<HTMLElement>(
-          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])',
         ),
-      ).filter((element) => !element.hasAttribute("hidden"));
+      ).filter((element) => !element.hasAttribute("hidden") && element.getClientRects().length > 0);
       if (focusable.length === 0) {
         event.preventDefault();
         return;

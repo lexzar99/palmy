@@ -88,7 +88,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <ToastProvider>
-      <div className="app-shell">
+      <div className="app-shell workspace-shell">
         <a className="skip-link" href="#admin-main">Hoppa till innehåll</a>
         <RealtimeSync />
         <Sidebar onOpenPalette={palette.openPalette} />
