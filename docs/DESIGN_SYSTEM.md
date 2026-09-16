@@ -326,21 +326,24 @@ orange smileyn) via `components/ViaEatsWordmark.tsx`; `mark` ger bara
 smileyn.
 
 ### Orderspårning (`app/order/[id]/page.tsx`)
-Ett statuskort överst med **en färg per fas** så flödena aldrig blandas:
-skickad/bekräftad indigo `#5E5CE6`, tillagas orange `#F04F1A`, klar och
-väntar på utkörning amber `#C77800`, på väg blå `#0A84FF`, klar att hämta
-och levererad/hämtad grön `#1F8A3B`, avbruten/avböjd röd `#D70015`, väntar
-på betalning grå. Kortet: ikonplatta i fasens mjuka färg med pulserande
-punkt, faspill, titel 22/600, beskrivning, ETA-ruta i fasens mjuka färg
-(30/600 tabulärt, t.ex. "21 min" eller "Nu" + ordernummer vid avhämtning),
-och en stegrad med färgade segment. Stegen skiljer sig per flöde:
-avhämtning = Bekräftad · Tillagas · Klar · Hämtad, leverans = Bekräftad ·
-Tillagas · Klar · På väg/Kör ut · Levererad ("Kör ut" när restaurangen
-levererar själv). Live-kartan ligger i kortets topp bara när ett viaeats-bud
-är på väg. Under kortet: recension (grön bock när klar), "Hämtning"/"Leverans"-
-kort med rader (adress, restaurang, ring, karta), "Din beställning" med
-rader, summering, betalrad och kvittorad, sedan verifiera-nummer och hjälp.
-Kvittot öppnas som helsidesöverlägg i samma stil.
+Sidan öppnar med en **scen**: ett fält i fasens gradient som täcker toppen,
+med glasknapp tillbaka, restaurang · leveranssätt och ordernummer överst.
+I mitten en 200 px **progressring** (vit på vit/22 %-spår, 11 px, rundade
+ändar) som fylls efter hur långt ordern kommit, med ETA:n stor i mitten
+("21" + "min", "Nu" vid avhämtning, bock när klart, kryss vid avbruten).
+Under aktiva faser pulserar två "sonar"-ringar utåt och en tunn streckad
+ring roterar långsamt. Därunder faspill, titel 26/600 i vitt, beskrivning i
+vit/78 % och **tidslinjen som piller**: klara = vita med bock, aktiv = vit
+ring med pulserande punkt, kommande = vit/10 %. Gradienter per fas:
+skickad/bekräftad indigo, tillagas orange, klar amber, på väg blå, klar att
+hämta/levererad grön, avbruten röd, väntar på betalning grå. Stegen är olika
+per flöde (avhämtning: Bekräftad · Tillagas · Klar · Hämtad; leverans:
+Bekräftad · Tillagas · Klar · På väg/Kör ut · Levererad).
+Innehållet ligger i ett grått ark (radie 28) som överlappar scenen med 12 px
+sidmarginal: live-karta bara när ett viaeats-bud är på väg, recension,
+hämtnings-/leveranskort, **"Din beställning" hopfälld** (rad med antal,
+betalsätt och total; expanderar till rader, summering och kvitto), notiser,
+leveransbevis, verifiera nummer och hjälp. Kvittot är ett helsidesöverlägg.
 
 ### Flikrad (BottomNav) och Deals
 `components/BottomNav.tsx`: frostat glas (`ve-glass`), hårfin topplinje, fem

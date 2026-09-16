@@ -7,7 +7,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Clock, Store, Loader2, Phone, AlertCircle, ShieldCheck, MapPin, Star, X, MessageSquare, ChevronLeft, ChevronRight, Navigation, Receipt, Download, Bike, Flame, PackageCheck, CreditCard, Bell } from "lucide-react";
+import { Check, Clock, Store, Loader2, Phone, AlertCircle, ShieldCheck, MapPin, Star, X, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Navigation, Receipt, Download, Bike, Flame, PackageCheck, CreditCard, Bell } from "lucide-react";
 import { io as socketIO } from "socket.io-client";
 import { SOCKET_URL } from "@/lib/api";
 import { cacheOrderDetail, getCachedOrderDetail } from "@/lib/offlineOrders";
@@ -226,6 +226,7 @@ const OrderStatusPage = () => {
   const [reviewRewardText, setReviewRewardText] = useState<string | null>(null);
   // Kvitto-modal + nedladdningsräknare (max 2 ggr per order, lokalt).
   const [showReceipt, setShowReceipt] = useState(false);
+  const [orderOpen, setOrderOpen] = useState(false);
   const [receiptDownloads, setReceiptDownloads] = useState(0);
   // Förstora leveransfotot.
   const [proofZoom, setProofZoom] = useState(false);
@@ -875,107 +876,121 @@ const OrderStatusPage = () => {
     </div>
   );
 
-  // ── Statuskort ────────────────────────────────────────────────────────────
-  const StatusHero = (
-    <motion.section
-      key={phase}
-      initial={embedMode ? false : { opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="ve-card overflow-hidden"
-    >
-      {showLiveMap && (
-        <div className="relative h-[220px] w-full overflow-hidden" style={{ backgroundColor: "#E7EAE6" }}>
-          <CourierTrackingMap
-            pickup={{ lat: order.restaurantLat, lng: order.restaurantLng }}
-            dropoff={{ lat: order.deliveryLatitude, lng: order.deliveryLongitude }}
-            courier={courierPos}
-            accentColor={ph.color}
-          />
+  // ── Scenen: färgfält per fas, progressring med ETA, tidslinje som piller ──
+  const GRADIENT: Record<Phase, string> = {
+    payment: "linear-gradient(165deg, #8E8E93 0%, #5C5C61 100%)",
+    sent: "linear-gradient(165deg, #6E6CF0 0%, #3B39B0 100%)",
+    confirmed: "linear-gradient(165deg, #6E6CF0 0%, #3B39B0 100%)",
+    cooking: "linear-gradient(165deg, #FF7A45 0%, #E03E0C 100%)",
+    readyWait: "linear-gradient(165deg, #F7B23B 0%, #C27000 100%)",
+    onWay: "linear-gradient(165deg, #42B5FF 0%, #0A5FE0 100%)",
+    readyPickup: "linear-gradient(165deg, #3DD267 0%, #178A3A 100%)",
+    done: "linear-gradient(165deg, #3DD267 0%, #178A3A 100%)",
+    failed: "linear-gradient(165deg, #FF5B4F 0%, #B3261E 100%)",
+  };
+  const journey = phase === "done" ? 1 : phase === "failed" || phase === "payment" ? 0.06 : Math.min(0.96, (stepIndex + 0.6) / steps.length);
+  const RING_R = 76;
+  const RING_C = 2 * Math.PI * RING_R;
+  const etaParts = etaBig ? etaBig.match(/^(\d+)\s*(.*)$/) : null;
+  const ringActive = !isRejected && phase !== "done" && phase !== "readyPickup" && phase !== "payment";
+
+  const Stage = (
+    <section className="relative overflow-hidden text-white" style={{ background: GRADIENT[phase] }}>
+      <style>{`
+        @keyframes ve-sonar { 0% { transform: scale(0.55); opacity: 0.55; } 100% { transform: scale(1.65); opacity: 0; } }
+        @keyframes ve-spin { to { transform: rotate(360deg); } }
+        .ve-sonar { animation: ve-sonar 2.8s cubic-bezier(0.2, 0.6, 0.3, 1) infinite; }
+        .ve-sonar-2 { animation-delay: 1.4s; }
+        .ve-spin { animation: ve-spin 16s linear infinite; transform-origin: 50% 50%; }
+        @media (prefers-reduced-motion: reduce) { .ve-sonar, .ve-spin { animation: none; } }
+      `}</style>
+      <span aria-hidden className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full" style={{ background: "radial-gradient(circle, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0) 70%)" }} />
+      <span aria-hidden className="pointer-events-none absolute -bottom-32 -right-20 h-80 w-80 rounded-full" style={{ background: "radial-gradient(circle, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0) 70%)" }} />
+      <div className="relative mx-auto max-w-[680px] px-3 pt-[calc(env(safe-area-inset-top,0px)+10px)] pb-14 md:pt-6">
+        <div className="flex items-center gap-2">
+          <Link href={embedMode ? embedMenuHref : "/"} aria-label="Till menyn" className="ve-press grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "rgba(255,255,255,0.18)", backdropFilter: "blur(12px)" }}>
+            <ChevronLeft size={20} strokeWidth={2.4} className="-ml-0.5" />
+          </Link>
+          <p className="m-0 min-w-0 flex-1 truncate text-center text-[13.5px] font-medium" style={{ color: "rgba(255,255,255,0.85)" }}>
+            {restName} · {isPickup ? "Avhämtning" : isSelf ? "Restaurangen levererar" : "Leverans"}
+          </p>
+          <span className="ve-tabular shrink-0 rounded-full px-3 py-1.5 text-[13px] font-semibold" style={{ backgroundColor: "rgba(255,255,255,0.18)", backdropFilter: "blur(12px)" }}>{orderNo}</span>
         </div>
-      )}
-      <div className="px-5 pt-5 pb-5">
-        <div className="flex items-start gap-4">
-          <span className="relative grid h-14 w-14 shrink-0 place-items-center rounded-[18px]" style={{ backgroundColor: ph.soft, color: ph.color }}>
-            <PhaseIcon size={26} strokeWidth={2.2} />
-            {!isRejected && phase !== "done" && phase !== "readyPickup" && (
-              <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-40" style={{ backgroundColor: ph.color }} />
-                <span className="relative inline-flex h-3.5 w-3.5 rounded-full" style={{ backgroundColor: ph.color, boxShadow: "0 0 0 2px #fff" }} />
-              </span>
+
+        <div className="relative mx-auto mt-7 grid h-[200px] w-[200px] place-items-center">
+          {ringActive && (
+            <>
+              <span aria-hidden className="ve-sonar absolute inset-0 rounded-full" style={{ boxShadow: "inset 0 0 0 1.5px rgba(255,255,255,0.55)" }} />
+              <span aria-hidden className="ve-sonar ve-sonar-2 absolute inset-0 rounded-full" style={{ boxShadow: "inset 0 0 0 1.5px rgba(255,255,255,0.55)" }} />
+            </>
+          )}
+          <svg width="200" height="200" viewBox="0 0 200 200" className="absolute inset-0" aria-hidden>
+            <circle cx="100" cy="100" r={RING_R} fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="11" />
+            <circle
+              cx="100" cy="100" r={RING_R} fill="none" stroke="#fff" strokeWidth="11" strokeLinecap="round"
+              strokeDasharray={RING_C} strokeDashoffset={RING_C * (1 - journey)}
+              transform="rotate(-90 100 100)"
+              style={{ transition: "stroke-dashoffset 900ms cubic-bezier(0.2, 0.8, 0.2, 1)" }}
+            />
+            {ringActive && (
+              <circle className="ve-spin" cx="100" cy="100" r="92" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="1.5" strokeDasharray="3 9" strokeLinecap="round" />
             )}
-          </span>
-          <div className="min-w-0 flex-1">
-            <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold" style={{ backgroundColor: ph.soft, color: ph.color }}>
-              <span className="h-[6px] w-[6px] rounded-full" style={{ backgroundColor: ph.color }} />
-              {ph.label}
-            </span>
-            <h1 className="m-0 mt-2 text-[22px] font-semibold leading-[1.12]" style={{ letterSpacing: "-0.022em", color: "var(--ve-ink)" }}>
-              {isRejected ? cancelledCopy.title : statusCopy.title}
-            </h1>
-            <p className="m-0 mt-1.5 text-[14.5px] leading-[1.45]" style={{ color: "var(--ve-ink-2)" }}>
-              {isRejected ? cancelledCopy.description : statusDescription}
-            </p>
+          </svg>
+          <div className="relative flex flex-col items-center justify-center text-center">
+            {phase === "done" ? (
+              <Check size={54} strokeWidth={2.6} />
+            ) : isRejected ? (
+              <X size={50} strokeWidth={2.6} />
+            ) : etaParts ? (
+              <>
+                <span className="ve-tabular text-[52px] font-semibold leading-none" style={{ letterSpacing: "-0.04em" }}>{etaParts[1]}</span>
+                <span className="mt-1 text-[14px] font-medium" style={{ color: "rgba(255,255,255,0.85)" }}>{etaParts[2] || "min"}</span>
+              </>
+            ) : etaBig ? (
+              <span className="text-[34px] font-semibold leading-none" style={{ letterSpacing: "-0.03em" }}>{etaBig}</span>
+            ) : (
+              <PhaseIcon size={44} strokeWidth={2.2} />
+            )}
           </div>
         </div>
 
-        {etaBig && (
-          <div className="mt-5 flex items-end justify-between gap-4 rounded-[16px] px-4 py-3.5" style={{ backgroundColor: ph.soft }}>
-            <div className="min-w-0">
-              <p className="m-0 text-[12.5px] font-medium" style={{ color: ph.color }}>{etaCaption}</p>
-              <p className="ve-tabular m-0 mt-0.5 text-[30px] font-semibold leading-none" style={{ letterSpacing: "-0.03em", color: "var(--ve-ink)" }}>{etaBig}</p>
-            </div>
-            {phase === "readyPickup" ? (
-              <span className="ve-tabular shrink-0 rounded-full px-3 py-1.5 text-[14px] font-semibold text-white" style={{ backgroundColor: ph.color }}>{orderNo}</span>
-            ) : deliveryOverdue ? (
-              <span className="shrink-0 text-[12px] font-medium" style={{ color: ph.color }}>Hög belastning</span>
-            ) : null}
-          </div>
-        )}
-        {!etaBig && etaCaption && (
-          <p className="m-0 mt-4 text-[13.5px] font-medium" style={{ color: ph.color }}>{etaCaption}</p>
-        )}
+        <div className="mt-6 text-center">
+          <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-semibold" style={{ backgroundColor: "rgba(255,255,255,0.18)" }}>
+            {etaCaption || ph.label}
+          </span>
+          <h1 className="m-0 mt-3 text-[26px] font-semibold leading-[1.12]" style={{ letterSpacing: "-0.025em" }}>
+            {isRejected ? cancelledCopy.title : statusCopy.title}
+          </h1>
+          <p className="m-0 mx-auto mt-2 max-w-[320px] text-[14.5px] leading-[1.45]" style={{ color: "rgba(255,255,255,0.78)" }}>
+            {isRejected ? cancelledCopy.description : statusDescription}
+          </p>
+          {deliveryOverdue && <p className="m-0 mt-2 text-[12.5px] font-medium" style={{ color: "rgba(255,255,255,0.85)" }}>Hög belastning just nu</p>}
+        </div>
 
         {!isRejected && (
-          <div className="mt-5">
-            <div className="flex items-center gap-1.5">
-              {steps.map((step, index) => {
-                const done = index < stepIndex || phase === "done";
-                const active = index === stepIndex && phase !== "done";
-                return (
-                  <span
-                    key={step.label}
-                    className="h-[6px] flex-1 overflow-hidden rounded-full"
-                    style={{ backgroundColor: done ? step.color : active ? step.color : "var(--ve-fill-2)", opacity: active ? 1 : done ? 0.55 : 1 }}
-                  >
-                    {active && <span className="block h-full w-full animate-pulse rounded-full" style={{ backgroundColor: step.color }} />}
-                  </span>
-                );
-              })}
-            </div>
-            <div className="mt-2 flex gap-1.5">
-              {steps.map((step, index) => {
-                const done = index < stepIndex || phase === "done";
-                const active = index === stepIndex && phase !== "done";
-                return (
-                  <span
-                    key={step.label}
-                    className="flex-1 text-[10.5px] leading-tight"
-                    style={{
-                      wordBreak: "keep-all",
-                      textAlign: index === 0 ? "left" : index === steps.length - 1 ? "right" : "center",
-                      color: active ? step.color : done ? "var(--ve-ink)" : "var(--ve-ink-3)",
-                      fontWeight: active ? 600 : 500,
-                    }}
-                  >
-                    {step.label}
-                  </span>
-                );
-              })}
-            </div>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-1.5">
+            {steps.map((step, index) => {
+              const done = index < stepIndex || phase === "done";
+              const active = index === stepIndex && phase !== "done";
+              return (
+                <span
+                  key={step.label}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-semibold"
+                  style={{
+                    backgroundColor: done ? "#fff" : active ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.10)",
+                    color: done ? "#1D1D1F" : active ? "#fff" : "rgba(255,255,255,0.6)",
+                    boxShadow: active ? "inset 0 0 0 1.5px rgba(255,255,255,0.9)" : undefined,
+                  }}
+                >
+                  {done ? <Check size={12} strokeWidth={3} /> : active ? <span className="h-[7px] w-[7px] rounded-full bg-white animate-pulse" /> : null}
+                  {step.label}
+                </span>
+              );
+            })}
           </div>
         )}
       </div>
-    </motion.section>
+    </section>
   );
 
   // ── Var-kortet: hämta hos / levereras till + restaurangen ────────────────
@@ -1167,6 +1182,21 @@ const OrderStatusPage = () => {
     </AnimatePresence>
   );
 
+  const OrderCollapse = (
+    <section className="ve-card overflow-hidden">
+      <button type="button" onClick={() => setOrderOpen((v) => !v)} aria-expanded={orderOpen} className="ve-row-press flex w-full items-center gap-3.5 px-4 py-3.5 text-left">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}><Receipt size={17} strokeWidth={2.2} /></span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[16px] font-semibold" style={{ color: "var(--ve-ink)", letterSpacing: "-0.01em" }}>Din beställning</span>
+          <span className="block text-[13px]" style={{ color: "var(--ve-ink-3)" }}>{(order.items ?? []).length} {(order.items ?? []).length === 1 ? "vara" : "varor"} · {paymentLabel}</span>
+        </span>
+        <span className="ve-tabular text-[16px] font-semibold" style={{ color: "var(--ve-ink)" }}>{formatSek(order.total)} kr</span>
+        <ChevronDown size={17} strokeWidth={2.2} className="transition-transform duration-200" style={{ color: "var(--ve-ink-3)", transform: orderOpen ? "rotate(180deg)" : "none" }} />
+      </button>
+      {orderOpen && <div style={{ boxShadow: hairline }}>{OrderCard}</div>}
+    </section>
+  );
+
   return (
     // Spårningen beter sig som en app-skärm: bara vertikal rörelse, ingen
     // studs mot kanterna, inget som kan skapa sidledes scroll.
@@ -1175,25 +1205,28 @@ const OrderStatusPage = () => {
       style={{ overflowX: "clip", overscrollBehavior: "none", touchAction: "pan-y pinch-zoom" }}
     >
       <MetaPurchase receipt={order.marketingPurchase} />
+      {Stage}
       <div
-        className="mx-auto max-w-[680px] px-4 pt-[calc(env(safe-area-inset-top,0px)+12px)] md:pt-6"
-        style={{ paddingBottom: embedMode ? "calc(env(safe-area-inset-bottom, 0px) + 10rem)" : "calc(env(safe-area-inset-bottom, 0px) + 32px)" }}
+        className="relative -mt-7 rounded-t-[28px] px-3 pt-4"
+        style={{ backgroundColor: "var(--ve-bg)", paddingBottom: embedMode ? "calc(env(safe-area-inset-bottom, 0px) + 10rem)" : "calc(env(safe-area-inset-bottom, 0px) + 32px)" }}
       >
-        <header className="mb-4 flex items-center gap-3">
-          <Link href={embedMode ? embedMenuHref : "/"} aria-label="Till menyn" className="ve-press grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>
-            <ChevronLeft size={20} strokeWidth={2.4} className="-ml-0.5" />
-          </Link>
-          <div className="min-w-0 flex-1">
-            <h2 className="m-0 text-[22px] font-semibold leading-tight" style={{ letterSpacing: "-0.02em", color: "var(--ve-ink)" }}>Din order</h2>
-            <p className="m-0 mt-px truncate text-[13px]" style={{ color: "var(--ve-ink-3)" }}>{restName} · {isPickup ? "Avhämtning" : isSelf ? "Leverans av restaurangen" : "Leverans"}</p>
-          </div>
-          <span className="ve-tabular shrink-0 rounded-full px-3 py-1.5 text-[13px] font-semibold" style={{ backgroundColor: "var(--ve-card)", color: "var(--ve-ink)", boxShadow: "inset 0 0 0 0.5px var(--ve-line)" }}>{orderNo}</span>
-        </header>
-
-        <div className="space-y-4">
-          {StatusHero}
+        <div className="mx-auto max-w-[680px] space-y-3">
+          {showLiveMap && (
+            <section className="ve-card overflow-hidden">
+              <div className="relative h-[220px] w-full" style={{ backgroundColor: "#E7EAE6" }}>
+                <CourierTrackingMap
+                  pickup={{ lat: order.restaurantLat, lng: order.restaurantLng }}
+                  dropoff={{ lat: order.deliveryLatitude, lng: order.deliveryLongitude }}
+                  courier={courierPos}
+                  accentColor={ph.color}
+                />
+              </div>
+            </section>
+          )}
           {ReviewCard}
           {embedMode && embedRestaurant === "palmyra-pizzeria-lund" && !isRejected && order.paymentStatus === "PAID" && <EmbedViaeatsPromotion completed={isCompleted} />}
+          {WhereCard}
+          {OrderCollapse}
 
           {pushAvailable && !isTerminal(currentStatus) && (
             <section className="ve-card flex items-center gap-3.5 px-4 py-3.5">
@@ -1226,16 +1259,6 @@ const OrderStatusPage = () => {
               </div>
             </section>
           )}
-
-          <div>
-            {sectionTitle(isPickup ? "Hämtning" : "Leverans")}
-            {WhereCard}
-          </div>
-
-          <div>
-            {sectionTitle("Din beställning", <span className="ve-tabular text-[13px]" style={{ color: "var(--ve-ink-3)" }}>{(order.items ?? []).length} {(order.items ?? []).length === 1 ? "vara" : "varor"}</span>)}
-            {OrderCard}
-          </div>
 
           {showPhoneVerifyPrompt && (
             <section className="ve-card px-4 py-4">
