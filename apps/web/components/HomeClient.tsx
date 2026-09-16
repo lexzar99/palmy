@@ -1047,12 +1047,14 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
   // Förladda adressmodalen och Leaflet när startsidan är klar, så kartan
   // är redo när kunden trycker på adressraden.
   useEffect(() => {
-    const idle = (cb: () => void) => ("requestIdleCallback" in window ? (window as any).requestIdleCallback(cb, { timeout: 3000 }) : window.setTimeout(cb, 1500));
-    const handle = idle(() => {
+    const w = window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+    const preload = () => {
       void import("@/components/AddressModal");
       void import("@/lib/leaflet").then((m) => m.loadLeaflet()).catch(() => {});
-    });
-    return () => { if ("cancelIdleCallback" in window) (window as any).cancelIdleCallback(handle); else window.clearTimeout(handle); };
+    };
+    const useIdle = typeof w.requestIdleCallback === "function";
+    const handle = useIdle ? w.requestIdleCallback!(preload, { timeout: 2500 }) : window.setTimeout(preload, 1200);
+    return () => { if (useIdle && typeof w.cancelIdleCallback === "function") w.cancelIdleCallback(handle); else window.clearTimeout(handle); };
   }, []);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
