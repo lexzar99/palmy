@@ -6,8 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Bike, Check, ChevronRight, Navigation, Package, ShoppingBag, X } from "lucide-react";
 import { motion } from "framer-motion";
 import { orderTrackingCopy, orderTrackingProgress } from "@/lib/orderTrackingPresentation";
-import { phaseTint } from "@/components/BreathingTracking";
-import { isPickupOrder, phaseTitle, resolvePhase } from "@/lib/trackingPhase";
+import { isPickupOrder } from "@/lib/trackingPhase";
 
 const CourierTrackingMap = dynamic(() => import("@/components/CourierTrackingMap"), { ssr: false });
 
@@ -35,94 +34,134 @@ function etaLabel(order: any, now = Date.now()) {
 }
 
 /**
- * Hemskärmens pågående order — avsiktligt tunn. Restaurang, ett statusord och
- * klockslaget. Allt annat finns ett tryck bort på spårningssidan, så kortet
- * behöver inte upprepa det.
+ * Hemskärmens pågående order — samma idé som spårningssidan i miniatyr:
+ * fasens gradient, en liten progressring med ETA:n i mitten, restaurang,
+ * fastitel och tidslinjen som piller. Färgerna är desamma som på
+ * /order/[id] så kunden känner igen fasen direkt (docs/DESIGN_SYSTEM.md).
  */
-function CompactTrackingCard({ order, href, className = "" }: { order: any; href?: string; className?: string }) {
-  const phase = resolvePhase(order);
-  const tint = phaseTint(phase);
-  const pickup = isPickupOrder(order);
-  const status = String(order.status || "PENDING").toUpperCase();
-  const isCancelled = ["CANCELLED", "REJECTED", "DELIVERY_FAILED"].includes(status);
-  const accent = isCancelled ? "#C0392B" : tint;
-  const restaurantLabel = order.restaurantName || order.restaurant?.name || "Din restaurang";
-  const activeIndex = phase === "waiting" ? 0 : phase === "preparing" ? 1 : 2;
+type CompactPhase = "payment" | "sent" | "confirmed" | "cooking" | "readyWait" | "onWay" | "readyPickup" | "done" | "failed";
+const COMPACT_GRADIENT: Record<CompactPhase, string> = {
+  payment: "linear-gradient(135deg, #8E8E93 0%, #5C5C61 100%)",
+  sent: "linear-gradient(135deg, #6E6CF0 0%, #3B39B0 100%)",
+  confirmed: "linear-gradient(135deg, #6E6CF0 0%, #3B39B0 100%)",
+  cooking: "linear-gradient(135deg, #FF7A45 0%, #E03E0C 100%)",
+  readyWait: "linear-gradient(135deg, #F7B23B 0%, #C27000 100%)",
+  onWay: "linear-gradient(135deg, #42B5FF 0%, #0A5FE0 100%)",
+  readyPickup: "linear-gradient(135deg, #3DD267 0%, #178A3A 100%)",
+  done: "linear-gradient(135deg, #3DD267 0%, #178A3A 100%)",
+  failed: "linear-gradient(135deg, #FF5B4F 0%, #B3261E 100%)",
+};
 
-  const target = order.etaRevisedAt ?? order.etaEndsAt ?? null;
-  const clock = target
-    ? new Date(target).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })
-    : null;
-  const headline = isCancelled ? "Avbruten" : phaseTitle(phase, pickup);
-  const done = phase === "done" || phase === "readyForPickup";
+function compactPhase(order: any): CompactPhase {
+  const status = String(order.status || "PENDING").toUpperCase();
+  const type = String(order.orderType || order.type || "DELIVERY").toUpperCase();
+  const pickup = type === "PICKUP";
+  if (["CANCELLED", "REJECTED", "DELIVERY_FAILED"].includes(status)) return "failed";
+  if (["DELIVERED", "COMPLETED"].includes(status)) return "done";
+  if (status === "AWAITING_PAYMENT") return "payment";
+  if (status === "PENDING") return "sent";
+  if (status === "ACCEPTED") return "confirmed";
+  if (status === "PREPARING") return "cooking";
+  if (status === "READY") return pickup ? "readyPickup" : "readyWait";
+  if (["DELIVERING", "OUT_FOR_DELIVERY", "ON_THE_WAY"].includes(status)) return "onWay";
+  return "confirmed";
+}
+
+function CompactTrackingCard({ order, href, className = "" }: { order: any; href?: string; className?: string }) {
+  const phase = compactPhase(order);
+  const pickup = isPickupOrder(order);
+  const selfDelivery = !pickup && Boolean(order.selfDelivery);
+  const restaurantLabel = order.restaurantName || order.restaurant?.name || "Din restaurang";
+  const copy = orderTrackingCopy(order);
+  const status = String(order.status || "PENDING").toUpperCase();
+  const firstStep = phase === "sent" || phase === "payment" ? "Skickad" : "Bekräftad";
+  const steps = pickup
+    ? [firstStep, "Tillagas", "Klar", "Hämtad"]
+    : [firstStep, "Tillagas", "Klar", selfDelivery ? "Kör ut" : "På väg", "Levererad"];
+  const stepIndex = phase === "done" ? steps.length - 1 : phase === "readyPickup" || phase === "readyWait" ? 2 : phase === "onWay" ? 3 : phase === "cooking" ? 1 : 0;
+  const journey = phase === "done" ? 1 : phase === "failed" || phase === "payment" ? 0.06 : Math.min(0.96, (stepIndex + 0.6) / steps.length);
+  const active = phase !== "done" && phase !== "failed" && phase !== "readyPickup" && phase !== "payment";
+  const eta = etaLabel(order);
+  const etaParts = eta.match(/^(\d+)\s*m$/);
+  const R = 24;
+  const C = 2 * Math.PI * R;
+  const modeLabel = pickup ? "Avhämtning" : selfDelivery ? "Restaurangen levererar" : "Leverans";
+  const orderNumber = order.orderNumber ? `#${order.orderNumber}` : "";
 
   const body = (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`relative isolate overflow-hidden rounded-[24px] bg-white p-4 ${className}`}
-      style={{
-        border: "1px solid rgba(17,17,19,0.07)",
-        boxShadow: "0 10px 26px rgba(17,17,19,0.07)",
-      }}
+      className={`relative isolate overflow-hidden rounded-[24px] p-4 text-white ${className}`}
+      style={{ background: COMPACT_GRADIENT[phase], boxShadow: "0 2px 6px rgba(0,0,0,0.08), 0 14px 34px rgba(0,0,0,0.16)" }}
     >
-      <span
-        aria-hidden
-        className="pointer-events-none absolute -right-16 -top-20 h-44 w-44 rounded-full"
-        style={{ background: `radial-gradient(circle, ${accent}2e 0%, transparent 70%)` }}
-      />
-
+      <span aria-hidden className="pointer-events-none absolute -left-16 -top-16 h-48 w-48 rounded-full" style={{ background: "radial-gradient(circle, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0) 70%)" }} />
       <div className="relative flex items-center gap-3.5">
-        <span className="relative grid h-11 w-11 shrink-0 place-items-center">
-          {!isCancelled && !done ? (
+        <span className="relative grid h-16 w-16 shrink-0 place-items-center">
+          {active ? (
             <motion.span
               aria-hidden
               className="absolute inset-0 rounded-full"
-              style={{ backgroundColor: accent, opacity: 0.16 }}
-              animate={{ scale: [0.86, 1.12, 0.86] }}
-              transition={{ duration: phase === "waiting" ? 1.6 : 4.4, repeat: Infinity, ease: "easeInOut" }}
+              style={{ boxShadow: "inset 0 0 0 1.5px rgba(255,255,255,0.55)" }}
+              animate={{ scale: [0.7, 1.35], opacity: [0.5, 0] }}
+              transition={{ duration: 2.6, repeat: Infinity, ease: "easeOut" }}
             />
           ) : null}
-          <span className="relative h-[13px] w-[13px] rounded-full" style={{ backgroundColor: accent }} />
+          <svg width="64" height="64" viewBox="0 0 64 64" className="absolute inset-0" aria-hidden>
+            <circle cx="32" cy="32" r={R} fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="5" />
+            <circle cx="32" cy="32" r={R} fill="none" stroke="#fff" strokeWidth="5" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - journey)} transform="rotate(-90 32 32)" style={{ transition: "stroke-dashoffset 900ms cubic-bezier(0.2, 0.8, 0.2, 1)" }} />
+          </svg>
+          <span className="relative flex flex-col items-center justify-center leading-none">
+            {phase === "done" ? (
+              <Check size={22} strokeWidth={2.8} />
+            ) : phase === "failed" ? (
+              <X size={20} strokeWidth={2.8} />
+            ) : etaParts ? (
+              <>
+                <span className="text-[17px] font-semibold tabular-nums" style={{ letterSpacing: "-0.03em" }}>{etaParts[1]}</span>
+                <span className="mt-px text-[9px] font-medium" style={{ color: "rgba(255,255,255,0.85)" }}>min</span>
+              </>
+            ) : (
+              <span className="px-1 text-center text-[10.5px] font-semibold leading-tight">{eta}</span>
+            )}
+          </span>
         </span>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[16px] font-black tracking-tight" style={{ color: "var(--text-primary)" }}>
-            {restaurantLabel}
-          </p>
-          <p className="mt-0.5 truncate text-[12.5px] font-bold" style={{ color: accent }}>
-            {headline}
-          </p>
+          <p className="truncate text-[12.5px] font-medium" style={{ color: "rgba(255,255,255,0.78)" }}>{restaurantLabel} · {modeLabel}{orderNumber ? ` · ${orderNumber}` : ""}</p>
+          <p className="mt-0.5 truncate text-[17px] font-semibold" style={{ letterSpacing: "-0.015em" }}>{copy.title}</p>
+          <p className="mt-0.5 line-clamp-1 text-[12.5px]" style={{ color: "rgba(255,255,255,0.72)" }}>{copy.short}</p>
         </div>
 
-        <div className="shrink-0 text-right">
-          {clock && !isCancelled && !done ? (
-            <p className="text-[22px] font-black leading-none tracking-[-0.02em] tabular-nums" style={{ color: "var(--text-primary)" }}>
-              {clock}
-            </p>
-          ) : (
-            <span className="grid h-9 w-9 place-items-center rounded-full" style={{ backgroundColor: `${accent}1f`, color: accent }}>
-              {isCancelled ? <X size={17} /> : <Check size={18} />}
-            </span>
-          )}
-        </div>
-
-        <ChevronRight size={17} className="shrink-0" style={{ color: "#C6C6CA" }} />
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "rgba(255,255,255,0.18)" }}>
+          <ChevronRight size={17} strokeWidth={2.4} />
+        </span>
       </div>
 
-      {!isCancelled ? (
-        <div className="relative mt-3.5 flex gap-1.5">
-          {[0, 1, 2].map((index) => (
-            <motion.span
-              key={index}
-              className="h-[4px] flex-1 rounded-full"
-              initial={false}
-              animate={{ backgroundColor: index <= activeIndex ? accent : "rgba(17,17,19,0.09)" }}
-              transition={{ duration: 0.5 }}
-            />
-          ))}
+      {phase !== "failed" ? (
+        <div className="relative mt-3.5 flex flex-wrap gap-1.5">
+          {steps.map((label, index) => {
+            const done = index < stepIndex || phase === "done";
+            const current = index === stepIndex && phase !== "done";
+            return (
+              <span
+                key={label}
+                className="inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-[11.5px] font-semibold"
+                style={{
+                  backgroundColor: done ? "#fff" : current ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.10)",
+                  color: done ? "#1D1D1F" : current ? "#fff" : "rgba(255,255,255,0.6)",
+                  boxShadow: current ? "inset 0 0 0 1.5px rgba(255,255,255,0.9)" : undefined,
+                }}
+              >
+                {done ? <Check size={11} strokeWidth={3} /> : current ? <span className="h-[6px] w-[6px] animate-pulse rounded-full bg-white" /> : null}
+                {label}
+              </span>
+            );
+          })}
         </div>
-      ) : null}
+      ) : (
+        <p className="relative mt-3 text-[13px]" style={{ color: "rgba(255,255,255,0.8)" }}>{status === "REJECTED" ? "Restaurangen kunde inte ta emot ordern." : status === "DELIVERY_FAILED" ? "Leveransen kunde inte slutföras." : "Ordern avbröts utan debitering."}</p>
+      )}
     </motion.div>
   );
 

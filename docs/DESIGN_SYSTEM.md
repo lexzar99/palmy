@@ -344,6 +344,10 @@ sidmarginal: live-karta bara när ett viaeats-bud är på väg, recension,
 hämtnings-/leveranskort, **"Din beställning" hopfälld** (rad med antal,
 betalsätt och total; expanderar till rader, summering och kvitto), notiser,
 leveransbevis, verifiera nummer och hjälp. Kvittot är ett helsidesöverlägg.
+Startsidans **pågående-order-kort** (`components/OrderTrackingCard.tsx`,
+kompakt variant) är samma idé i miniatyr: fasens gradient, 64 px ring med
+ETA:n i mitten, restaurang · leveranssätt · ordernummer, fastitel och
+tidslinjen som små piller.
 
 ### Flikrad (BottomNav) och Deals
 `components/BottomNav.tsx`: frostat glas (`ve-glass`), hårfin topplinje, fem
