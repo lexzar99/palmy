@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
-import { X } from "lucide-react";
+import "@/components/restaurant/restaurant.css";
+import { Gift, X } from "lucide-react";
 import {
   getPlatformSessionStatus,
   LAST_CUSTOMER_ID_KEY,
@@ -143,95 +144,96 @@ export default function ClaimDealPopup() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[100] flex items-end justify-center px-4 pb-6 sm:items-center sm:pb-0"
-        style={{ backgroundColor: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)" }}
+        className="ve-root fixed inset-0 z-[1500] flex items-end justify-center sm:items-center"
+        style={{ backgroundColor: "rgba(0,0,0,0.42)" }}
         onClick={handleDismiss}
       >
         <motion.div
-          initial={{ y: 80, opacity: 0, scale: 0.95 }}
-          animate={{ y: 0, opacity: 1, scale: 1 }}
-          exit={{ y: 80, opacity: 0, scale: 0.95 }}
-          transition={{ type: "spring", damping: 25, stiffness: 300 }}
+          initial={{ y: "100%" }}
+          animate={{ y: 0 }}
+          exit={{ y: "100%" }}
+          transition={{ type: "spring", stiffness: 380, damping: 38, mass: 0.9 }}
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-sm rounded-[28px] p-6 shadow-2xl"
-          style={{
-            background: "linear-gradient(180deg, #1a1f29 0%, #11151b 100%)",
-            border: "1px solid rgba(240,83,28,0.3)",
-            color: "#fff",
-          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label={headline}
+          className="relative w-full max-w-[480px] overflow-hidden rounded-t-[26px] sm:rounded-[26px]"
+          style={{ backgroundColor: "var(--ve-bg)", boxShadow: "0 -8px 40px rgba(0,0,0,0.18)" }}
         >
+          <div className="flex justify-center pt-2.5"><span className="ve-sheet-handle" /></div>
           <button
             type="button"
             onClick={handleDismiss}
-            className="absolute right-4 top-4 rounded-full p-2 text-white/60 hover:bg-white/10 hover:text-white transition-colors"
+            className="ve-press absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full"
+            style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}
             aria-label="Stäng"
           >
-            <X size={18} />
+            <X size={16} strokeWidth={2.6} />
           </button>
 
-          {deal.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={deal.imageUrl} alt="" className="mb-4 h-40 w-full rounded-2xl object-cover" />
-          ) : (
-            <div className="mb-4 flex h-40 w-full items-center justify-center rounded-2xl bg-[rgba(240,83,28,0.1)] text-5xl">
-              🎁
-            </div>
-          )}
+          <div className="px-5 pb-5 pt-3" style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 20px)" }}>
+            {deal.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={deal.imageUrl} alt="" className="mt-6 h-44 w-full rounded-[20px] object-cover" style={{ backgroundColor: "#EBEBEE" }} />
+            ) : (
+              <div className="mt-6 grid h-32 w-full place-items-center rounded-[20px]" style={{ backgroundColor: "var(--ve-accent-soft)", color: "var(--ve-accent)" }}>
+                <Gift size={40} strokeWidth={2} />
+              </div>
+            )}
 
-          {badge ? (
-            <div className="mb-3 inline-block rounded-full bg-[#F0531C] px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#11151b]">
-              {badge}
-            </div>
-          ) : null}
+            {badge ? (
+              <span className="mt-4 inline-flex rounded-full px-2.5 py-1 text-[12px] font-semibold" style={{ backgroundColor: "var(--ve-accent-soft)", color: "var(--ve-accent)" }}>
+                {badge}
+              </span>
+            ) : null}
 
-          <h3 className="text-2xl font-black tracking-[-0.04em]">{headline}</h3>
-          {body ? <p className="mt-3 text-sm leading-6 text-white/80">{body}</p> : null}
+            <h3 className="m-0 mt-2 text-[24px] font-semibold leading-[1.12]" style={{ letterSpacing: "-0.022em", color: "var(--ve-ink)" }}>{headline}</h3>
+            {body ? <p className="m-0 mt-2 text-[15px] leading-[1.45]" style={{ color: "var(--ve-ink-2)" }}>{body}</p> : null}
 
-          {deal.minOrder && deal.minOrder > 0 ? (
-            <p className="mt-3 text-xs font-bold uppercase tracking-wider text-white/50">
-              Minsta order {deal.minOrder} kr
-            </p>
-          ) : null}
-          {deal.validUntil ? (
-            <p className="mt-1 text-xs font-bold uppercase tracking-wider text-white/50">
-              Gäller t.o.m. {String(deal.validUntil).slice(0, 10)}
-            </p>
-          ) : null}
+            {(deal.minOrder && deal.minOrder > 0) || deal.validUntil ? (
+              <p className="m-0 mt-3 text-[13px]" style={{ color: "var(--ve-ink-3)" }}>
+                {[deal.minOrder && deal.minOrder > 0 ? `Minsta order ${deal.minOrder} kr` : null, deal.validUntil ? `Gäller till ${String(deal.validUntil).slice(0, 10)}` : null].filter(Boolean).join(" · ")}
+              </p>
+            ) : null}
 
-          {deal.popupCode ? (
-            <div className="mt-4 rounded-2xl border border-dashed border-[#F0531C]/40 bg-[#F0531C]/10 px-4 py-3 text-center">
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#F0531C]">Använd kod</p>
-              <p className="mt-1 text-lg font-black tracking-wider text-white">{deal.popupCode}</p>
-            </div>
-          ) : null}
+            {deal.popupCode ? (
+              <div className="ve-card mt-4 px-4 py-3 text-center">
+                <p className="m-0 text-[12.5px]" style={{ color: "var(--ve-ink-3)" }}>Använd kod</p>
+                <p className="ve-tabular m-0 mt-0.5 text-[20px] font-semibold" style={{ letterSpacing: "0.06em", color: "var(--ve-ink)" }}>{deal.popupCode}</p>
+              </div>
+            ) : null}
 
-          {deal.popupOkOnly ? (
-            <button
-              type="button"
-              onClick={handleDismiss}
-              className="mt-5 w-full rounded-2xl bg-[#F0531C] py-4 text-sm font-black uppercase tracking-[0.2em] text-[#11151b] transition-all active:scale-[0.98]"
-            >
-              OK
-            </button>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={handleClaim}
-                disabled={claiming || claimed}
-                className="mt-5 w-full rounded-2xl bg-[#F0531C] py-4 text-sm font-black uppercase tracking-[0.2em] text-[#11151b] transition-all active:scale-[0.98] disabled:opacity-60"
-              >
-                {claimed ? "Sparat ✓" : claiming ? "Sparar..." : ctaLabel}
-              </button>
+            {deal.popupOkOnly ? (
               <button
                 type="button"
                 onClick={handleDismiss}
-                className="mt-2 w-full rounded-2xl py-3 text-xs font-bold uppercase tracking-[0.2em] text-white/50 hover:text-white/80 transition-colors"
+                className="ve-press mt-5 h-[52px] w-full rounded-full text-[16px] font-semibold"
+                style={{ backgroundColor: "var(--ve-cta)", color: "var(--ve-cta-ink)" }}
               >
-                Inte just nu
+                OK
               </button>
-            </>
-          )}
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={handleClaim}
+                  disabled={claiming || claimed}
+                  className="ve-press mt-5 h-[52px] w-full rounded-full text-[16px] font-semibold disabled:opacity-60"
+                  style={{ backgroundColor: claimed ? "var(--ve-success)" : "var(--ve-cta)", color: "#fff" }}
+                >
+                  {claimed ? "Sparat" : claiming ? "Sparar…" : ctaLabel}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDismiss}
+                  className="mt-1.5 h-11 w-full rounded-full text-[15px] font-medium"
+                  style={{ color: "var(--ve-ink-2)" }}
+                >
+                  Inte just nu
+                </button>
+              </>
+            )}
+          </div>
         </motion.div>
       </motion.div>
     </AnimatePresence>

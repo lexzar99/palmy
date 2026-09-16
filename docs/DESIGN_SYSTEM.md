@@ -352,6 +352,19 @@ kompakt variant) är samma idé i miniatyr: fasens gradient, 64 px ring med
 ETA:n i mitten, restaurang · leveranssätt · ordernummer, fastitel och
 tidslinjen som små piller.
 
+### Modaler och ark
+Alla modaler är antingen **bottenark** (radie 26 upptill, draghandtag, grå
+`--ve-bg`, glas-footer med svart pill) eller **centrerade dialoger** (vitt
+kort radie 26, `--ve-shadow-float`, ikonplatta i accentmjuk färg, titel
+20/600, grå pill + svart pill). Backdrop är `rgba(0,0,0,.42)` utan blur.
+Adressmodalen: segmentkontroll, vitt sökfält som pill med orange nål (grön
+bock när adressen är vald), förslag i ett kort, karta i radie 20 med
+bläcknål och glasknapp för "min plats", stadval som kortrader med
+radiocirkel. BOGO-väljaren: gåvoplatta, rader med bild, grön "Gratis"-pill.
+Deal-popupen, bekräftelsedialogen, cookie-samtycket och PWA-prompten följer
+samma mönster (`AddressModal`, `BogoPickerModal`, `ConfirmModal`,
+`ClaimDealPopup`, `CookieConsent`, `PWAInstallPrompt`).
+
 ### Flikrad (BottomNav) och Deals
 `components/BottomNav.tsx`: frostat glas (`ve-glass`), hårfin topplinje, fem
 lika breda flikar (ikon 22 px + etikett 10 px), aktiv i bläck, övriga i ink-3,

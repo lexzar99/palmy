@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { Cookie, X, Check, Sliders, Shield } from "lucide-react";
+import "@/components/restaurant/restaurant.css";
 import {
   CONSENT_COOKIE_MAX_AGE,
   CONSENT_COOKIE_NAME,
@@ -146,24 +147,24 @@ export default function CookieConsent() {
           aria-describedby="cookie-settings-description"
         >
           <div
-            className="w-full max-w-lg rounded-3xl border p-6 shadow-2xl space-y-5"
+            className="ve-root w-full max-w-lg rounded-[26px] p-5 space-y-4"
             style={{
-              backgroundColor: "var(--bg-secondary)",
-              borderColor: "var(--border-muted)",
+              backgroundColor: "var(--ve-card)",
+              boxShadow: "inset 0 0 0 0.5px var(--ve-line)",
             }}
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center"
-                  style={{ backgroundColor: "var(--bg-deep)" }}
+                  className="w-10 h-10 rounded-full flex items-center justify-center"
+                  style={{ backgroundColor: "var(--ve-fill)" }}
                 >
-                  <Shield size={18} className="text-gold-500" />
+                  <Shield size={18} className="text-[color:var(--ve-accent)]" />
                 </div>
                 <h2
                   id="cookie-settings-title"
-                  className="text-lg font-black uppercase italic tracking-tight"
-                  style={{ color: "var(--text-primary)" }}
+                  className="text-lg font-semibold  italic tracking-tight"
+                  style={{ color: "var(--ve-ink)" }}
                 >
                   Cookie-inställningar
                 </h2>
@@ -172,8 +173,8 @@ export default function CookieConsent() {
                 type="button"
                 onClick={() => setShowSettings(false)}
                 aria-label="Stäng inställningar"
-                className="w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:bg-white/5"
-                style={{ color: "var(--text-secondary)" }}
+                className="w-8 h-8 rounded-full flex items-center justify-center transition-colors "
+                style={{ color: "var(--ve-ink-2)" }}
               >
                 <X size={16} />
               </button>
@@ -182,11 +183,11 @@ export default function CookieConsent() {
             <p
               id="cookie-settings-description"
               className="text-[12px] leading-relaxed"
-              style={{ color: "var(--text-secondary)" }}
+              style={{ color: "var(--ve-ink-2)" }}
             >
               Välj vilka kategorier av cookies du tillåter. Du kan ändra ditt
               val när som helst. Läs mer i vår{" "}
-              <Link href="/privacy" className="text-gold-500 underline">
+              <Link href="/privacy" className="text-[color:var(--ve-accent)] underline">
                 integritetspolicy
               </Link>
               .
@@ -195,26 +196,26 @@ export default function CookieConsent() {
             <div className="space-y-3">
               {/* Nödvändiga — alltid på */}
               <div
-                className="rounded-2xl border p-4"
+                className="rounded-[16px] p-4"
                 style={{
-                  backgroundColor: "var(--bg-deep)",
-                  borderColor: "var(--border-muted)",
+                  backgroundColor: "var(--ve-fill)",
+                  boxShadow: "inset 0 0 0 0.5px var(--ve-line)",
                 }}
               >
                 <div className="flex items-center justify-between mb-1">
                   <div
-                    className="text-[13px] font-black"
-                    style={{ color: "var(--text-primary)" }}
+                    className="text-[13px] font-semibold"
+                    style={{ color: "var(--ve-ink)" }}
                   >
                     Nödvändiga
                   </div>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-gold-500">
+                  <span className="text-[10px] font-semibold text-[color:var(--ve-accent)]">
                     Alltid på
                   </span>
                 </div>
                 <p
                   className="text-[11px] leading-snug"
-                  style={{ color: "var(--text-secondary)" }}
+                  style={{ color: "var(--ve-ink-2)" }}
                 >
                   Session, varukorg och nummerverifiering. Utan dessa fungerar inte
                   beställningen.
@@ -226,18 +227,18 @@ export default function CookieConsent() {
                 type="button"
                 onClick={() => setAllowAnalytics((v) => !v)}
                 aria-pressed={allowAnalytics}
-                className="w-full text-left rounded-2xl border p-4 transition-colors"
+                className="w-full text-left rounded-[16px] p-4 transition-colors"
                 style={{
-                  backgroundColor: "var(--bg-deep)",
+                  backgroundColor: "var(--ve-fill)",
                   borderColor: allowAnalytics
                     ? "rgba(240,83,28,0.4)"
-                    : "var(--border-muted)",
+                    : "var(--ve-line)",
                 }}
               >
                 <div className="flex items-center justify-between mb-1">
                   <div
-                    className="text-[13px] font-black"
-                    style={{ color: "var(--text-primary)" }}
+                    className="text-[13px] font-semibold"
+                    style={{ color: "var(--ve-ink)" }}
                   >
                     Analys
                   </div>
@@ -247,7 +248,7 @@ export default function CookieConsent() {
                     style={{
                       backgroundColor: allowAnalytics
                         ? "var(--gold-500, #F0531C)"
-                        : "var(--border-muted)",
+                        : "var(--ve-line)",
                     }}
                   >
                     <span
@@ -262,7 +263,7 @@ export default function CookieConsent() {
                 </div>
                 <p
                   className="text-[11px] leading-snug"
-                  style={{ color: "var(--text-secondary)" }}
+                  style={{ color: "var(--ve-ink-2)" }}
                 >
                   Sentry för felrapportering och prestandamätning. Hjälper oss
                   laga buggar.
@@ -274,18 +275,18 @@ export default function CookieConsent() {
                 type="button"
                 onClick={() => setAllowMarketing((v) => !v)}
                 aria-pressed={allowMarketing}
-                className="w-full text-left rounded-2xl border p-4 transition-colors"
+                className="w-full text-left rounded-[16px] p-4 transition-colors"
                 style={{
-                  backgroundColor: "var(--bg-deep)",
+                  backgroundColor: "var(--ve-fill)",
                   borderColor: allowMarketing
                     ? "rgba(240,83,28,0.4)"
-                    : "var(--border-muted)",
+                    : "var(--ve-line)",
                 }}
               >
                 <div className="flex items-center justify-between mb-1">
                   <div
-                    className="text-[13px] font-black"
-                    style={{ color: "var(--text-primary)" }}
+                    className="text-[13px] font-semibold"
+                    style={{ color: "var(--ve-ink)" }}
                   >
                     Marknadsföring
                   </div>
@@ -295,7 +296,7 @@ export default function CookieConsent() {
                     style={{
                       backgroundColor: allowMarketing
                         ? "var(--gold-500, #F0531C)"
-                        : "var(--border-muted)",
+                        : "var(--ve-line)",
                     }}
                   >
                     <span
@@ -310,7 +311,7 @@ export default function CookieConsent() {
                 </div>
                 <p
                   className="text-[11px] leading-snug"
-                  style={{ color: "var(--text-secondary)" }}
+                  style={{ color: "var(--ve-ink-2)" }}
                 >
                   Placeholder. Vi använder inga marknadsförings-cookies idag.
                 </p>
@@ -321,11 +322,11 @@ export default function CookieConsent() {
               <button
                 type="button"
                 onClick={reject}
-                className="flex-1 py-3 rounded-2xl border text-[11px] font-black uppercase tracking-widest transition-all active:scale-95"
+                className="ve-press flex-1 h-12 rounded-full text-[15px] font-medium"
                 style={{
                   backgroundColor: "transparent",
-                  borderColor: "var(--border-muted)",
-                  color: "var(--text-secondary)",
+                  boxShadow: "inset 0 0 0 0.5px var(--ve-line)",
+                  color: "var(--ve-ink-2)",
                 }}
               >
                 Avvisa alla
@@ -333,7 +334,7 @@ export default function CookieConsent() {
               <button
                 type="button"
                 onClick={saveSettings}
-                className="flex-1 py-3 rounded-2xl bg-gold-500 text-zinc-950 text-[11px] font-black uppercase tracking-widest active:scale-95 transition-all"
+                className="ve-press flex-1 h-12 rounded-full bg-[color:var(--ve-cta)] text-white text-[15px] font-semibold transition-all"
               >
                 Spara val
               </button>
@@ -351,30 +352,30 @@ export default function CookieConsent() {
         aria-label="Cookie-samtycke"
       >
         <div
-          className="pointer-events-auto rounded-2xl border shadow-lg overflow-hidden"
+          className="ve-root pointer-events-auto rounded-[20px] overflow-hidden"
           style={{
-            backgroundColor: "var(--bg-secondary)",
-            borderColor: "var(--border-muted)",
+            backgroundColor: "var(--ve-card)",
+            boxShadow: "inset 0 0 0 0.5px var(--ve-line)",
           }}
         >
           <div className="p-3 sm:p-4 space-y-3">
             <div className="flex items-start gap-2.5">
               <div
-                className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
-                style={{ backgroundColor: "var(--bg-deep)" }}
+                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                style={{ backgroundColor: "var(--ve-fill)" }}
               >
-                <Cookie size={16} className="text-gold-500" />
+                <Cookie size={16} className="text-[color:var(--ve-accent)]" />
               </div>
               <div className="flex-1 min-w-0">
                 <div
-                  className="text-[12px] font-black uppercase tracking-tight"
-                  style={{ color: "var(--text-primary)" }}
+                  className="text-[12px] font-semibold"
+                  style={{ color: "var(--ve-ink)" }}
                 >
                   Cookies
                 </div>
                 <div
                   className="text-[10px] font-semibold leading-tight"
-                  style={{ color: "var(--text-secondary)" }}
+                  style={{ color: "var(--ve-ink-2)" }}
                 >
                   Välj samtycke. Detaljer finns under Val.
                 </div>
@@ -385,18 +386,18 @@ export default function CookieConsent() {
               <button
                 type="button"
                 onClick={acceptAll}
-                className="min-h-10 rounded-xl bg-gold-500 text-zinc-950 text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                className="ve-press min-h-10 rounded-full bg-[color:var(--ve-cta)] text-white text-[13.5px] font-semibold transition-all flex items-center justify-center gap-1.5"
               >
                 <Check size={13} /> Acceptera
               </button>
               <button
                 type="button"
                 onClick={acceptEssential}
-                className="min-h-10 rounded-xl border text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all"
+                className="ve-press min-h-10 rounded-full text-[13.5px] font-medium transition-all"
                 style={{
-                  backgroundColor: "var(--bg-deep)",
-                  borderColor: "var(--border-muted)",
-                  color: "var(--text-primary)",
+                  backgroundColor: "var(--ve-fill)",
+                  boxShadow: "inset 0 0 0 0.5px var(--ve-line)",
+                  color: "var(--ve-ink)",
                 }}
               >
                 Nödvändiga
@@ -404,11 +405,11 @@ export default function CookieConsent() {
               <button
                 type="button"
                 onClick={reject}
-                className="min-h-10 rounded-xl border text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all"
+                className="ve-press min-h-10 rounded-full text-[13.5px] font-medium transition-all"
                 style={{
                   backgroundColor: "transparent",
-                  borderColor: "var(--border-muted)",
-                  color: "var(--text-secondary)",
+                  boxShadow: "inset 0 0 0 0.5px var(--ve-line)",
+                  color: "var(--ve-ink-2)",
                 }}
               >
                 Avvisa
@@ -416,11 +417,11 @@ export default function CookieConsent() {
               <button
                 type="button"
                 onClick={() => setShowSettings(true)}
-                className="min-h-10 rounded-xl border text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                className="ve-press min-h-10 rounded-full text-[13.5px] font-medium transition-all flex items-center justify-center gap-1.5"
                 style={{
                   backgroundColor: "transparent",
-                  borderColor: "var(--border-muted)",
-                  color: "var(--text-secondary)",
+                  boxShadow: "inset 0 0 0 0.5px var(--ve-line)",
+                  color: "var(--ve-ink-2)",
                 }}
               >
                 <Sliders size={12} /> Val
@@ -429,8 +430,8 @@ export default function CookieConsent() {
 
             <Link
               href="/privacy"
-              className="inline-flex text-[10px] font-black uppercase tracking-widest transition-colors hover:text-gold-500"
-              style={{ color: "var(--text-secondary)" }}
+              className="inline-flex text-[10px] font-semibold transition-colors hover:text-[color:var(--ve-accent)]"
+              style={{ color: "var(--ve-ink-2)" }}
             >
               Integritetspolicy
             </Link>

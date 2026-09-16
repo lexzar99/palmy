@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Smartphone, X } from "lucide-react";
+import "@/components/restaurant/restaurant.css";
 
 const VISITS_KEY = "viaeats_visit_count";
 const PROMPT_DISMISSED_KEY = "viaeats_pwa_dismissed_at";
@@ -82,33 +83,26 @@ export default function PWAInstallPrompt() {
     <>
       {visible && (
         <div
-          className="fixed left-4 right-4 md:hidden z-[90]"
-          style={{ bottom: "calc(7rem + env(safe-area-inset-bottom, 0px))" }}
+          className="ve-root fixed left-4 right-4 z-[90] md:hidden"
+          style={{ bottom: "calc(7rem + env(safe-area-inset-bottom, 0px))", backgroundColor: "transparent" }}
         >
-          <div
-            className="flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-xl"
-            style={{
-              backgroundColor: "var(--bg-secondary)",
-              borderColor: "rgba(212,167,74,0.3)",
-            }}
-          >
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-gold-500/10 border border-gold-500/20">
-              <Smartphone size={16} className="text-gold-500" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[12px] font-black uppercase tracking-tight" style={{ color: "var(--text-primary)" }}>
-                Lägg till på hemskärm
-              </p>
-              <p className="text-[10px] font-bold mt-0.5 leading-tight" style={{ color: "var(--text-secondary)" }}>
+          <div className="ve-card flex items-center gap-3 px-3.5 py-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-accent-soft)", color: "var(--ve-accent)" }}>
+              <Smartphone size={17} strokeWidth={2.2} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="m-0 text-[15px] font-semibold" style={{ color: "var(--ve-ink)", letterSpacing: "-0.01em" }}>Lägg till på hemskärmen</p>
+              <p className="m-0 mt-0.5 text-[12.5px] leading-snug" style={{ color: "var(--ve-ink-2)" }}>
                 {isIos
-                  ? "Tryck dela-ikonen och välj \"Lägg till på hemskärmen\""
-                  : "Snabbare access — appen öppnas som en app"}
+                  ? "Tryck på dela-ikonen och välj \"Lägg till på hemskärmen\""
+                  : "Öppnas som en app, direkt från hemskärmen"}
               </p>
             </div>
             {!isIos && deferredPrompt && (
               <button
                 onClick={handleInstall}
-                className="shrink-0 px-3 py-2 bg-gold-500 text-zinc-950 rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-transform"
+                className="ve-press h-9 shrink-0 rounded-full px-3.5 text-[13.5px] font-semibold"
+                style={{ backgroundColor: "var(--ve-cta)", color: "var(--ve-cta-ink)" }}
               >
                 Installera
               </button>
@@ -116,10 +110,10 @@ export default function PWAInstallPrompt() {
             <button
               onClick={dismiss}
               aria-label="Stäng"
-              className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-colors hover:bg-white/5"
-              style={{ color: "var(--text-secondary)" }}
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full"
+              style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink-2)" }}
             >
-              <X size={14} />
+              <X size={14} strokeWidth={2.6} />
             </button>
           </div>
         </div>

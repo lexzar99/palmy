@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
+import "@/components/restaurant/restaurant.css";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   MapPin, X, ArrowRight, Truck, Store, AlertCircle,
@@ -424,122 +425,129 @@ export default function AddressModal({
       {isOpen && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[1400] flex items-end justify-center"
-          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+          className="ve-root fixed inset-0 z-[1400] flex items-end justify-center sm:items-center"
+          style={{ backgroundColor: "rgba(0,0,0,0.42)", background: "rgba(0,0,0,0.42)" }}
           onClick={e => { if (e.target === e.currentTarget) onClose(); }}
         >
           <motion.div
             initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-            transition={{ type: "tween", ease: "easeOut", duration: 0.3 }}
-            className="w-full max-w-lg rounded-t-2xl relative flex flex-col"
+            transition={{ type: "spring", stiffness: 380, damping: 38, mass: 0.9 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label={orderType === "DELIVERY" ? "Välj leveransadress" : "Välj stad för avhämtning"}
+            className="relative flex w-full max-w-[560px] flex-col overflow-hidden rounded-t-[26px] sm:rounded-[26px]"
             style={{
-              backgroundColor: "var(--bg-secondary)",
-              borderTop: "1px solid var(--border-muted)",
-              boxShadow: "0 -8px 40px rgba(20,20,22,0.18)",
+              backgroundColor: "var(--ve-bg)",
+              boxShadow: "0 -8px 40px rgba(0,0,0,0.18)",
               height: "min(92dvh, 760px)",
               maxHeight: "calc(100dvh - env(safe-area-inset-top, 0px))",
             }}
           >
-            {/* Grab handle */}
-            <div className="flex justify-center pt-3 pb-1 shrink-0">
-              <div className="w-10 h-1 rounded-full" style={{ backgroundColor: "var(--border-muted)" }} />
-            </div>
+            <div className="flex shrink-0 justify-center pt-2.5"><span className="ve-sheet-handle" /></div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-2 pb-5">
-              {/* Header */}
-              <div className="flex items-center justify-between mb-4 shrink-0">
-                <div>
-                  <p className="text-[12.5px] font-medium mb-0.5" style={{ color: "var(--text-secondary)" }}>Innan du beställer</p>
-                  <h2 className="text-[20px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
-                    {orderType === "DELIVERY" ? "Var ska vi leverera?" : "Välj stad"}
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-4" style={{ overscrollBehavior: "contain" }}>
+              <div className="mb-4 flex items-start justify-between gap-3 px-1">
+                <div className="min-w-0">
+                  <p className="m-0 text-[13px]" style={{ color: "var(--ve-ink-3)" }}>Innan du beställer</p>
+                  <h2 className="m-0 mt-0.5 text-[22px] font-semibold leading-tight" style={{ letterSpacing: "-0.02em", color: "var(--ve-ink)" }}>
+                    {orderType === "DELIVERY" ? "Var ska vi leverera?" : "Var vill du hämta?"}
                   </h2>
                 </div>
-                <button onClick={onClose} aria-label="Stäng" className="w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-secondary)" }}>
-                  <X size={17} />
+                <button onClick={onClose} aria-label="Stäng" className="ve-press grid h-9 w-9 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>
+                  <X size={16} strokeWidth={2.6} />
                 </button>
               </div>
 
-              {/* Toggle — monokrom + guld-streck under aktiv (som i kassan) */}
-              <div className="flex mb-4 rounded-[10px] overflow-hidden shrink-0" style={{ border: "1px solid var(--line-strong)" }}>
-                {(["DELIVERY", "PICKUP"] as const).map((type, i) => {
+              {/* Segmentkontroll — samma som på restaurangsidan */}
+              <div className="mb-4 grid grid-cols-2 rounded-[12px] p-[3px]" style={{ backgroundColor: "var(--ve-fill)" }} role="tablist">
+                {(["DELIVERY", "PICKUP"] as const).map((type) => {
                   const active = orderType === type;
                   return (
-                    <button key={type} onClick={() => { setOrderType(type); setError(null); setPredictions([]); }}
-                      className="relative flex-1 flex items-center justify-center gap-2 h-11 text-[13.5px] transition-colors"
-                      style={{ color: active ? "var(--text-primary)" : "var(--text-secondary)", fontWeight: active ? 600 : 500, borderLeft: i === 1 ? "1px solid var(--line-strong)" : undefined }}
+                    <button
+                      key={type}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => { setOrderType(type); setError(null); setPredictions([]); }}
+                      className="flex h-[38px] items-center justify-center gap-2 rounded-[10px] text-[14px] transition-colors"
+                      style={{
+                        color: active ? "var(--ve-ink)" : "var(--ve-ink-2)",
+                        fontWeight: active ? 600 : 500,
+                        backgroundColor: active ? "var(--ve-card)" : "transparent",
+                        boxShadow: active ? "var(--ve-shadow-thumb)" : undefined,
+                        letterSpacing: "-0.01em",
+                      }}
                     >
                       {type === "DELIVERY" ? <Truck size={15} strokeWidth={2} /> : <Store size={15} strokeWidth={2} />}
                       {type === "DELIVERY" ? "Leverans" : "Avhämtning"}
-                      {active && <span className="absolute left-3 right-3 bottom-0 h-[2px] rounded-full" style={{ backgroundColor: "var(--color-gold-500, #F0531C)" }} />}
                     </button>
                   );
                 })}
               </div>
 
-              {/* ── DELIVERY: address autocomplete + interaktiv karta ── */}
+              {/* ── LEVERANS: adresssök + karta ── */}
               {orderType === "DELIVERY" && (
-                <div className="flex flex-col flex-1 min-h-0">
-                  {/* z-[60]: lyfter input + dess overflow:ande förslag-lista ÖVER
-                      kart-syskonet nedanför. Utan detta hamnar förslagen bakom
-                      Leaflets paneler (egna z-index upp till 1000) och går inte
-                      att klicka. Kartan får z-0 så dess interna z-index stannar
-                      i sin egen stacking-kontext. */}
-                  <div className="mb-3 relative shrink-0 z-[60]">
+                <div className="flex min-h-0 flex-1 flex-col">
+                  {/* z-[60] lyfter sökfältet och förslagen över kartans egna z-index. */}
+                  <div className="relative z-[60] mb-3 shrink-0">
                     <div
-                      className="flex items-center gap-3 rounded-xl border px-4 py-3.5 transition-all"
+                      className="flex h-12 items-center gap-3 rounded-full pl-4 pr-3"
                       style={{
-                        backgroundColor: "var(--bg-deep)",
-                        borderColor: error ? "rgba(239,68,68,0.38)" : selectedCoords ? "rgba(20,20,22,0.45)" : "var(--border-muted)",
+                        backgroundColor: "var(--ve-card)",
+                        boxShadow: error
+                          ? "inset 0 0 0 1.5px var(--ve-danger), var(--ve-shadow-card)"
+                          : selectedCoords
+                            ? "inset 0 0 0 1.5px var(--ve-ink), var(--ve-shadow-card)"
+                            : "inset 0 0 0 0.5px var(--ve-line), var(--ve-shadow-card)",
                       }}
                     >
                       {selectedCoords
-                        ? <CheckCircle2 className="text-zinc-900 shrink-0" size={17} />
-                        : <MapPin className="text-zinc-500 shrink-0" size={17} />}
+                        ? <CheckCircle2 size={17} strokeWidth={2.2} className="shrink-0" style={{ color: "var(--ve-success)" }} />
+                        : <MapPin size={17} strokeWidth={2.2} className="shrink-0" style={{ color: "var(--ve-accent)" }} />}
                       <input
                         type="text" value={input} onChange={e => handleInputChange(e.target.value)}
                         onKeyDown={e => e.key === "Enter" && predictions.length === 0 && handleSubmit()}
-                        placeholder="Sök gatuadress med husnummer…"
-                        className="w-full bg-transparent font-medium focus:outline-none"
-                        style={{ color: "var(--text-primary)", fontSize: "16px" }}
+                        placeholder="Gatuadress med husnummer"
+                        className="ve-input w-full bg-transparent font-medium focus:outline-none"
+                        style={{ color: "var(--ve-ink)" }}
                         autoComplete="off"
                       />
-                      {loading && <Loader2 size={15} className="animate-spin text-zinc-500 shrink-0" />}
+                      {loading && <Loader2 size={15} className="shrink-0 animate-spin" style={{ color: "var(--ve-ink-3)" }} />}
                       {!loading && input && (
-                        <button onClick={() => { setInput(""); setPredictions([]); }}>
-                          <X size={13} style={{ color: "var(--text-secondary)" }} />
+                        <button onClick={() => { setInput(""); setPredictions([]); }} aria-label="Rensa" className="grid h-6 w-6 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-ink-3)", color: "#fff" }}>
+                          <X size={12} strokeWidth={3} />
                         </button>
                       )}
                     </div>
 
                     {autocompleteError && !loading && (
-                      <p className="mt-1.5 text-[12px] font-medium px-1" style={{ color: "var(--text-secondary)" }}>
-                        ⚠ Söktjänsten är tillfälligt otillgänglig — välj din plats på kartan istället.
+                      <p className="m-0 mt-2 px-1 text-[12.5px]" style={{ color: "var(--ve-ink-2)" }}>
+                        Söktjänsten är tillfälligt otillgänglig. Välj din plats på kartan i stället.
                       </p>
                     )}
 
-                    {/* Predictions */}
                     <AnimatePresence>
                       {predictions.length > 0 && (
                         <motion.div
-                          initial={{ opacity: 0, y: -10 }}
+                          initial={{ opacity: 0, y: -8 }}
                           animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
+                          exit={{ opacity: 0, y: -8 }}
                           transition={{ duration: 0.18, ease: "easeOut" }}
-                          className="absolute top-full left-0 right-0 mt-2 rounded-xl overflow-y-auto z-[210] shadow-xl"
-                          style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", maxHeight: "40vh" }}
+                          className="ve-card absolute left-0 right-0 top-full z-[210] mt-2 overflow-y-auto"
+                          style={{ maxHeight: "40vh" }}
                         >
-                          {predictions.map((pred) => (
+                          {predictions.map((pred, index) => (
                             <button
                               key={pred.place_id}
                               onClick={() => handleSelect(pred)}
-                              className="w-full text-left px-5 py-3.5 transition-all flex items-start gap-3 border-b last:border-none hover:bg-[var(--bg-deep)]"
-                              style={{ borderColor: "var(--border-muted)" }}
+                              className="ve-row-press flex w-full items-start gap-3 px-4 py-3 text-left"
+                              style={{ boxShadow: index === 0 ? undefined : "inset 0 0.5px 0 var(--ve-line)" }}
                             >
-                              <MapPin size={13} className="text-zinc-500 mt-0.5 shrink-0" />
-                              <div>
-                                <span className="text-[13.5px] font-semibold block" style={{ color: "var(--text-primary)" }}>{pred.description.split(",")[0]}</span>
-                                <span className="text-[10px]" style={{ color: "var(--text-secondary)" }}>{pred.description.split(",").slice(1).join(",").trim()}</span>
-                              </div>
+                              <MapPin size={15} strokeWidth={2.2} className="mt-0.5 shrink-0" style={{ color: "var(--ve-ink-3)" }} />
+                              <span className="min-w-0">
+                                <span className="block truncate text-[15px] font-medium" style={{ color: "var(--ve-ink)" }}>{pred.description.split(",")[0]}</span>
+                                <span className="block truncate text-[12.5px]" style={{ color: "var(--ve-ink-3)" }}>{pred.description.split(",").slice(1).join(",").trim()}</span>
+                              </span>
                             </button>
                           ))}
                         </motion.div>
@@ -547,113 +555,101 @@ export default function AddressModal({
                     </AnimatePresence>
                   </div>
 
-                  {/* Single-address: ingen lista med sparade adresser. Man har EN
-                      adress som ändras här via sök/karta. */}
-
-                  {/* Karta — flytta kartan (fast nål i mitten) för att välja exakt plats.
-                      z-0 håller Leaflets interna z-index inom denna stacking-kontext
-                      så sök-förslagen (z-[60]-wrappern ovan) alltid ligger överst. */}
-                  <div className="relative z-0 rounded-2xl overflow-hidden border flex-1 min-h-[240px]" style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-deep)" }}>
+                  {/* Karta — flytta kartan under den fasta nålen för exakt plats. */}
+                  <div className="relative z-0 min-h-[240px] flex-1 overflow-hidden rounded-[20px]" style={{ backgroundColor: "#E5E5EA", boxShadow: "inset 0 0 0 0.5px var(--ve-line)" }}>
                     <div key={mapKey} ref={initMap} className="absolute inset-0" />
-
-                    {/* Fast center-nål — sitter still mitt på kartan. Man flyttar
-                        KARTAN under nålen för att välja exakt plats. */}
                     {!mapError && (
                       <>
-                        <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1000] -translate-x-1/2 -translate-y-full -mt-1">
-                          <MapPin size={40} strokeWidth={2.5} fill="#141416" className="text-zinc-900" style={{ filter: "drop-shadow(0 5px 6px rgba(0,0,0,0.45))" }} />
+                        <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1000] -mt-1 -translate-x-1/2 -translate-y-full">
+                          <MapPin size={40} strokeWidth={2.2} fill="#1D1D1F" style={{ color: "#1D1D1F", filter: "drop-shadow(0 5px 6px rgba(0,0,0,0.35))" }} />
                         </div>
-                        <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1000] -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-zinc-900/40" />
+                        <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1000] h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ backgroundColor: "rgba(29,29,31,0.4)" }} />
                       </>
                     )}
                     {mapError && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center" style={{ backgroundColor: "var(--bg-deep)" }}>
-                        <AlertCircle size={22} className="text-zinc-500" />
-                        <p className="text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>
-                          Kartan kunde inte laddas just nu.
-                        </p>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center" style={{ backgroundColor: "var(--ve-fill)" }}>
+                        <AlertCircle size={22} style={{ color: "var(--ve-ink-3)" }} />
+                        <p className="m-0 text-[14px]" style={{ color: "var(--ve-ink-2)" }}>Kartan kunde inte laddas just nu.</p>
                         <button
                           type="button"
                           onClick={() => { setMapError(false); setMapKey((k) => k + 1); }}
-                          className="inline-flex items-center gap-1.5 px-4 h-10 rounded-xl text-[13.5px] font-semibold bg-zinc-900 active:scale-95 transition-all" style={{ color: "#fff" }}
+                          className="ve-press inline-flex h-10 items-center gap-1.5 rounded-full px-4 text-[14px] font-semibold"
+                          style={{ backgroundColor: "var(--ve-cta)", color: "var(--ve-cta-ink)" }}
                         >
                           <RotateCw size={13} /> Försök igen
                         </button>
                       </div>
                     )}
-                    {/* Use-my-location knapp */}
                     {!mapError && (
                       <button
                         onClick={() => requestMyLocation()}
                         aria-label="Använd min plats"
-                        className="absolute bottom-3 right-3 z-[1000] w-11 h-11 rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-all bg-white text-zinc-900"
+                        className="ve-glass-btn absolute bottom-3 right-3 z-[1000] grid h-11 w-11 place-items-center rounded-full"
                       >
-                        {locating ? <Loader2 size={18} className="animate-spin" /> : <LocateFixed size={18} />}
+                        {locating ? <Loader2 size={18} className="animate-spin" /> : <LocateFixed size={18} strokeWidth={2.2} />}
                       </button>
                     )}
-                    {/* Hint-chip */}
                     {!mapError && (
-                      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] px-3 py-1.5 rounded-full bg-zinc-950/75 backdrop-blur-md pointer-events-none">
-                        <span className="text-[12px] font-medium text-white flex items-center gap-1.5">
-                          <MapPin size={12} className="text-zinc-200" /> Flytta kartan för exakt plats
+                      <div className="pointer-events-none absolute left-1/2 top-3 z-[1000] -translate-x-1/2 rounded-full px-3 py-1.5" style={{ backgroundColor: "rgba(29,29,31,0.78)", backdropFilter: "blur(10px)" }}>
+                        <span className="flex items-center gap-1.5 text-[12px] font-medium text-white">
+                          <MapPin size={12} /> Flytta kartan för exakt plats
                         </span>
                       </div>
                     )}
                   </div>
 
-                  {/* Vald adress-rad */}
                   {selectedAddress && (
-                    <div className="mt-3 flex items-center gap-2 shrink-0">
-                      <CheckCircle2 size={15} className="text-zinc-900 shrink-0" />
-                      <span className="text-[13.5px] font-semibold truncate" style={{ color: "var(--text-primary)" }}>{selectedAddress}</span>
+                    <div className="mt-3 flex shrink-0 items-center gap-2 px-1">
+                      <CheckCircle2 size={15} strokeWidth={2.2} className="shrink-0" style={{ color: "var(--ve-success)" }} />
+                      <span className="truncate text-[14px] font-medium" style={{ color: "var(--ve-ink)" }}>{selectedAddress}</span>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* ── PICKUP: city selector ── */}
+              {/* ── AVHÄMTNING: stad ── */}
               {orderType === "PICKUP" && (
                 <div className="mb-2">
                   {pickupCityName ? (
-                    <div className="flex items-center gap-3 px-4 py-4 rounded-xl border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
-                      <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ backgroundColor: "var(--gold-soft)", color: "var(--gold-ink)" }}>
-                        <Store size={17} />
-                      </div>
-                      <div className="min-w-0">
-                        <span className="text-[14.5px] font-semibold block" style={{ color: "var(--text-primary)" }}>{pickupCityName}</span>
-                        <span className="text-[12.5px] block mt-0.5" style={{ color: "var(--text-secondary)" }}>Avhämtning från Palmyra Pizzeria</span>
-                      </div>
-                      <CheckCircle2 size={17} className="ml-auto shrink-0" style={{ color: "var(--success-ink, #15803d)" }} />
+                    <div className="ve-card flex items-center gap-3.5 px-4 py-3.5">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-accent-soft)", color: "var(--ve-accent)" }}>
+                        <Store size={17} strokeWidth={2.2} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[16px] font-semibold" style={{ color: "var(--ve-ink)", letterSpacing: "-0.01em" }}>{pickupCityName}</span>
+                        <span className="block text-[13px]" style={{ color: "var(--ve-ink-3)" }}>Hämta själv i restaurangen</span>
+                      </span>
+                      <CheckCircle2 size={18} strokeWidth={2.2} className="shrink-0" style={{ color: "var(--ve-success)" }} />
                     </div>
                   ) : citiesLoading ? (
-                    <div className="flex items-center justify-center gap-3 py-8 rounded-xl border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
-                      <Loader2 size={16} className="animate-spin text-zinc-500" />
-                      <span className="text-[14px] font-medium" style={{ color: "var(--text-secondary)" }}>Hämtar städer…</span>
+                    <div className="ve-card flex items-center justify-center gap-3 py-8">
+                      <Loader2 size={16} className="animate-spin" style={{ color: "var(--ve-ink-3)" }} />
+                      <span className="text-[14px]" style={{ color: "var(--ve-ink-2)" }}>Hämtar städer…</span>
                     </div>
                   ) : cityGroups.length === 0 ? (
-                    <div className="py-8 text-center rounded-xl border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
-                      <Building2 size={24} className="text-zinc-300 mx-auto mb-2" />
-                      <p className="text-[14px] font-medium" style={{ color: "var(--text-secondary)" }}>Inga städer med avhämtning</p>
+                    <div className="ve-card py-8 text-center">
+                      <Building2 size={24} className="mx-auto mb-2" style={{ color: "var(--ve-ink-3)" }} />
+                      <p className="m-0 text-[14px]" style={{ color: "var(--ve-ink-2)" }}>Inga städer med avhämtning ännu</p>
                     </div>
                   ) : (
                     <>
-                      <div className="flex items-center gap-3 rounded-xl border px-4 py-3 mb-3" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
-                        <Search size={15} className="text-zinc-500 shrink-0" />
+                      <div className="mb-3 flex h-11 items-center gap-2.5 rounded-full pl-4 pr-2" style={{ backgroundColor: "var(--ve-card)", boxShadow: "inset 0 0 0 0.5px var(--ve-line)" }}>
+                        <Search size={15} strokeWidth={2.4} className="shrink-0" style={{ color: "var(--ve-ink-3)" }} />
                         <input
                           type="text"
                           value={citySearch}
                           onChange={e => setCitySearch(e.target.value)}
-                          placeholder="Sök stad…"
-                          className="w-full bg-transparent font-medium focus:outline-none"
-                          style={{ color: "var(--text-primary)", fontSize: "16px" }}
+                          placeholder="Sök stad"
+                          className="ve-input w-full bg-transparent font-medium focus:outline-none"
+                          style={{ color: "var(--ve-ink)" }}
                         />
                         {citySearch && (
-                          <button onClick={() => setCitySearch("")}>
-                            <X size={13} style={{ color: "var(--text-secondary)" }} />
+                          <button onClick={() => setCitySearch("")} aria-label="Rensa" className="grid h-6 w-6 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-ink-3)", color: "#fff" }}>
+                            <X size={12} strokeWidth={3} />
                           </button>
                         )}
                       </div>
-                      <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                      <div className="ve-card max-h-64 overflow-y-auto">
                         {(() => {
                           const q = citySearch.toLowerCase().trim();
                           const filtered = q
@@ -663,9 +659,9 @@ export default function AddressModal({
                               )
                             : cityGroups;
                           if (filtered.length === 0) return (
-                            <p className="text-[13px] font-medium text-center py-4" style={{ color: "var(--text-secondary)" }}>Ingen stad hittades</p>
+                            <p className="m-0 py-5 text-center text-[14px]" style={{ color: "var(--ve-ink-2)" }}>Ingen stad hittades</p>
                           );
-                          return filtered.map(group => {
+                          return filtered.map((group, index) => {
                             const isSelected = selectedCity?.id === group.parent.id ||
                               group.children.some(c => c.id === selectedCity?.id);
                             const allNames = [group.parent.name, ...group.children.map(c => c.name)];
@@ -674,27 +670,17 @@ export default function AddressModal({
                               <button
                                 key={group.parent.id}
                                 onClick={() => { setSelectedCity(group.parent); setError(null); }}
-                                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all text-left"
-                                style={{
-                                  backgroundColor: isSelected ? "rgba(20,20,22,0.05)" : "var(--bg-deep)",
-                                  borderColor: isSelected ? "rgba(20,20,22,0.45)" : "var(--border-muted)",
-                                }}
+                                className="ve-row-press flex w-full items-center gap-3.5 px-4 py-3.5 text-left"
+                                style={{ boxShadow: index === 0 ? undefined : "inset 0 0.5px 0 var(--ve-line)" }}
                               >
-                                <div className="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0"
-                                  style={{ borderColor: isSelected ? "#141416" : "var(--border-muted)", backgroundColor: isSelected ? "#141416" : "transparent" }}>
-                                  {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <span className="text-[14.5px] font-semibold" style={{ color: "var(--text-primary)" }}>
-                                    {group.parent.name}
-                                  </span>
-                                  {subtitle && (
-                                    <span className="text-[12px] font-normal block mt-0.5 truncate" style={{ color: "var(--text-secondary)" }}>
-                                      {subtitle}
-                                    </span>
-                                  )}
-                                </div>
-                                <ChevronRight size={14} style={{ color: isSelected ? "#141416" : "var(--text-secondary)" }} />
+                                <span aria-hidden className="grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full transition-colors"
+                                  style={isSelected ? { backgroundColor: "var(--ve-ink)" } : { boxShadow: "inset 0 0 0 1.5px var(--ve-line-2)" }}>
+                                  {isSelected && <span className="h-2 w-2 rounded-full bg-white" />}
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                  <span className="block text-[16px] font-medium" style={{ color: "var(--ve-ink)", letterSpacing: "-0.01em" }}>{group.parent.name}</span>
+                                  {subtitle && <span className="block truncate text-[12.5px]" style={{ color: "var(--ve-ink-3)" }}>{subtitle}</span>}
+                                </span>
                               </button>
                             );
                           });
@@ -705,35 +691,27 @@ export default function AddressModal({
                 </div>
               )}
 
-              {/* Error message */}
               {error && (
                 <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-                  className="mt-3 flex items-start gap-2 p-3 rounded-xl text-[13px] font-medium shrink-0"
-                  style={{ backgroundColor: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#dc2626" }}>
-                  <AlertCircle size={13} className="shrink-0 mt-0.5" />
+                  className="mt-3 flex shrink-0 items-start gap-2 rounded-[14px] px-3.5 py-3 text-[13.5px] font-medium"
+                  style={{ backgroundColor: "var(--ve-danger-soft)", color: "var(--ve-danger)" }}>
+                  <AlertCircle size={14} className="mt-0.5 shrink-0" />
                   {error}
                 </motion.div>
               )}
-
             </div>
 
-            {/* CTA ligger utanför scrollområdet så den alltid syns även när
-                kartan/stadslistan fyller hela mobilens höjd. */}
             <div
-              className="shrink-0 border-t px-6 pt-3"
-              style={{
-                borderColor: "var(--border-muted)",
-                backgroundColor: "var(--bg-secondary)",
-                paddingBottom: "max(env(safe-area-inset-bottom, 0px), 16px)",
-              }}
+              className="ve-glass shrink-0 px-4 pt-3"
+              style={{ boxShadow: "inset 0 0.5px 0 var(--ve-line)", paddingBottom: "max(env(safe-area-inset-bottom, 0px), 16px)" }}
             >
               <button onClick={handleSubmit}
-                className="w-full flex items-center justify-between px-6 h-[52px] rounded-xl transition-all group bg-gold-500 active:scale-[0.99]"
-                style={{ color: "#FFFFFF" }}>
-                <span className="text-[15.5px] font-semibold">
+                className="ve-press flex h-[54px] w-full items-center justify-between rounded-full px-6"
+                style={{ backgroundColor: "var(--ve-cta)", color: "var(--ve-cta-ink)" }}>
+                <span className="text-[16px] font-semibold" style={{ letterSpacing: "-0.01em" }}>
                   {confirmLabel ?? (orderType === "DELIVERY" ? "Visa restauranger" : "Hitta avhämtning")}
                 </span>
-                <ArrowRight size={19} className="group-hover:translate-x-1 transition-transform" />
+                <ArrowRight size={19} strokeWidth={2.2} />
               </button>
             </div>
           </motion.div>

@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Gift, X, Plus } from "lucide-react";
 import { useCartStore, type BogoChoice } from "@/store/cartStore";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import "@/components/restaurant/restaurant.css";
 
 export type BogoPickerProduct = {
   id: string;
@@ -62,7 +63,8 @@ export default function BogoPickerModal({ dealId, dealTitle, restaurantId, rewar
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[1400] flex items-end sm:items-center justify-center bg-zinc-900/50 backdrop-blur-sm p-0 sm:p-6"
+      className="ve-root fixed inset-0 z-[1400] flex items-end justify-center sm:items-center"
+      style={{ backgroundColor: "rgba(0,0,0,0.42)" }}
       onClick={onClose}
     >
       <motion.div
@@ -73,83 +75,63 @@ export default function BogoPickerModal({ dealId, dealTitle, restaurantId, rewar
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
-        transition={{ type: "spring", bounce: 0, duration: 0.4 }}
-        className="w-full max-w-md sm:rounded-3xl rounded-t-3xl overflow-hidden relative flex flex-col max-h-[88vh]"
-        style={{ backgroundColor: "var(--bg-primary, #FBFBFC)" }}
+        transition={{ type: "spring", stiffness: 380, damping: 38, mass: 0.9 }}
+        className="relative flex max-h-[88dvh] w-full max-w-[560px] flex-col overflow-hidden rounded-t-[26px] sm:rounded-[26px]"
+        style={{ backgroundColor: "var(--ve-bg)", boxShadow: "0 -8px 40px rgba(0,0,0,0.18)" }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ── Hero-header: lugn guld-ton, ingen emoji/versal-italic ───────────── */}
-        <div
-          className="relative px-6 pt-7 pb-6 shrink-0"
-          style={{ background: "linear-gradient(160deg, rgba(240,83,28,0.16) 0%, rgba(240,83,28,0.04) 70%, transparent 100%)" }}
-        >
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Stäng"
-            className="absolute top-5 right-5 w-9 h-9 rounded-full flex items-center justify-center transition-transform active:scale-95"
-            style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-secondary)" }}
-          >
-            <X size={16} strokeWidth={2.5} />
-          </button>
-          <div className="w-12 h-12 rounded-2xl grid place-items-center mb-3.5" style={{ backgroundColor: "var(--color-gold-500, #F0531C)", boxShadow: "0 4px 14px rgba(240,83,28,0.35)" }}>
-            <Gift size={22} className="text-zinc-900" strokeWidth={2.2} />
+        <div className="flex shrink-0 justify-center pt-2.5"><span className="ve-sheet-handle" /></div>
+        <div className="shrink-0 px-5 pb-3 pt-3">
+          <div className="flex items-start justify-between gap-3">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[14px]" style={{ backgroundColor: "var(--ve-accent-soft)", color: "var(--ve-accent)" }}>
+              <Gift size={22} strokeWidth={2.2} />
+            </span>
+            <button type="button" onClick={onClose} aria-label="Stäng" className="ve-press grid h-9 w-9 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>
+              <X size={16} strokeWidth={2.6} />
+            </button>
           </div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gold-600 mb-1">Du har låst upp en gratis vara</p>
-          <h2 className="m-0 text-[1.4rem] font-bold tracking-tight leading-tight" style={{ color: "var(--text-primary)" }}>
+          <p className="m-0 mt-3 text-[12.5px] font-semibold" style={{ color: "var(--ve-accent)" }}>Du har låst upp en gratis vara</p>
+          <h2 className="m-0 mt-1 text-[22px] font-semibold leading-tight" style={{ letterSpacing: "-0.02em", color: "var(--ve-ink)" }}>
             Välj din gratis{rewardCategoryName ? ` ${rewardCategoryName.toLowerCase()}` : " vara"}
           </h2>
-          <p className="mt-1.5 text-[13px] leading-snug" style={{ color: "var(--text-secondary)" }}>
-            {dealTitle} — den läggs i din order utan kostnad.
-          </p>
+          <p className="m-0 mt-1 text-[14px]" style={{ color: "var(--ve-ink-2)" }}>{dealTitle}. Den läggs i din order utan kostnad.</p>
         </div>
 
-        {/* ── Produktlista: ren, full bredd, guld-accent (matchar menyn) ──────── */}
-        <div className="overflow-y-auto flex-1 px-4 py-2" style={{ overscrollBehavior: "contain" }}>
-          {products.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => handlePick(p)}
-              className="w-full flex items-center gap-3.5 py-3.5 text-left transition-opacity active:opacity-70"
-              style={{ borderBottom: "1px solid var(--border-muted)" }}
-            >
-              {/* Bild om finns, annars ren guld-gåva-platta (ingen emoji) */}
-              {p.imageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.imageUrl} alt="" className="w-14 h-14 rounded-xl object-cover shrink-0" style={{ backgroundColor: "var(--bg-deep)" }} />
-              ) : (
-                <div className="w-14 h-14 rounded-xl grid place-items-center shrink-0" style={{ backgroundColor: "var(--bg-deep)" }}>
-                  <Gift size={20} className="text-gold-500" strokeWidth={2} />
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="m-0 text-[15px] font-bold leading-tight line-clamp-1" style={{ color: "var(--text-primary)", letterSpacing: "-0.2px" }}>{p.name}</p>
-                <div className="mt-1 flex items-center gap-2">
-                  <span className="text-[13px] font-bold text-gold-600">Gratis</span>
-                  <span className="text-[12px] font-medium line-through" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>{p.price.toFixed(0)} kr</span>
-                </div>
-              </div>
-              {/* Flytande guld-plus, samma språk som menyn */}
-              <span
-                aria-hidden="true"
-                className="shrink-0 w-8 h-8 rounded-full grid place-items-center"
-                style={{ backgroundColor: "var(--color-gold-500, #F0531C)", color: "#1c1c1e", boxShadow: "0 2px 6px rgba(0,0,0,0.15)" }}
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-2" style={{ overscrollBehavior: "contain" }}>
+          <div className="ve-card overflow-hidden">
+            {products.map((p, index) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => handlePick(p)}
+                className="ve-row-press flex w-full items-center gap-3.5 px-4 py-3 text-left"
+                style={{ boxShadow: index === 0 ? undefined : "inset 0 0.5px 0 var(--ve-line)" }}
               >
-                <Plus size={16} strokeWidth={3} />
-              </span>
-            </button>
-          ))}
+                {p.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={p.imageUrl} alt="" className="h-14 w-14 shrink-0 rounded-[14px] object-cover" style={{ backgroundColor: "#EBEBEE" }} />
+                ) : (
+                  <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[14px]" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-accent)" }}>
+                    <Gift size={20} strokeWidth={2} />
+                  </span>
+                )}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[16px] font-medium" style={{ color: "var(--ve-ink)", letterSpacing: "-0.01em" }}>{p.name}</span>
+                  <span className="mt-1 flex items-center gap-2">
+                    <span className="rounded-full px-2 py-0.5 text-[12px] font-semibold" style={{ backgroundColor: "var(--ve-success-soft)", color: "var(--ve-success)" }}>Gratis</span>
+                    <span className="ve-tabular text-[13px] line-through" style={{ color: "var(--ve-ink-3)" }}>{p.price.toFixed(0)} kr</span>
+                  </span>
+                </span>
+                <span aria-hidden="true" className="grid h-8 w-8 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>
+                  <Plus size={15} strokeWidth={2.6} />
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* ── Hoppa över (man kan välja senare i kassan) ─────────────────────── */}
-        <div className="px-5 pt-3 pb-5 shrink-0" style={{ borderTop: "1px solid var(--border-muted)", backgroundColor: "var(--bg-primary)" }}>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full py-2.5 text-[13px] font-semibold transition-opacity active:opacity-60"
-            style={{ color: "var(--text-secondary)" }}
-          >
+        <div className="ve-glass shrink-0 px-5 pt-2" style={{ boxShadow: "inset 0 0.5px 0 var(--ve-line)", paddingBottom: "max(env(safe-area-inset-bottom, 0px), 14px)" }}>
+          <button type="button" onClick={onClose} className="ve-press h-11 w-full rounded-full text-[15px] font-medium" style={{ color: "var(--ve-ink-2)" }}>
             Välj senare i kassan
           </button>
         </div>

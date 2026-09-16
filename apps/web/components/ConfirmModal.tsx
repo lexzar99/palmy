@@ -1,7 +1,8 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertCircle, X } from "lucide-react";
+import { AlertCircle } from "lucide-react";
+import "@/components/restaurant/restaurant.css";
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -25,37 +26,37 @@ const ConfirmModal = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="ve-root fixed inset-0 z-[1500] flex items-center justify-center p-5" style={{ backgroundColor: "transparent" }}>
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+            className="absolute inset-0"
+            style={{ backgroundColor: "rgba(0,0,0,0.42)" }}
           />
           <motion.div
-            initial={{ scale: 0.95, opacity: 0, y: 20 }}
+            initial={{ scale: 0.94, opacity: 0, y: 12 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 20 }}
-            className="relative w-full max-w-sm rounded-[2rem] p-8 overflow-hidden shadow-2xl"
-            style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
+            exit={{ scale: 0.94, opacity: 0, y: 12 }}
+            transition={{ type: "spring", stiffness: 420, damping: 34 }}
+            role="alertdialog"
+            aria-modal="true"
+            aria-label={title}
+            className="relative w-full max-w-[360px] rounded-[26px] px-5 pb-5 pt-6"
+            style={{ backgroundColor: "var(--ve-card)", boxShadow: "var(--ve-shadow-float)" }}
           >
-            {/* Background design element */}
-            <div className="absolute -top-24 -right-24 w-48 h-48 bg-gold-500/10 rounded-full blur-3xl" />
-
-            <div className="relative z-10 flex flex-col items-center text-center">
-              <div className="w-16 h-16 bg-gold-400/20 rounded-2xl flex items-center justify-center text-gold-600 mb-6 border border-gold-500/20 shadow-xl">
-                <AlertCircle size={32} />
-              </div>
-
-              <h3 className="text-2xl font-black uppercase tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>{title}</h3>
-              <p className="text-sm leading-relaxed mb-8 font-medium" style={{ color: "var(--text-secondary)" }}>{message}</p>
-
-              <div className="grid grid-cols-2 gap-3 w-full">
+            <div className="flex flex-col items-center text-center">
+              <span className="mb-4 grid h-14 w-14 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-accent-soft)", color: "var(--ve-accent)" }}>
+                <AlertCircle size={26} strokeWidth={2.2} />
+              </span>
+              <h3 className="m-0 text-[20px] font-semibold leading-tight" style={{ letterSpacing: "-0.02em", color: "var(--ve-ink)" }}>{title}</h3>
+              <p className="m-0 mt-2 text-[15px] leading-[1.45]" style={{ color: "var(--ve-ink-2)" }}>{message}</p>
+              <div className="mt-6 grid w-full grid-cols-2 gap-2.5">
                 <button
                   onClick={onClose}
-                  className="px-6 py-4 rounded-xl border text-xs font-black uppercase tracking-widest hover:opacity-80 transition-all"
-                  style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}
+                  className="ve-press h-12 rounded-full text-[15px] font-medium"
+                  style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}
                 >
                   {cancelText}
                 </button>
@@ -64,20 +65,13 @@ const ConfirmModal = ({
                     onConfirm();
                     onClose();
                   }}
-                  className="px-6 py-4 rounded-xl bg-gold-500 text-zinc-950 text-xs font-black uppercase tracking-widest hover:bg-gold-400 transition-all shadow-lg shadow-gold-500/20"
+                  className="ve-press h-12 rounded-full text-[15px] font-semibold"
+                  style={{ backgroundColor: "var(--ve-cta)", color: "var(--ve-cta-ink)" }}
                 >
                   {confirmText}
                 </button>
               </div>
             </div>
-
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 p-2 transition-colors"
-              style={{ color: "var(--text-secondary)", opacity: 0.5 }}
-            >
-              <X size={20} />
-            </button>
           </motion.div>
         </div>
       )}
