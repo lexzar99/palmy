@@ -3,14 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import axios from "axios";
-import { ArrowRight, Truck } from "lucide-react";
-import SmartImage from "@/components/SmartImage";
+import { ArrowRight, Bike, ChevronRight, Tag } from "lucide-react";
+import PlainImage from "@/components/restaurant/PlainImage";
+import { useDesignBackground } from "@/components/restaurant/useDesignBackground";
+import "@/components/restaurant/restaurant.css";
 
-// Deals = rabatterade rätter från restaurangernas menyer (/api/menu/discounted).
-// Sidan hämtade tidigare bara kampanj-endpointsen, som normalt är tomma — därför
-// såg sidan tom ut trots att det fanns riktiga fynd. Rätterna grupperas per
-// restaurang i varsin räls, med dyrast först eftersom det är där kunden sparar
-// mest kronor.
+// Deals = rabatterade rätter från restaurangernas menyer (/api/menu/discounted)
+// plus aktiva kampanjer (/api/deals). Rätterna grupperas per restaurang i
+// varsin räls, dyrast först eftersom det är där kunden sparar mest kronor.
+// Formgivning enligt docs/DESIGN_SYSTEM.md: grå sida, vita kort, bläck som
+// enda textfärg, orange bara som liten rabattmarkering.
 type DiscountedProduct = {
   id: string;
   name: string;
@@ -60,32 +62,24 @@ type RestaurantRail = {
   topPrice: number;
 };
 
-const formatNumber = (value: number) => value.toLocaleString("sv-SE", {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-const kr = (value: number) => `${formatNumber(value)} kr`;
+const kr = (value: number) => `${Number.isInteger(value) ? value : value.toFixed(2).replace(".", ",")} kr`;
 
 function percentOff(product: DiscountedProduct) {
-  if (typeof product.discountPercent === "number" && product.discountPercent > 0) {
-    return Math.round(product.discountPercent);
-  }
+  if (typeof product.discountPercent === "number" && product.discountPercent > 0) return Math.round(product.discountPercent);
   if (!product.originalPrice) return 0;
   return Math.max(0, Math.round(((product.originalPrice - product.discountPrice) / product.originalPrice) * 100));
 }
 
 function publicReward(deal: PublicDeal) {
-  if (deal.discountType === "PERCENTAGE" && Number(deal.discountValue) > 0) {
-    return `${formatNumber(Number(deal.discountValue))}% rabatt`;
-  }
-  if (["FIXED", "FIXED_PRICE"].includes(deal.discountType || "") && Number(deal.discountValue) > 0) {
-    return `${kr(Number(deal.discountValue))} rabatt`;
-  }
+  if (deal.discountType === "PERCENTAGE" && Number(deal.discountValue) > 0) return `${Math.round(Number(deal.discountValue))} % rabatt`;
+  if (["FIXED", "FIXED_PRICE"].includes(deal.discountType || "") && Number(deal.discountValue) > 0) return `${kr(Number(deal.discountValue))} rabatt`;
   return null;
 }
 
+const hairline = "inset 0 0 0 0.5px var(--ve-line)";
+
 export default function DealsPage() {
+  useDesignBackground();
   const [products, setProducts] = useState<DiscountedProduct[]>([]);
   const [publicDeals, setPublicDeals] = useState<PublicDeal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,9 +99,7 @@ export default function DealsPage() {
       }
       setLoading(false);
     });
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   const rails = useMemo<RestaurantRail[]>(() => {
@@ -126,7 +118,6 @@ export default function DealsPage() {
     }
     return [...byRestaurant.values()]
       .map((rail) => {
-        // Dyrast först: den rätten är det mest attraktiva fyndet i rälsen.
         rail.products.sort((a, b) => b.discountPrice - a.discountPrice || percentOff(b) - percentOff(a));
         rail.topPrice = rail.products[0]?.discountPrice ?? 0;
         return rail;
@@ -139,72 +130,81 @@ export default function DealsPage() {
     [publicDeals],
   );
 
+  const dealCount = products.length;
+
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)] pb-32 text-[var(--ink)] md:pt-20">
-      <div className="mx-auto max-w-6xl px-5 pb-8 pt-8 sm:px-6 lg:px-10">
-        <header className="max-w-xl">
-          <p className="text-[11.5px] font-black uppercase tracking-[0.12em] text-[var(--deal-blue)]">Viaeats deals</p>
-          <h1 className="mt-2 text-[34px] font-black leading-[0.98] tracking-[-0.03em] sm:text-[44px]">
-            Mer mat. Bättre pris.
-          </h1>
-          <p className="mt-3 text-[14.5px] font-semibold leading-relaxed text-[var(--muted)]">
-            Sänkta priser från restaurangerna nära dig, uppdaterade varje dag.
+    <div className="ve-root min-h-screen pb-32 md:pt-20">
+      <div className="mx-auto max-w-[680px] px-4 pt-[calc(env(safe-area-inset-top,0px)+16px)] md:pt-8">
+        <header className="px-1">
+          <h1 className="m-0 text-[28px] font-semibold leading-[1.1]" style={{ letterSpacing: "-0.025em", color: "var(--ve-ink)" }}>Deals</h1>
+          <p className="m-0 mt-1.5 text-[15px]" style={{ color: "var(--ve-ink-2)" }}>
+            {loading
+              ? "Sänkta priser från restaurangerna nära dig."
+              : dealCount > 0
+                ? `${dealCount} ${dealCount === 1 ? "rätt" : "rätter"} till sänkt pris just nu.`
+                : "Sänkta priser från restaurangerna nära dig."}
           </p>
         </header>
 
         {loading ? (
-          <div className="mt-8 flex gap-4 overflow-hidden">
-            {[1, 2, 3, 4].map((index) => <div key={index} className="skeleton h-56 w-[200px] shrink-0 rounded-[18px]" />)}
+          <div className="mt-6 space-y-8">
+            {[0, 1].map((i) => (
+              <div key={i}>
+                <div className="flex items-center gap-3 px-1 mb-3">
+                  <div className="ve-skeleton h-10 w-10 rounded-[12px]" />
+                  <div className="ve-skeleton h-5 w-40 rounded-md" />
+                </div>
+                <div className="ve-no-scrollbar -mx-4 px-4 flex gap-3 overflow-hidden">
+                  {[0, 1, 2].map((j) => <div key={j} className="ve-skeleton h-[212px] w-[156px] shrink-0 rounded-[18px]" />)}
+                </div>
+              </div>
+            ))}
           </div>
         ) : rails.length === 0 && campaignCards.length === 0 ? (
-          <section
-            className="mt-10 rounded-[24px] bg-[var(--bg-secondary)] px-6 py-14 text-center sm:px-10"
-            style={{ boxShadow: "inset 0 0 0 1px var(--border-muted)" }}
-          >
-            <div className="mx-auto max-w-sm">
-              <h2 className="text-[22px] font-black leading-tight tracking-[-0.02em]">Inga deals just nu</h2>
-              <p className="mt-2 text-[14px] font-semibold leading-relaxed text-[var(--muted)]">
-                Så fort en restaurang sänker priset på en rätt dyker den upp här.
-              </p>
-              <Link
-                href="/"
-                className="mt-7 inline-flex h-12 items-center gap-2 rounded-full bg-[var(--ink)] px-6 text-[14.5px] font-black text-white transition-opacity active:opacity-80"
-              >
-                Hitta mat <ArrowRight size={16} />
-              </Link>
+          <section className="ve-card mt-6 px-6 py-12 text-center">
+            <div className="mx-auto w-14 h-14 rounded-full grid place-items-center mb-4" style={{ backgroundColor: "var(--ve-fill)" }}>
+              <Tag size={22} strokeWidth={2} style={{ color: "var(--ve-ink-3)" }} />
             </div>
+            <h2 className="m-0 text-[20px] font-semibold" style={{ letterSpacing: "-0.02em", color: "var(--ve-ink)" }}>Inga deals just nu</h2>
+            <p className="m-0 mt-1.5 text-[15px] max-w-xs mx-auto" style={{ color: "var(--ve-ink-2)" }}>
+              Så fort en restaurang sänker priset på en rätt dyker den upp här.
+            </p>
+            <Link href="/" className="ve-press mt-6 inline-flex h-12 items-center gap-2 rounded-full px-6 text-[16px] font-semibold" style={{ backgroundColor: "var(--ve-cta)", color: "var(--ve-cta-ink)" }}>
+              Hitta mat <ArrowRight size={16} />
+            </Link>
           </section>
         ) : (
-          <div className="mt-8 space-y-9">
+          <div className="mt-6 space-y-9">
             {campaignCards.length > 0 && (
               <section>
-                <h2 className="text-[19px] font-black tracking-[-0.02em]">Kampanjer</h2>
-                <div className="mt-3 flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+                <h2 className="m-0 px-1 mb-3 text-[17px] font-semibold" style={{ letterSpacing: "-0.015em", color: "var(--ve-ink)" }}>Kampanjer</h2>
+                <div className="ve-no-scrollbar -mx-4 px-4 flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory">
                   {campaignCards.map((deal) => {
-                    const campaignImage = deal.restaurant?.heroImageUrl || deal.restaurant?.imageUrl || deal.imageUrl;
+                    const image = deal.imageUrl || deal.restaurant?.heroImageUrl || deal.restaurant?.imageUrl;
+                    const reward = publicReward(deal);
                     return (
                       <Link
                         key={deal.id}
                         href={`/deals/${deal.id}`}
-                        className="relative flex min-h-[164px] w-[220px] shrink-0 flex-col overflow-hidden rounded-[20px] p-4 text-white"
-                        style={{ background: campaignImage ? "var(--deal-blue-ink)" : "linear-gradient(145deg,var(--deal-blue) 0%,var(--deal-blue-deep) 100%)" }}
+                        className="ve-press ve-card w-[248px] shrink-0 snap-start overflow-hidden flex flex-col"
+                        style={{ boxShadow: `${hairline}, var(--ve-shadow-card)` }}
                       >
-                        {campaignImage ? <SmartImage src={campaignImage} alt={deal.restaurant?.name || deal.title} sizes="220px" className="absolute inset-0 h-full w-full object-cover" loading="lazy" /> : null}
-                        {campaignImage ? <span className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/10" /> : null}
-                        <span className="relative inline-flex min-h-7 w-fit items-center rounded-full bg-white/92 px-3 text-[10px] font-black uppercase text-[var(--ink)]">
-                          {deal.badgeText || "Deal"}
+                        <span className="relative block w-full overflow-hidden" style={{ aspectRatio: "16 / 9", backgroundColor: "var(--ve-fill)" }}>
+                          {image ? <PlainImage src={image} alt="" width={640} className="absolute inset-0 h-full w-full object-cover" /> : null}
+                          <span className="absolute left-2.5 top-2.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold" style={{ backgroundColor: "rgba(255,255,255,0.92)", color: "var(--ve-ink)" }}>
+                            {deal.badgeText || "Kampanj"}
+                          </span>
                         </span>
-                        <div className="relative mt-auto pt-5">
-                          <h3 className="text-[18px] font-black leading-tight">{deal.title}</h3>
-                          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-black">
-                            {publicReward(deal) && <span className="rounded-full bg-white/16 px-2.5 py-1.5">{publicReward(deal)}</span>}
-                            {deal.freeDelivery && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-white/16 px-2.5 py-1.5">
-                                <Truck size={12} /> Fri leverans
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                        <span className="flex flex-col gap-1.5 px-4 pt-3 pb-3.5">
+                          <span className="line-clamp-2 text-[16px] font-semibold leading-snug" style={{ letterSpacing: "-0.015em", color: "var(--ve-ink)" }}>{deal.title}</span>
+                          {deal.restaurant?.name && <span className="text-[13px] truncate" style={{ color: "var(--ve-ink-3)" }}>{deal.restaurant.name}</span>}
+                          {(reward || deal.freeDelivery) && (
+                            <span className="mt-1 flex flex-wrap gap-1.5">
+                              {reward && <span className="rounded-full px-2.5 py-1 text-[12px] font-semibold" style={{ backgroundColor: "var(--ve-accent-soft)", color: "var(--ve-accent)" }}>{reward}</span>}
+                              {deal.freeDelivery && <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-semibold" style={{ backgroundColor: "var(--ve-success-soft)", color: "var(--ve-success)" }}><Bike size={12} strokeWidth={2.2} /> Fri leverans</span>}
+                            </span>
+                          )}
+                        </span>
                       </Link>
                     );
                   })}
@@ -213,85 +213,59 @@ export default function DealsPage() {
             )}
 
             {rails.map((rail) => {
-              const heroImage = rail.restaurant.heroImageUrl || rail.restaurant.imageUrl || "";
-              const heroSubtitle = [rail.restaurant.cuisine, rail.restaurant.city]
-                .map((part) => (part || "").trim())
-                .filter(Boolean)
-                .join(" · ");
+              const logo = rail.restaurant.imageUrl || rail.restaurant.heroImageUrl || "";
+              const subtitle = [rail.restaurant.cuisine, rail.restaurant.city].map((part) => (part || "").trim()).filter(Boolean).join(" · ");
               return (
-              <section key={rail.slug}>
-                {/* Restaurangens egen hero över dess deals — kunden ser direkt
-                    vems fynd det är innan hen scrollar i rälsen. */}
-                <Link
-                  href={`/restaurants/${rail.slug}`}
-                  className="relative flex h-[132px] items-end overflow-hidden rounded-[22px] bg-[var(--deal-blue-ink)] p-4 text-white sm:h-[152px] sm:p-5"
-                >
-                  {heroImage ? (
-                    <SmartImage
-                      src={heroImage}
-                      alt={rail.name}
-                      sizes="(min-width: 1024px) 960px, 100vw"
-                      className="absolute inset-0 h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : null}
-                  <span className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10" />
-                  <span className="relative flex w-full items-end justify-between gap-4">
-                    <span className="min-w-0">
-                      <span className="block text-[22px] font-black leading-tight sm:text-[26px]">{rail.name}</span>
-                      {heroSubtitle ? (
-                        <span className="mt-0.5 block truncate text-[12.5px] font-bold text-white/80">{heroSubtitle}</span>
-                      ) : null}
+                <section key={rail.slug}>
+                  {/* Restaurangrad: logga · namn + kök/stad · "Se menyn" */}
+                  <Link href={`/restaurants/${rail.slug}`} className="ve-press flex items-center gap-3 px-1 mb-3">
+                    <span className="relative w-11 h-11 rounded-[13px] overflow-hidden shrink-0 grid place-items-center" style={{ backgroundColor: "#fff", boxShadow: hairline }}>
+                      {logo ? <PlainImage src={logo} alt="" width={128} className="absolute inset-0 w-full h-full object-cover" /> : null}
                     </span>
-                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/92 px-3.5 py-2 text-[12.5px] font-black text-[var(--ink)]">
-                      Se menyn <ArrowRight size={14} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[17px] font-semibold truncate" style={{ letterSpacing: "-0.015em", color: "var(--ve-ink)" }}>{rail.name}</span>
+                      {subtitle && <span className="block text-[13px] truncate" style={{ color: "var(--ve-ink-3)" }}>{subtitle}</span>}
                     </span>
-                  </span>
-                </Link>
+                    <span className="inline-flex items-center gap-1 text-[14px] font-medium shrink-0" style={{ color: "var(--ve-ink-2)" }}>
+                      Se menyn <ChevronRight size={16} strokeWidth={2.2} />
+                    </span>
+                  </Link>
 
-                <div className="mt-3 flex gap-3 overflow-x-auto pb-2 no-scrollbar">
-                  {rail.products.map((product) => {
-                    const off = percentOff(product);
-                    const restaurantImage = product.restaurant.heroImageUrl || product.restaurant.imageUrl || product.imageUrl;
-                    const productImage = product.imageUrl || restaurantImage;
-                    return (
-                      <Link
-                        key={product.id}
-                        href={`/restaurants/${rail.slug}?product=${product.id}`}
-                        className="w-[200px] shrink-0 overflow-hidden rounded-[18px] bg-[var(--bg-secondary)] shadow-[0_2px_10px_rgba(17,17,19,0.04)] ring-1 ring-[var(--border-muted)]"
-                      >
-                        <div className="relative h-[116px] bg-[var(--cream,#FEF7F0)]">
-                          {productImage ? (
-                            <SmartImage src={productImage} alt={product.name} sizes="200px" className="h-full w-full object-cover" loading="lazy" />
-                          ) : null}
-                          {off > 0 && (
-                            <span className="absolute left-3 top-3 rounded-full bg-[var(--orange)] px-2.5 py-1 text-[12px] font-black text-white">
-                              −{off}%
+                  <div className="ve-no-scrollbar -mx-4 px-4 flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory">
+                    {rail.products.map((product) => {
+                      const off = percentOff(product);
+                      const image = product.imageUrl || product.restaurant.heroImageUrl || product.restaurant.imageUrl;
+                      return (
+                        <Link
+                          key={product.id}
+                          href={`/restaurants/${rail.slug}?product=${product.id}`}
+                          className="ve-press ve-card w-[156px] shrink-0 snap-start overflow-hidden flex flex-col"
+                          style={{ boxShadow: `${hairline}, var(--ve-shadow-card)` }}
+                        >
+                          <span className="relative block w-full overflow-hidden" style={{ aspectRatio: "4 / 3", backgroundColor: "#EBEBEE" }}>
+                            {image ? <PlainImage src={image} alt={product.name} width={384} className="absolute inset-0 h-full w-full object-cover" /> : null}
+                            {off > 0 && (
+                              <span className="ve-tabular absolute left-2 top-2 rounded-full px-2 py-[3px] text-[11.5px] font-semibold" style={{ backgroundColor: "rgba(255,255,255,0.92)", color: "var(--ve-accent)" }}>
+                                −{off} %
+                              </span>
+                            )}
+                          </span>
+                          <span className="flex flex-col gap-1 px-3 pt-2.5 pb-3">
+                            <span className="line-clamp-2 min-h-[36px] text-[13.5px] font-semibold leading-[18px]" style={{ letterSpacing: "-0.01em", color: "var(--ve-ink)" }}>{product.name}</span>
+                            <span className="ve-tabular flex items-baseline gap-1.5">
+                              <span className="text-[14px] font-semibold" style={{ color: "var(--ve-ink)" }}>{kr(product.discountPrice)}</span>
+                              <span className="text-[12px] line-through" style={{ color: "var(--ve-ink-3)" }}>{kr(product.originalPrice)}</span>
                             </span>
-                          )}
-                        </div>
-                        <div className="p-3">
-                          <h3 className="line-clamp-2 min-h-[34px] text-[13px] font-black leading-tight">{product.name}</h3>
-                          {product.description?.trim() ? (
-                            <p className="mt-1 line-clamp-2 text-[11.5px] font-semibold leading-[1.35] text-[var(--muted)]">
-                              {product.description.trim()}
-                            </p>
-                          ) : null}
-                          <div className="mt-2 flex items-baseline gap-2">
-                            <span className="text-[15px] font-black text-[var(--orange)]">{kr(product.discountPrice)}</span>
-                            <span className="text-[11px] font-bold text-[var(--muted)] line-through">{kr(product.originalPrice)}</span>
-                          </div>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </section>
+                          </span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </section>
               );
             })}
           </div>
         )}
-
       </div>
     </div>
   );

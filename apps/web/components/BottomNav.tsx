@@ -7,29 +7,63 @@ import { BadgePercent, Home, Search, ShoppingBag, User } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import { useEffect, useState } from "react";
+import "@/components/restaurant/restaurant.css";
 
 /**
- * BottomNav — platt vit bar, kant till kant, med hårfin topplinje.
- * Fem lika breda segment (ikon + etikett). Aktivt segment markeras med
- * textfärg + ifylld ikon — ingen glidande pill, ingen blur, ingen skugga.
- * På restaurangsidor göms baren med transform + opacity istället för
- * unmount, så den aldrig flimrar vid sidbyten.
+ * BottomNav — flikrad i designsystemet (docs/DESIGN_SYSTEM.md): frostat glas,
+ * hårfin topplinje, fem lika breda flikar med ikon + etikett. Aktiv flik i
+ * bläck, övriga i ink-3, antalsbadge i accent.
+ *
+ * Döljs (glider ner) när ett textfält har fokus: iOS lägger annars den fasta
+ * raden ovanpå tangentbordet där den hoppar och täcker fältet. Döljs också på
+ * restaurang-, embed- och spårningssidor där en egen bottenyta tar över.
  */
+const EDITABLE = "input, textarea, select, [contenteditable=''], [contenteditable='true']";
+
 const BottomNav = () => {
   const pathname = usePathname();
   const { t } = useTranslation();
   const items = useCartStore((state) => state.items);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
-  // Restaurangsidor: FloatingCartButton tar över. Order-tracking är en
-  // fullskärmsvy som i appen och ska inte ha bottom nav ovanpå.
   const [embedQuery, setEmbedQuery] = useState(false);
   useEffect(() => {
     setEmbedQuery(new URLSearchParams(window.location.search).get("embed") === "1");
   }, [pathname]);
+
+  // Tangentbord uppe → göm raden. Fördröjd återvisning så den inte blinkar
+  // när fokus flyttas mellan två fält.
+  const [typing, setTyping] = useState(false);
+  useEffect(() => {
+    let timer: number | undefined;
+    const isEditable = (el: EventTarget | null) => el instanceof Element && el.matches(EDITABLE) && !(el as HTMLInputElement).readOnly;
+    const onFocusIn = (e: FocusEvent) => {
+      if (!isEditable(e.target)) return;
+      window.clearTimeout(timer);
+      setTyping(true);
+    };
+    const onFocusOut = (e: FocusEvent) => {
+      if (!isEditable(e.target)) return;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setTyping(false), 180);
+    };
+    document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("focusout", onFocusOut);
+    return () => {
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("focusout", onFocusOut);
+      window.clearTimeout(timer);
+    };
+  }, []);
+
   const embedSurface = embedQuery &&
     (pathname === "/cart" || pathname === "/orders" || pathname?.startsWith("/order/"));
-  const hidden = pathname?.startsWith("/restaurants/") || pathname?.startsWith("/embed/") || pathname?.startsWith("/order/") || embedSurface || false;
+  const hidden = typing
+    || pathname?.startsWith("/restaurants/")
+    || pathname?.startsWith("/embed/")
+    || pathname?.startsWith("/order/")
+    || embedSurface
+    || false;
 
   const navItems = [
     { href: "/", label: t("nav.home"), icon: Home },
@@ -41,37 +75,23 @@ const BottomNav = () => {
 
   return (
     <nav
-      className={`fixed left-0 right-0 bottom-0 z-[100] md:hidden flex transition-[transform,opacity] duration-300 ease-out ${hidden ? "pointer-events-none" : ""}`}
+      className="ve-root ve-glass fixed left-0 right-0 bottom-0 z-[100] md:hidden flex transition-[transform,opacity] duration-300 ease-out"
       style={{
-        backgroundColor: "var(--bg-primary)",
-        borderTop: "1px solid var(--border-muted)",
+        boxShadow: "inset 0 0.5px 0 var(--ve-line)",
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
-        // iOS Safari: ett position:fixed-element MED transform (även identitets-
-        // translateY(0)) fästs mot LAYOUT-viewporten, inte visual-viewporten, och
-        // släpar därför efter när det nedre verktygsfältet dras in vid scroll →
-        // glipa under navet. Vi sätter transform ENDAST när baren göms (slide-
-        // animationen). Synlig = ingen transform → navet följer visual-viewporten.
+        // iOS Safari: transform bara när raden göms — annars följer den inte
+        // visual-viewporten när verktygsfältet dras in vid scroll.
         transform: hidden ? "translateY(110%)" : undefined,
-        opacity: hidden ? 0 : 1,
+        opacity: hidden ? 1 : 1,
+        pointerEvents: hidden ? "none" : undefined,
       }}
       aria-hidden={hidden}
     >
-      {/* iOS Safari: när det nedre verktygsfältet (sökfältet) krymper vid scroll
-          uppstår annars en transparent remsa MELLAN navet och skärmkanten.
-          Detta vita barn förlänger navets bakgrund nedåt (top:100% = från navets
-          underkant) så ytan alltid är vit — täcker safe-arean + ev. dynamiskt
-          viewport-gap. Ligger bakom innehållet, fångar inga klick. */}
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute left-0 right-0 top-full"
-        style={{ height: "100vh", backgroundColor: "var(--bg-primary)" }}
-      />
+      {/* Täcker glipan mellan raden och skärmkanten när Safaris verktygsfält krymper. */}
+      <span aria-hidden="true" className="pointer-events-none absolute left-0 right-0 top-full ve-glass" style={{ height: "100vh" }} />
       {navItems.map((item) => {
         const Icon = item.icon;
-        const isActive =
-          pathname === item.href ||
-          (item.href !== "/" && pathname?.startsWith(`${item.href}/`));
-
+        const isActive = pathname === item.href || (item.href !== "/" && pathname?.startsWith(`${item.href}/`));
         return (
           <Link
             key={item.href}
@@ -80,37 +100,37 @@ const BottomNav = () => {
             aria-current={isActive ? "page" : undefined}
             className="relative flex-1 touch-manipulation"
           >
-            <div className="flex h-[56px] flex-col items-center justify-center gap-1 px-0.5">
-              <Icon
-                size={20}
-                strokeWidth={isActive ? 2.2 : 1.8}
-                fill="none"
-                className="shrink-0 transition-colors duration-150"
-                style={{ color: isActive ? "var(--color-gold-500, #F04F1A)" : "var(--text-secondary)" }}
-              />
+            <div className="flex h-[54px] flex-col items-center justify-center gap-[3px]">
+              <span className="relative">
+                <Icon
+                  size={22}
+                  strokeWidth={isActive ? 2.2 : 1.8}
+                  className="shrink-0 transition-colors duration-150"
+                  style={{ color: isActive ? "var(--ve-ink)" : "var(--ve-ink-3)" }}
+                />
+                <AnimatePresence>
+                  {item.count !== undefined && item.count > 0 && (
+                    <motion.span
+                      key={item.count}
+                      initial={{ scale: 0.4, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.4, opacity: 0 }}
+                      transition={{ type: "spring", stiffness: 700, damping: 18 }}
+                      className="ve-tabular absolute -top-1.5 -right-2.5 min-w-[17px] h-[17px] px-1 rounded-full text-[10.5px] font-semibold grid place-items-center"
+                      style={{ backgroundColor: "var(--ve-accent)", color: "#fff", boxShadow: "0 0 0 2px rgba(245,245,247,0.9)" }}
+                    >
+                      {item.count}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </span>
               <span
-                className={`max-w-full truncate text-[10.5px] leading-none transition-colors duration-150 ${isActive ? "font-semibold" : "font-medium"}`}
-                style={{ color: isActive ? "var(--text-primary)" : "var(--text-secondary)" }}
+                className="max-w-full truncate text-[10px] leading-none transition-colors duration-150"
+                style={{ color: isActive ? "var(--ve-ink)" : "var(--ve-ink-3)", fontWeight: isActive ? 600 : 500, letterSpacing: "0.005em" }}
               >
                 {item.label}
               </span>
             </div>
-            {/* Cart-antal — springer till vid varje ändring (wow vid "lägg till"). */}
-            <AnimatePresence>
-              {item.count !== undefined && item.count > 0 && (
-                <motion.span
-                  key={item.count}
-                  initial={{ scale: 0.4, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.4, opacity: 0 }}
-                  transition={{ type: "spring", stiffness: 700, damping: 18 }}
-                  className="absolute top-1.5 right-[calc(50%-20px)] z-20 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
-                  style={{ backgroundColor: "var(--color-gold-500, #F04F1A)", color: "white" }}
-                >
-                  {item.count}
-                </motion.span>
-              )}
-            </AnimatePresence>
           </Link>
         );
       })}

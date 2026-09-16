@@ -309,6 +309,16 @@ Klarna · VISA · Mastercard · G Pay) med chevron. Blockerat läge = grå
 inaktiv pill med orsaken. Betalsteget använder samma kort och en svart pill
 `Öppna Swish`. Redigering av rad öppnar `ProductSheet`.
 
+### Flikrad (BottomNav) och Deals
+`components/BottomNav.tsx`: frostat glas (`ve-glass`), hårfin topplinje, fem
+lika breda flikar (ikon 22 px + etikett 10 px), aktiv i bläck, övriga i ink-3,
+antalsbadge i accent. Glider ner (translateY 110 %) när ett textfält har fokus
+så den aldrig hamnar ovanpå tangentbordet, och på sidor med egen bottenyta.
+`app/deals/page.tsx`: rubrik 28/600 + antal, kampanjkort 248 px (16:9-bild,
+badge, titel, belöningspills) och per restaurang en rad logga · namn ·
+kök/stad · "Se menyn" följt av produktkort 156 px (4:3-bild, `−%`-badge,
+namn, pris + genomstruket).
+
 Filkarta: `apps/web/components/restaurant/` (RestaurantMenu, ProductSheet,
 CartBar, PlainImage, restaurant.css), `apps/web/components/Toast.tsx`,
 `apps/web/app/restaurants/[slug]/page.tsx`, `apps/web/app/embed/[slug]/page.tsx`
