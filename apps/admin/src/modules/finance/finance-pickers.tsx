@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, useRef } from "react";
+import { ChevronDown, ArrowRight } from "lucide-react";
 import { monthId, monthLabel, monthRange } from "@/modules/finance/finance-workspace";
 import { num, shortDate } from "@/modules/finance/format";
 import styles from "@/modules/finance/finance-pickers.module.css";
@@ -122,7 +123,7 @@ export function PeriodPicker({
         onClick={() => { setFrom(period.from); setTo(period.to); setOpen((value) => !value); }}
       >
         <span className={styles.triggerLabel}>{periodLabel(period)}</span>
-        <span className={styles.caret}>▾</span>
+        <ChevronDown className={styles.caret} size={14} aria-hidden />
       </button>
       {open ? (
         <>
@@ -160,7 +161,7 @@ export function PeriodPicker({
                   aria-label="Från"
                   onChange={(event) => setFrom(event.target.value)}
                 />
-                <span className={styles.arrow}>→</span>
+                <ArrowRight className={styles.arrow} size={14} aria-hidden />
                 <input
                   type="date"
                   className={styles.date}
@@ -236,7 +237,7 @@ export function RestaurantPicker({
         }}
       >
         <span className={styles.triggerLabel}>{selected?.name || "Välj restaurang"}</span>
-        <span className={styles.caret}>▾</span>
+        <ChevronDown className={styles.caret} size={14} aria-hidden />
       </button>
       {open ? (
         <>

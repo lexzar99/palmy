@@ -303,30 +303,30 @@ export function TiersPage({ embedded = false }: { embedded?: boolean } = {}) {
           <EmptyState title="Inga restauranger tillgängliga" />
         ) : (
           <div className="table-shell">
-            <table className="data-table">
+            <table className="data-table responsive-table">
               <thead>
                 <tr>
-                  <th>Restaurang</th>
-                  <th>Tier</th>
-                  <th>Abonnemang</th>
-                  <th>Leveransmodell</th>
-                  <th>Månadsförsäljning</th>
+                  <th scope="col">Restaurang</th>
+                  <th scope="col">Tier</th>
+                  <th scope="col">Abonnemang</th>
+                  <th scope="col">Leveransmodell</th>
+                  <th scope="col">Månadsförsäljning</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
                 {restaurants.data.map((restaurant) => (
                   <tr key={restaurant.id}>
-                    <td>
+                    <td data-label="Restaurang">
                       <div>
                         <p className="font-black">{restaurant.name}</p>
                         <p className="mt-1 text-sm text-[var(--text-secondary)]">{restaurant.city || "Ingen stad"}</p>
                       </div>
                     </td>
-                    <td><Badge tone={tierTone(restaurant.featuredClass)}>{restaurantTierLabel(restaurant.featuredClass)}</Badge></td>
-                    <td className="tabular-nums">{formatCurrency(restaurant.subscriptionEstimate)}</td>
-                    <td><DeliveryModeBadge selfDelivery={restaurant.selfDelivery} /></td>
-                    <td className="tabular-nums">{formatCurrency(restaurant.monthRevenue)}</td>
+                    <td data-label="Tier"><Badge tone={tierTone(restaurant.featuredClass)}>{restaurantTierLabel(restaurant.featuredClass)}</Badge></td>
+                    <td data-label="Abonnemang" className="tabular-nums">{formatCurrency(restaurant.subscriptionEstimate)}</td>
+                    <td data-label="Leveransmodell"><DeliveryModeBadge selfDelivery={restaurant.selfDelivery} /></td>
+                    <td data-label="Månadsförsäljning" className="tabular-nums">{formatCurrency(restaurant.monthRevenue)}</td>
                     <td><div className="flex justify-end"><Button variant="secondary" onClick={() => setActiveRestaurant(restaurant)}><Shield size={16} /> Ändra</Button></div></td>
                   </tr>
                 ))}

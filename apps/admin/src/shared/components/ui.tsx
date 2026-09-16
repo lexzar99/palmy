@@ -10,7 +10,7 @@ import {
   useId,
   useRef,
 } from "react";
-import { ChevronLeft, Loader2, X } from "lucide-react";
+import { ChevronLeft, Loader2, X, Inbox, CircleAlert, ShieldAlert } from "lucide-react";
 import { cn } from "@/shared/utils/cn";
 
 export function Surface({ className, children }: { className?: string; children: React.ReactNode }) {
@@ -136,8 +136,8 @@ export function Button({
   );
 }
 
-export function IconButton(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return <button className={cn("icon-button", props.className)} {...props} />;
+export function IconButton({ className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return <button {...props} className={cn("icon-button", className)} />;
 }
 
 export function Badge({ tone = "neutral", children }: { tone?: "neutral" | "success" | "danger" | "warning" | "info"; children: React.ReactNode }) {
@@ -237,7 +237,7 @@ export function Field({
 
 export const Input = forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(function Input(props, ref) {
   const { className, ...rest } = props;
-  return <input {...rest} ref={ref} className={cn("input", className)} />;
+  return <input {...rest} aria-label={rest["aria-label"] ?? (!rest.id ? rest.placeholder : undefined)} ref={ref} className={cn("input", className)} />;
 });
 
 export const Select = forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<HTMLSelectElement>>(function Select(props, ref) {
@@ -361,7 +361,8 @@ export function DurationInput({ unit = "min", ...props }: Omit<NumberInputProps,
 export function EmptyState({ title, description, action }: { title: string; description?: string; action?: React.ReactNode }) {
   return (
     <div className="surface-muted px-6 py-14 text-center">
-      <h3 className="text-xl font-semibold tracking-[-0.025em]">{title}</h3>
+      <span className="panel-empty-icon" aria-hidden><Inbox size={22} /></span>
+      <h3 className="text-lg font-semibold tracking-[-0.025em]">{title}</h3>
       {description ? <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-[var(--text-secondary)]">{description}</p> : null}
       {action ? <div className="mt-6 flex justify-center">{action}</div> : null}
     </div>
@@ -370,15 +371,16 @@ export function EmptyState({ title, description, action }: { title: string; desc
 
 export function LoadingPanel({ label = "Laddar..." }: { label?: string }) {
   return (
-    <div className="surface flex min-h-[260px] items-center justify-center px-6 py-12 text-sm font-medium text-[var(--text-secondary)]">
-      {label}
+    <div role="status" className="surface flex min-h-[180px] items-center justify-center gap-3 px-6 py-10 text-sm font-medium text-[var(--text-secondary)]">
+      <Loader2 size={18} className="animate-spin" aria-hidden />{label}
     </div>
   );
 }
 
 export function ErrorPanel({ title, description, action }: { title: string; description?: string; action?: React.ReactNode }) {
   return (
-    <div className="surface flex min-h-[260px] flex-col items-center justify-center gap-3 px-6 py-12 text-center">
+    <div role="alert" className="surface flex min-h-[220px] flex-col items-center justify-center gap-3 px-6 py-10 text-center">
+      <CircleAlert size={24} className="text-[var(--text-muted)]" aria-hidden />
       <h3 className="text-2xl font-semibold tracking-[-0.025em]">{title}</h3>
       {description ? <p className="max-w-2xl text-sm leading-relaxed text-[var(--text-secondary)]">{description}</p> : null}
       {action ? <div className="mt-2">{action}</div> : null}
@@ -536,7 +538,7 @@ export function ConfirmDialog({
         </div>
       }
     >
-      <div className={cn("confirm-dialog-mark", danger && "is-danger")} aria-hidden>!</div>
+      <div className={cn("confirm-dialog-mark", danger && "is-danger")} aria-hidden>{danger ? <ShieldAlert size={24} /> : <CircleAlert size={24} />}</div>
     </Modal>
   );
 }
@@ -663,7 +665,7 @@ export function Tabs<T extends string>({
   scroll?: boolean;
 }) {
   return (
-    <div className={cn("flex gap-2", scroll ? "flex-nowrap overflow-x-auto pb-1" : "flex-wrap")} role="tablist">
+    <div className={cn("panel-tabs flex gap-2", scroll ? "flex-nowrap overflow-x-auto pb-1" : "flex-wrap")} role="tablist">
       {options.map((option) => (
         <button
           key={option.value}
@@ -672,6 +674,16 @@ export function Tabs<T extends string>({
           aria-selected={value === option.value}
           tabIndex={value === option.value ? 0 : -1}
           onClick={() => onChange(option.value)}
+          onKeyDown={(event) => {
+            const index = options.findIndex((item) => item.value === option.value);
+            const next = event.key === "ArrowRight" ? (index + 1) % options.length
+              : event.key === "ArrowLeft" ? (index - 1 + options.length) % options.length
+              : event.key === "Home" ? 0 : event.key === "End" ? options.length - 1 : null;
+            if (next === null) return;
+            event.preventDefault();
+            onChange(options[next].value);
+            event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
+          }}
           className={cn(
             "shrink-0 whitespace-nowrap rounded-lg border px-4 py-2.5 text-[13px] font-semibold tracking-[-0.005em] transition-colors",
             value === option.value

@@ -869,3 +869,6 @@
  .row > span:nth-child(6)::before, .totalsRow > span:nth-child(6)::before { content: "Belopp"; }
  .row > span:nth-child(7)::before, .totalsRow > span:nth-child(7)::before { content: "Status"; }
 }
+.detailColumn, .block, .keepPanel { min-width: 0; }
+.specLabel, .specNetLabel { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 1180px) { .detailColumns { grid-template-columns: minmax(0, 1fr); } }

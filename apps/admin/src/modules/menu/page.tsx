@@ -394,11 +394,11 @@ export function MenuPage() {
 
 
   if (restaurants.isLoading) {
-    return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Laddar menymodulen...</Surface>;
+    return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Hämtar menyer…</Surface>;
   }
 
   if (restaurants.isError || !restaurants.data) {
-    return <ErrorPanel title="Menymodulen kunde inte laddas" description="Restauranglistan för menyhantering är inte tillgänglig." action={<Button onClick={() => void restaurants.refetch()}>Försök igen</Button>} />;
+    return <ErrorPanel title="Menyerna kunde inte hämtas" description="Restauranglistan för menyhantering är inte tillgänglig." action={<Button onClick={() => void restaurants.refetch()}>Försök igen</Button>} />;
   }
 
   const activeRestaurant = restaurants.data.find((restaurant) => restaurant.id === activeRestaurantId) ?? null;
@@ -455,7 +455,7 @@ export function MenuPage() {
           <div className="mt-5">
             <EmptyState
               title={routeRestaurantIsInvalid ? "Restaurangen kunde inte väljas" : "Välj en restaurang"}
-              description={routeRestaurantIsInvalid ? "Länken innehåller ett ogiltigt restaurang-id. Välj en restaurang i listan för att öppna rätt meny." : "Menyeditorn laddar ingen meny förrän du uttryckligen har valt en restaurang."}
+              description={routeRestaurantIsInvalid ? "Länken innehåller ett ogiltigt restaurang-id. Välj en restaurang i listan för att öppna rätt meny." : "Välj restaurang för att redigera rätter, kategorier och tillval."}
             />
           </div>
         ) : (
@@ -475,7 +475,7 @@ export function MenuPage() {
               // sök-filtrerade listan, så positionerna förblir konsekventa.
               const orderIndex = sortedCategories.findIndex((entry) => entry.id === category.id);
               return (
-                <div key={category.id} className="surface-muted flex w-full items-center gap-3 px-4 py-3">
+                <div key={category.id} className="menu-category-row surface-muted flex w-full items-center gap-3 px-4 py-3">
                   <button type="button" onClick={() => { setActiveCategory(category); setCategoryModalOpen(true); }} className="flex min-w-0 flex-1 items-center gap-3 text-left">
                     <span className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-[-0.01em]">{category.name}</span>
                     <StatusBadge active={category.isActive !== false} />

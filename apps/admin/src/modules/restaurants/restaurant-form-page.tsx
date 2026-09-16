@@ -1319,26 +1319,26 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
             <p className="text-sm text-[var(--text-secondary)]">Laddar ordrar...</p>
           ) : recentOrders.data?.length ? (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm responsive-table">
                 <thead>
                   <tr className="border-b border-[var(--border-subtle)] text-left text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">
-                    <th className="pb-3 pr-4">Order</th>
-                    <th className="pb-3 pr-4">Kund</th>
-                    <th className="pb-3 pr-4">Status</th>
-                    <th className="pb-3 pr-4">Summa</th>
-                    <th className="pb-3">Tid</th>
+                    <th scope="col" className="pb-3 pr-4">Order</th>
+                    <th scope="col" className="pb-3 pr-4">Kund</th>
+                    <th scope="col" className="pb-3 pr-4">Status</th>
+                    <th scope="col" className="pb-3 pr-4">Summa</th>
+                    <th scope="col" className="pb-3">Tid</th>
                   </tr>
                 </thead>
                 <tbody>
                   {recentOrders.data.map((order) => (
                     <tr key={order.id} className="border-b border-[var(--border-subtle)] last:border-0">
-                      <td className="py-3 pr-4 font-black">#{order.orderNumber}</td>
-                      <td className="py-3 pr-4">{order.customerName}</td>
-                      <td className="py-3 pr-4">
+                      <td data-label="Order" className="py-3 pr-4 font-black">#{order.orderNumber}</td>
+                      <td data-label="Kund" className="py-3 pr-4">{order.customerName}</td>
+                      <td data-label="Status" className="py-3 pr-4">
                         <Badge tone={order.status === "PENDING" ? "warning" : order.status === "DELIVERED" ? "success" : "info"}>{orderStatusLabel(order.status)}</Badge>
                       </td>
-                      <td className="py-3 pr-4">{formatCurrency(order.total)}</td>
-                      <td className="py-3 text-[var(--text-muted)] text-xs">{formatDateTime(order.createdAt)}</td>
+                      <td data-label="Summa" className="py-3 pr-4">{formatCurrency(order.total)}</td>
+                      <td data-label="Tid" className="py-3 text-[var(--text-muted)] text-xs">{formatDateTime(order.createdAt)}</td>
                     </tr>
                   ))}
                 </tbody>

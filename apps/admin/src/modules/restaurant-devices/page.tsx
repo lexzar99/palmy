@@ -225,10 +225,10 @@ export function RestaurantDevicesPage() {
               <div className="text-right">
                 <p className="hero-stat-label">Online</p>
                 <p className="hero-stat-value">
-                  {onlineCount}<span className="text-[rgba(254,247,240,0.5)]"> / {devices.length}</span>
+                  {onlineCount}<span className="text-[var(--text-muted)]"> / {devices.length}</span>
                 </p>
               </div>
-              <Button variant="secondary" onClick={() => devicesQuery.refetch()} disabled={busy}>
+              <Button aria-label="Uppdatera enheter" variant="secondary" onClick={() => devicesQuery.refetch()} disabled={busy}>
                 <RefreshCw size={14} className={busy ? "animate-spin" : undefined} />
               </Button>
             </div>
@@ -453,7 +453,7 @@ export function RestaurantDevicesPage() {
                   <RefreshCw size={13} className="animate-spin opacity-70" />
                   Väntar på att plattan parar…
                 </p>
-                <p className="mt-2 max-w-[32ch] text-[11.5px] leading-relaxed text-[rgba(254,247,240,0.5)]">
+                <p className="mt-2 max-w-[32ch] text-[11.5px] leading-relaxed text-[var(--text-muted)]">
                   Giltig till {formatWhen(pendingCode.expiresAt)}. Upprepade klick visar samma kod.
                 </p>
               </>

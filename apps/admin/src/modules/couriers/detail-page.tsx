@@ -478,9 +478,9 @@ export function CourierDetailPage({ id }: { id: string }) {
             <EmptyState title="Inga levererade ordrar i vald period" />
           ) : (
             <div className="table-shell">
-              <table className="data-table">
+              <table className="data-table responsive-table">
                 <thead>
-                  <tr><th>Order</th><th>Restaurang</th><th>Distans</th><th>km-pris</th><th>Utbetalt</th><th>Levererad</th></tr>
+                  <tr><th scope="col">Order</th><th scope="col">Restaurang</th><th scope="col">Distans</th><th scope="col">km-pris</th><th scope="col">Utbetalt</th><th scope="col">Levererad</th></tr>
                 </thead>
                 <tbody>
                   {rows.map((d) => (
@@ -490,12 +490,12 @@ export function CourierDetailPage({ id }: { id: string }) {
                       className={d.orderId ? "cursor-pointer transition-colors hover:bg-[var(--surface-hover,rgba(17,17,19,0.03))]" : ""}
                       title={d.orderId ? "Öppna order" : undefined}
                     >
-                      <td className="font-bold">{d.orderNumber ? `#${d.orderNumber}` : "–"}</td>
-                      <td>{d.restaurantName || "–"}</td>
-                      <td className="tabular-nums">{d.distanceKm.toFixed(1)} km</td>
-                      <td className="tabular-nums">{formatCurrency(d.ratePerKm)}/km</td>
-                      <td className="tabular-nums">{formatCurrency(d.payout)}</td>
-                      <td className="text-[var(--text-muted)]">{d.deliveredAt ? formatDateTime(d.deliveredAt) : "–"}</td>
+                      <td data-label="Order" className="font-bold">{d.orderNumber ? `#${d.orderNumber}` : "–"}</td>
+                      <td data-label="Restaurang">{d.restaurantName || "–"}</td>
+                      <td data-label="Distans" className="tabular-nums">{d.distanceKm.toFixed(1)} km</td>
+                      <td data-label="km-pris" className="tabular-nums">{formatCurrency(d.ratePerKm)}/km</td>
+                      <td data-label="Utbetalt" className="tabular-nums">{formatCurrency(d.payout)}</td>
+                      <td data-label="Levererad" className="text-[var(--text-muted)]">{d.deliveredAt ? formatDateTime(d.deliveredAt) : "–"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -618,9 +618,9 @@ export function CourierDetailPage({ id }: { id: string }) {
               <EmptyState title="Inga slutförda leveranser än" />
             ) : (
               <div className="table-shell">
-                <table className="data-table">
+                <table className="data-table responsive-table">
                   <thead>
-                    <tr><th>Order</th><th>Accept → hämtad</th><th>Hämtad → levererad</th><th>Datum</th></tr>
+                    <tr><th scope="col">Order</th><th scope="col">Accept → hämtad</th><th scope="col">Hämtad → levererad</th><th scope="col">Datum</th></tr>
                   </thead>
                   <tbody>
                     {completed.map((d) => (
@@ -630,10 +630,10 @@ export function CourierDetailPage({ id }: { id: string }) {
                         className={d.orderId ? "cursor-pointer transition-colors hover:bg-[var(--surface-hover,rgba(17,17,19,0.03))]" : ""}
                         title={d.orderId ? "Öppna order" : undefined}
                       >
-                        <td className="font-bold">{d.orderNumber ? `#${d.orderNumber}` : "–"}</td>
-                        <td className="tabular-nums">{fmtMin(d.pickupMin)}</td>
-                        <td className="tabular-nums">{fmtMin(d.deliverMin)}</td>
-                        <td className="text-[var(--text-muted)]">{d.deliveredAt ? formatDateTime(d.deliveredAt) : "–"}</td>
+                        <td data-label="Order" className="font-bold">{d.orderNumber ? `#${d.orderNumber}` : "–"}</td>
+                        <td data-label="Accept → hämtad" className="tabular-nums">{fmtMin(d.pickupMin)}</td>
+                        <td data-label="Hämtad → levererad" className="tabular-nums">{fmtMin(d.deliverMin)}</td>
+                        <td data-label="Datum" className="text-[var(--text-muted)]">{d.deliveredAt ? formatDateTime(d.deliveredAt) : "–"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -658,9 +658,9 @@ export function CourierDetailPage({ id }: { id: string }) {
             <EmptyState title="Inga riktade erbjudanden än - smart tilldelning loggar här när DB-patchen är aktiverad" />
           ) : (
             <div className="table-shell">
-              <table className="data-table">
+              <table className="data-table responsive-table">
                 <thead>
-                  <tr><th>Order</th><th>Restaurang</th><th>Våg</th><th>Status</th><th>Poäng</th><th>ETA</th><th>Tidpunkt</th></tr>
+                  <tr><th scope="col">Order</th><th scope="col">Restaurang</th><th scope="col">Våg</th><th scope="col">Status</th><th scope="col">Poäng</th><th scope="col">ETA</th><th scope="col">Tidpunkt</th></tr>
                 </thead>
                 <tbody>
                   {(offersQ.data ?? []).map((o) => (
@@ -670,13 +670,13 @@ export function CourierDetailPage({ id }: { id: string }) {
                       className={o.orderId ? "cursor-pointer transition-colors hover:bg-[var(--surface-hover,rgba(17,17,19,0.03))]" : ""}
                       title={o.orderId ? "Öppna order" : undefined}
                     >
-                      <td className="font-bold">{o.orderNumber ? `#${o.orderNumber}` : "–"}</td>
-                      <td>{o.restaurantName || "–"}</td>
-                      <td className="tabular-nums">{o.wave}</td>
-                      <td><Badge tone={OFFER_STATUS[o.status].tone}>{OFFER_STATUS[o.status].label}</Badge></td>
-                      <td className="tabular-nums">{o.score.toFixed(1)}</td>
-                      <td className="tabular-nums">{o.etaMin != null ? `${Math.round(o.etaMin)} min` : "–"}</td>
-                      <td className="text-[var(--text-muted)]">{formatDateTime(o.createdAt)}</td>
+                      <td data-label="Order" className="font-bold">{o.orderNumber ? `#${o.orderNumber}` : "–"}</td>
+                      <td data-label="Restaurang">{o.restaurantName || "–"}</td>
+                      <td data-label="Våg" className="tabular-nums">{o.wave}</td>
+                      <td data-label="Status"><Badge tone={OFFER_STATUS[o.status].tone}>{OFFER_STATUS[o.status].label}</Badge></td>
+                      <td data-label="Poäng" className="tabular-nums">{o.score.toFixed(1)}</td>
+                      <td data-label="ETA" className="tabular-nums">{o.etaMin != null ? `${Math.round(o.etaMin)} min` : "–"}</td>
+                      <td data-label="Tidpunkt" className="text-[var(--text-muted)]">{formatDateTime(o.createdAt)}</td>
                     </tr>
                   ))}
                 </tbody>

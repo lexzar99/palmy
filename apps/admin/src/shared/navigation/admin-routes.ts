@@ -1,5 +1,7 @@
 import {
   AlertTriangle,
+  SlidersHorizontal,
+  CheckCheck,
   Banknote,
   BarChart3,
   BellRing,
@@ -60,8 +62,8 @@ const route = (
 ): AdminRouteDefinition => ({ ...definition, requiredRole: "SUPER_ADMIN" });
 
 export const ADMIN_ROUTES: AdminRouteDefinition[] = [
-  route({ id: "dashboard", href: "/dashboard", label: "Operationsöversikt", shortLabel: "Översikt", icon: LayoutDashboard, section: "live", keywords: "dashboard start hem drift sla" }),
-  route({ id: "orders", href: "/orders", label: "Liveordrar", shortLabel: "Ordrar", icon: ClipboardList, section: "live", keywords: "live aktiva nya order kö" }),
+  route({ id: "dashboard", href: "/dashboard", label: "Översikt", shortLabel: "Översikt", icon: LayoutDashboard, section: "live", keywords: "dashboard start hem drift sla" }),
+  route({ id: "orders", href: "/orders", label: "Ordrar", shortLabel: "Ordrar", icon: ClipboardList, section: "live", keywords: "live aktiva nya order kö" }),
   route({ id: "order-history", href: "/order-history", label: "Orderhistorik", shortLabel: "Historik", icon: History, section: "live", keywords: "historik gamla export" }),
   route({ id: "couriers", href: "/couriers", label: "Kurirer & dispatch", shortLabel: "Kurirer", icon: Bike, section: "live", keywords: "bud leverans dispatch" }),
   route({ id: "crisis", href: "/crisis", label: "Incidenter", icon: AlertTriangle, section: "live", keywords: "kris emergency stäng refund akut" }),
@@ -71,7 +73,7 @@ export const ADMIN_ROUTES: AdminRouteDefinition[] = [
   route({ id: "menu", href: "/menu", label: "Menyer", icon: MenuSquare, section: "partners", keywords: "rätter produkter items katalog" }),
   route({ id: "zones", href: "/zones", label: "Leveransområden", shortLabel: "Zoner", icon: Map, section: "partners", keywords: "leverans zone stad city karta" }),
   route({ id: "restaurant-devices", href: "/restaurant-devices", label: "Restaurangenheter", shortLabel: "Enheter", icon: Tablet, section: "partners", keywords: "terminal pos surfplatta pairing" }),
-  route({ id: "embeds", href: "/embeds", label: "Partner-embeds", shortLabel: "Embeds", icon: Code2, section: "partners", keywords: "embed partner meny kiosk hemsida" }),
+  route({ id: "embeds", href: "/embeds", label: "Meny på egen hemsida", shortLabel: "Hemsidemeny", icon: Code2, section: "partners", keywords: "embed partner meny kiosk hemsida" }),
   route({ id: "receipts", href: "/receipts", label: "Kvitto & utskrift", icon: ReceiptText, section: "partners", keywords: "restaurangkvitto skrivare print mall" }),
 
   route({ id: "customers", href: "/customers", label: "Kunder", icon: ContactRound, section: "customers-support", keywords: "kund sök lookup gdpr support" }),
@@ -81,7 +83,7 @@ export const ADMIN_ROUTES: AdminRouteDefinition[] = [
   route({ id: "deals", href: "/deals", label: "Deals & kampanjer", shortLabel: "Deals", icon: Gift, section: "growth", keywords: "kampanj rabatt app" }),
   route({ id: "coupons", href: "/coupons", label: "Kuponger", icon: TicketPercent, section: "growth", keywords: "kupong rabattkod kod" }),
   route({ id: "referrals", href: "/referrals", label: "Värva vän", icon: UserPlus, section: "growth", keywords: "referral värva vän välkomst" }),
-  route({ id: "launch-campaign", href: "/launch-campaign", label: "Launch-kampanj", shortLabel: "Launch", icon: BarChart3, section: "growth", keywords: "launch intresse leads rabatt kampanj statistik funnel" }),
+  route({ id: "launch-campaign", href: "/launch-campaign", label: "Lanseringskampanj", shortLabel: "Lansering", icon: BarChart3, section: "growth", keywords: "launch intresse leads rabatt kampanj statistik funnel" }),
   route({ id: "journey", href: "/journey", label: "Kundresan", icon: Footprints, section: "growth", keywords: "funnel tratt avhopp varukorg kassa zon adress betalning konvertering beteende steg" }),
   route({ id: "push", href: "/push", label: "Push-notiser", shortLabel: "Push", icon: BellRing, section: "growth", keywords: "notification meddelande" }),
 
@@ -91,9 +93,12 @@ export const ADMIN_ROUTES: AdminRouteDefinition[] = [
   route({ id: "finance-restaurant", href: "/finance/restaurangekonomi", label: "Restaurangekonomi", shortLabel: "Restaurang", icon: ReceiptText, section: "finance", keywords: "restaurangekonomi spec underlag justering kontroller avstämning per restaurang" }),
   route({ id: "finance-payouts", href: "/finance/payouts", label: "Utbetalningar", shortLabel: "Utbetalningar", icon: Banknote, section: "finance", keywords: "utbetalning payout godkänn betald utkast arkiv bankgiro belopp" }),
 
+  route({ id: "finance-reconciliation", href: "/finance/avstamning", label: "Avstämning", icon: CheckCheck, section: "finance", keywords: "transaktioner kontroll avvikelse" }),
+  route({ id: "finance-settings", href: "/finance/installningar", label: "Ekonomiinställningar", shortLabel: "Inställningar", icon: SlidersHorizontal, section: "finance", keywords: "provision moms abonnemang satser priser" }),
+
   route({ id: "users", href: "/users", label: "Personal", icon: Users, section: "system", keywords: "admin användare säkerhet personal team konton" }),
-  route({ id: "api-health", href: "/api-health", label: "API-status", icon: Gauge, section: "system", keywords: "uptime hälsa status" }),
-  route({ id: "audit-log", href: "/audit-log", label: "Audit-logg", icon: History, section: "system", keywords: "logg compliance revision" }),
+  route({ id: "api-health", href: "/api-health", label: "Systemstatus", icon: Gauge, section: "system", keywords: "uptime hälsa status" }),
+  route({ id: "audit-log", href: "/audit-log", label: "Aktivitetslogg", icon: History, section: "system", keywords: "logg compliance revision" }),
   route({ id: "platform-settings", href: "/platform-settings", label: "Plattformsinställningar", shortLabel: "Plattform", icon: Building2, section: "system", keywords: "företag company settings integrationer" }),
   route({ id: "two-factor", href: "/2fa", label: "Säkerhet", icon: Shield, section: "system", keywords: "2fa totp säkerhet trusted devices betrodda enheter" }),
 ];

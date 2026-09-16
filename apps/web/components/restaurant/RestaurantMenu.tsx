@@ -452,35 +452,22 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurantSlug, fetchData]);
 
-  // Scroll-spy för kategorichips
+  // Scroll-spy för kategorichips: se scroll-lyssnaren nedan (deterministisk,
+  // bygger på sektionernas position i stället för IntersectionObserver som
+  // kan tappa uppdateringar i iOS Safari när sektionerna är högre än vyn).
   const chipRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map());
   const manualScrollUntilRef = useRef(0);
-  useEffect(() => {
-    if (typeof window === "undefined" || scopedCategories.length === 0) return;
-    const observer = new IntersectionObserver((entries) => {
-      if (Date.now() < manualScrollUntilRef.current) return;
-      const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-      if (visible[0]) {
-        const id = (visible[0].target as HTMLElement).id;
-        setActiveCategory((prev) => (prev === id ? prev : id));
-      }
-    }, { rootMargin: "-200px 0px -55% 0px", threshold: [0, 0.1, 0.3, 0.6, 1] });
-    const els: HTMLElement[] = [];
-    scopedCategories.forEach((cat) => {
-      const el = document.getElementById(`ve-${cat.id}`);
-      if (el) { observer.observe(el); els.push(el); }
-    });
-    return () => { els.forEach((el) => observer.unobserve(el)); observer.disconnect(); };
-  }, [scopedCategories]);
+  const scopedCategoriesRef = useRef(scopedCategories);
+  useEffect(() => { scopedCategoriesRef.current = scopedCategories; }, [scopedCategories]);
 
   useEffect(() => {
     if (!activeCategory) return;
     const chip = chipRefs.current.get(activeCategory);
     const strip = chip?.parentElement;
-    if (chip && strip) {
-      const target = chip.offsetLeft - strip.clientWidth / 2 + chip.clientWidth / 2;
-      strip.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
-    }
+    if (!chip || !strip) return;
+    const target = chip.offsetLeft - strip.clientWidth / 2 + chip.clientWidth / 2;
+    const left = Math.max(0, Math.min(strip.scrollWidth - strip.clientWidth, target));
+    try { strip.scrollTo({ left, behavior: "smooth" }); } catch { strip.scrollLeft = left; }
   }, [activeCategory]);
 
   // Scrollstyrd toppbar (iOS "large title"-känsla): när heron glider bakom
@@ -491,6 +478,7 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
   const sentinelRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
+  const stickyRowRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (loading) return;
     let raf = 0;
@@ -502,6 +490,21 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
       setCollapse(Math.min(1, Math.max(0, (window.scrollY - start) / 64)));
       const sTop = sentinelRef.current?.getBoundingClientRect().top;
       setStuck(sTop != null && sTop <= barH + 1);
+      // Aktiv kategori = sista sektionen vars överkant passerat linjen strax
+      // under den klistrade raden. Pausas kort efter ett chip-klick så den
+      // mjuka scrollen hinner fram utan att markeringen hoppar.
+      if (Date.now() >= manualScrollUntilRef.current) {
+        const line = barH + (stickyRowRef.current?.offsetHeight ?? 100) + 8;
+        let current: string | null = null;
+        for (const cat of scopedCategoriesRef.current) {
+          const el = document.getElementById(`ve-${cat.id}`);
+          if (!el) continue;
+          if (el.getBoundingClientRect().top <= line) current = cat.id;
+          else break;
+        }
+        if (!current && scopedCategoriesRef.current[0]) current = scopedCategoriesRef.current[0].id;
+        if (current) setActiveCategory((prev) => (prev === current ? prev : current));
+      }
     };
     const onScroll = () => { if (!raf) raf = window.requestAnimationFrame(update); };
     update();
@@ -603,9 +606,12 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
 
   const scrollToCategory = (id: string) => {
     setActiveCategory(id);
-    manualScrollUntilRef.current = Date.now() + 700;
+    manualScrollUntilRef.current = Date.now() + 800;
     const el = document.getElementById(`ve-${id}`);
-    if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 176, behavior: "smooth" });
+    if (!el) return;
+    const barH = barRef.current?.offsetHeight || (window.innerWidth >= 768 ? 80 : 52);
+    const offset = barH + (stickyRowRef.current?.offsetHeight ?? 100) + 4;
+    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - offset, behavior: "smooth" });
   };
 
   const goBack = () => {
@@ -873,6 +879,7 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
         {/* ── Klistrad sök + kategorier ────────────────────────────────── */}
         <div ref={sentinelRef} aria-hidden className="h-px" />
         <div
+          ref={stickyRowRef}
           className={`ve-sticky-top sticky z-30 -mx-4 px-4 pt-2 pb-2 transition-shadow duration-300 ${stuck ? "ve-glass" : ""}`}
           style={{ boxShadow: stuck ? "inset 0 -0.5px 0 var(--ve-line)" : undefined }}
         >

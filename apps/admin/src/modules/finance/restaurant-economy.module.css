@@ -948,3 +948,7 @@
 }
 
 @media (max-width: 720px) { .checkRow > span::before { content: attr(data-label); } }
+.columns, .specGrid { min-width: 0; }
+.mainColumn, .sideColumn, .panel, .sidePanel, .specColumn { min-width: 0; }
+.lineName, .totalName, .historyTitle, .recipientLine { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 1240px) { .columns, .specGrid { grid-template-columns: minmax(0, 1fr); } }

@@ -321,25 +321,25 @@ export function PushPage() {
           <p className="px-5 py-8 text-sm text-[var(--text-secondary)]">Inga utskick ännu.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="data-table">
+            <table className="data-table responsive-table">
               <thead>
                 <tr>
-                  <th>Tid</th>
-                  <th>Rubrik</th>
-                  <th>Mottagare</th>
-                  <th>Status</th>
+                  <th scope="col">Tid</th>
+                  <th scope="col">Rubrik</th>
+                  <th scope="col">Mottagare</th>
+                  <th scope="col">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {(history.data?.logs || []).slice(0, 20).map((row) => (
                   <tr key={row.id}>
-                    <td className="whitespace-nowrap text-[var(--text-secondary)]">{formatDateTime(row.createdAt)}</td>
-                    <td>
+                    <td data-label="Tid" className="whitespace-nowrap text-[var(--text-secondary)]">{formatDateTime(row.createdAt)}</td>
+                    <td data-label="Rubrik">
                       <p className="font-bold">{row.title}</p>
                       <p className="max-w-[520px] truncate text-[12px] text-[var(--text-muted)]">{row.body}</p>
                     </td>
-                    <td>{row.count}</td>
-                    <td><Badge tone={row.success ? "success" : "danger"}>{row.success ? "Köad" : "Fel"}</Badge></td>
+                    <td data-label="Mottagare">{row.count}</td>
+                    <td data-label="Status"><Badge tone={row.success ? "success" : "danger"}>{row.success ? "Köad" : "Fel"}</Badge></td>
                   </tr>
                 ))}
               </tbody>

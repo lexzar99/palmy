@@ -7,6 +7,7 @@ import { isAuthoritativeAuthError, useAdminSession } from "@/shared/hooks/use-ad
 import { logoutAdminSession } from "@/shared/auth/storage";
 import { Button, Surface } from "@/shared/components/ui";
 import { Sidebar } from "@/shared/layout/sidebar";
+import { DeviceState } from "@/shared/layout/device-state";
 import { RealtimeSync } from "@/shared/layout/realtime-sync";
 import { CommandPalette, useCommandPalette } from "@/shared/layout/command-palette";
 import { ToastProvider } from "@/shared/components/toast";
@@ -91,6 +92,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="app-shell workspace-shell">
         <a className="skip-link" href="#admin-main">Hoppa till innehåll</a>
         <RealtimeSync />
+        <DeviceState />
         <Sidebar onOpenPalette={palette.openPalette} />
         <main id="admin-main" className="content-shell" tabIndex={-1}>
           <div className="content-frame page-stack">{children}</div>

@@ -40,17 +40,17 @@ function CustomerPushHistory({ customerId }: { customerId: string }) {
 
   return (
     <div className="table-shell">
-      <table className="data-table">
+      <table className="data-table responsive-table">
         <thead>
-          <tr><th>Tid</th><th>Rubrik</th><th>Meddelande</th><th>Status</th></tr>
+          <tr><th scope="col">Tid</th><th scope="col">Rubrik</th><th scope="col">Meddelande</th><th scope="col">Status</th></tr>
         </thead>
         <tbody>
           {logs.map((log) => (
             <tr key={log.id}>
-              <td className="whitespace-nowrap text-sm">{formatDateTime(log.createdAt)}</td>
-              <td className="font-black text-sm">{log.title}</td>
-              <td className="max-w-[260px] truncate text-sm text-[var(--text-secondary)]">{log.body}</td>
-              <td>
+              <td data-label="Tid" className="whitespace-nowrap text-sm">{formatDateTime(log.createdAt)}</td>
+              <td data-label="Rubrik" className="font-black text-sm">{log.title}</td>
+              <td data-label="Meddelande" className="max-w-[260px] truncate text-sm text-[var(--text-secondary)]">{log.body}</td>
+              <td data-label="Status">
                 {log.success
                   ? <Badge tone="success"><CheckCircle2 size={11} /> Skickad</Badge>
                   : <Badge tone="danger"><AlertCircle size={11} /> Fel</Badge>}
@@ -265,18 +265,18 @@ export function CustomerModal({ customerId, open, onClose }: { customerId: strin
           {tab === "orders" ? (
             data.orders.length === 0 ? <EmptyState title="Inga ordrar" /> : (
               <div className="table-shell">
-                <table className="data-table">
+                <table className="data-table responsive-table">
                   <thead>
-                    <tr><th>Order</th><th>Restaurang</th><th>Status</th><th>Summa</th><th>Skapad</th></tr>
+                    <tr><th scope="col">Order</th><th scope="col">Restaurang</th><th scope="col">Status</th><th scope="col">Summa</th><th scope="col">Skapad</th></tr>
                   </thead>
                   <tbody>
                     {data.orders.map((order) => (
                       <tr key={order.id}>
-                        <td className="font-black">{order.orderNumber}</td>
-                        <td>{order.restaurant?.name || "ViaEats"}</td>
-                        <td><Badge tone="info">{orderStatusLabel(order.status)}</Badge></td>
-                        <td>{formatCurrency(order.total / 100)}</td>
-                        <td>{formatDateTime(order.createdAt)}</td>
+                        <td data-label="Order" className="font-black">{order.orderNumber}</td>
+                        <td data-label="Restaurang">{order.restaurant?.name || "ViaEats"}</td>
+                        <td data-label="Status"><Badge tone="info">{orderStatusLabel(order.status)}</Badge></td>
+                        <td data-label="Summa">{formatCurrency(order.total / 100)}</td>
+                        <td data-label="Skapad">{formatDateTime(order.createdAt)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -471,16 +471,16 @@ export function CustomersPage() {
               <Surface className="p-0 overflow-hidden">
                 {analytics.data.conversions.length === 0 ? <div className="px-6 py-12"><EmptyState title="Inga gäst→kund-konverteringar ännu" /></div> : (
                   <div className="table-shell">
-                    <table className="data-table">
-                      <thead><tr><th>Kund</th><th>Konverterad</th><th>Ordrar</th><th>Spenderat</th><th>Beställer om</th></tr></thead>
+                    <table className="data-table responsive-table">
+                      <thead><tr><th scope="col">Kund</th><th scope="col">Konverterad</th><th scope="col">Ordrar</th><th scope="col">Spenderat</th><th scope="col">Beställer om</th></tr></thead>
                       <tbody>
                         {analytics.data.conversions.map((conversion) => (
                           <tr key={conversion.id}>
-                            <td><div className="font-bold">{conversion.name || "—"}</div><div className="text-xs text-[var(--text-muted)]">{conversion.phone || conversion.email || "—"}</div></td>
-                            <td>{formatDateTime(conversion.convertedAt)}</td>
-                            <td>{formatNumber(conversion.orderCount)}</td>
-                            <td>{formatCurrency(conversion.totalSpent)}</td>
-                            <td><Badge tone={conversion.reordered ? "success" : "neutral"}>{conversion.reordered ? "Ja" : "Inte ännu"}</Badge></td>
+                            <td data-label="Kund"><div className="font-bold">{conversion.name || "—"}</div><div className="text-xs text-[var(--text-muted)]">{conversion.phone || conversion.email || "—"}</div></td>
+                            <td data-label="Konverterad">{formatDateTime(conversion.convertedAt)}</td>
+                            <td data-label="Ordrar">{formatNumber(conversion.orderCount)}</td>
+                            <td data-label="Spenderat">{formatCurrency(conversion.totalSpent)}</td>
+                            <td data-label="Beställer om"><Badge tone={conversion.reordered ? "success" : "neutral"}>{conversion.reordered ? "Ja" : "Inte ännu"}</Badge></td>
                           </tr>
                         ))}
                       </tbody>

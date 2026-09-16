@@ -16,7 +16,7 @@ import {
   updateCourier,
   type CourierApplication,
 } from "@/modules/couriers/api";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal, PageHeader, Select, Surface } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal, PageHeader, Select, Surface, Tabs } from "@/shared/components/ui";
 import { LiveMap } from "@/shared/components/live-map";
 import { formatCurrency, formatDate, formatDateTime } from "@/shared/utils/format";
 
@@ -228,13 +228,7 @@ export function CouriersPage() {
       />
 
       <Surface className="px-5 py-4">
-        <div className="flex gap-2">
-          {TABS.map((t) => (
-            <button key={t.id} onClick={() => setTab(t.id)} className={`rounded-lg px-4 py-2 text-sm font-bold transition ${tab === t.id ? "bg-[var(--brand-navy)] text-[var(--brand-cream)]" : "border border-[var(--border-subtle)] text-[var(--text-secondary)]"}`}>
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <Tabs value={tab} onChange={setTab} options={TABS.map((item) => ({ value: item.id, label: item.label }))} />
       </Surface>
 
       {tab === "couriers" && (
@@ -310,21 +304,21 @@ export function CouriersPage() {
               <div className="px-6 py-6"><EmptyState title="Inga kurirer matchar filtret" /></div>
             ) : (
               <div className="table-shell">
-                <table className="data-table">
+                <table className="data-table responsive-table">
                   <thead>
                     <tr>
-                      <th>Kurir</th>
-                      <th>Status</th>
-                      <th>Aktiv order</th>
-                      <th>Idag</th>
-                      <th>Betyg</th>
+                      <th scope="col">Kurir</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Aktiv order</th>
+                      <th scope="col">Idag</th>
+                      <th scope="col">Betyg</th>
                       <th />
                     </tr>
                   </thead>
                   <tbody>
                     {visibleRows.map((c) => (
                       <tr key={c.id} style={{ opacity: c.isActive ? 1 : 0.5 }}>
-                        <td>
+                        <td data-label="Kurir">
                           <div className="flex items-center gap-[11px]">
                             <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-[#111113] text-[12px] font-extrabold text-white">
                               {initials(c.name)}
@@ -332,7 +326,7 @@ export function CouriersPage() {
                             <span className="font-bold text-[var(--text-primary)]">{c.name}</span>
                           </div>
                         </td>
-                        <td>
+                        <td data-label="Status">
                           {c.online ? (
                             <span className="inline-flex items-center gap-[5px] text-[11px] font-extrabold text-[var(--success-text)]">
                               <span className="h-1.5 w-1.5 rounded-full bg-[var(--success)]" />
@@ -345,15 +339,15 @@ export function CouriersPage() {
                             </span>
                           )}
                         </td>
-                        <td>
+                        <td data-label="Aktiv order">
                           {c.activeDeliveries > 0 ? (
                             <Badge tone="info">{c.activeDeliveries} aktiva</Badge>
                           ) : (
                             <span className="text-[var(--text-muted)]" style={{ fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12 }}>–</span>
                           )}
                         </td>
-                        <td className="tabular-nums">{c.todayDeliveries}</td>
-                        <td className="font-bold text-[var(--text-muted)]">–</td>
+                        <td data-label="Idag" className="tabular-nums">{c.todayDeliveries}</td>
+                        <td data-label="Betyg" className="font-bold text-[var(--text-muted)]">–</td>
                         <td>
                           <div className="flex items-center justify-end gap-2">
                             <Button variant="secondary" onClick={() => toggleActive.mutate({ id: c.id, isActive: !c.isActive })}>{c.isActive ? "Inaktivera" : "Aktivera"}</Button>

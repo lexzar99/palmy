@@ -337,13 +337,13 @@ export function BrandsPage() {
       ) : (
         <>
           <Surface className="overflow-hidden p-0">
-            <table className="data-table">
+            <table className="data-table responsive-table">
               <thead>
                 <tr>
-                  <th>Kedja</th>
-                  <th>Restauranger</th>
-                  <th>Städer</th>
-                  <th>Status</th>
+                  <th scope="col">Kedja</th>
+                  <th scope="col">Restauranger</th>
+                  <th scope="col">Städer</th>
+                  <th scope="col">Status</th>
                   <th aria-hidden />
                 </tr>
               </thead>

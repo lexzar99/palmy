@@ -245,30 +245,30 @@ export function CouponsPage() {
           <EmptyState title="Inga kupongkoder" description="Skapa din första kupong med knappen ovan." />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm responsive-table">
               <thead>
                 <tr className="border-b border-[var(--border-subtle)] text-left text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                  <th className="pb-3 pr-4">Kod</th>
-                  <th className="pb-3 pr-4">Typ</th>
-                  <th className="pb-3 pr-4">Var</th>
-                  <th className="pb-3 pr-4">Värde</th>
-                  <th className="pb-3 pr-4">Minbelopp</th>
-                  <th className="pb-3 pr-4">Restaurang/Alla</th>
-                  <th className="pb-3 pr-4">Status</th>
-                  <th className="pb-3 pr-4">Privat sida</th>
-                  <th className="pb-3 pr-4">Använde</th>
-                  <th className="pb-3 pr-4">Skapad</th>
-                  <th className="pb-3"></th>
+                  <th scope="col" className="pb-3 pr-4">Kod</th>
+                  <th scope="col" className="pb-3 pr-4">Typ</th>
+                  <th scope="col" className="pb-3 pr-4">Var</th>
+                  <th scope="col" className="pb-3 pr-4">Värde</th>
+                  <th scope="col" className="pb-3 pr-4">Minbelopp</th>
+                  <th scope="col" className="pb-3 pr-4">Restaurang/Alla</th>
+                  <th scope="col" className="pb-3 pr-4">Status</th>
+                  <th scope="col" className="pb-3 pr-4">Privat sida</th>
+                  <th scope="col" className="pb-3 pr-4">Använde</th>
+                  <th scope="col" className="pb-3 pr-4">Skapad</th>
+                  <th scope="col" className="pb-3"></th>
                 </tr>
               </thead>
               <tbody>
                 {discounts.data.map((record) => (
                   <tr key={record.id} className="border-b border-[var(--border-subtle)] last:border-0">
-                    <td className="py-3 pr-4 font-mono font-semibold tracking-wide">{record.code}</td>
-                    <td className="py-3 pr-4">
+                    <td data-label="Kod" className="py-3 pr-4 font-mono font-semibold tracking-wide">{record.code}</td>
+                    <td data-label="Typ" className="py-3 pr-4">
                       <Badge tone={typeTone[record.discountType]}>{typeLabel[record.discountType]}</Badge>
                     </td>
-                    <td className="py-3 pr-4">
+                    <td data-label="Var" className="py-3 pr-4">
                       {record.platform === "APP" ? (
                         <Badge tone="info">App</Badge>
                       ) : record.platform === "WEB" ? (
@@ -277,27 +277,27 @@ export function CouponsPage() {
                         <span className="text-[var(--text-muted)]">Alla</span>
                       )}
                     </td>
-                    <td className="py-3 pr-4 tabular-nums">
+                    <td data-label="Värde" className="py-3 pr-4 tabular-nums">
                       {record.discountType === "free_delivery"
                         ? "—"
                         : record.discountType === "percentage"
                         ? `${formatNumber(record.discountValue)}%`
                         : `${formatNumber(record.discountValue)} kr`}
                     </td>
-                    <td className="py-3 pr-4 tabular-nums">
+                    <td data-label="Minbelopp" className="py-3 pr-4 tabular-nums">
                       {record.minOrderAmount > 0 ? `${formatNumber(record.minOrderAmount)} kr` : "—"}
                     </td>
-                    <td className="py-3 pr-4 text-[var(--text-secondary)]">
+                    <td data-label="Restaurang/Alla" className="py-3 pr-4 text-[var(--text-secondary)]">
                       {record.applicableRestaurantIds?.length > 0
                         ? record.applicableRestaurantIds.map((id) => restaurantMap.get(id) ?? id).join(", ")
                         : record.restaurantId
                           ? (restaurantMap.get(record.restaurantId) ?? record.restaurantId)
                           : <span className="text-[var(--text-muted)]">Alla</span>}
                     </td>
-                    <td className="py-3 pr-4">
+                    <td data-label="Status" className="py-3 pr-4">
                       <Badge tone={record.isActive ? "success" : "neutral"}>{record.isActive ? "Aktiv" : "Inaktiv"}</Badge>
                     </td>
-                    <td className="py-3 pr-4">
+                    <td data-label="Privat sida" className="py-3 pr-4">
                       <Toggle
                         checked={record.partnerEmbedEnabled}
                         disabled={togglePartnerEmbedMutation.isPending}
@@ -305,10 +305,10 @@ export function CouponsPage() {
                         ariaLabel={`${record.code}: ${record.partnerEmbedEnabled ? "dölj på" : "visa på"} privat sida`}
                       />
                     </td>
-                    <td className="py-3 pr-4 tabular-nums text-[var(--text-secondary)]">
+                    <td data-label="Använde" className="py-3 pr-4 tabular-nums text-[var(--text-secondary)]">
                       {formatNumber(record.usedCount)}{record.maxUses != null ? ` / ${formatNumber(record.maxUses)}` : ""}
                     </td>
-                    <td className="py-3 pr-4 text-[var(--text-muted)]">{formatDate(record.createdAt)}</td>
+                    <td data-label="Skapad" className="py-3 pr-4 text-[var(--text-muted)]">{formatDate(record.createdAt)}</td>
                     <td className="py-3">
                       <Button variant="secondary" onClick={() => openEdit(record)}>
                         <Pencil size={12} /> Redigera

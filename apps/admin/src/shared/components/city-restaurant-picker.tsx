@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Field, Select } from "@/shared/components/ui";
+import { Button, Field, Select } from "@/shared/components/ui";
 import { apiGet } from "@/shared/api/client";
 
 type CityWithRestaurants = {
@@ -57,7 +57,7 @@ export function CityRestaurantPicker({
   // vi i stället admins senaste manuella stadsval så tvåstegsflödet inte
   // snäpper tillbaka efter att restaurangvalet nollställts.
   const [manualCityId, setManualCityId] = useState<string>("");
-  const cityId = (value && cityByRestaurant.get(value)) || manualCityId;
+  const cityId = (value && cityByRestaurant.get(value)) || manualCityId || (cities.data?.length === 1 ? cities.data[0].id : "");
 
   const restaurantsForCity = useMemo(() => {
     if (!cityId) return [];
@@ -75,6 +75,10 @@ export function CityRestaurantPicker({
 
   return (
     <div className={`grid gap-3 sm:grid-cols-2 ${className || ""}`}>
+      {cities.isError ? <div className="col-span-full flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border-subtle)] p-4" role="alert">
+        <p className="text-sm text-[var(--text-secondary)]">Restaurangerna kunde inte hämtas.</p>
+        <Button onClick={() => void cities.refetch()}>Försök igen</Button>
+      </div> : null}
       <Field label="Stad">
         <Select
           value={cityId}

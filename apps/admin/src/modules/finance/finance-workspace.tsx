@@ -108,7 +108,7 @@ export function FinanceWorkspace({
               </div>
             ) : null}
             {onRefresh ? (
-              <button type="button" className={styles.refreshButton} onClick={onRefresh} disabled={refreshing}>
+              <button type="button" className={styles.refreshButton} aria-label="Uppdatera ekonomi" onClick={onRefresh} disabled={refreshing}>
                 <RefreshCw size={14} className={refreshing ? "animate-spin" : undefined} />
                 <span>Uppdatera</span>
               </button>
@@ -119,10 +119,10 @@ export function FinanceWorkspace({
         <nav className={styles.nav} aria-label="Ekonomi">
           {NAV_ITEMS.map((item) => {
             const active = item.href === "/finance"
-              ? pathname === item.href || onRestaurantDetail
+              ? pathname === item.href
               : item.href === "/finance/installningar"
                 ? pathname === item.href
-                : pathname.startsWith(item.href);
+                : pathname.startsWith(item.href) || (item.href === "/finance/restaurangekonomi" && onRestaurantDetail);
             return (
               <Link
                 key={item.href}

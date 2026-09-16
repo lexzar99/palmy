@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./workspace.css";
+import "./panel.css";
 import { AppProviders } from "@/shared/components/app-providers";
 
 export const dynamic = "force-dynamic";

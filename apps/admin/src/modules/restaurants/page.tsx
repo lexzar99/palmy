@@ -92,7 +92,7 @@ export function RestaurantsPage() {
           <>
             <div className="relative w-full sm:w-64">
               <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-              <Input className="input-with-leading-icon" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Sök restaurang" />
+              <Input className="input-with-leading-icon" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Sök restaurang" placeholder="Sök restaurang" />
             </div>
             <Button variant="secondary" onClick={() => void overview.refetch()} aria-label="Uppdatera"><RefreshCw size={14} /></Button>
             <Button variant="primary" onClick={() => router.push("/restaurants/new")}><Plus size={15} /> Ny restaurang</Button>
@@ -106,6 +106,7 @@ export function RestaurantsPage() {
           <button
             key={c.value}
             type="button"
+            aria-pressed={filter === c.value}
             onClick={() => setFilter(c.value)}
             className={cn("chip", filter === c.value && "is-active")}
           >

@@ -362,28 +362,28 @@ export function OrderHistoryPage() {
           <EmptyState title="Inga ordrar i den här perioden" />
         ) : (
           <div className="table-shell">
-            <table className="data-table">
+            <table className="data-table responsive-table">
               <thead>
                 <tr>
-                  <th>Order</th>
-                  <th>Restaurang</th>
-                  <th>Kund</th>
-                  <th>Datum/tid</th>
-                  <th>Status</th>
-                  <th style={{ textAlign: "right" }}>Belopp</th>
+                  <th scope="col">Order</th>
+                  <th scope="col">Restaurang</th>
+                  <th scope="col">Kund</th>
+                  <th scope="col">Datum/tid</th>
+                  <th scope="col">Status</th>
+                  <th scope="col" style={{ textAlign: "right" }}>Belopp</th>
                 </tr>
               </thead>
               <tbody>
                 {visibleOrders.map((order) => (
                   <tr key={order.id}>
-                    <td style={{ fontFamily: "ui-monospace, Menlo, monospace", fontWeight: 700 }}>#{order.orderNumber}</td>
-                    <td className="font-semibold">{order.restaurantName}</td>
-                    <td>
+                    <td data-label="Order" style={{ fontFamily: "ui-monospace, Menlo, monospace", fontWeight: 700 }}>#{order.orderNumber}</td>
+                    <td data-label="Restaurang" className="font-semibold">{order.restaurantName}</td>
+                    <td data-label="Kund">
                       <div>{order.customerName}</div>
                       <div className="text-xs text-[var(--text-secondary)]">{order.customerPhone}</div>
                     </td>
-                    <td className="text-[var(--text-secondary)]">{formatDateTime(order.createdAt)}</td>
-                    <td>
+                    <td data-label="Datum/tid" className="text-[var(--text-secondary)]">{formatDateTime(order.createdAt)}</td>
+                    <td data-label="Status">
                       {(() => {
                         const refund = refundBadge(order.paymentStatus);
                         if (refund) return <Badge tone={refund.tone}>{refund.label}</Badge>;
@@ -394,7 +394,7 @@ export function OrderHistoryPage() {
                         );
                       })()}
                     </td>
-                    <td style={{ textAlign: "right" }}>
+                    <td data-label="Belopp" style={{ textAlign: "right" }}>
                       <div className="font-bold">{formatCurrency(order.total)}</div>
                       {order.refundAmount ? (
                         <div className="text-xs font-semibold text-[var(--danger-text)]">

@@ -479,3 +479,11 @@
 .periodBar h2 { font-size: 15px; font-weight: 600; color: var(--text-secondary); }
 .stats > div:first-child strong { color: var(--brand-orange-ink); }
 .stats strong { overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+ .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 0; }
+ .stats > div:first-child { grid-column: 1 / -1; margin: 0 18px; padding: 0 0 20px; border-bottom: 1px solid var(--border-subtle); }
+ .stats > div:first-child strong { font-size: 34px; }
+ .stats > div:nth-child(2) { border-left: 0; padding-left: 18px; }
+ .stats > a { padding-left: 18px; }
+ .stats p { font-size: 12px; }
+}

@@ -251,21 +251,21 @@ export function JourneyPage() {
           </div>
         ) : (
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[860px] text-left text-[13px]">
+            <table className="w-full min-w-[860px] text-left text-[13px] responsive-table">
               <thead>
                 <tr className="border-b border-[var(--border-subtle)] text-[12px] uppercase tracking-wide text-[var(--text-secondary)]">
-                  <th className="pb-2 pr-4 font-semibold">Vem</th>
-                  <th className="pb-2 pr-4 font-semibold">Kom så långt</th>
-                  <th className="pb-2 pr-4 font-semibold">Vad hände</th>
-                  <th className="pb-2 pr-4 font-semibold">Restaurang</th>
-                  <th className="pb-2 pr-4 font-semibold">Kanal</th>
-                  <th className="pb-2 font-semibold">Senast</th>
+                  <th scope="col" className="pb-2 pr-4 font-semibold">Vem</th>
+                  <th scope="col" className="pb-2 pr-4 font-semibold">Kom så långt</th>
+                  <th scope="col" className="pb-2 pr-4 font-semibold">Vad hände</th>
+                  <th scope="col" className="pb-2 pr-4 font-semibold">Restaurang</th>
+                  <th scope="col" className="pb-2 pr-4 font-semibold">Kanal</th>
+                  <th scope="col" className="pb-2 font-semibold">Senast</th>
                 </tr>
               </thead>
               <tbody>
                 {people.map((p) => (
                   <tr key={p.sessionId} className="border-b border-[var(--border-subtle)] last:border-0">
-                    <td className="py-3 pr-4">
+                    <td data-label="Vem" className="py-3 pr-4">
                       <div className="font-medium text-[var(--text-primary)]">
                         {p.phone || p.email || "Anonym besökare"}
                       </div>
@@ -273,14 +273,14 @@ export function JourneyPage() {
                         <div className="text-[12px] text-[var(--text-secondary)]">{p.email}</div>
                       ) : null}
                     </td>
-                    <td className="py-3 pr-4 text-[var(--text-secondary)]">
+                    <td data-label="Kom så långt" className="py-3 pr-4 text-[var(--text-secondary)]">
                       <span className="inline-flex items-center gap-1.5">
                         {p.deepestStepLabel}
                         <ArrowRight size={12} className="opacity-40" />
                         <span className="text-[12px] opacity-70">steg {p.deepestIndex + 1} av 10</span>
                       </span>
                     </td>
-                    <td className="py-3 pr-4">
+                    <td data-label="Vad hände" className="py-3 pr-4">
                       <Badge tone={utfallston(p)}>{p.outcome}</Badge>
                       {p.rejectedAddress ? (
                         <div className="mt-1 inline-flex items-center gap-1 text-[12px] text-[var(--text-secondary)]">
@@ -289,16 +289,16 @@ export function JourneyPage() {
                         </div>
                       ) : null}
                     </td>
-                    <td className="py-3 pr-4 text-[var(--text-secondary)]">
+                    <td data-label="Restaurang" className="py-3 pr-4 text-[var(--text-secondary)]">
                       {p.restaurants.length > 0 ? p.restaurants.join(", ") : "—"}
                     </td>
-                    <td className="py-3 pr-4 text-[var(--text-secondary)]">
+                    <td data-label="Kanal" className="py-3 pr-4 text-[var(--text-secondary)]">
                       <div>{p.channel || "Direkt"}</div>
                       {p.referrer && p.channel === "Hänvisad" ? (
                         <div className="text-[12px] opacity-70">{p.referrer}</div>
                       ) : null}
                     </td>
-                    <td className="py-3 text-[var(--text-secondary)]">{tid(p.lastSeen)}</td>
+                    <td data-label="Senast" className="py-3 text-[var(--text-secondary)]">{tid(p.lastSeen)}</td>
                   </tr>
                 ))}
               </tbody>

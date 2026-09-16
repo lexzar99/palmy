@@ -111,14 +111,14 @@ function PlatformSettingsEditor({ initialForm }: { initialForm: PlatformSettings
 
       {/* Navy hero — identitet + spara i ett */}
       <section className="hero-card flex flex-wrap items-center gap-5" style={{ padding: "20px 24px" }}>
-        <span className="flex h-[52px] w-[52px] flex-none items-center justify-center rounded-[15px] bg-[rgba(254,247,240,0.12)] text-[var(--brand-cream)]">
+        <span className="flex h-[52px] w-[52px] flex-none items-center justify-center rounded-[15px] bg-[var(--brand-orange-soft)] text-[var(--brand-orange-ink)]">
           <Building2 size={22} />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-[18px] font-extrabold tracking-[-0.02em] text-white">
+          <h2 className="text-[18px] font-extrabold tracking-[-0.02em] text-[var(--text-primary)]">
             {form.companyName?.trim() || "Plattformsinställningar"}
           </h2>
-          <p className="mt-0.5 text-[12.5px] font-medium text-[rgba(254,247,240,0.62)]">
+          <p className="mt-0.5 text-[12.5px] font-medium text-[var(--text-muted)]">
             {form.organizationNumber?.trim()
               ? `Org.nr ${form.organizationNumber}`
               : "Används i appen, supportflöden och systemutskick"}
