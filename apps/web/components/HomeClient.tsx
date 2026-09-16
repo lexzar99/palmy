@@ -763,6 +763,30 @@ const isRetiredFavoriteDeal = (deal: any) => {
  * hämtar färsk data direkt efter mount (samma mönster som MenuContent).
  */
 export default function HomeClient({ initialData = null, partnerSlug = null }: { initialData?: HomeInitialData | null; partnerSlug?: string | null }) {
+  // Deals-kortet visar riktiga rätter från dagens sänkta priser: tre bilder
+  // och antalet. Hämtas via proxyn efter mount så startsidan inte väntar.
+  const [dealPreview, setDealPreview] = useState<{ count: number; items: { id: string; imageUrl: string; off: number }[] }>({ count: 0, items: [] });
+  useEffect(() => {
+    let cancelled = false;
+    axios.get("/api/menu/discounted", { params: { _t: Date.now() } })
+      .then((res) => {
+        if (cancelled || !Array.isArray(res.data)) return;
+        const rows = res.data as { id: string; imageUrl?: string | null; originalPrice?: number; discountPrice?: number; discountPercent?: number | null }[];
+        const items = rows
+          .filter((row) => typeof row.imageUrl === "string" && row.imageUrl.trim())
+          .slice(0, 3)
+          .map((row) => ({
+            id: row.id,
+            imageUrl: String(row.imageUrl),
+            off: typeof row.discountPercent === "number" && row.discountPercent > 0
+              ? Math.round(row.discountPercent)
+              : row.originalPrice && row.discountPrice ? Math.max(0, Math.round((1 - row.discountPrice / row.originalPrice) * 100)) : 0,
+          }));
+        setDealPreview({ count: rows.length, items });
+      })
+      .catch(() => { /* kortet visas ändå, utan bilder */ });
+    return () => { cancelled = true; };
+  }, []);
   const router = useRouter();
   const { t } = useTranslation();
   const promoRailRef = useRef<HTMLDivElement | null>(null);
@@ -2160,18 +2184,48 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
     <section className="mb-6">
       <Link
         href="/deals"
-        className="flex items-center gap-4 rounded-[22px] px-4 py-4 transition-transform active:scale-[0.99]"
-        style={{ backgroundColor: "#FFFFFF", boxShadow: "0 1px 2px rgba(0,0,0,0.03), 0 10px 30px rgba(0,0,0,0.05)" }}
+        className="relative block overflow-hidden rounded-[24px] transition-transform active:scale-[0.99]"
+        style={{ backgroundColor: "#1D1D1F", boxShadow: "0 2px 6px rgba(0,0,0,0.08), 0 16px 40px rgba(0,0,0,0.16)" }}
       >
-        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[14px]" style={{ backgroundColor: "#FFF1EB" }}>
-          <Tag size={20} strokeWidth={2.2} style={{ color: "#F04F1A" }} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[12px] font-semibold" style={{ color: "#F04F1A" }}>viaeats deals</span>
-          <span className="mt-0.5 block text-[19px] font-bold leading-tight tracking-[-0.02em]" style={{ color: "#1D1D1F" }}>Mer mat. Bättre pris.</span>
-          <span className="mt-0.5 block truncate text-[13px] font-medium" style={{ color: "#6E6E73" }}>Dagens sänkta priser från restaurangerna</span>
-        </span>
-        <ChevronRight size={20} strokeWidth={2.2} className="shrink-0" style={{ color: "#8E8E93" }} aria-hidden />
+        {/* Mjuk orange glöd i hörnet — den enda färgen på kortet. */}
+        <span aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full" style={{ background: "radial-gradient(circle, rgba(240,79,26,0.42) 0%, rgba(240,79,26,0) 70%)" }} />
+        <div className="relative flex items-center gap-4 p-5">
+          <div className="min-w-0 flex-1">
+            <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold" style={{ color: "#FF7A45" }}>
+              <Tag size={12} strokeWidth={2.6} /> viaeats deals
+            </span>
+            <span className="mt-1.5 block text-[22px] font-bold leading-[1.08] tracking-[-0.025em] text-white">
+              Mer mat. Bättre pris.
+            </span>
+            <span className="mt-1 block text-[13px] font-medium leading-snug" style={{ color: "rgba(255,255,255,0.62)" }}>
+              {dealPreview.count > 0
+                ? `${dealPreview.count} ${dealPreview.count === 1 ? "rätt" : "rätter"} till sänkt pris just nu`
+                : "Dagens sänkta priser från restaurangerna"}
+            </span>
+            <span className="mt-3.5 inline-flex h-9 items-center gap-1 whitespace-nowrap rounded-full bg-white px-3.5 text-[13.5px] font-semibold" style={{ color: "#1D1D1F" }}>
+              Se alla deals <ChevronRight size={14} strokeWidth={2.6} />
+            </span>
+          </div>
+          {dealPreview.items.length > 0 && (
+            <div className="relative flex shrink-0 items-center pl-1" aria-hidden>
+              {dealPreview.items.map((item, index) => (
+                <span
+                  key={item.id}
+                  className="relative block h-[60px] w-[60px] overflow-hidden rounded-[16px]"
+                  style={{ marginLeft: index === 0 ? 0 : -20, zIndex: 3 - index, boxShadow: "0 0 0 3px #1D1D1F, 0 6px 16px rgba(0,0,0,0.35)", transform: `translateY(${index === 1 ? -12 : index === 2 ? 6 : 0}px)` }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={item.imageUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
+                </span>
+              ))}
+              {dealPreview.items[0]?.off > 0 && (
+                <span className="absolute -left-2 -top-2 z-10 rounded-full px-2 py-1 text-[11px] font-bold text-white" style={{ backgroundColor: "#F04F1A", boxShadow: "0 2px 8px rgba(240,79,26,0.45)" }}>
+                  −{dealPreview.items[0].off} %
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       </Link>
     </section>
   );
