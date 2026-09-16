@@ -12,6 +12,7 @@
  */
 
 import { API_URL } from "@/lib/api";
+import { hasMarketingConsent } from "@/lib/cookieConsent";
 
 const SESSION_KEY = "viaeats_journey_session";
 const UTM_KEY = "viaeats_journey_utm";
@@ -151,10 +152,20 @@ function randomId(): string {
 export function journeySessionId(): string | null {
   if (typeof window === "undefined") return null;
   try {
+    const now = Date.now();
     const existing = window.localStorage.getItem(SESSION_KEY);
-    if (existing) return existing;
+    const touched = Number(window.localStorage.getItem(`${SESSION_KEY}_touched`) || 0);
+    const params = new URLSearchParams(window.location.search);
+    const incoming = params.get('utm_source') || params.get('utm_campaign')
+      ? `${params.get('utm_source') || ''}|${params.get('utm_campaign') || ''}` : null;
+    const previousCampaign = window.localStorage.getItem(`${SESSION_KEY}_campaign`);
+    const newCampaign = incoming !== null && incoming !== previousCampaign;
+    window.localStorage.setItem(`${SESSION_KEY}_touched`, String(now));
+    if (existing && now - touched < 30 * 60 * 1000 && !newCampaign) return existing;
     const created = randomId();
     window.localStorage.setItem(SESSION_KEY, created);
+    window.localStorage.setItem(`${SESSION_KEY}_campaign`, incoming || '');
+    window.sessionStorage.removeItem(CHANNEL_KEY);
     return created;
   } catch {
     // Privat läge eller blockerad lagring: utan id går stegen inte att koppla
@@ -175,15 +186,40 @@ function rememberUtm(): { utmSource?: string; utmCampaign?: string } {
     const source = params.get("utm_source");
     const campaign = params.get("utm_campaign");
     if (source || campaign) {
-      const value = JSON.stringify({ utmSource: source || undefined, utmCampaign: campaign || undefined });
+      const value = JSON.stringify({ utmSource: source?.slice(0, 64) || undefined, utmCampaign: campaign?.slice(0, 64) || undefined, capturedAt: Date.now() });
       window.localStorage.setItem(UTM_KEY, value);
-      return JSON.parse(value);
+      const parsed = JSON.parse(value);
+      return { utmSource: parsed.utmSource, utmCampaign: parsed.utmCampaign };
     }
     const stored = window.localStorage.getItem(UTM_KEY);
-    return stored ? JSON.parse(stored) : {};
+    if (!stored) return {};
+    const parsed = JSON.parse(stored);
+    if (!Number.isFinite(parsed.capturedAt) || Date.now() - parsed.capturedAt > 30 * 24 * 60 * 60 * 1000) {
+      window.localStorage.removeItem(UTM_KEY);
+      return {};
+    }
+    return { utmSource: parsed.utmSource, utmCampaign: parsed.utmCampaign };
   } catch {
     return {};
   }
+}
+
+/** Kampanjkoppling vid verifierad registrering, bara efter analyssamtycke. */
+export function journeyRegistrationContext() {
+  try {
+    if (!hasMarketingConsent()) return undefined;
+    const sessionId = journeySessionId();
+    if (!sessionId) return undefined;
+    const { channel } = rememberChannel();
+    const utm = rememberUtm();
+    return {
+      consent: true,
+      sessionId,
+      channel: channel.slice(0, 64),
+      ...(utm.utmSource ? { utmSource: utm.utmSource.slice(0, 64) } : {}),
+      ...(utm.utmCampaign ? { utmCampaign: utm.utmCampaign.slice(0, 64) } : {}),
+    };
+  } catch { return undefined; }
 }
 
 /**
@@ -195,6 +231,7 @@ function rememberUtm(): { utmSource?: string; utmCampaign?: string } {
 export function trackJourney(step: JourneyStep, payload: JourneyPayload = {}): void {
   if (typeof window === "undefined") return;
   try {
+    if (!hasMarketingConsent()) return;
     const sessionId = journeySessionId();
     if (!sessionId) return;
 
