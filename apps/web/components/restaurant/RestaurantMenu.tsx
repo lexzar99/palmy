@@ -12,6 +12,8 @@ import {
   AlertTriangle, Heart, Plus, Utensils, Store, Bike, ChevronRight,
 } from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
+import { ensureKioskAccess } from "@/lib/kioskAccessClient";
+import { EMBED_PARENT_ORIGIN_PARAM, rememberEmbedParentOrigin } from "@/lib/embedPartner";
 import { menuWithDeals, DEALS_CATEGORY_ID } from "@/lib/menuDealCategory";
 import { PublicDeal } from "@/lib/deals";
 import { useCartStore } from "@/store/cartStore";
@@ -38,7 +40,13 @@ const BogoPickerModal = dynamic(() => import("@/components/BogoPickerModal"), { 
  * för rad från MenuContent, som lever kvar för partner-embedden (/embed/[slug]).
  */
 interface InitialData { categories?: any[]; deals?: PublicDeal[]; restaurant?: any }
-interface Props { restaurantSlug: string; initialData?: InitialData | null }
+interface Props {
+  restaurantSlug: string;
+  initialData?: InitialData | null;
+  /** Partner-embed (/embed/[slug]): håller kunden i iframe-flödet, döljer
+   *  discovery-/profilfunktioner och märker anropen med channel=partner_embed. */
+  embedMode?: boolean;
+}
 
 type OrderType = "DELIVERY" | "PICKUP";
 
@@ -251,12 +259,14 @@ function Segmented({ value, onChange, labels }: { value: OrderType; onChange: (v
 }
 
 // ─── Huvudkomponent ────────────────────────────────────────────────────────
-export default function RestaurantMenu({ restaurantSlug, initialData = null }: Props) {
+export default function RestaurantMenu({ restaurantSlug, initialData = null, embedMode = false }: Props) {
   const { t } = useTranslation();
   const router = useRouter();
 
   const [categories, setCategories] = useState<any[]>(initialData?.categories ?? []);
-  const scopedCategories = useMemo(() => menuWithDeals(categories, false), [categories]);
+  const [isFramed, setIsFramed] = useState(false);
+  useEffect(() => { setIsFramed(window.parent !== window); }, []);
+  const scopedCategories = useMemo(() => menuWithDeals(categories, embedMode || isFramed), [categories, embedMode, isFramed]);
   const [deals, setDeals] = useState<PublicDeal[]>(initialData?.deals ?? []);
   const [restaurant, setRestaurant] = useState<any>(initialData?.restaurant ?? null);
   const [loading, setLoading] = useState(!initialData);
@@ -294,6 +304,21 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null }: P
   }, [restaurant?.id, restaurant?.name, restaurantSlug]);
 
   const updateDeliveryOverride = useCartStore((s) => s.updateDeliveryOverride);
+  const clearCart = useCartStore((s) => s.clearCart);
+
+  // Ett partnerfönster får aldrig visa eller skicka vidare en annan
+  // restaurangs gamla lokala varukorg.
+  useEffect(() => {
+    if (!embedMode || !restaurant?.slug) return;
+    const current = useCartStore.getState();
+    if (current.items.length > 0 && current.restaurantSlug !== restaurant.slug) clearCart();
+  }, [clearCart, embedMode, restaurant?.slug]);
+
+  useEffect(() => {
+    if (!embedMode || !restaurant?.slug) return;
+    rememberEmbedParentOrigin(new URLSearchParams(window.location.search).get(EMBED_PARENT_ORIGIN_PARAM));
+    void ensureKioskAccess(restaurant.slug);
+  }, [embedMode, restaurant?.slug]);
   const { isFavorite, toggle: toggleFavorite } = useFavorites();
 
   const [bogoPicker, setBogoPicker] = useState<{ dealId: string; dealTitle: string; rewardCategoryName: string | null; products: BogoPickerProduct[]; excludedExtraIds: string[] } | null>(null);
@@ -313,14 +338,14 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null }: P
       const coords = JSON.parse(storedCoords);
       const res = await axios.post(`${apiBase()}/api/cities/validate-location`, { lat: coords.lat, lng: coords.lng });
       if (!res.data.covered) {
-        const result = restaurantData?.isOpen ? false : null;
+        const result = embedMode || restaurantData?.isOpen ? false : null;
         setZoneAvailable(result);
         return result;
       }
       const all: any[] = (res.data.cities || []).flatMap((c: any) => c.restaurants || []);
       const thisRest = all.find((r: any) => r.id === restaurantData.id);
       if (!thisRest) {
-        if (!restaurantData?.isOpen) { setZoneAvailable(null); return null; }
+        if (!restaurantData?.isOpen && !embedMode) { setZoneAvailable(null); return null; }
         setZoneAvailable(false);
         return false;
       }
@@ -337,7 +362,7 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null }: P
     } finally {
       setCheckingZone(false);
     }
-  }, [updateDeliveryOverride]);
+  }, [embedMode, updateDeliveryOverride]);
 
   const handleOrderTypeChange = useCallback((nextType: OrderType) => {
     setOrderType(nextType);
@@ -365,11 +390,12 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null }: P
     try {
       if (!ssrSeed) setLoading(true);
       setError(null);
-      const menuParams = { slug: restaurantSlug, format: MENU_FORMAT_PARAM, v: "20260702" };
+      const channelParams = embedMode ? { channel: "partner_embed" } : {};
+      const menuParams = { slug: restaurantSlug, ...channelParams, format: MENU_FORMAT_PARAM, v: "20260702" };
       const [menuRes, restaurantRes, dealsRes] = await Promise.all([
         axios.get(`${apiBase()}/api/menu/categories`, { params: menuParams }),
         axios.get(`${apiBase()}/api/restaurants/${restaurantSlug}`),
-        axios.get(`${apiBase()}/api/deals`, { params: { slug: restaurantSlug } }),
+        axios.get(`${apiBase()}/api/deals`, { params: { slug: restaurantSlug, ...channelParams } }),
       ]);
       const nextCategories = rehydrateMenuCategories(menuRes.data) as any[];
       setCategories(nextCategories);
@@ -386,7 +412,7 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null }: P
       if (!ssrSeed) setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [restaurantSlug, checkZone]);
+  }, [restaurantSlug, checkZone, embedMode]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -534,6 +560,35 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null }: P
     }
   }, [restaurant?.isOpen, zoneAvailable, address, orderType]);
 
+  // Embed-API mellan partnersidan och iframe:en. Produktdeeplinks går genom
+  // samma adress-/zon-grind som ett vanligt produktklick.
+  useEffect(() => {
+    if (!embedMode || typeof window === "undefined") return;
+    const allowedOrigins = new Set([
+      window.location.origin,
+      "https://palmyrapizzeria.se",
+      "https://www.palmyrapizzeria.se",
+      "http://localhost:3000",
+      "http://localhost:4000",
+    ]);
+    const sendHeight = () => {
+      if (window.parent === window) return;
+      window.parent.postMessage({ type: "viaeats:embed-height", height: document.documentElement.scrollHeight }, "*");
+    };
+    const onMessage = (event: MessageEvent) => {
+      if (!allowedOrigins.has(event.origin) || !event.data || event.data.type !== "viaeats:open-product") return;
+      const productId = typeof event.data.productId === "string" ? event.data.productId : "";
+      if (!productId) return;
+      const product = categories.flatMap((c: any) => c.products || []).find((item: any) => item.id === productId);
+      if (product) handleOpenProduct(product);
+    };
+    window.addEventListener("message", onMessage);
+    sendHeight();
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(sendHeight) : null;
+    observer?.observe(document.documentElement);
+    return () => { window.removeEventListener("message", onMessage); observer?.disconnect(); };
+  }, [categories, embedMode, handleOpenProduct]);
+
   // ?product=<id> deeplink, samma grind som ett klick.
   const deepLinkDoneRef = useRef(false);
   useEffect(() => {
@@ -593,7 +648,7 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null }: P
         </div>
         <h2 className="text-[22px] font-semibold mb-1.5" style={{ letterSpacing: "-0.02em" }}>{t("menu.errorTitle")}</h2>
         <p className="text-[15px] mb-8 max-w-sm" style={{ color: "var(--ve-ink-2)" }}>{error || t("menu.restaurantNotFound")}</p>
-        <Link href="/" className="ve-press px-7 h-12 rounded-full text-[16px] font-semibold flex items-center" style={{ backgroundColor: "var(--ve-cta)", color: "var(--ve-cta-ink)" }}>{t("menu.goHome")}</Link>
+        {!embedMode && <Link href="/" className="ve-press px-7 h-12 rounded-full text-[16px] font-semibold flex items-center" style={{ backgroundColor: "var(--ve-cta)", color: "var(--ve-cta-ink)" }}>{t("menu.goHome")}</Link>}
       </div>
     );
   }
@@ -614,17 +669,20 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null }: P
   const minZoneFee = zoneFees.length ? Math.min(...zoneFees) : undefined;
   const displayFee = zoneAvailable === true ? restaurant.deliveryFee : (minZoneFee ?? restaurant.deliveryFee);
   const feeLabel = zoneAvailable === false && isOpen ? "–" : displayFee === 0 ? t("menu.stats.free") : `${displayFee} kr`;
+  const embedIsPalmyra = embedMode && restaurant?.slug === "palmyra-pizzeria-lund";
   const pickupMinutes = restaurant?.pickupEtaMinutes ?? Math.max(5, Math.min(25, (restaurant?.etaMinutes ?? 30) - 5));
+  const deliveryTimeLabel = embedIsPalmyra ? "30–45 min" : `${restaurant?.etaMinutes} ${t("menu.stats.min")}`;
+  const pickupTimeLabel = embedIsPalmyra ? "~10 min" : `~${pickupMinutes} ${t("menu.stats.min")}`;
   const addressLine = orderType === "PICKUP" ? (address || "Avhämtning") : (address ? address.split(",")[0] : "Välj leveransadress");
 
   const facts = orderType === "DELIVERY"
     ? [
         { label: "Leverans", value: feeLabel },
-        { label: "Tid", value: `${restaurant.etaMinutes} ${t("menu.stats.min")}` },
+        { label: "Tid", value: deliveryTimeLabel },
         { label: "Minsta order", value: `${restaurant.minOrderAmount} kr` },
       ]
     : [
-        { label: "Klar om", value: `~${pickupMinutes} ${t("menu.stats.min")}` },
+        { label: "Klar om", value: pickupTimeLabel },
         { label: "Hämta hos", value: restaurant?.address ? String(restaurant.address).split(",")[0] : restaurant?.city || "Restaurangen" },
       ];
 
@@ -646,14 +704,16 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null }: P
 
         {/* Desktop: knapparna ligger i heron. Mobil: se den kollapsande toppbaren nedan. */}
         <div className="absolute inset-x-4 hidden md:flex items-center justify-between" style={{ top: "calc(env(safe-area-inset-top, 0px) + 12px)" }}>
-          <button type="button" onClick={goBack} aria-label={t("common.back")} className="ve-glass-btn w-10 h-10 rounded-full grid place-items-center">
-            <ChevronLeft size={20} strokeWidth={2.4} className="-ml-0.5" />
-          </button>
+          {embedMode ? <span /> : (
+            <button type="button" onClick={goBack} aria-label={t("common.back")} className="ve-glass-btn w-10 h-10 rounded-full grid place-items-center">
+              <ChevronLeft size={20} strokeWidth={2.4} className="-ml-0.5" />
+            </button>
+          )}
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => setShowInfoModal(true)} aria-label={t("menu.info")} className="ve-glass-btn w-10 h-10 rounded-full grid place-items-center">
               <Info size={18} strokeWidth={2.2} />
             </button>
-            {restaurant?.id && (
+            {restaurant?.id && !embedMode && (
               <button
                 type="button"
                 aria-label="Spara favorit"
@@ -672,9 +732,11 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null }: P
       <div ref={barRef} className="md:hidden fixed inset-x-0 top-0 z-40 pointer-events-none" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
         <div className="absolute inset-0 ve-glass" style={{ opacity: collapse, boxShadow: collapse > 0.98 ? "inset 0 -0.5px 0 var(--ve-line)" : undefined }} />
         <div className="relative h-[52px] px-4 flex items-center justify-between">
-          <button type="button" onClick={goBack} aria-label={t("common.back")} className="ve-glass-btn pointer-events-auto w-10 h-10 rounded-full grid place-items-center" style={barButtonStyle}>
-            <ChevronLeft size={20} strokeWidth={2.4} className="-ml-0.5" />
-          </button>
+          {embedMode ? <span /> : (
+            <button type="button" onClick={goBack} aria-label={t("common.back")} className="ve-glass-btn pointer-events-auto w-10 h-10 rounded-full grid place-items-center" style={barButtonStyle}>
+              <ChevronLeft size={20} strokeWidth={2.4} className="-ml-0.5" />
+            </button>
+          )}
           <span
             aria-hidden={collapse < 0.5}
             className="absolute left-1/2 top-1/2 max-w-[54%] truncate text-[16px] font-semibold"
@@ -686,7 +748,7 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null }: P
             <button type="button" onClick={() => setShowInfoModal(true)} aria-label={t("menu.info")} className="ve-glass-btn w-10 h-10 rounded-full grid place-items-center" style={barButtonStyle}>
               <Info size={18} strokeWidth={2.2} />
             </button>
-            {restaurant?.id && (
+            {restaurant?.id && !embedMode && (
               <button
                 type="button"
                 aria-label="Spara favorit"
@@ -713,11 +775,18 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null }: P
           <div className={logo ? "pt-7" : ""}>
             <h1 className="m-0 text-[28px] font-semibold leading-[1.1]" style={{ letterSpacing: "-0.025em", color: "var(--ve-ink)" }}>{restaurant?.name}</h1>
             <div className="mt-2 flex items-center gap-2 flex-wrap text-[14px]" style={{ color: "var(--ve-ink-2)" }}>
-              <Link href={`/r/${restaurantSlug}/reviews`} className="inline-flex items-center gap-1 font-medium" style={{ color: "var(--ve-ink)" }}>
-                <Star size={13} strokeWidth={0} fill="var(--ve-ink)" />
-                <span className="ve-tabular">{(restaurant?.rating || 5.0).toFixed(1)}</span>
-                <span className="ve-tabular" style={{ color: "var(--ve-ink-3)" }}>({restaurant?.ratingCount || 1})</span>
-              </Link>
+              {(() => {
+                const rating = (
+                  <>
+                    <Star size={13} strokeWidth={0} fill="var(--ve-ink)" />
+                    <span className="ve-tabular">{(restaurant?.rating || 5.0).toFixed(1)}</span>
+                    <span className="ve-tabular" style={{ color: "var(--ve-ink-3)" }}>({restaurant?.ratingCount || 1})</span>
+                  </>
+                );
+                return embedMode
+                  ? <span className="inline-flex items-center gap-1 font-medium" style={{ color: "var(--ve-ink)" }}>{rating}</span>
+                  : <Link href={`/r/${restaurantSlug}/reviews`} className="inline-flex items-center gap-1 font-medium" style={{ color: "var(--ve-ink)" }}>{rating}</Link>;
+              })()}
               {restaurant?.cuisine && (<><span style={{ color: "var(--ve-ink-3)" }}>·</span><span>{restaurant.cuisine}</span></>)}
               <span style={{ color: "var(--ve-ink-3)" }}>·</span>
               <span className="inline-flex items-center gap-1.5 font-medium" style={{ color: statusColor }}>
@@ -787,7 +856,7 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null }: P
               </p>
               <div className="mt-3 flex gap-2">
                 <button onClick={() => setShowAddressModal(true)} className="ve-press px-4 h-10 rounded-full text-[14px] font-semibold" style={{ backgroundColor: "var(--ve-cta)", color: "var(--ve-cta-ink)" }}>{t("menu.outOfZone.newAddress")}</button>
-                <Link href="/" className="ve-press px-4 h-10 rounded-full text-[14px] font-semibold flex items-center" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>{t("common.back")}</Link>
+                {!embedMode && <Link href="/" className="ve-press px-4 h-10 rounded-full text-[14px] font-semibold flex items-center" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>{t("common.back")}</Link>}
               </div>
             </div>
           </div>
@@ -802,7 +871,7 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null }: P
           </div>
         )}
 
-        {restaurant?.id && (
+        {restaurant?.id && !embedMode && (
           <div className="mt-4"><PreviouslyOrderedBar restaurantId={restaurant.id} restaurantSlug={restaurantSlug} /></div>
         )}
 
@@ -1060,10 +1129,12 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null }: P
           }}
           orderType={orderType}
           setOrderType={setOrderType}
+          pickupCityName={embedMode ? "Lund" : undefined}
+          confirmLabel={embedMode ? "Bekräfta och fortsätt" : undefined}
         />
       )}
 
-      <CartBar />
+      <CartBar href={embedMode ? `/cart?embed=1&restaurant=${encodeURIComponent(restaurantSlug)}` : "/cart"} />
     </div>
   );
 }

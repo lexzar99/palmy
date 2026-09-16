@@ -11,7 +11,7 @@ import { useTranslation } from "@/lib/i18n/LocaleProvider";
  * fjäder in/ut, antalsbadge som "poppar" vid varje tillägg. Länkar till den
  * riktiga kassan (/cart) — samma cart-store som resten av sajten.
  */
-export default function CartBar() {
+export default function CartBar({ href = "/cart" }: { href?: string }) {
   const { t } = useTranslation();
   const items = useCartStore((s) => s.items);
   const total = useCartStore((s) => s.getTotal());
@@ -30,7 +30,7 @@ export default function CartBar() {
           style={{ bottom: "max(env(safe-area-inset-bottom, 0px), 14px)" }}
         >
           <Link
-            href="/cart"
+            href={href}
             aria-label={t("menu.viewCartAria", { count, total: total.toFixed(0) })}
             className="ve-press pointer-events-auto w-full max-w-md h-[56px] rounded-full flex items-center justify-between pl-2.5 pr-5"
             style={{ backgroundColor: "var(--ve-cta)", color: "var(--ve-cta-ink)", boxShadow: "var(--ve-shadow-float)" }}

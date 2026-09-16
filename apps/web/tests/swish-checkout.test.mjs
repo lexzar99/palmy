@@ -30,9 +30,9 @@ test("Palmyras uppladdningssida använder den centrala viaeats-embedden", () => 
   assert.match(palmyraLoader, /https:\/\/www\.viaeats\.se\/embed\.js/);
   assert.match(palmyraHome, /href="meny\.html"/);
   assert.match(palmyraHome, /Powered by <b>viaeats<\/b>/);
-  assert.match(palmyraHome, /utm_source=palmyra-rabatt/);
+  assert.match(palmyraHome, /utm_source=palmyra&amp;utm_medium=owned/);
   assert.match(palmyraHome, /viaeats\.se\/restaurants\/palmyra-pizzeria-lund/);
-  assert.match(palmyraHome, /få 30 % rabatt/);
+  assert.match(palmyraHome, /utvalda erbjudanden från Palmyra/);
   assert.match(palmyraHome, /hero-viaeats/);
   assert.match(palmyraMenu, /Powered by <a[^>]+>viaeats<\/a>/);
   assert.match(palmyraMenu, /https:\/\/www\.viaeats\.se\/embed\.js\?v=20260905/);
@@ -180,7 +180,7 @@ test("payment methods are native Swish plus one hosted Stripe page", () => {
   assert.match(cart, /\{ id: "swish", label: "Swish"/);
   // Den samlade hosted-raden lovar innehållet i förväg — label + undertext
   // är en del av kontraktet (Apple Pay och Klarna först, mest eftersökta).
-  assert.match(cart, /\{ id: "stripe_all", label: "Fler betalmetoder", hint: "Apple Pay, Klarna, kort, Google Pay", provider: "stripe" \}/);
+  assert.match(cart, /\{ id: "stripe_all", label: "Kort och mer", hint: "Apple Pay, Klarna, kort, Google Pay", provider: "stripe" \}/);
   assert.doesNotMatch(cart, /\{ id: "apple_pay"/);
   assert.doesNotMatch(cart, /\{ id: "google_pay"/);
   assert.doesNotMatch(cart, /\{ id: "klarna"/);
@@ -192,7 +192,7 @@ test("payment methods are native Swish plus one hosted Stripe page", () => {
   assert.match(cart, /checkoutMethod: checkoutProvider === "stripe" && checkoutMethod !== "stripe_all" \? checkoutMethod : undefined/);
   assert.match(cart, /window\.location\.assign\(checkoutUrl\)/);
   assert.match(cart, /STRIPE_HOSTED_FLOW_VERSION = "stripe-hosted-v1"/);
-  assert.match(cart, /\{methods\.map\(\(method\) => renderPaymentMethodChoice\(method, keyPrefix\)\)\}/);
+  assert.match(cart, /\{methods\.map\(\(method, i\) => renderPaymentMethodChoice\(method, keyPrefix, i === methods\.length - 1\)\)\}/);
   assert.match(cart, /preserveLoadingForNavigation = true;[\s\S]*?window\.location\.assign\(checkoutUrl\)/);
   assert.match(cart, /!preserveLoadingForNavigation\) setLoading\(false\)/);
   assert.doesNotMatch(cart, /renderPayMenu|payMenuOpen|mollieOptionsOpen/);
@@ -216,7 +216,7 @@ test("payment methods stay in the dedicated full-screen payment step", () => {
   assert.doesNotMatch(cart, /className="sticky z-\[90\]"/);
   assert.match(cart, /\{paymentStepOpen \? renderPaymentStep\(\) : \(/);
   assert.match(cart, /const renderPaymentStep = \(\) => \{/);
-  assert.match(cart, /\{methods\.map\(\(method\) => renderPaymentMethodChoice\(method, "step-"\)\)\}/);
+  assert.match(cart, /\{methods\.map\(\(method, i\) => renderPaymentMethodChoice\(method, "step-", i === methods\.length - 1\)\)\}/);
 });
 
 test("an authorization-shaped 404 preserves recovery proof", () => {

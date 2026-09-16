@@ -27,6 +27,8 @@ import {
   Check,
   ChevronDown,
   ChevronLeft,
+  ChevronRight,
+  Bike,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { ensureKioskAccess } from "@/lib/kioskAccessClient";
@@ -34,14 +36,17 @@ import { EMBED_PARENT_ORIGIN_PARAM, partnerOriginForRestaurant, readEmbedParentO
 import { checkDeliveryStreet, isDeliverableStreet } from "@/lib/deliveryAddress";
 import { useCartStore } from "@/store/cartStore";
 import { trackJourney } from "@/lib/journey";
+import { orderAttributionContext } from "@/lib/orderAttribution";
 import BogoPickerModal from "@/components/BogoPickerModal";
 import { rememberActiveOrder } from "@/lib/activeOrder";
-import { trackMetaInitiateCheckout, trackMetaPurchase } from "@/lib/metaEvents";
+import { trackMetaInitiateCheckout } from "@/lib/metaEvents";
 // Betalning sker via ett provider-neutralt checkout-flöde med exakt två val:
 // direkt Swish (native app-hopp/QR) och EN hosted Stripe Checkout-sida som
 // visar hela uppsättningen — Apple Pay, Klarna, kort och Google Pay — på
 // Stripes egen, alltid domänverifierade, betalsida.
-import ProductModal from "@/components/ProductModal";
+import ProductSheet from "@/components/restaurant/ProductSheet";
+import PlainImage from "@/components/restaurant/PlainImage";
+import "@/components/restaurant/restaurant.css";
 import { saveOrderToHistory } from "@/lib/orderHistory";
 import {
   type QuickAddress,
@@ -270,23 +275,23 @@ function CartCollapsibleRow({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div style={{ borderTop: first ? "none" : "1px solid var(--border-muted)" }}>
+    <div style={{ boxShadow: first ? undefined : "inset 0 0.5px 0 var(--ve-line)" }}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between gap-3 py-3.5 text-left"
+        className="ve-row-press w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left"
         aria-expanded={open}
       >
-        <span className="flex items-center gap-2.5 min-w-0">
+        <span className="flex items-center gap-3 min-w-0">
           {icon}
-          <span className="text-[14.5px] font-semibold" style={{ color: "var(--text-primary)" }}>{label}</span>
+          <span className="text-[16px] font-medium" style={{ color: "var(--ve-ink)", letterSpacing: "-0.01em" }}>{label}</span>
         </span>
         <span className="flex items-center gap-2 shrink-0">
-          {hint && <span className="text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>{hint}</span>}
-          <ChevronDown size={16} strokeWidth={2} className="transition-transform" style={{ color: "var(--text-secondary)", transform: open ? "rotate(180deg)" : "none" }} />
+          {hint && <span className="ve-tabular text-[14px] truncate max-w-[160px]" style={{ color: "var(--ve-ink-3)" }}>{hint}</span>}
+          <ChevronDown size={17} strokeWidth={2.2} className="transition-transform duration-200" style={{ color: "var(--ve-ink-3)", transform: open ? "rotate(180deg)" : "none" }} />
         </span>
       </button>
-      {open && <div className="pb-3.5">{children}</div>}
+      {open && <div className="px-4 pb-4">{children}</div>}
     </div>
   );
 }
@@ -375,6 +380,12 @@ export default function CartPage() {
   // inte levereras.
   const [cartRestaurantAddress, setCartRestaurantAddress] = useState<string | null>(null);
   const router = useRouter();
+  // Designsystemets grå yta ska nå ända ut i overscroll/safe-area (docs/DESIGN_SYSTEM.md).
+  useEffect(() => {
+    const prev = document.body.style.backgroundColor;
+    document.body.style.backgroundColor = "#F5F5F7";
+    return () => { document.body.style.backgroundColor = prev; };
+  }, []);
   const [embedMode, setEmbedMode] = useState(false);
   const [embedRestaurantFromUrl, setEmbedRestaurantFromUrl] = useState<string | null>(null);
   useEffect(() => {
@@ -2063,13 +2074,6 @@ export default function CartPage() {
       total: total,
     });
     rememberActiveOrder(orderId, { phone });
-    // Meta-konvertering. Providerreturen kan ha laddat om sidan och tömt
-    // varukorgen, så ordervärdet läses i andra hand från nyckeln som sattes
-    // när ordern skapades. Hjälparen skickar bara ett Purchase per order.
-    trackMetaPurchase({
-      orderId,
-      value: total > 0 ? total : Number(localStorage.getItem("pending_order_value") || 0),
-    });
     clearCart();
     // Betald order förbrukar aktiva dealen — nolla kontraktets båda nycklar
     // (Swift: HomeView nollar efter betald order).
@@ -2346,6 +2350,7 @@ export default function CartPage() {
 
     return {
       type: orderType,
+      attribution: orderAttributionContext(),
       customerName: formData.customerName,
       customerPhone: formData.customerPhone,
       customerEmail: formData.customerEmail.trim() || undefined,
@@ -2793,7 +2798,8 @@ export default function CartPage() {
         paymentProvider: checkoutProvider,
       };
       const fingerprint = checkoutFingerprint({
-        pendingPayload,
+        // Analysdata får aldrig skapa ett nytt betalningsförsök.
+        pendingPayload: { ...pendingPayload, attribution: undefined },
         checkoutMethod,
         ...(checkoutProvider === "stripe"
           ? {
@@ -3028,43 +3034,31 @@ export default function CartPage() {
   // tomt-läget nedan istället för att visa en falsk "full varukorg".
   if (!mounted || (pageLoading && items.length > 0)) {
     return (
-      <div className="min-h-screen pb-32 pt-[env(safe-area-inset-top,0px)] md:pt-24" style={{ backgroundColor: "var(--bg-primary)" }}>
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-16 pt-6">
-          <div className="flex items-end justify-between mb-5 px-1">
+      <div className="ve-root min-h-screen pb-32 md:pt-20">
+        <div className="max-w-[680px] mx-auto px-4 pt-[calc(env(safe-area-inset-top,0px)+12px)] md:pt-6">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="ve-skeleton h-10 w-10 rounded-full" />
             <div>
-              <div className="skeleton h-8 w-36 rounded-xl mb-2" />
-              <div className="skeleton h-4 w-56 rounded-lg" />
-            </div>
-            <div className="skeleton h-5 w-24 rounded-lg hidden sm:block" />
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] xl:grid-cols-[1fr_480px] gap-4 lg:gap-8 items-start">
-            <div className="space-y-4">
-              <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}>
-                {[0, 1, 2].map((i) => (
-                  <div key={i} className="px-3.5 py-3 flex items-center gap-3" style={{ borderTop: i === 0 ? "none" : "1px solid var(--border-muted)" }}>
-                    <div className="skeleton h-8 w-20 rounded-full shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="skeleton h-4 w-3/4 rounded-lg mb-2" />
-                      <div className="skeleton h-3 w-1/2 rounded-lg" />
-                    </div>
-                    <div className="skeleton h-4 w-14 rounded-lg shrink-0" />
-                  </div>
-                ))}
-              </div>
-              <div className="hidden lg:block rounded-2xl p-5 space-y-3" style={{ border: "1px solid var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}>
-                <div className="skeleton h-14 w-full rounded-xl" />
-                <div className="skeleton h-14 w-full rounded-xl" />
-                <div className="skeleton h-28 w-full rounded-xl" />
-              </div>
-            </div>
-            <div className="rounded-2xl p-4 sm:p-5 space-y-3" style={{ border: "1px solid var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}>
-              <div className="skeleton h-12 w-full rounded-xl" />
-              <div className="skeleton h-14 w-full rounded-xl" />
-              <div className="skeleton h-14 w-full rounded-xl" />
-              <div className="skeleton h-32 w-full rounded-xl" />
-              <div className="skeleton h-12 w-full rounded-xl" />
+              <div className="ve-skeleton h-7 w-32 rounded-lg mb-2" />
+              <div className="ve-skeleton h-3.5 w-48 rounded-md" />
             </div>
           </div>
+          <div className="ve-card overflow-hidden">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="mx-4 flex items-center gap-3 py-3.5" style={{ boxShadow: i === 0 ? undefined : "inset 0 0.5px 0 var(--ve-line)" }}>
+                <div className="ve-skeleton h-14 w-14 rounded-[12px] shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="ve-skeleton h-4 w-3/4 rounded-md mb-2" />
+                  <div className="ve-skeleton h-3 w-1/2 rounded-md" />
+                </div>
+                <div className="ve-skeleton h-8 w-20 rounded-full shrink-0" />
+              </div>
+            ))}
+          </div>
+          <div className="ve-card mt-6 h-[72px]" />
+          <div className="ve-card mt-6 h-[160px]" />
+          <div className="ve-card mt-6 h-[200px]" />
+          <div className="ve-card mt-6 h-[132px]" />
         </div>
       </div>
     );
@@ -3072,10 +3066,9 @@ export default function CartPage() {
 
   if (items.length === 0) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
+      <div className="ve-root min-h-screen flex flex-col items-center justify-center px-6">
         {/* Tom varukorg — line-art-kasse som ritas upp vid mount och sedan
-            svävar mjukt; skugg-ellipsen andas i motfas. Ingen emoji,
-            bara en lugn, omsorgsfull detalj. */}
+            svävar mjukt; skugg-ellipsen andas i motfas. */}
         <style>{`
           @keyframes cartBagDraw { from { stroke-dashoffset: 260; } to { stroke-dashoffset: 0; } }
           @keyframes cartBagFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
@@ -3091,26 +3084,26 @@ export default function CartPage() {
         <div className="flex flex-col items-center">
           <div className="cart-empty-float">
             <svg className="cart-empty-bag" width="88" height="88" viewBox="0 0 64 64" fill="none" aria-hidden="true">
-              <path d="M14 22h36l-3.2 30a4 4 0 0 1-4 3.6H21.2a4 4 0 0 1-4-3.6L14 22z" stroke="var(--color-gold-500, #F0531C)" strokeWidth="2" strokeLinejoin="round" fill="none" />
-              <path d="M23 28v-9a9 9 0 0 1 18 0v9" stroke="var(--gold-ink)" strokeWidth="2" strokeLinecap="round" fill="none" />
-              <circle cx="26" cy="40" r="1.4" fill="var(--gold-ink)" stroke="var(--gold-ink)" strokeWidth="0.5" />
-              <circle cx="38" cy="40" r="1.4" fill="var(--gold-ink)" stroke="var(--gold-ink)" strokeWidth="0.5" />
-              <path d="M26 46c2 2.4 10 2.4 12 0" stroke="var(--gold-ink)" strokeWidth="2" strokeLinecap="round" fill="none" />
+              <path d="M14 22h36l-3.2 30a4 4 0 0 1-4 3.6H21.2a4 4 0 0 1-4-3.6L14 22z" stroke="var(--ve-ink)" strokeWidth="2" strokeLinejoin="round" fill="none" />
+              <path d="M23 28v-9a9 9 0 0 1 18 0v9" stroke="var(--ve-ink-2)" strokeWidth="2" strokeLinecap="round" fill="none" />
+              <circle cx="26" cy="40" r="1.4" fill="var(--ve-ink)" stroke="var(--ve-ink)" strokeWidth="0.5" />
+              <circle cx="38" cy="40" r="1.4" fill="var(--ve-ink)" stroke="var(--ve-ink)" strokeWidth="0.5" />
+              <path d="M26 46c2 2.4 10 2.4 12 0" stroke="var(--ve-ink)" strokeWidth="2" strokeLinecap="round" fill="none" />
             </svg>
           </div>
           <svg className="cart-empty-shadow mt-2" width="72" height="10" viewBox="0 0 72 10" aria-hidden="true">
-            <ellipse cx="36" cy="5" rx="30" ry="4" fill="var(--gold-soft)" />
+            <ellipse cx="36" cy="5" rx="30" ry="4" fill="var(--ve-fill-2)" />
           </svg>
-          <h2 className="mt-6 text-[17px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+          <h2 className="mt-6 text-[22px] font-semibold" style={{ color: "var(--ve-ink)", letterSpacing: "-0.02em" }}>
             {t("cart.empty.titlePrefix")} {t("cart.empty.titleAccent")}
           </h2>
-          <p className="mt-1.5 text-[13.5px] text-center max-w-[260px]" style={{ color: "var(--text-secondary)" }}>
+          <p className="mt-1.5 text-[15px] text-center max-w-[280px]" style={{ color: "var(--ve-ink-2)" }}>
             {t("cart.empty.subtitle")}
           </p>
           <Link
             href={embedMode ? embedMenuHref : "/"}
-            className="mt-6 h-11 px-5 rounded-xl flex items-center text-[14.5px] font-semibold transition-all active:scale-95"
-            style={{ border: "1px solid var(--line-strong)", color: "var(--text-primary)" }}
+            className="ve-press mt-7 h-12 px-7 rounded-full flex items-center text-[16px] font-semibold"
+            style={{ backgroundColor: "var(--ve-cta)", color: "var(--ve-cta-ink)" }}
           >
             {t("cart.empty.cta")}
           </Link>
@@ -3120,10 +3113,17 @@ export default function CartPage() {
   }
 
   // ── Delade render-block ────────────────────────────────────────────────
-  // Desktop-vänsterkolumnen och mobil-flödet visade tidigare IDENTISK JSX som
-  // var duplicerad (~150 rader ×2): account-deals, rabattkod, anteckning och
-  // min-order-bannern. Nu EN definition per block — samma state/handlers,
-  // bara olika placering i layouten.
+  // Kassan är EN kolumn (max 680 px) på alla skärmar — samma rytm som
+  // restaurangsidan: vita kort på grå bakgrund, hårfina avdelare, en svart
+  // handling. Alla block nedan delar samma state/handlers som förut.
+  const hairline = "inset 0 0.5px 0 var(--ve-line)";
+  const sectionTitle = (text: string, right?: React.ReactNode) => (
+    <div className="flex items-baseline justify-between gap-3 px-1 mb-2.5">
+      <h2 className="m-0 text-[17px] font-semibold" style={{ color: "var(--ve-ink)", letterSpacing: "-0.015em" }}>{text}</h2>
+      {right}
+    </div>
+  );
+
   // Aktiv deal från kontraktet som inte finns i account-deals-listan (t.ex.
   // CAMPAIGN claimad på hemskärmen). Visas som egen rad med serverns quote
   // som belopp så kunden kan se/välja bort den i kassan.
@@ -3135,29 +3135,32 @@ export default function CartPage() {
         }
       : null;
 
+  const dealRowStyle = (active: boolean, disabled: boolean) => ({
+    backgroundColor: active ? "var(--ve-ink)" : "var(--ve-card-2)",
+    color: active ? "#fff" : "var(--ve-ink)",
+    boxShadow: active ? "none" : "inset 0 0 0 0.5px var(--ve-line)",
+    opacity: disabled ? 0.45 : 1,
+  });
+
   const renderAccountDeals = () => (accountDeals.length > 0 || activeExternalDeal) && (
     <div className="space-y-2">
       {activeExternalDeal && (
         <button
           type="button"
           onClick={() => { setSelectedAccountDealId(null); clearActiveUserDeal(); }}
-          className="w-full flex items-center justify-between gap-3 rounded-xl border px-4 py-3 transition-all text-left active:scale-[0.99]"
-          style={{ backgroundColor: "var(--gold-soft)", borderColor: "rgba(240,83,28,0.45)" }}
+          className="ve-press w-full flex items-center justify-between gap-3 rounded-[14px] px-4 py-3 text-left"
+          style={dealRowStyle(true, false)}
         >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <Check size={16} strokeWidth={2.5} style={{ color: "var(--gold-ink)" }} className="shrink-0" />
-            <div className="min-w-0">
-              <p className="text-[13px] font-medium truncate" style={{ color: "var(--gold-ink)" }}>{activeExternalDeal.title}</p>
+          <span className="flex items-center gap-2.5 min-w-0">
+            <Check size={16} strokeWidth={2.6} className="shrink-0" />
+            <span className="min-w-0">
+              <span className="block text-[15px] font-medium truncate">{activeExternalDeal.title}</span>
               {appDealQuote && !appDealQuote.applicable && appDealQuote.reason === "MIN_ORDER" && (appDealQuote.minOrderKr ?? 0) > 0 && (
-                <p className="text-[11px] mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                  Handla för minst {formatSekAmount(appDealQuote.minOrderKr ?? 0)} kr
-                </p>
+                <span className="block text-[12.5px] mt-0.5 opacity-70">Handla för minst {formatSekAmount(appDealQuote.minOrderKr ?? 0)} kr</span>
               )}
-            </div>
-          </div>
-          <span className="text-[12px] font-medium shrink-0" style={{ color: "var(--gold-ink)" }}>
-            {t("cart.discount.promoRemove")}
+            </span>
           </span>
+          <span className="text-[13px] font-medium shrink-0 opacity-80">{t("cart.discount.promoRemove")}</span>
         </button>
       )}
       {accountDeals.map((d) => {
@@ -3165,9 +3168,6 @@ export default function CartPage() {
         const meetsMin = subtotal >= min;
         const isActive = selectedAccountDealId === d.id;
         const blockedByPromo = !!selectedPersonalDeal && !isActive;
-        // Keep the active deal clickable even below its minimum so the
-        // customer can remove it and enter another code. Only inactive deals
-        // are disabled while their minimum is unmet.
         const disabled = (!meetsMin && !isActive) || blockedByPromo;
         return (
           <button
@@ -3175,9 +3175,6 @@ export default function CartPage() {
             type="button"
             disabled={disabled}
             onClick={() => {
-              // Valet speglas till aktiva deal-kontraktet (viaeats.active-
-              // UserDealId) så hemskärmen visar samma val. Snapshot nollas
-              // när kassan sätter/byter deal (Swift-paritet).
               if (isActive) { setSelectedAccountDealId(null); clearActiveUserDeal(); }
               else {
                 setSelectedAccountDealId(d.id);
@@ -3186,70 +3183,59 @@ export default function CartPage() {
                 writeActiveUserDeal(d.id);
               }
             }}
-            className={`w-full flex items-center justify-between gap-3 rounded-xl border px-4 py-3 transition-all text-left ${disabled ? "opacity-40 cursor-not-allowed" : "active:scale-[0.99]"}`}
-            style={{
-              backgroundColor: isActive ? "var(--gold-soft)" : "var(--bg-deep)",
-              borderColor: isActive ? "rgba(240,83,28,0.45)" : "var(--border-muted)",
-            }}
+            className={`w-full flex items-center justify-between gap-3 rounded-[14px] px-4 py-3 text-left ${disabled ? "cursor-not-allowed" : "ve-press"}`}
+            style={dealRowStyle(isActive, disabled)}
           >
-            <div className="flex items-center gap-2.5 min-w-0">
-              {isActive ? <Check size={16} strokeWidth={2.5} style={{ color: "var(--gold-ink)" }} className="shrink-0" /> : <Gift size={16} style={{ color: "var(--text-secondary)" }} className="shrink-0" />}
-              <div className="min-w-0">
-                <p className="text-[13px] font-medium truncate" style={{ color: isActive ? "var(--gold-ink)" : "var(--text-primary)" }}>
+            <span className="flex items-center gap-2.5 min-w-0">
+              {isActive ? <Check size={16} strokeWidth={2.6} className="shrink-0" /> : <Gift size={16} strokeWidth={2} className="shrink-0" style={{ color: "var(--ve-ink-3)" }} />}
+              <span className="min-w-0">
+                <span className="block text-[15px] font-medium truncate">
                   {isActive ? t("cart.discount.activeReward") : t("cart.discount.useReward", { type: dealTypeLabel(d.type, t), label: formatDealLabel(d, t) })}
-                </p>
+                </span>
                 {!meetsMin && min > 0 && (
-                  <p className="text-[11px] mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                    {t("cart.discount.minOrderRequired", { min: formatSekAmount(min) })}
-                  </p>
+                  <span className="block text-[12.5px] mt-0.5" style={{ color: isActive ? "rgba(255,255,255,0.7)" : "var(--ve-ink-3)" }}>{t("cart.discount.minOrderRequired", { min: formatSekAmount(min) })}</span>
                 )}
                 {blockedByPromo && meetsMin && (
-                  <p className="text-[11px] mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                    {t("cart.discount.blockedByPromo")}
-                  </p>
+                  <span className="block text-[12.5px] mt-0.5" style={{ color: "var(--ve-ink-3)" }}>{t("cart.discount.blockedByPromo")}</span>
                 )}
-              </div>
-            </div>
-            <span className="text-[12px] font-medium shrink-0" style={{ color: isActive ? "var(--gold-ink)" : "var(--text-secondary)" }}>
+              </span>
+            </span>
+            <span className="ve-tabular text-[13px] font-medium shrink-0" style={{ color: isActive ? "rgba(255,255,255,0.8)" : "var(--ve-ink-2)" }}>
               {isActive ? t("cart.discount.promoRemove") : `−${formatSekAmount(computeDealComponentsKr(d, subtotal, deliveryFee).total)} ${t("common.kr")}`}
             </span>
           </button>
         );
       })}
-      <div className="flex items-center gap-3 pt-0.5">
-        <div className="flex-1 h-px" style={{ background: "var(--border-muted)" }} />
-        <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}>{t("cart.discount.or")}</span>
-        <div className="flex-1 h-px" style={{ background: "var(--border-muted)" }} />
-      </div>
     </div>
   );
 
   const renderPromoInput = () => (
     <div className="space-y-2">
-      <div className={`relative flex items-center transition-all ${selectedAccountDealId ? "opacity-40 pointer-events-none" : ""}`}>
-        <Tag size={15} className="absolute left-4 pointer-events-none" style={{ color: "var(--text-secondary)" }} />
+      <div className={`relative flex items-center ${selectedAccountDealId ? "opacity-40 pointer-events-none" : ""}`}>
+        <Tag size={15} strokeWidth={2.2} className="absolute left-4 pointer-events-none" style={{ color: selectedPersonalDeal ? "var(--ve-success)" : "var(--ve-ink-3)" }} />
         <input
           value={selectedPersonalDeal ? selectedPersonalDeal.code : promoCodeInput}
           onChange={e => { if(selectedPersonalDeal) setSelectedPersonalDeal(null); setPromoCodeInput(e.target.value); setReferralMessage(null); }}
           disabled={!!selectedAccountDealId}
-          className="w-full border rounded-xl h-12 pl-11 pr-24 text-[14px] font-medium outline-none transition-all disabled:cursor-not-allowed"
-          style={{ backgroundColor: "var(--bg-deep)", borderColor: selectedPersonalDeal ? "rgba(240,83,28,0.45)" : "var(--border-muted)", color: selectedPersonalDeal ? "var(--gold-ink)" : "var(--text-primary)" }}
+          autoCapitalize="characters"
+          autoCorrect="off"
+          spellCheck={false}
+          className="ve-input w-full h-12 rounded-full pl-11 pr-24 font-medium outline-none disabled:cursor-not-allowed"
+          style={{ backgroundColor: "var(--ve-fill)", color: selectedPersonalDeal ? "var(--ve-success)" : "var(--ve-ink)", letterSpacing: "0.02em" }}
           placeholder={selectedAccountDealId ? t("cart.discount.promoBlockedByReward") : selectedPersonalDeal ? t("cart.discount.promoApplied") : t("cart.discount.promoPlaceholder")}
         />
         <button
           type="button"
           disabled={!!selectedAccountDealId || applyingCode}
           onClick={selectedPersonalDeal ? () => { setSelectedPersonalDeal(null); setPromoCodeInput(""); } : handleApplyPromo}
-          className="absolute right-2 px-4 h-9 rounded-lg text-[13px] font-medium transition-all disabled:cursor-not-allowed active:scale-95"
-          style={selectedPersonalDeal ? { color: "#C0392B" } : { color: "var(--text-primary)" }}
+          className="ve-press absolute right-1.5 h-9 px-4 rounded-full text-[14px] font-semibold disabled:cursor-not-allowed"
+          style={selectedPersonalDeal ? { color: "var(--ve-ink-2)" } : { backgroundColor: "var(--ve-ink)", color: "#fff" }}
         >
           {applyingCode ? <Loader2 size={15} className="animate-spin" /> : selectedPersonalDeal ? t("cart.discount.promoRemove") : t("cart.discount.promoCheck")}
         </button>
       </div>
-      {/* Vänkods-feedback (Swift: referralRedeemMessage) — grön vid succé,
-          orange vid serverfel som "Du har redan använt en referral-kod". */}
       {referralMessage && (
-        <p className="flex items-center gap-1.5 text-[12px] font-semibold" style={{ color: referralMessage.ok ? "var(--success-ink, #1F6B41)" : "var(--gold-ink)" }}>
+        <p className="flex items-center gap-1.5 px-1 text-[13px] font-medium" style={{ color: referralMessage.ok ? "var(--ve-success)" : "var(--ve-danger)" }}>
           {referralMessage.ok ? <CheckCircle2 size={14} className="shrink-0" /> : <AlertCircle size={14} className="shrink-0" />}
           {referralMessage.text}
         </p>
@@ -3258,18 +3244,19 @@ export default function CartPage() {
   );
 
   const renderNoteField = () => (
-    <>
-      <label className="block text-[13px] font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>{t("cart.fields.noteLabel")}</label>
-      <textarea rows={2} value={formData.note} onChange={e => { setFormData({...formData, note: e.target.value}); localStorage.setItem("cart_note", e.target.value); }} className="w-full border rounded-xl p-3 text-[14px] font-medium placeholder:text-zinc-400 outline-none transition-all resize-none" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--line-strong)", color: "var(--text-primary)" }} placeholder={t("cart.fields.notePlaceholderExample")} />
-    </>
+    <textarea
+      rows={2}
+      value={formData.note}
+      onChange={e => { setFormData({...formData, note: e.target.value}); localStorage.setItem("cart_note", e.target.value); }}
+      className="ve-input w-full rounded-[14px] px-4 py-3 font-medium outline-none resize-none"
+      style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}
+      placeholder={t("cart.fields.notePlaceholderExample")}
+    />
   );
 
-  // Dricks-grid (0/10/20/30 + eget) — extraherad så samma markup kan återanvändas
-  // i både mobil- och desktop-layouten. keyPrefix undviker dubbla React-keys
-  // (båda layouterna finns i DOM, en döljs via CSS).
+  // Dricks (0/10/20/30 + eget) som pills; vald = svart.
   const renderTipGrid = (keyPrefix: string) => (
     <div className="space-y-3">
-      <p className="text-[12.5px] leading-snug" style={{ color: "var(--text-secondary)" }}>{t("cart.tip.sub")}</p>
       <div className="grid grid-cols-5 gap-2">
         {[0, 10, 20, 30].map((amt) => {
           const isActive = !showCustomTipInput && tipAmount === amt;
@@ -3278,12 +3265,12 @@ export default function CartPage() {
               key={`${keyPrefix}-tip-${amt}`}
               type="button"
               onClick={() => { setShowCustomTipInput(false); setCustomTipText(""); setTipAmount(amt); }}
-              className="py-2.5 rounded-xl text-[13px] font-semibold border transition-all active:scale-95"
+              className="ve-chip ve-tabular h-10 rounded-full text-[14px] font-semibold"
               style={isActive
-                ? { backgroundColor: "var(--text-primary)", borderColor: "var(--text-primary)", color: "var(--bg-primary)" }
-                : { backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}
+                ? { backgroundColor: "var(--ve-ink)", color: "#fff" }
+                : { backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}
             >
-              {amt === 0 ? t("cart.tip.none") : `+${formatSekAmount(amt)}`}
+              {amt === 0 ? t("cart.tip.none") : `${formatSekAmount(amt)} kr`}
             </button>
           );
         })}
@@ -3295,10 +3282,10 @@ export default function CartPage() {
             if (next) { setCustomTipText(tipAmount > 0 ? String(tipAmount) : ""); }
             else { setCustomTipText(""); setTipAmount(0); }
           }}
-          className="py-2.5 rounded-xl text-[13px] font-semibold border transition-all active:scale-95"
+          className="ve-chip h-10 rounded-full text-[14px] font-semibold"
           style={showCustomTipInput
-            ? { backgroundColor: "var(--color-gold-500, #F0531C)", borderColor: "var(--color-gold-500, #F0531C)", color: "#141416" }
-            : { backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}
+            ? { backgroundColor: "var(--ve-ink)", color: "#fff" }
+            : { backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}
         >
           {t("cart.tip.custom")}
         </button>
@@ -3315,22 +3302,18 @@ export default function CartPage() {
               setTipAmount(Number.isFinite(parsed) ? Math.max(0, parsed) : 0);
             }}
             placeholder={t("cart.tip.customPlaceholder")}
-            className="w-full border rounded-xl p-3.5 text-[15px] font-medium placeholder:text-zinc-400 outline-none transition-all"
-            style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--line-strong)", color: "var(--text-primary)" }}
+            className="ve-input ve-tabular w-full h-12 rounded-full px-4 pr-12 font-medium outline-none"
+            style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}
           />
-          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[13px] font-medium text-zinc-500">{t("common.kr")}</span>
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[14px] font-medium" style={{ color: "var(--ve-ink-3)" }}>{t("common.kr")}</span>
         </div>
       )}
     </div>
   );
 
-  // Kollapsade extras-rader (mockup): dricks / rabatter / rabattkod / meddelande
-  // som "Rabattkod ›"-rader i stället för tre alltid-öppna guldsektioner. De
-  // viktiga uppgifterna (namn/adress/telefon/e-post) bor kvar synliga inline.
+  // "Mer"-kortet: meddelande, dricks och rabatter som kollapsade rader.
   const renderCartExtras = (keyPrefix: string) => {
     const tipHint = effectiveTip > 0 ? `${formatSekAmount(effectiveTip)} ${t("common.kr")}` : null;
-    // Rabattkod-raden rymmer BÅDE personliga/konto-deals OCH kupong-fältet, så
-    // man kan välja en sparad belöning eller skriva en kod i samma expansion.
     const discountHint = selectedPersonalDeal
       ? t("cart.discount.promoApplied")
       : selectedAccountDealId
@@ -3339,25 +3322,23 @@ export default function CartPage() {
           ? t("cart.discount.available", { count: accountDeals.length })
           : null;
     const discountOpen = !!selectedPersonalDeal || !!selectedAccountDealId;
-    const firstKey = orderType === "DELIVERY" ? "tip" : "promo";
+    const noteHint = formData.note.trim() ? formData.note.trim() : null;
     return (
-      <div className="space-y-2.5">
-        {/* Notering FÖRST (ovanför rabatter & dricks) — synligt inline-fält. */}
-        <div className="space-y-1.5">{renderNoteField()}</div>
-        {/* Sedan rabatter & dricks som kollapsade rader. */}
-        <div className="rounded-xl px-4" style={{ border: "1px solid var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}>
-          {orderType === "DELIVERY" && (
-            <CartCollapsibleRow first={firstKey === "tip"} label={t("cart.tip.label")} hint={tipHint} defaultOpen={effectiveTip > 0}>
-              {renderTipGrid(keyPrefix)}
-            </CartCollapsibleRow>
-          )}
-          <CartCollapsibleRow first={firstKey === "promo"} label={t("cart.discount.promoTitle")} hint={discountHint} defaultOpen={discountOpen}>
-            <div className="space-y-3">
-              {renderAccountDeals()}
-              {renderPromoInput()}
-            </div>
+      <div className="ve-card overflow-hidden">
+        <CartCollapsibleRow first label={t("cart.fields.noteLabel")} hint={noteHint} defaultOpen={!!formData.note.trim()}>
+          {renderNoteField()}
+        </CartCollapsibleRow>
+        {orderType === "DELIVERY" && (
+          <CartCollapsibleRow label={t("cart.tip.label")} hint={tipHint} defaultOpen={effectiveTip > 0}>
+            {renderTipGrid(keyPrefix)}
           </CartCollapsibleRow>
-        </div>
+        )}
+        <CartCollapsibleRow label={t("cart.discount.promoTitle")} hint={discountHint} defaultOpen={discountOpen}>
+          <div className="space-y-3">
+            {renderAccountDeals()}
+            {renderPromoInput()}
+          </div>
+        </CartCollapsibleRow>
       </div>
     );
   };
@@ -3369,25 +3350,25 @@ export default function CartPage() {
   const renderRecommendedRail = () => {
     if (recommendedProducts.length === 0) return null;
     return (
-      <div className="mt-6">
-        <h2 className="mb-2.5 px-1 text-[15px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
-          {!cartHasDrink && recommendationsHaveDrink ? "Har du glömt något?" : "Ofta köpta med"}
-        </h2>
-        <div className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <section className="mt-7">
+        {sectionTitle(!cartHasDrink && recommendationsHaveDrink ? "Har du glömt något?" : "Ofta köpta med")}
+        <div className="ve-no-scrollbar -mx-4 px-4 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1">
           {recommendedProducts.map((product) => {
             const price = recommendationPrice(product);
             const image = String(product.imageUrl || "").trim();
+            const showImage = image && !failedImageIds.has(product.id);
             return (
               <button
                 key={product.id}
                 type="button"
                 onClick={() => { void handleAddRecommended(product.id); }}
                 disabled={addingProductId === product.id}
-                className="w-[132px] shrink-0 snap-start overflow-hidden rounded-2xl text-left transition-transform active:scale-[0.98] disabled:opacity-60"
-                style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
+                className="ve-press w-[128px] shrink-0 snap-start overflow-hidden rounded-[18px] text-left disabled:opacity-60"
+                style={{ backgroundColor: "var(--ve-card)", boxShadow: "inset 0 0 0 0.5px var(--ve-line), var(--ve-shadow-card)" }}
               >
-                <span className="block h-[84px] w-full overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
-                  {image && !failedImageIds.has(product.id) ? (
+                <span className="block h-[96px] w-full overflow-hidden" style={{ backgroundColor: "#EBEBEE" }}>
+                  {showImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={image}
                       alt=""
@@ -3404,62 +3385,57 @@ export default function CartPage() {
                     />
                   ) : null}
                 </span>
-                <span className="block px-2.5 py-2">
-                  <span className="line-clamp-2 block min-h-[32px] text-[12.5px] font-semibold leading-4" style={{ color: "var(--text-primary)" }}>
+                <span className="block px-3 pt-2.5 pb-3">
+                  <span className="line-clamp-2 block min-h-[34px] text-[13px] font-semibold leading-[17px]" style={{ color: "var(--ve-ink)", letterSpacing: "-0.01em" }}>
                     {product.name}
                   </span>
-                  <span className="mt-1 flex items-center justify-between gap-1">
-                    <span className="text-[12.5px] font-bold" style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>
-                      {formatSekAmount(price)} kr
+                  <span className="mt-1.5 flex items-center justify-between gap-1">
+                    <span className="ve-tabular text-[13.5px] font-semibold" style={{ color: "var(--ve-ink)" }}>{formatSekAmount(price)} kr</span>
+                    <span className="w-6 h-6 rounded-full grid place-items-center" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>
+                      {addingProductId === product.id ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} strokeWidth={2.6} />}
                     </span>
-                    {addingProductId === product.id
-                      ? <Loader2 size={14} className="animate-spin" style={{ color: "var(--text-secondary)" }} />
-                      : <Plus size={14} style={{ color: "var(--gold-ink)" }} />}
                   </span>
                 </span>
               </button>
             );
           })}
         </div>
-      </div>
+      </section>
     );
   };
 
   const renderMinOrderBanner = (extraClass = "") =>
     subtotal > 0 && Math.max(0, subtotal - foodDiscountComponent) < effectiveMinOrder && addressZoneStatus !== "error" && (
-      <div
-        className={`rounded-2xl border px-4 py-3 ${extraClass}`}
-        style={{
-          background: topUpToMinimum ? "var(--bg-deep)" : "rgba(239,68,68,0.08)",
-          borderColor: topUpToMinimum ? "var(--border-muted)" : "rgba(239,68,68,0.30)",
-        }}
-      >
+      <div className={`ve-card px-4 py-3.5 ${extraClass}`} style={topUpToMinimum ? undefined : { backgroundColor: "var(--ve-danger-soft)" }}>
         {(() => {
           const gapToEffective = Math.max(0, Math.ceil(effectiveMinOrder - Math.max(0, subtotal - foodDiscountComponent)));
           const progressBase = effectiveMinOrder > 0 ? effectiveMinOrder : minOrder;
           const progress = Math.min(((Math.max(0, subtotal - foodDiscountComponent)) / progressBase) * 100, 100);
           return (
             <>
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <p className="text-[13px] font-medium" style={{ color: topUpToMinimum ? "var(--text-primary)" : "#E11D48" }}>
+              <div className="flex items-center justify-between gap-3 mb-2.5">
+                <p className="m-0 text-[14px] font-medium" style={{ color: topUpToMinimum ? "var(--ve-ink)" : "var(--ve-danger)" }}>
                   {topUpToMinimum
                     ? t("cart.minOrder.banner.topUp", { amount: formatSekAmount(gapToEffective) })
                     : t("cart.minOrder.banner.short", { amount: formatSekAmount(gapToEffective) })}
                 </p>
-                <span className="text-[10px] font-bold" style={{ color: topUpToMinimum ? "var(--text-secondary)" : "#E11D48" }}>{formatSekAmount(subtotal)} / {formatSekAmount(minOrder)} {t("common.kr")}</span>
+                <span className="ve-tabular text-[12.5px] font-medium shrink-0" style={{ color: topUpToMinimum ? "var(--ve-ink-3)" : "var(--ve-danger)" }}>{formatSekAmount(subtotal)} / {formatSekAmount(minOrder)} {t("common.kr")}</span>
               </div>
-              <div className="h-1.5 w-full rounded-full overflow-hidden mb-3" style={{ background: "var(--border-muted)" }}>
+              <div className="h-1 w-full rounded-full overflow-hidden mb-3" style={{ backgroundColor: topUpToMinimum ? "var(--ve-fill-2)" : "rgba(215,0,21,0.15)" }}>
                 <motion.div
                   className="h-full rounded-full"
-                  style={{ backgroundColor: topUpToMinimum ? "var(--text-primary)" : "#E11D48" }}
+                  style={{ backgroundColor: topUpToMinimum ? "var(--ve-ink)" : "var(--ve-danger)" }}
                   initial={{ width: 0 }}
                   animate={{ width: `${progress}%` }}
                   transition={{ duration: 0.5, ease: "easeOut" }}
                 />
               </div>
-              <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                <input type="checkbox" checked={topUpToMinimum} onChange={(e) => setTopUpToMinimum(e.target.checked)} className="h-4 w-4 accent-gold-500 cursor-pointer" />
-                <span className="text-[10px] font-bold leading-snug" style={{ color: "var(--text-secondary)" }}>
+              <label className="flex items-center gap-3 cursor-pointer select-none">
+                <span className="relative inline-flex h-[26px] w-[44px] shrink-0 items-center rounded-full transition-colors" style={{ backgroundColor: topUpToMinimum ? "var(--ve-success)" : "var(--ve-fill-2)" }}>
+                  <input type="checkbox" checked={topUpToMinimum} onChange={(e) => setTopUpToMinimum(e.target.checked)} className="peer sr-only" />
+                  <span className="absolute left-[2px] h-[22px] w-[22px] rounded-full bg-white transition-transform" style={{ transform: topUpToMinimum ? "translateX(18px)" : "none", boxShadow: "0 2px 4px rgba(0,0,0,0.18)" }} />
+                </span>
+                <span className="text-[13.5px] font-medium leading-snug" style={{ color: "var(--ve-ink-2)" }}>
                   {t("cart.minOrder.toggleLabel", { amount: formatSekAmount(gapToEffective) })}
                 </span>
               </label>
@@ -3469,42 +3445,136 @@ export default function CartPage() {
       </div>
     );
 
+  // Leverans/avhämtning som ETT kort: ikonplatta, titel + tid, adress, status.
   const renderFulfillmentStatus = () => {
     const isDelivery = orderType === "DELIVERY";
-    const Icon = isDelivery ? Truck : Store;
+    const Icon = isDelivery ? Bike : Store;
     const title = isDelivery ? t("cart.deliveryType.delivery") : t("cart.deliveryType.pickup");
     const detail = isDelivery
       ? (addressInput || t("cart.fields.addressPlaceholderFull"))
-      : (cartRestaurantName ? `${t("cart.deliveryType.pickup")} hos ${cartRestaurantName}` : t("cart.deliveryType.pickup"));
+      : (cartRestaurantName ? `Hämtas hos ${cartRestaurantName}` : t("cart.deliveryType.pickup"));
     const meta = isDelivery
       ? `~${restaurantSettings.estimatedDeliveryTime} min`
       : `~${restaurantSettings.estimatedPickupTime} min`;
-    const statusColor = isDelivery && addressZoneStatus === "error"
-      ? "#C0392B"
-      : isDelivery && addressZoneStatus === "checking"
-        ? "var(--text-secondary)"
-        : "var(--gold-ink)";
-
+    const zoneError = isDelivery && addressZoneStatus === "error";
+    const zoneChecking = isDelivery && (checkingDelivery || addressZoneStatus === "checking");
     return (
-      <div className="mb-4 rounded-2xl px-4 py-3 flex items-start gap-2.5" style={{ backgroundColor: "var(--gold-soft)", border: "1px solid rgba(240,83,28,0.18)" }}>
-        <Icon size={18} strokeWidth={2.4} className="mt-0.5 shrink-0" style={{ color: "var(--gold-ink)" }} />
+      <section className="ve-card px-4 py-3.5 flex items-start gap-3.5">
+        <span className="w-10 h-10 rounded-full grid place-items-center shrink-0" style={{ backgroundColor: zoneError ? "var(--ve-danger-soft)" : "var(--ve-fill)" }}>
+          <Icon size={18} strokeWidth={2} style={{ color: zoneError ? "var(--ve-danger)" : "var(--ve-ink)" }} />
+        </span>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 min-w-0">
-            <p className="text-[13px] font-bold" style={{ color: statusColor }}>{title}</p>
-            <span className="text-[12px] font-semibold shrink-0" style={{ color: "var(--text-secondary)" }}>{meta}</span>
+          <div className="flex items-center gap-2">
+            <p className="m-0 text-[16px] font-semibold" style={{ color: "var(--ve-ink)", letterSpacing: "-0.01em" }}>{title}</p>
+            <span className="ve-tabular text-[13px]" style={{ color: "var(--ve-ink-3)" }}>{meta}</span>
           </div>
-          <p className="mt-0.5 text-[13px] font-medium truncate" style={{ color: "var(--text-primary)" }}>{detail}</p>
-          {isDelivery && addressZoneStatus === "error" && (
-            <p className="mt-1 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.zoneNotCoveredHome")}</p>
+          <p className="m-0 mt-0.5 text-[14px] truncate" style={{ color: "var(--ve-ink-2)" }}>{detail}</p>
+          {!isDelivery && cartRestaurantAddress ? (
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${cartRestaurantName || ""} ${cartRestaurantAddress}`.trim())}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-0.5 block text-[13px] font-medium truncate"
+              style={{ color: "var(--ve-ink-3)" }}
+            >
+              {cartRestaurantAddress}
+            </a>
+          ) : null}
+          {zoneError && (
+            <p className="m-0 mt-1 text-[13px] font-medium" style={{ color: "var(--ve-danger)" }}>{t("cart.errors.zoneNotCoveredHome")}</p>
           )}
         </div>
-        {isDelivery && (checkingDelivery || addressZoneStatus === "checking") ? (
-          <Loader2 size={16} className="animate-spin shrink-0" style={{ color: "var(--text-secondary)" }} />
+        {zoneChecking ? (
+          <Loader2 size={17} className="animate-spin shrink-0 mt-2.5" style={{ color: "var(--ve-ink-3)" }} />
         ) : isDelivery && addressZoneStatus === "ok" ? (
-          <Check size={17} strokeWidth={2.6} className="shrink-0" style={{ color: "var(--success-ink)" }} />
+          <span className="w-6 h-6 rounded-full grid place-items-center shrink-0 mt-2" style={{ backgroundColor: "var(--ve-success)" }}>
+            <Check size={13} strokeWidth={3} style={{ color: "#fff" }} />
+          </span>
         ) : null}
-      </div>
+      </section>
     );
+  };
+
+  // Dina uppgifter — iOS-grupperade formulärrader utan hjälptexter.
+  const renderCustomerDetails = () => {
+    const lbl = (bad: boolean) => ({ width: 76, flexShrink: 0, fontSize: 14, fontWeight: 500 as const, whiteSpace: "nowrap" as const, color: bad ? "var(--ve-danger)" : "var(--ve-ink-2)" });
+    const inputCls = "ve-input flex-1 min-w-0 h-full bg-transparent outline-none font-medium";
+    const inputStyle = { color: "var(--ve-ink)" };
+    const errorLine = (text: string) => (
+      <p className="m-0 px-4 pb-2.5 -mt-1 text-[12.5px] font-medium" style={{ color: "var(--ve-danger)" }}>{text}</p>
+    );
+
+    if (user) {
+      const phoneInvalid = formData.customerPhone.length > 0 && formData.customerPhone.replace(/\D/g, '').length < 8;
+      return (
+        <div className="ve-card overflow-hidden">
+          {formData.customerName ? (
+            <div className="flex items-center min-h-[52px] px-4">
+              <span style={lbl(false)}>{t("cart.fields.name")}</span>
+              <span className="flex-1 min-w-0 text-[16px] font-medium truncate" style={{ color: "var(--ve-ink)" }}>{formData.customerName}</span>
+            </div>
+          ) : null}
+          <div className="flex items-center min-h-[52px] px-4" style={{ boxShadow: formData.customerName ? hairline : undefined }}>
+            <span style={lbl(phoneInvalid)}>{t("cart.fields.phone")}</span>
+            <input value={formData.customerPhone} onChange={e => setFormData({ ...formData, customerPhone: e.target.value })} type="tel" inputMode="tel" autoComplete="tel" className={inputCls} style={inputStyle} placeholder="070 000 00 00" />
+            {profilePhone && formData.customerPhone.trim() !== profilePhone.trim() ? (
+              <button type="button" onClick={() => setFormData({ ...formData, customerPhone: profilePhone })} className="shrink-0 text-[13px] font-semibold" style={{ color: "var(--ve-accent)" }}>
+                Mitt nummer
+              </button>
+            ) : null}
+          </div>
+          {phoneInvalid && errorLine(t("cart.errors.phoneTooShort"))}
+          <div className="flex items-center min-h-[52px] px-4" style={{ boxShadow: hairline }}>
+            <span style={lbl(false)}>E-post</span>
+            <input value={formData.customerEmail} onChange={e => setFormData({ ...formData, customerEmail: e.target.value })} type="email" inputMode="email" autoComplete="email" className={inputCls} style={inputStyle} placeholder="För kvittot" />
+          </div>
+        </div>
+      );
+    }
+
+    const nameTouched = formData.customerName.length > 0;
+    const phoneTouched = formData.customerPhone.length > 0;
+    const nameInvalid = nameTouched && formData.customerName.trim().length < 2;
+    const phoneInvalid = phoneTouched && formData.customerPhone.replace(/\D/g, '').length < 8;
+    const emailInvalid = formData.customerEmail.trim().length > 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.customerEmail.trim());
+    const fields = (
+      <>
+        <div className="flex items-center min-h-[52px] px-4">
+          <span style={lbl(nameInvalid)}>{t("cart.fields.name")}</span>
+          <input value={formData.customerName} onChange={e => setFormData({ ...formData, customerName: e.target.value })} autoComplete="name" className={inputCls} style={inputStyle} placeholder={t("cart.fields.namePlaceholder")} />
+        </div>
+        {nameInvalid && errorLine(t("cart.errors.nameTooShort"))}
+        <div className="flex items-center min-h-[52px] px-4" style={{ boxShadow: hairline }}>
+          <span style={lbl(phoneInvalid)}>{t("cart.fields.phone")}</span>
+          <input value={formData.customerPhone} onChange={e => setFormData({ ...formData, customerPhone: e.target.value })} type="tel" inputMode="tel" autoComplete="tel" className={inputCls} style={inputStyle} placeholder="070 000 00 00" />
+        </div>
+        {phoneInvalid && errorLine(t("cart.errors.phoneTooShort"))}
+        <div className="flex items-center min-h-[52px] px-4" style={{ boxShadow: hairline }}>
+          <span style={lbl(emailInvalid)}>E-post</span>
+          <input value={formData.customerEmail} onChange={e => setFormData({ ...formData, customerEmail: e.target.value })} type="email" inputMode="email" autoComplete="email" className={inputCls} style={inputStyle} placeholder="För kvittot" />
+        </div>
+        {emailInvalid && errorLine(t("cart.errors.invalidEmail"))}
+      </>
+    );
+    // Efter första beställningen är uppgifterna redan ifyllda — då räcker en
+    // kollapsad rad. Första gången visas fälten direkt.
+    if (guestDetailsKnown) {
+      return (
+        <div className="ve-card overflow-hidden">
+          <CartCollapsibleRow
+            first
+            label={t("cart.yourInfo.title")}
+            hint={formData.customerName.trim() || formData.customerPhone.trim() || null}
+            icon={<UserIcon size={16} strokeWidth={2} style={{ color: "var(--ve-ink-3)" }} />}
+          >
+            <div className="-mx-4 -mb-4 overflow-hidden" style={{ boxShadow: "inset 0 0.5px 0 var(--ve-line)" }}>
+              {fields}
+            </div>
+          </CartCollapsibleRow>
+        </div>
+      );
+    }
+    return <div className="ve-card overflow-hidden">{fields}</div>;
   };
 
   const returnFromPayment = () => {
@@ -3540,35 +3610,38 @@ export default function CartPage() {
     provider: "swish" | "stripe";
   }> = [
     { id: "swish", label: "Swish", hint: "Betala direkt", provider: "swish" },
-    { id: "stripe_all", label: "Fler betalmetoder", hint: "Apple Pay, Klarna, kort, Google Pay", provider: "stripe" },
+    { id: "stripe_all", label: "Kort och mer", hint: "Apple Pay, Klarna, kort, Google Pay", provider: "stripe" },
   ];
 
+  // Betalmärken: Swish-loggan i en vit platta; för den samlade Stripe-sidan
+  // en rad små, lugna varumärkesmarkeringar (Apple Pay · Klarna · Visa ·
+  // Mastercard · G Pay) så kunden ser i förväg vad som väntar.
   const renderMethodMark = (method: CheckoutMethod) => {
     if (method === "swish") {
       return (
-        <span aria-hidden="true" className="grid h-10 w-[94px] shrink-0 place-items-center rounded-xl bg-white px-2.5" style={{ border: "1px solid rgba(23,26,27,0.10)" }}>
-          <img src="/swish-logo.svg" alt="" className="h-auto w-full" />
+        <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-[13px] bg-white overflow-hidden" style={{ boxShadow: "inset 0 0 0 0.5px var(--ve-line)" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/swish-logo.svg" alt="" className="h-auto w-[34px]" />
         </span>
       );
     }
-    // Samlade hosted-sidan: loggorna visar i förväg exakt vad som väntar —
-    // Apple Pay och Klarna först (mest eftersökta), sedan kort och Google Pay.
-    // De ligger på egen rad under texten så rubriken aldrig kläms ihop.
     return (
-      <span aria-hidden="true" className="flex h-10 w-full max-w-xs items-center gap-1.5 rounded-xl bg-white px-2" style={{ border: "1px solid rgba(23,26,27,0.10)" }}>
-        <span className="flex items-center gap-0.5 text-[8px] font-semibold tracking-[-0.03em] text-black">
-          <svg viewBox="0 0 384 512" focusable="false" className="h-[14px] w-[11px] fill-current" role="presentation">
+      <span aria-hidden="true" className="flex items-center gap-1.5">
+        <span className="inline-flex h-[22px] items-center gap-0.5 rounded-[6px] bg-black px-1.5 text-[9px] font-semibold tracking-[-0.03em] text-white">
+          <svg viewBox="0 0 384 512" focusable="false" className="h-[11px] w-[9px] fill-current" role="presentation">
             <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5c0 26.2 4.8 53.3 14.4 81.2 12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.7-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.6-90-61.6-91.9zm-57.5-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
           </svg>
           <span>Pay</span>
         </span>
-        <span className="rounded-[5px] bg-[#FFB3C7] px-1 py-0.5 text-[7.5px] font-black tracking-[-0.04em] text-black">Klarna.</span>
-        <span className="text-[10px] font-black italic tracking-[-0.08em] text-[#1434CB]">VISA</span>
-        <span className="relative h-[15px] w-[24px]">
-          <span className="absolute left-0 top-0 h-[15px] w-[15px] rounded-full bg-[#EB001B]" />
-          <span className="absolute right-0 top-0 h-[15px] w-[15px] rounded-full bg-[#F79E1B] opacity-90" />
+        <span className="inline-flex h-[22px] items-center rounded-[6px] bg-[#FFB3C7] px-1.5 text-[9px] font-black tracking-[-0.04em] text-black">Klarna.</span>
+        <span className="inline-flex h-[22px] items-center rounded-[6px] bg-white px-1.5 text-[10px] font-black italic tracking-[-0.08em] text-[#1434CB]" style={{ boxShadow: "inset 0 0 0 0.5px var(--ve-line)" }}>VISA</span>
+        <span className="inline-flex h-[22px] items-center rounded-[6px] bg-white px-1.5" style={{ boxShadow: "inset 0 0 0 0.5px var(--ve-line)" }}>
+          <span className="relative h-[13px] w-[21px]">
+            <span className="absolute left-0 top-0 h-[13px] w-[13px] rounded-full bg-[#EB001B]" />
+            <span className="absolute right-0 top-0 h-[13px] w-[13px] rounded-full bg-[#F79E1B] opacity-90" />
+          </span>
         </span>
-        <span className="whitespace-nowrap text-[8px] font-semibold tracking-[-0.04em] text-[#3C4043]"><span className="text-[#4285F4]">G</span> Pay</span>
+        <span className="inline-flex h-[22px] items-center whitespace-nowrap rounded-[6px] bg-white px-1.5 text-[9px] font-semibold tracking-[-0.04em] text-[#3C4043]" style={{ boxShadow: "inset 0 0 0 0.5px var(--ve-line)" }}><span className="text-[#4285F4]">G</span> Pay</span>
       </span>
     );
   };
@@ -3580,24 +3653,28 @@ export default function CartPage() {
     void startCheckout(event, method);
   };
 
-  const renderPaymentMethodChoice = (method: (typeof paymentMethods)[number], keyPrefix = "") => (
+  // En betalrad: märke · titel + undertext · chevron. Kort-raden visar
+  // varumärkena under texten.
+  const renderPaymentMethodChoice = (method: (typeof paymentMethods)[number], keyPrefix = "", last = false) => (
     <button
       key={`${keyPrefix}${method.id}`}
       type="button"
       onClick={(event) => { choosePaymentMethod(event, method.id); }}
       disabled={loading || embeddedStripeProcessing}
-      className="flex w-full items-center gap-3.5 rounded-2xl border p-3.5 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 disabled:opacity-50"
-      style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-primary)" }}
+      className="ve-row-press flex w-full items-center gap-3.5 px-4 py-3.5 text-left disabled:opacity-50"
+      style={{ boxShadow: last ? undefined : hairline }}
     >
-      {method.id === "swish" && renderMethodMark(method.id)}
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center justify-between gap-3">
-          <span className="text-[15px] font-semibold" style={{ color: "var(--text-primary)" }}>{method.label}</span>
-          <ArrowRight size={18} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
+      {method.id === "swish" ? renderMethodMark(method.id) : (
+        <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-[13px]" style={{ backgroundColor: "var(--ve-fill)" }}>
+          <CreditCard size={19} strokeWidth={2} style={{ color: "var(--ve-ink)" }} />
         </span>
-        <span className="mt-0.5 block text-[12.5px] leading-4" style={{ color: "var(--text-secondary)" }}>{method.hint}</span>
-        {method.id !== "swish" && <span className="mt-2.5 block">{renderMethodMark(method.id)}</span>}
+      )}
+      <span className="min-w-0 flex-1">
+        <span className="block text-[16px] font-semibold" style={{ color: "var(--ve-ink)", letterSpacing: "-0.01em" }}>{method.label}</span>
+        <span className="mt-0.5 block text-[13px]" style={{ color: "var(--ve-ink-2)" }}>{method.hint}</span>
+        {method.id !== "swish" && <span className="mt-2 block">{renderMethodMark(method.id)}</span>}
       </span>
+      <ChevronRight size={18} strokeWidth={2.2} className="shrink-0" style={{ color: "var(--ve-ink-3)" }} />
     </button>
   );
 
@@ -3620,15 +3697,15 @@ export default function CartPage() {
         <button
           type="button"
           disabled
-          className="flex h-[52px] w-full items-center justify-center gap-3 rounded-xl bg-gold-500 px-5 text-[15.5px] font-semibold opacity-50"
-          style={{ color: "#FFFFFF" }}
+          className="flex h-[54px] w-full items-center justify-center gap-2.5 rounded-full px-5 text-[16px] font-semibold"
+          style={{ backgroundColor: "var(--ve-fill-2)", color: "var(--ve-ink-3)" }}
         >
           {loading
-            ? <Loader2 className="animate-spin" size={22} />
+            ? <Loader2 className="animate-spin" size={20} />
             : bogoMustPick
               ? t("cart.bogo.mustPick")
               : addressZoneStatus === "checking"
-                ? <><Loader2 className="animate-spin" size={20} /> {t("cart.submit.checking")}</>
+                ? <><Loader2 className="animate-spin" size={18} /> {t("cart.submit.checking")}</>
                 : checkoutBelowMinimum
                   ? t("cart.submit.short", { amount: formatSekAmount(Math.ceil(effectiveMinOrder - Math.max(0, subtotal - foodDiscountComponent))) })
                   : addressZoneStatus === "error"
@@ -3638,15 +3715,19 @@ export default function CartPage() {
       );
     }
     return (
-      <div className="space-y-2.5">
-        {methods.map((method) => renderPaymentMethodChoice(method, keyPrefix))}
+      <div className="space-y-3">
+        {methods.length > 0 && (
+          <div className="ve-card overflow-hidden">
+            {methods.map((method, i) => renderPaymentMethodChoice(method, keyPrefix, i === methods.length - 1))}
+          </div>
+        )}
         {!paymentProvidersLoaded && (
-          <p className="flex items-center justify-center gap-2 rounded-2xl border p-3.5 text-[13px]" style={{ borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}>
+          <p className="ve-card m-0 flex items-center justify-center gap-2 px-4 py-3.5 text-[14px]" style={{ color: "var(--ve-ink-3)" }}>
             <Loader2 size={16} className="animate-spin" /> Hämtar betalsätt…
           </p>
         )}
         {paymentProvidersLoaded && methods.length === 0 && (
-          <p className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-3.5 text-[13px] text-rose-600">
+          <p className="m-0 rounded-[18px] px-4 py-3.5 text-[14px] font-medium" style={{ backgroundColor: "var(--ve-danger-soft)", color: "var(--ve-danger)" }}>
             Inget betalsätt är tillgängligt just nu.
           </p>
         )}
@@ -3654,835 +3735,426 @@ export default function CartPage() {
     );
   };
 
+  const renderErrorCard = (extraClass = "") => error ? (
+    <div role="alert" className={`rounded-[18px] px-4 py-3.5 text-[14px] leading-5 ${extraClass}`} style={{ backgroundColor: "var(--ve-danger-soft)", color: "var(--ve-danger)" }}>
+      <p className="m-0 font-medium">{error}</p>
+      {pendingOrderId && (
+        <button type="button" onClick={() => { void handlePaymentCancelled(pendingOrderId); }} className="ve-press mt-3 h-9 rounded-full px-4 text-[13.5px] font-semibold" style={{ backgroundColor: "var(--ve-danger)", color: "#fff" }}>
+          Avbryt väntande betalning säkert
+        </button>
+      )}
+    </div>
+  ) : null;
+
   const renderPaymentStep = () => {
     // Hosted-sidan behöver ingen publishable key i klienten — Stripe äger
     // hela betalsidan. Endast providerlistan från servern styr synligheten.
     const methods = paymentMethods.filter((method) =>
       availablePaymentProviders.includes(method.provider),
     );
+    const heading = selectedCheckoutMethod ? paymentMethods.find((method) => method.id === selectedCheckoutMethod)?.label || "Betalning" : "Välj betalsätt";
     return (
-      <div className="mx-auto w-full max-w-2xl px-1 sm:px-4">
-        <button
-          type="button"
-          onClick={returnFromPayment}
-          // Under en väntande Swish-request pågår statuspollning
-          // (verifyingPayment) — då ska Tillbaka ändå fungera och göra samma
-          // säkra avbryt som Avbryt-knappen, inte vara en död knapp.
-          disabled={loading || embeddedStripeProcessing || cancellingPayment || (verifyingPayment && !swishCheckout)}
-          className="mb-6 inline-flex items-center gap-1.5 text-[13.5px] font-semibold transition-opacity hover:opacity-70 disabled:opacity-50"
-          style={{ color: "var(--text-secondary)" }}
-        >
-          <ChevronLeft size={17} /> {selectedCheckoutMethod || pendingOrderId ? "Tillbaka till betalsätt" : "Tillbaka till kassan"}
-        </button>
-
-        <section className="rounded-3xl p-5 sm:p-8" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
-          <div className="flex items-start justify-between gap-4 border-b pb-5" style={{ borderColor: "var(--border-muted)" }}>
-            <div>
-              <p className="text-[12px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--text-secondary)" }}>Säker betalning</p>
-              <h1 className="mt-1 text-2xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
-                {selectedCheckoutMethod ? paymentMethods.find((method) => method.id === selectedCheckoutMethod)?.label || "Betalning" : "Välj betalsätt"}
-              </h1>
-              <p className="mt-1 text-[13px]" style={{ color: "var(--text-secondary)" }}>
-                {cartRestaurantName ? `${cartRestaurantName} · ` : ""}{orderType === "DELIVERY" ? "Leverans" : "Avhämtning"}
-              </p>
-            </div>
-            <div className="text-right shrink-0">
-              <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--text-secondary)" }}>Att betala</p>
-              <p className="mt-1 text-[20px] font-bold" style={{ color: "var(--gold-ink)", fontVariantNumeric: "tabular-nums" }}>{formatSekAmount(total)} SEK</p>
-            </div>
+      <div className="mx-auto w-full max-w-[680px]">
+        <div className="flex items-center gap-3 mb-5">
+          <button
+            type="button"
+            onClick={returnFromPayment}
+            // Under en väntande Swish-request pågår statuspollning
+            // (verifyingPayment) — då ska Tillbaka ändå fungera och göra samma
+            // säkra avbryt som Avbryt-knappen, inte vara en död knapp.
+            disabled={loading || embeddedStripeProcessing || cancellingPayment || (verifyingPayment && !swishCheckout)}
+            aria-label={selectedCheckoutMethod || pendingOrderId ? "Tillbaka till betalsätt" : "Tillbaka till kassan"}
+            className="ve-press w-10 h-10 rounded-full grid place-items-center disabled:opacity-40"
+            style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}
+          >
+            <ChevronLeft size={20} strokeWidth={2.4} className="-ml-0.5" />
+          </button>
+          <div className="min-w-0">
+            <h1 className="m-0 text-[24px] font-semibold leading-tight" style={{ color: "var(--ve-ink)", letterSpacing: "-0.022em" }}>{heading}</h1>
+            <p className="m-0 mt-0.5 text-[13.5px] truncate" style={{ color: "var(--ve-ink-3)" }}>
+              {cartRestaurantName ? `${cartRestaurantName} · ` : ""}{orderType === "DELIVERY" ? "Leverans" : "Avhämtning"}
+            </p>
           </div>
+          <div className="ml-auto text-right shrink-0">
+            <p className="m-0 text-[12px]" style={{ color: "var(--ve-ink-3)" }}>Att betala</p>
+            <p className="ve-tabular m-0 text-[20px] font-semibold leading-tight" style={{ color: "var(--ve-ink)", letterSpacing: "-0.02em" }}>{formatSekAmount(total)} kr</p>
+          </div>
+        </div>
 
-          {error && (
-            <div role="alert" className="mt-5 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-[13.5px] leading-5 text-rose-600">
-              <p>{error}</p>
-              {pendingOrderId && (
-                <button type="button" onClick={() => { void handlePaymentCancelled(pendingOrderId); }} className="mt-3 rounded-xl border border-rose-500/30 px-3 py-2 text-[12.5px] font-semibold">
-                  Avbryt väntande betalning säkert
-                </button>
-              )}
-            </div>
-          )}
+        {renderErrorCard("mb-4")}
 
-          {swishCheckout ? (
-            <div className="mt-6 text-center">
-              <div className="mx-auto grid h-12 w-28 place-items-center rounded-xl bg-white px-2.5" style={{ border: "1px solid rgba(23,26,27,0.10)" }}>
-                <img src="/swish-logo.svg" alt="Swish" className="h-auto w-full" />
-              </div>
-              <p className="mx-auto mt-4 max-w-md text-[13.5px] leading-5" style={{ color: "var(--text-secondary)" }}>
-                {isHandheld
-                  ? "Godkänn belopp och mottagare i Swish. Om appen inte öppnades kan du använda knappen nedan."
-                  : "Skanna QR-koden med Swish-appen. Beloppet är redan ifyllt och betalningen verifieras automatiskt."}
+        {swishCheckout ? (
+          <section className="ve-card px-5 py-7 text-center">
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-[16px] bg-white" style={{ boxShadow: "inset 0 0 0 0.5px var(--ve-line)" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/swish-logo.svg" alt="Swish" className="h-auto w-[42px]" />
+            </div>
+            <p className="mx-auto mt-4 max-w-sm text-[15px] leading-[1.45]" style={{ color: "var(--ve-ink-2)" }}>
+              {isHandheld
+                ? "Godkänn belopp och mottagare i Swish. Om appen inte öppnades kan du använda knappen nedan."
+                : "Skanna QR-koden med Swish-appen. Beloppet är redan ifyllt och betalningen verifieras automatiskt."}
+            </p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {!isHandheld && <img src={swishCheckout.qrCode} alt="QR-kod för Swish-betalningen" className="mx-auto mt-5 h-52 w-52 rounded-[20px] bg-white p-2" style={{ boxShadow: "inset 0 0 0 0.5px var(--ve-line)" }} />}
+            {/* target="_top" i embedden: en cross-origin iframe får bara
+                lämna till ett custom-schema via en top-navigation med
+                användaraktivering. onClick ber dessutom partnersidan göra
+                hoppet, så knappen fungerar även om browsern stoppar det
+                ena spåret. Swish visar samma betalning oavsett vilket som
+                vinner — token:en är densamma. */}
+            <a
+              href={swishCheckout.appUrl}
+              target={embedMode ? "_top" : undefined}
+              rel="noopener"
+              onClick={() => { if (embedMode) openSwishApp(swishCheckout.appUrl); }}
+              className="ve-press mt-6 flex h-[54px] w-full items-center justify-center gap-2 rounded-full px-5 text-[16px] font-semibold"
+              style={{ backgroundColor: "var(--ve-cta)", color: "var(--ve-cta-ink)" }}
+            >
+              {isHandheld ? "Öppna Swish" : "Öppna Swish på den här enheten"} <ArrowRight size={18} />
+            </a>
+            <button type="button" onClick={() => { void handlePaymentCancelled(swishCheckout.orderId); }} className="mt-3 h-10 px-4 text-[14px] font-medium" style={{ color: "var(--ve-ink-2)" }}>
+              Avbryt betalningen säkert
+            </button>
+          </section>
+        ) : verifyingPayment ? (
+          <section className="ve-card flex min-h-64 flex-col items-center justify-center gap-3 px-5 py-10 text-center">
+            <Loader2 size={28} className="animate-spin" style={{ color: "var(--ve-ink)" }} />
+            <h2 className="m-0 text-[18px] font-semibold" style={{ color: "var(--ve-ink)", letterSpacing: "-0.015em" }}>{cancellingPayment ? "Avslutar betalningsförsöket" : "Verifierar betalningen"}</h2>
+            <p className="m-0 max-w-sm text-[14px] leading-5" style={{ color: "var(--ve-ink-2)" }}>
+              {cancellingPayment
+                ? "Vi stänger det gamla försöket automatiskt. När avbrottet är bekräftat visas betalsätten igen med varukorgen kvar."
+                : "Väntar på betalningsbekräftelse."}
+            </p>
+          </section>
+        ) : hostedCheckoutUrl ? (
+          <section className="ve-card px-5 py-7 text-center">
+            <p className="m-0 text-[15px] leading-[1.45]" style={{ color: "var(--ve-ink-2)" }}>Betalningen öppnas på den översta sidan för att fungera i restaurangens inbäddade kassa.</p>
+            <a href={hostedCheckoutUrl} target="_top" rel="noopener" className="ve-press mt-6 flex h-[54px] w-full items-center justify-center gap-2 rounded-full px-5 text-[16px] font-semibold" style={{ backgroundColor: "var(--ve-cta)", color: "var(--ve-cta-ink)" }}>Öppna säker betalning <ArrowRight size={18} /></a>
+          </section>
+        ) : selectedCheckoutMethod && loading ? (
+          <section className="ve-card flex min-h-56 flex-col items-center justify-center gap-3 px-5 py-8 text-center">
+            <Loader2 size={26} className="animate-spin" style={{ color: "var(--ve-ink)" }} />
+            <p className="m-0 text-[14px]" style={{ color: "var(--ve-ink-2)" }}>Öppnar säker betalning…</p>
+          </section>
+        ) : pendingOrderId ? (
+          <section className="ve-card flex min-h-56 flex-col items-center justify-center gap-3 px-5 py-8 text-center">
+            <span className="w-11 h-11 rounded-full grid place-items-center" style={{ backgroundColor: "var(--ve-accent-soft)" }}>
+              <AlertCircle size={22} style={{ color: "var(--ve-accent)" }} />
+            </span>
+            <p className="m-0 max-w-md text-[14px] leading-5" style={{ color: "var(--ve-ink-2)" }}>Det tidigare betalningsförsöket kan fortfarande behandlas. Öppningslänken är dold för att undvika en oavsiktlig debitering. Vänta på status eller avbryt säkert.</p>
+            <button type="button" onClick={() => { void handlePaymentCancelled(pendingOrderId); }} className="ve-press mt-1 h-10 rounded-full px-5 text-[14px] font-semibold" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>Avbryt väntande betalning säkert</button>
+          </section>
+        ) : (
+          <div className="space-y-3">
+            {/* Valen görs i kassan. Hamnar man ändå här utan aktivt försök
+                (t.ex. efter en avbruten retur) leder raderna tillbaka dit. */}
+            <div className="ve-card overflow-hidden">
+              {methods.map((method, i) => renderPaymentMethodChoice(method, "step-", i === methods.length - 1))}
+            </div>
+            {payDebug && (
+              <p className="m-0 rounded-[12px] px-3 py-2 text-center font-mono text-[10.5px]" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink-2)" }}>
+                paydebug · pk: {stripePublishableKey ? (stripePublishableKey.startsWith("pk_live_") ? "live" : "test") : "saknas"}
+                {" · "}providers: {availablePaymentProviders.join("+") || "inga"}
+                {" · "}embed: {embedMode ? "ja" : "nej"}
               </p>
-              {!isHandheld && <img src={swishCheckout.qrCode} alt="QR-kod för Swish-betalningen" className="mx-auto mt-5 h-52 w-52 rounded-2xl bg-white p-2" />}
-              {/* target="_top" i embedden: en cross-origin iframe får bara
-                  lämna till ett custom-schema via en top-navigation med
-                  användaraktivering. onClick ber dessutom partnersidan göra
-                  hoppet, så knappen fungerar även om browsern stoppar det
-                  ena spåret. Swish visar samma betalning oavsett vilket som
-                  vinner — token:en är densamma. */}
-              <a
-                href={swishCheckout.appUrl}
-                target={embedMode ? "_top" : undefined}
-                rel="noopener"
-                onClick={() => { if (embedMode) openSwishApp(swishCheckout.appUrl); }}
-                className="mt-5 flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-[#2C2C2C] px-4 text-[15px] font-semibold text-white"
-              >
-                {isHandheld ? "Öppna Swish" : "Öppna Swish på den här enheten"} <ArrowRight size={18} />
-              </a>
-              <button type="button" onClick={() => { void handlePaymentCancelled(swishCheckout.orderId); }} className="mt-3 h-10 px-4 text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
-                Avbryt betalningen säkert
-              </button>
-            </div>
-          ) : verifyingPayment ? (
-            <div className="flex min-h-64 flex-col items-center justify-center gap-3 py-10 text-center">
-              <Loader2 size={30} className="animate-spin" style={{ color: "var(--gold-ink)" }} />
-              <h2 className="text-[17px] font-semibold" style={{ color: "var(--text-primary)" }}>{cancellingPayment ? "Avslutar betalningsförsöket" : "Verifierar betalningen"}</h2>
-              <p className="max-w-sm text-[13px] leading-5" style={{ color: "var(--text-secondary)" }}>
-                {cancellingPayment
-                  ? "Vi stänger det gamla försöket automatiskt. När avbrottet är bekräftat visas betalsätten igen med varukorgen kvar."
-                  : "Väntar på betalningsbekräftelse."}
-              </p>
-            </div>
-          ) : hostedCheckoutUrl ? (
-            <div className="mt-6 text-center">
-              <p className="text-[13.5px] leading-5" style={{ color: "var(--text-secondary)" }}>Betalningen måste öppnas på den översta sidan för att fungera i restaurangens inbäddade kassa.</p>
-              <a href={hostedCheckoutUrl} target="_top" rel="noopener" className="mt-5 flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-gold-500 px-4 text-[15px] font-semibold text-white">Öppna säker betalning <ArrowRight size={18} /></a>
-            </div>
-          ) : selectedCheckoutMethod && loading ? (
-            <div className="flex min-h-56 flex-col items-center justify-center gap-3 py-8 text-center">
-              <Loader2 size={28} className="animate-spin" style={{ color: "var(--gold-ink)" }} />
-              <p className="text-[13.5px]" style={{ color: "var(--text-secondary)" }}>Öppnar säker betalning…</p>
-            </div>
-          ) : pendingOrderId ? (
-            <div className="flex min-h-56 flex-col items-center justify-center gap-3 py-8 text-center">
-              <AlertCircle size={26} className="text-amber-500" />
-              <p className="max-w-md text-[13.5px] leading-5" style={{ color: "var(--text-secondary)" }}>Det tidigare betalningsförsöket kan fortfarande behandlas. Öppningslänken är dold för att undvika en oavsiktlig debitering. Vänta på status eller avbryt säkert.</p>
-              <button type="button" onClick={() => { void handlePaymentCancelled(pendingOrderId); }} className="mt-2 rounded-xl border px-4 py-2.5 text-[13px] font-semibold" style={{ borderColor: "var(--border-muted)", color: "var(--text-primary)" }}>Avbryt väntande betalning säkert</button>
-            </div>
-          ) : (
-            <div className="mt-6 space-y-3">
-              {/* Valen görs i kassan. Hamnar man ändå här utan aktivt försök
-                  (t.ex. efter en avbruten retur) leder knappen tillbaka dit. */}
-              {methods.map((method) => renderPaymentMethodChoice(method, "step-"))}
-              {payDebug && (
-                <p className="rounded-lg px-2 py-1.5 text-center font-mono text-[10.5px]" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-secondary)" }}>
-                  paydebug · pk: {stripePublishableKey ? (stripePublishableKey.startsWith("pk_live_") ? "live" : "test") : "saknas"}
-                  {" · "}providers: {availablePaymentProviders.join("+") || "inga"}
-                  {" · "}embed: {embedMode ? "ja" : "nej"}
-                </p>
-              )}
-            </div>
-          )}
-        </section>
+            )}
+          </div>
+        )}
       </div>
     );
   };
 
-  return (
-    <div className="min-h-screen pt-[calc(env(safe-area-inset-top,0px)+1rem)] sm:pt-12 md:pt-20 pb-36 px-3 sm:px-6 lg:px-10 xl:px-16" style={{ backgroundColor: "var(--bg-primary)" }}>
-      {paymentStepOpen ? renderPaymentStep() : (
-      <div className="max-w-[1400px] mx-auto">
-        <div className="flex items-end justify-between mb-4 lg:mb-8 px-1 sm:px-4">
-           <div className="min-w-0">
-              {embedMode && (
-                <Link
-                  href={embedMenuHref}
-                  className="mb-3 inline-flex items-center gap-1 text-[13px] font-semibold hover:opacity-70"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  <ChevronLeft size={16} /> Tillbaka till restaurangen
-                </Link>
-              )}
-              {/* Titel "Varukorg" + subtitel = restaurang · leverans/avhämtning ~ETA
-                  (enligt mockup). Restaurangnamnet är klickbart tillbaka till menyn. */}
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight leading-tight mb-1" style={{ color: "var(--text-primary)" }}>{t("cart.heading.prefix")}</h1>
-              <p className="text-[13.5px]" style={{ color: "var(--text-secondary)" }}>
-                {cartRestaurantName ? (
-                  <Link href={embedMode ? embedMenuHref : (cartRestaurantSlug ? `/restaurants/${cartRestaurantSlug}` : "/")} className="font-semibold hover:underline" style={{ color: "var(--text-primary)" }}>
-                    {cartRestaurantName}
-                  </Link>
-                ) : null}
-                {cartRestaurantName && <span className="mx-1.5" style={{ opacity: 0.5 }}>·</span>}
-                {orderType === "DELIVERY"
-                  ? `${t("cart.deliveryType.delivery")} ~${restaurantSettings.estimatedDeliveryTime} min`
-                  : t("cart.deliveryType.pickup")}
-              </p>
-           </div>
-           <Link href={embedMode ? embedMenuHref : (cartRestaurantSlug ? `/restaurants/${cartRestaurantSlug}` : "/menu")} className="text-[13.5px] font-semibold transition-colors flex items-center gap-1.5 mb-1 group shrink-0 ml-3 hover:opacity-70" style={{ color: "var(--text-primary)" }}>
-              {t("cart.addMore")} <Plus size={14} className="group-hover:rotate-90 transition-transform" />
-           </Link>
+  // Summering — rader i ett kort, totalen tydlig i bläck (inte orange).
+  const summaryRow = (label: React.ReactNode, value: React.ReactNode, tone: "default" | "success" | "warn" = "default") => (
+    <div className="flex items-baseline justify-between gap-4 text-[15px]" style={{ color: tone === "success" ? "var(--ve-success)" : tone === "warn" ? "var(--ve-accent)" : "var(--ve-ink-2)" }}>
+      <span className="min-w-0 truncate">{label}</span>
+      <span className="ve-tabular shrink-0 font-medium" style={{ color: tone === "default" ? "var(--ve-ink)" : undefined }}>{value}</span>
+    </div>
+  );
+
+  const renderDiscountRow = () => {
+    // Display-källan ska matcha vad som FAKTISKT appliceras på totalen.
+    // Ordningen matchar finalDiscount-prioriteten:
+    //   1. Användarens kupong  2. Vald account-deal  3. Pure-discount BOGO
+    //   4. Free-item BOGO (visas som Gratis-rad i listan, inte här)
+    //   5. Client-side automaticDeal
+    // Har kunden gjort ett explicit val visas BARA det.
+    if (selectedPersonalDeal) {
+      if (personalDiscount <= 0) {
+        return (selectedPersonalDeal.campaign.minOrder || 0) > subtotal
+          ? summaryRow(selectedPersonalDeal.code, t("cart.summary.discountPendingMin", { amount: formatSekAmount(selectedPersonalDeal.campaign.minOrder || 0) }), "warn")
+          : null;
+      }
+      return summaryRow(t("cart.summary.coupon", { code: selectedPersonalDeal.code }), `−${formatSekAmount(personalDiscount)} kr`, "success");
+    }
+    if (selectedAccountDealId) {
+      if (accountDealDiscount <= 0) {
+        return selectedAccountDeal && (selectedAccountDeal.minOrderKr ?? 0) > subtotal
+          ? summaryRow(formatDealLabel(selectedAccountDeal, t), t("cart.summary.discountPendingMin", { amount: formatSekAmount(selectedAccountDeal.minOrderKr ?? 0) }), "warn")
+          : null;
+      }
+      return summaryRow(selectedAccountDeal ? dealTypeLabel(selectedAccountDeal.type, t) : t("cart.summary.reward"), `−${formatSekAmount(accountDealDiscount)} kr`, "success");
+    }
+    if (!automaticDealDismissed && welcomeDiscount > 0 && welcomeDiscount >= automaticDeal.discountAmount && welcomeDiscount >= bogoDiscount) {
+      return summaryRow(welcomeOffer?.title, `−${formatSekAmount(welcomeDiscount)} kr`, "success");
+    }
+    if (!automaticDealDismissed && bogoPreview && !bogoPreview.isPickReward && bogoDiscount > 0) {
+      return summaryRow(bogoChoice && !bogoIsPureDiscount ? bogoChoice.product.name : bogoPreview.dealTitle, `−${formatSekAmount(bogoDiscount)} kr`, "success");
+    }
+    if (!automaticDealDismissed && automaticDeal.deal && automaticDeal.discountAmount > 0) {
+      return summaryRow(automaticDeal.deal.title, `−${formatSekAmount(automaticDeal.discountAmount)} kr`, "success");
+    }
+    return null;
+  };
+
+  const renderSummary = () => (
+    <section className="ve-card px-4 py-4 space-y-2.5">
+      {summaryRow(t("cart.summary.subtotal"), `${formatSekAmount(subtotal)} kr`)}
+      {orderType === "DELIVERY" && summaryRow(t("cart.summary.deliveryFee"), addressZoneStatus === "checking" ? t("cart.summary.deliveryCalculating") : (deliveryFee === 0 ? "Gratis" : `${formatSekAmount(deliveryFee)} kr`))}
+      {effectiveTip > 0 && summaryRow(t("cart.summary.tip"), `${formatSekAmount(effectiveTip)} kr`)}
+      {minOrderTopUp > 0 && summaryRow(t("cart.summary.minOrderTopUp"), `${formatSekAmount(minOrderTopUp)} kr`)}
+      {renderDiscountRow()}
+      {typeof vatPercent === "number" && summaryRow(t("cart.summary.vat", { percent: vatPercent }), `${formatSekAmount(vatAmount)} kr`)}
+      <div className="flex items-baseline justify-between gap-4 pt-3 mt-1" style={{ boxShadow: "inset 0 0.5px 0 var(--ve-line)" }}>
+        <span className="text-[17px] font-semibold" style={{ color: "var(--ve-ink)", letterSpacing: "-0.015em" }}>{t("cart.summary.total")}</span>
+        <span className="ve-tabular text-[22px] font-semibold" style={{ color: "var(--ve-ink)", letterSpacing: "-0.02em" }}>{formatSekAmount(total)} kr</span>
+      </div>
+    </section>
+  );
+
+  const menuHref = embedMode ? embedMenuHref : (cartRestaurantSlug ? `/restaurants/${cartRestaurantSlug}` : "/");
+
+  // Varukorgsrad: bild · namn + tillval (tryck = ändra) · pris + stepper.
+  const renderCartItem = (item: (typeof items)[number], idx: number) => {
+    const last = idx === items.length - 1;
+    const extrasText = item.extras.map((e) => ((e.quantity ?? 1) > 1 ? `${e.name} ×${e.quantity}` : e.name)).join(" · ");
+    const lineTotal = item.price * item.quantity;
+    return (
+      <motion.div key={item.cartItemId} layout className="mx-4 flex items-center gap-3 py-3" style={{ boxShadow: last ? undefined : hairline }}>
+        {item.imageUrl ? (
+          <span className="relative shrink-0 w-[60px] h-[60px] rounded-[14px] overflow-hidden" style={{ backgroundColor: "#EBEBEE" }}>
+            <PlainImage src={item.imageUrl} alt="" width={128} className="absolute inset-0 w-full h-full object-cover" />
+          </span>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => handleEditCartItem(item)}
+          className="text-left flex-1 min-w-0 py-0.5"
+          aria-label={`${t("cart.tapToEdit")}: ${item.name}`}
+        >
+          <span className="block text-[16px] font-semibold leading-snug line-clamp-2" style={{ color: "var(--ve-ink)", letterSpacing: "-0.015em" }}>{item.name}</span>
+          {extrasText && (
+            <span className="block text-[13px] truncate mt-0.5" style={{ color: "var(--ve-ink-2)" }}>{extrasText}</span>
+          )}
+          {item.note && (
+            <span className="block text-[12.5px] truncate mt-0.5 italic" style={{ color: "var(--ve-ink-3)" }}>{item.note}</span>
+          )}
+        </button>
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          {item.bogoFreeFromDealId ? (
+            <span className="text-[13px] font-semibold rounded-full px-2 py-0.5" style={{ backgroundColor: "var(--ve-accent-soft)", color: "var(--ve-accent)" }}>{t("cart.bogo.freeTag")}</span>
+          ) : item.catalogDiscountApplied && typeof item.originalPrice === "number" && item.originalPrice > item.price ? (
+            <span className="ve-tabular flex items-baseline gap-1.5">
+              <span className="text-[15px] font-semibold" style={{ color: "var(--ve-ink)" }}>{formatSekAmount(lineTotal)} kr</span>
+              <span className="text-[12.5px] line-through" style={{ color: "var(--ve-ink-3)" }}>{formatSekAmount(item.originalPrice * item.quantity)}</span>
+            </span>
+          ) : (
+            <span className="ve-tabular text-[15px] font-semibold" style={{ color: "var(--ve-ink)" }}>{formatSekAmount(lineTotal)} kr</span>
+          )}
+          <div className="flex items-center h-8 rounded-full" style={{ backgroundColor: "var(--ve-fill)" }}>
+            <button
+              type="button"
+              onClick={() => { if (item.quantity === 1) { removeItem(item.cartItemId); } else { updateQuantity(item.cartItemId, -1); } }}
+              className="w-8 h-8 rounded-full grid place-items-center transition-opacity active:opacity-60"
+              style={{ color: "var(--ve-ink)" }}
+              aria-label={item.quantity === 1 ? "Ta bort" : "Minska antal"}
+            >
+              {item.quantity === 1 ? <Trash2 size={13} strokeWidth={2.2} /> : <Minus size={13} strokeWidth={2.6} />}
+            </button>
+            <span className="ve-tabular min-w-[16px] text-center text-[14px] font-semibold" style={{ color: "var(--ve-ink)" }}>{item.quantity}</span>
+            <button
+              type="button"
+              onClick={() => updateQuantity(item.cartItemId, 1)}
+              className="w-8 h-8 rounded-full grid place-items-center transition-opacity active:opacity-60"
+              style={{ color: "var(--ve-ink)" }}
+              aria-label="Öka antal"
+            >
+              <Plus size={13} strokeWidth={2.6} />
+            </button>
+          </div>
         </div>
+      </motion.div>
+    );
+  };
 
-        {/* BOGO-deal lost — visas när kundens valda gratis-vara plötsligt
-            försvinner pga expiry eller villkorsändring. */}
-        <AnimatePresence>
-          {bogoLostNotice && (
-            <motion.div
-              key="bogo-lost"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="rounded-2xl mb-6 border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex items-start gap-3"
-            >
-              <AlertCircle size={16} className="text-amber-400 shrink-0 mt-0.5" />
-              <p className="flex-1 text-[11px] font-bold text-amber-200 leading-snug">
-                {bogoLostNotice}
-              </p>
-              <button
-                onClick={() => setBogoLostNotice(null)}
-                className="text-amber-300/60 hover:text-amber-200 transition-colors shrink-0"
-                aria-label={t("common.close")}
-              >
-                <X size={14} />
-              </button>
-            </motion.div>
-          )}
-          {menuChangedNotice && (
-            <motion.div
-              key="menu-changed"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="rounded-2xl mb-6 border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex items-start gap-3"
-            >
-              <AlertCircle size={16} className="text-amber-400 shrink-0 mt-0.5" />
-              <p className="flex-1 text-[11px] font-bold text-amber-200 leading-snug">
-                {menuChangedNotice}
-              </p>
-              <button
-                onClick={() => setMenuChangedNotice(null)}
-                className="text-amber-300/60 hover:text-amber-200 transition-colors shrink-0"
-                aria-label={t("common.close")}
-              >
-                <X size={14} />
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+  const renderNotice = (key: string, text: string, onClose: () => void) => (
+    <motion.div
+      key={key}
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      className="mb-4 rounded-[18px] px-4 py-3 flex items-start gap-3"
+      style={{ backgroundColor: "var(--ve-accent-soft)" }}
+    >
+      <AlertCircle size={16} className="shrink-0 mt-0.5" style={{ color: "var(--ve-accent)" }} />
+      <p className="m-0 flex-1 text-[14px] font-medium leading-snug" style={{ color: "var(--ve-ink)" }}>{text}</p>
+      <button onClick={onClose} className="shrink-0 w-6 h-6 rounded-full grid place-items-center" style={{ backgroundColor: "rgba(240,79,26,0.12)", color: "var(--ve-accent)" }} aria-label={t("common.close")}>
+        <X size={12} strokeWidth={3} />
+      </button>
+    </motion.div>
+  );
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] xl:grid-cols-[1fr_480px] gap-4 lg:gap-8 items-start">
-          {/* Cart items list — kompakta en-rad-kort. Vänster kolumn växer
-              med tillgänglig bredd; höger sidebar har fast bredd och blir
-              sticky på desktop för att undvika scroll. */}
-          <div className="min-w-0">
-            {/* Flat lista med hårfina separatorer (mockup): stepper VÄNSTER,
-                namn+extras i mitten (klickbart för att ändra), pris höger. */}
-            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-muted)" }}>
-              {items.map((item, idx) => (
-                <motion.div
-                  key={item.cartItemId}
-                  layout
-                  className="px-3.5 py-3 flex items-center gap-3 group"
-                  style={{ borderTop: idx === 0 ? "none" : "1px solid var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}
-                >
-                  {/* Stepper — vänster, en samlad kontroll (− qty +) */}
-                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-full shrink-0" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
-                    <button
-                      onClick={() => { if (item.quantity === 1) { removeItem(item.cartItemId); } else { updateQuantity(item.cartItemId, -1); } }}
-                      className="w-6 h-6 rounded-full flex items-center justify-center active:scale-90 transition-all hover:opacity-100" style={{ color: "var(--text-secondary)" }}
-                      aria-label={item.quantity === 1 ? "Ta bort" : "Minska antal"}
-                    >
-                      {item.quantity === 1 ? <Trash2 size={13} strokeWidth={2.2} /> : <Minus size={13} strokeWidth={2.5} />}
-                    </button>
-                    <span className="text-[13px] font-bold w-3 text-center" style={{ color: "var(--text-primary)" }}>{item.quantity}</span>
-                    <button
-                      onClick={() => updateQuantity(item.cartItemId, 1)}
-                      className="w-6 h-6 rounded-full flex items-center justify-center active:scale-90 transition-all hover:opacity-70" style={{ color: "var(--text-primary)" }}
-                      aria-label="Öka antal"
-                    >
-                      <Plus size={13} strokeWidth={2.5} />
-                    </button>
-                  </div>
+  return (
+    <div className="ve-root min-h-screen pb-32 md:pt-20">
+      <div className="max-w-[680px] mx-auto px-4 pt-[calc(env(safe-area-inset-top,0px)+12px)] md:pt-6">
+        {paymentStepOpen ? renderPaymentStep() : (
+          <>
+            {/* Rubrik: tillbaka · Varukorg · restaurang + leveranssätt */}
+            <header className="flex items-center gap-3 mb-5">
+              <Link href={menuHref} aria-label={t("common.back")} className="ve-press w-10 h-10 rounded-full grid place-items-center shrink-0" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>
+                <ChevronLeft size={20} strokeWidth={2.4} className="-ml-0.5" />
+              </Link>
+              <div className="min-w-0 flex-1">
+                <h1 className="m-0 text-[26px] font-semibold leading-tight" style={{ color: "var(--ve-ink)", letterSpacing: "-0.024em" }}>{t("cart.heading.prefix")}</h1>
+                <p className="m-0 mt-0.5 text-[13.5px] truncate" style={{ color: "var(--ve-ink-3)" }}>
+                  {cartRestaurantName ? (
+                    <Link href={menuHref} className="font-medium" style={{ color: "var(--ve-ink-2)" }}>{cartRestaurantName}</Link>
+                  ) : null}
+                  {cartRestaurantName && <span className="mx-1.5">·</span>}
+                  {orderType === "DELIVERY"
+                    ? `${t("cart.deliveryType.delivery")} ~${restaurantSettings.estimatedDeliveryTime} min`
+                    : t("cart.deliveryType.pickup")}
+                </p>
+              </div>
+            </header>
 
-                  {/* Namn + extras — klickbart för att redigera */}
-                  <button
-                    type="button"
-                    onClick={() => handleEditCartItem(item)}
-                    className="text-left flex-1 min-w-0"
-                    aria-label={`${t("cart.tapToEdit")}: ${item.name}`}
-                  >
-                    <h3 className="text-[14.5px] font-semibold leading-snug line-clamp-2" style={{ color: "var(--text-primary)" }}>{item.name}</h3>
-                    {item.extras.length > 0 && (
-                      <p className="text-[12px] truncate mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                        {item.extras.map(e => (e.quantity ?? 1) > 1 ? `${e.name} ×${e.quantity}` : e.name).join(" · ")}
-                      </p>
-                    )}
-                  </button>
+            <AnimatePresence>
+              {bogoLostNotice && renderNotice("bogo-lost", bogoLostNotice, () => setBogoLostNotice(null))}
+              {menuChangedNotice && renderNotice("menu-changed", menuChangedNotice, () => setMenuChangedNotice(null))}
+            </AnimatePresence>
 
-                  {/* Pris — höger */}
-                  <div className="text-right shrink-0">
-                    {item.bogoFreeFromDealId ? (
-                      <div className="inline-flex items-center gap-1 text-[12px] font-semibold" style={{ color: "var(--gold-ink)" }}>{t("cart.bogo.freeTag")}</div>
-                    ) : item.catalogDiscountApplied && typeof item.originalPrice === "number" && item.originalPrice > item.price ? (
-                      <div className="flex flex-col items-end gap-0.5" style={{ fontVariantNumeric: "tabular-nums" }}>
-                        <div className="text-[14.5px] font-extrabold leading-none" style={{ color: "var(--orange, #F04F1A)" }}>
-                          {formatSekAmount(item.price * item.quantity)} kr
-                        </div>
-                        <div className="text-[11.5px] font-semibold line-through leading-none" style={{ color: "var(--text-secondary)" }}>
-                          {formatSekAmount(item.originalPrice * item.quantity)} kr
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-[14.5px] font-semibold leading-none" style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{formatSekAmount(item.price * item.quantity)} kr</div>
-                    )}
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+            {/* Varorna */}
+            <section className="ve-card overflow-hidden">
+              {items.map((item, idx) => renderCartItem(item, idx))}
+              <Link href={menuHref} className="ve-row-press flex items-center gap-3 px-4 py-3.5" style={{ boxShadow: hairline }}>
+                <span className="w-8 h-8 rounded-full grid place-items-center shrink-0" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>
+                  <Plus size={15} strokeWidth={2.6} />
+                </span>
+                <span className="flex-1 text-[15px] font-medium" style={{ color: "var(--ve-ink)" }}>{t("cart.addMore")}</span>
+                <ChevronRight size={17} strokeWidth={2.2} style={{ color: "var(--ve-ink-3)" }} />
+              </Link>
+            </section>
 
             {renderRecommendedRail()}
 
-            {/* Desktop left column: delivery details + pricing */}
-            <div className="hidden lg:block mt-5 space-y-4" id="desktop-left-extras">
-              <div className="p-5 rounded-2xl space-y-5" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+            {/* BOGO: välj gratisvara / valda gratisvaror */}
+            {bogoPreview && bogoPicksRemaining > 0 && bogoPreview.rewardProducts.length > 0 && (
+              <motion.button
+                type="button"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                onClick={() => setShowBogoPicker(true)}
+                className="ve-press ve-card mt-6 w-full px-4 py-3.5 text-left flex items-center gap-3.5"
+                style={{ backgroundColor: "var(--ve-ink)", color: "#fff" }}
+              >
+                <span className="shrink-0 w-10 h-10 rounded-full grid place-items-center" style={{ backgroundColor: "rgba(255,255,255,0.14)" }}>
+                  <Gift size={18} strokeWidth={2.2} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[16px] font-semibold" style={{ letterSpacing: "-0.01em" }}>
+                    {bogoPickedCount > 0
+                      ? (bogoPicksRemaining === 1 ? t("cart.bogo.pickMoreOne") : t("cart.bogo.pickMoreMany", { count: bogoPicksRemaining }))
+                      : t("cart.bogo.pickFree")}
+                  </span>
+                  <span className="block text-[13px] mt-0.5 line-clamp-1 opacity-70">
+                    {bogoPickedCount > 0
+                      ? t("cart.bogo.progress", { picked: bogoPickedCount, max: bogoMaxFreeItems })
+                      : bogoMaxFreeItems > 1
+                        ? t("cart.bogo.canPickMany", { max: bogoMaxFreeItems })
+                        : (bogoPreview.rewardCategoryName
+                            ? t("cart.bogo.notPickedNamed", { name: bogoPreview.rewardCategoryName.toLowerCase() })
+                            : t("cart.bogo.notPickedGeneric"))}
+                  </span>
+                </span>
+                <ChevronRight size={18} strokeWidth={2.2} className="shrink-0 opacity-70" />
+              </motion.button>
+            )}
+            {bogoPreview && bogoPickedCount > 0 && bogoPicksRemaining === 0 && (
+              <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="ve-card mt-6 px-4 py-3.5 flex items-center gap-3.5">
+                <span className="shrink-0 w-10 h-10 rounded-full grid place-items-center" style={{ backgroundColor: "var(--ve-success-soft)" }}>
+                  <Gift size={18} strokeWidth={2.2} style={{ color: "var(--ve-success)" }} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[15px] font-semibold" style={{ color: "var(--ve-ink)" }}>
+                    {bogoMaxFreeItems === 1 ? t("cart.bogo.pickedOne") : t("cart.bogo.pickedMany", { count: bogoPickedCount })}
+                  </span>
+                  <span className="block text-[13px] mt-0.5 truncate" style={{ color: "var(--ve-ink-3)" }}>{bogoPreview.dealTitle}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    items.filter((i) => i.bogoFreeFromDealId === bogoPreview.dealId).forEach((i) => removeItem(i.cartItemId));
+                    setShowBogoPicker(true);
+                  }}
+                  className="ve-press shrink-0 h-9 rounded-full px-4 text-[13.5px] font-semibold"
+                  style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}
+                >
+                  {t("cart.bogo.swap")}
+                </button>
+              </motion.div>
+            )}
 
-                {/* Kollapsade extras-rader (dricks/rabatter/rabattkod/meddelande)
-                    enligt mockup — samma delade render-block som mobil-flödet. */}
-                {renderCartExtras("dl")}
-                {renderMinOrderBanner()}
-
-                {/* Totals */}
-                <div className="pt-6 space-y-4" style={{ borderTop: "1px solid var(--border-muted)" }}>
-                  <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.subtotal")}</span><span>{formatSekAmount(subtotal)} {t("common.sek")}</span></div>
-                  {orderType === 'DELIVERY' && (
-                    <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
-                      <span>{t("cart.summary.deliveryFee")}</span>
-                      <span style={{ color: "var(--text-primary)" }}>{addressZoneStatus === "checking" ? t("cart.summary.deliveryCalculating") : `${formatSekAmount(deliveryFee)} ${t("common.sek")}`}</span>
-                    </div>
-                  )}
-                  {effectiveTip > 0 && <div className="flex justify-between text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.tip")}</span><span style={{ color: "var(--text-primary)" }}>+{formatSekAmount(effectiveTip)} {t("common.sek")}</span></div>}
-                  {minOrderTopUp > 0 && <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.minOrderTopUp")}</span><span style={{ color: "var(--text-primary)" }}>+{formatSekAmount(minOrderTopUp)} {t("common.sek")}</span></div>}
-                  {finalDiscount > 0 && (
-                    <div className="flex justify-between text-[13px] font-semibold text-emerald-600">
-                      <span>{t("cart.summary.discount")}</span>
-                      <span>-{formatSekAmount(finalDiscount)} {t("common.sek")}</span>
-                    </div>
-                  )}
-                  {/* Promo applied men inte aktiverad än (subtotal under deal:s min-order).
-                      Utan denna rad ser kunden bara "kod applied" i input-fältet utan att
-                      förstå varför totalen inte ändras — Bilal A2 fynd. */}
-                  {finalDiscount === 0 && selectedPersonalDeal && (selectedPersonalDeal.campaign.minOrder || 0) > subtotal && (
-                    <div className="flex justify-between text-[12.5px] font-medium text-amber-600 leading-snug">
-                      <span>{selectedPersonalDeal.code}</span>
-                      <span>{t("cart.summary.discountPendingMin", { amount: formatSekAmount(selectedPersonalDeal.campaign.minOrder || 0) })}</span>
-                    </div>
-                  )}
-                  {finalDiscount === 0 && selectedAccountDeal && (selectedAccountDeal.minOrderKr ?? 0) > subtotal && (
-                    <div className="flex justify-between text-[12.5px] font-medium text-amber-600 leading-snug">
-                      <span>{formatDealLabel(selectedAccountDeal, t)}</span>
-                      <span>{t("cart.summary.discountPendingMin", { amount: formatSekAmount(selectedAccountDeal.minOrderKr ?? 0) })}</span>
-                    </div>
-                  )}
-                  {typeof vatPercent === "number" && (
-                    <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
-                      <span>{t("cart.summary.vat", { percent: vatPercent })}</span>
-                      <span>{formatSekAmount(vatAmount)} {t("common.sek")}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between items-center mt-5 pt-4" style={{ borderTop: "1px solid var(--border-muted)" }}>
-                    <span className="text-[16px] font-bold" style={{ color: "var(--text-primary)" }}>{t("cart.summary.total")}</span>
-                    <span className="text-[20px] font-bold" style={{ color: "var(--gold-ink)", fontVariantNumeric: "tabular-nums" }}>{formatSekAmount(total)} {t("common.sek")}</span>
-                  </div>
+            {/* Deal-tröskel */}
+            {dealNudge && (
+              <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="ve-card mt-6 px-4 py-3.5">
+                <div className="flex items-center justify-between gap-3 mb-2.5">
+                  <p className="m-0 text-[14px] font-medium" style={{ color: "var(--ve-ink)" }}>
+                    {t("cart.dealNudge.remaining", { amount: formatSekAmount(dealNudge.missing), reward: formatCartDealReward(dealNudge.deal) })}
+                  </p>
+                  <Tag size={14} className="shrink-0" style={{ color: "var(--ve-ink-3)" }} />
                 </div>
+                <div className="h-1 w-full rounded-full overflow-hidden" style={{ backgroundColor: "var(--ve-fill-2)" }}>
+                  <motion.div className="h-full rounded-full" style={{ backgroundColor: "var(--ve-ink)" }} initial={{ width: 0 }} animate={{ width: `${Math.min((subtotal / dealNudge.deal.minOrder) * 100, 100)}%` }} transition={{ duration: 0.5, ease: "easeOut" }} />
+                </div>
+              </motion.div>
+            )}
 
-                {/* Guest banner */}
-                {!user && (
-                  <div className="p-4 rounded-2xl border flex items-center gap-3" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
-                    <UserIcon size={16} className="text-zinc-400 shrink-0" />
-                    <p className="text-[10px] font-bold leading-snug flex-1" style={{ color: "var(--text-secondary)" }}>
-                      {embedMode ? "Du beställer som gäst – du kan beställa direkt." : <>{t("cart.guest.banner")}{" "}
-                        <Link href="/profile" className="underline hover:opacity-70" style={{ color: "var(--text-primary)" }}>{t("cart.guest.loginLink")}</Link>{" "}
-                        {t("cart.guest.bannerSuffix")}</>}
-                    </p>
-                  </div>
-                )}
+            {/* Leverans / avhämtning */}
+            <div className="mt-6">{renderFulfillmentStatus()}</div>
 
-                {error && (
-                  <div className="p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[13.5px] font-medium text-center leading-snug">
-                    <p>{error}</p>
-                    {pendingOrderId && (
-                      <button
-                        type="button"
-                        onClick={() => { void handlePaymentCancelled(pendingOrderId); }}
-                        className="mt-3 rounded-lg border border-rose-500/30 px-3 py-2 text-[12.5px] font-semibold"
-                      >
-                        Avbryt väntande betalning säkert
-                      </button>
-                    )}
-                  </div>
-                )}
+            {/* Dina uppgifter */}
+            <section className="mt-7">
+              {sectionTitle(t("cart.yourInfo.title"))}
+              {renderCustomerDetails()}
+            </section>
 
-                {/* Betalsätt direkt i kassan — inget mellansteg. */}
-                {renderCheckoutMethods("dl-")}
-              </div>
-            </div>
-          </div>
+            {/* Meddelande · dricks · rabatter */}
+            <section className="mt-7">
+              {renderCartExtras("mb")}
+            </section>
 
-          {/* Form & Payment — sticky på desktop. INGEN inre overflow-scroll
-              (det skapade en container-scroll inuti sidan vilket användaren
-              ogillade). Sticky-positionen följer dokumentscrollen istället. */}
-          <div className="lg:sticky lg:top-24">
-             <AnimatePresence mode="wait">
-               {verifyingPayment ? (
-                  <motion.div key="verifying" id="adyen-payment" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 16 }} className="p-5 sm:p-7 rounded-2xl relative" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
-                     <div className="mb-1 flex items-center gap-2 text-[15px] font-semibold" style={{ color: "var(--text-primary)" }}>
-                        <CreditCard size={16} style={{ color: "var(--text-secondary)" }} /> Betalning
-                     </div>
-                     <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
-                        <div className="h-7 w-7 animate-spin rounded-full" style={{ border: "2px solid var(--border-muted)", borderTopColor: "var(--text-primary)" }} />
-                        <p className="text-[15px] font-semibold" style={{ color: "var(--text-primary)" }}>Verifierar betalningen</p>
-                        <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>Det tar bara en liten stund, stäng inte sidan.</p>
-                     </div>
-                  </motion.div>
-               ) : (
-                  <motion.div key="form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-4 sm:p-5 rounded-2xl relative" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
-                      {renderFulfillmentStatus()}
+            {/* Min-order-banner: bara när kunden ligger UNDER effektiv min-gräns
+                (min − tolerans) och adressen inte redan blockerar. */}
+            {renderMinOrderBanner("mt-6")}
 
+            {/* Summering */}
+            <div className="mt-7">{renderSummary()}</div>
 
-                       <div className="space-y-2.5">
-                        {(() => {
-                          const hair = <div style={{ height: 1, backgroundColor: "var(--border-muted)" }} />;
-                          const lbl = (bad: boolean) => ({ width: 74, flexShrink: 0, fontSize: 13, fontWeight: 500 as const, whiteSpace: "nowrap" as const, color: bad ? "#C0392B" : "var(--text-secondary)" });
-                          const inputCls = "flex-1 h-full bg-transparent outline-none text-[16px] sm:text-[15px] font-medium";
-                          const inputStyle = { color: "var(--text-primary)", border: "none" as const };
+            {renderErrorCard("mt-4")}
 
-                          if (user) {
-                            const readRow = (label: string, value: string) => value ? (
-                              <div className="flex items-baseline gap-3 py-1.5">
-                                <span style={{ width: 74, flexShrink: 0, fontSize: 13, fontWeight: 500, color: "var(--text-secondary)" }}>{label}</span>
-                                <span className="flex-1 min-w-0 text-[14.5px] font-medium break-words" style={{ color: "var(--text-primary)" }}>{value}</span>
-                              </div>
-                            ) : null;
-                            const phoneInvalid = formData.customerPhone.length > 0 && formData.customerPhone.replace(/\D/g, '').length < 8;
-                            return (
-                              <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-muted)", backgroundColor: "var(--bg-card)" }}>
-                                <div className="px-4">
-                                  <CartCollapsibleRow first label={t("cart.yourInfo.title")} hint={formData.customerName || "Verifierad"} icon={<UserIcon size={15} style={{ color: "var(--text-secondary)" }} />}>
-                                    <div className="pt-0.5 space-y-2">
-                                      {readRow(t("cart.fields.name"), formData.customerName)}
-                                      <div>
-                                        <label className="block text-[12px] font-semibold mb-1" style={{ color: phoneInvalid ? "#C0392B" : "var(--text-secondary)" }}>
-                                          Telefon för denna order
-                                        </label>
-                                        <input
-                                          value={formData.customerPhone}
-                                          onChange={e => setFormData({ ...formData, customerPhone: e.target.value })}
-                                          type="tel"
-                                          inputMode="tel"
-                                          autoComplete="tel"
-                                          className="w-full h-11 rounded-xl px-3.5 bg-transparent outline-none text-[15px] font-medium"
-                                          style={{ border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
-                                          placeholder="070 000 00 00"
-                                        />
-                                        {phoneInvalid && <p className="pt-1 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.phoneTooShort")}</p>}
-                                        {profilePhone && formData.customerPhone.trim() !== profilePhone.trim() ? (
-                                          <button
-                                            type="button"
-                                            onClick={() => setFormData({ ...formData, customerPhone: profilePhone })}
-                                            className="mt-2 text-[12px] font-bold"
-                                            style={{ color: "var(--color-gold-500)" }}
-                                          >
-                                            Använd mitt nummer igen
-                                          </button>
-                                        ) : (
-                                          <p className="pt-1 text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
-                                            Ändra bara om du beställer åt någon annan. Nästa beställning använder ditt verifierade nummer igen.
-                                          </p>
-                                        )}
-                                      </div>
-                                      <div>
-                                        <label className="block text-[12px] font-semibold mb-1" style={{ color: "var(--text-secondary)" }}>
-                                          E-post för kvitto
-                                        </label>
-                                        <input
-                                          value={formData.customerEmail}
-                                          onChange={e => setFormData({ ...formData, customerEmail: e.target.value })}
-                                          type="email"
-                                          inputMode="email"
-                                          autoComplete="email"
-                                          className="w-full h-11 rounded-xl px-3.5 bg-transparent outline-none text-[15px] font-medium"
-                                          style={{ border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
-                                          placeholder="namn@exempel.se"
-                                        />
-                                        <p className="pt-1 text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
-                                          Används för kvitto.
-                                        </p>
-                                      </div>
-                                    </div>
-                                  </CartCollapsibleRow>
-                                </div>
-                              </div>
-                            );
-                          }
-
-                          // GÄST: öppet formulär — namn + telefon (krav) och valfri
-                          // e-post för kvittot. E-posten sparas lokalt och förifylls
-                          // både här och (låst) på Stripes betalsida nästa gång, så
-                          // kunden aldrig behöver skriva den igen. Ingen portkod;
-                          // adressen visas bara i statusraden ovan.
-                          const nameTouched = formData.customerName.length > 0;
-                          const phoneTouched = formData.customerPhone.length > 0;
-                          const nameInvalid = nameTouched && formData.customerName.trim().length < 2;
-                          const phoneInvalid = phoneTouched && formData.customerPhone.replace(/\D/g, '').length < 8;
-                          const emailInvalid = formData.customerEmail.trim().length > 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.customerEmail.trim());
-                          const fields = (
-                            <>
-                              <div className="flex items-center min-h-[52px] px-4">
-                                <span style={lbl(nameInvalid)}>{t("cart.fields.name")}</span>
-                                <input value={formData.customerName} onChange={e => setFormData({ ...formData, customerName: e.target.value })} autoComplete="name" className={inputCls} style={inputStyle} placeholder={t("cart.fields.namePlaceholder")} />
-                              </div>
-                              {nameInvalid && <p className="px-4 pb-2 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.nameTooShort")}</p>}
-                              {hair}
-                              <div className="flex items-center min-h-[52px] px-4">
-                                <span style={lbl(phoneInvalid)}>{t("cart.fields.phone")}</span>
-                                <input value={formData.customerPhone} onChange={e => setFormData({ ...formData, customerPhone: e.target.value })} type="tel" inputMode="tel" autoComplete="tel" className={inputCls} style={inputStyle} placeholder="070 000 00 00" />
-                              </div>
-                              {phoneInvalid && <p className="px-4 pb-2 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.phoneTooShort")}</p>}
-                              {hair}
-                              <div className="flex items-center min-h-[52px] px-4">
-                                <span style={lbl(emailInvalid)}>E-post</span>
-                                <input value={formData.customerEmail} onChange={e => setFormData({ ...formData, customerEmail: e.target.value })} type="email" inputMode="email" autoComplete="email" className={inputCls} style={inputStyle} placeholder="För kvitto på köpet" />
-                              </div>
-                              {emailInvalid ? (
-                                <p className="px-4 pb-2 text-[12px] font-medium" style={{ color: "#C0392B" }}>{t("cart.errors.invalidEmail")}</p>
-                              ) : (
-                                <p className="px-4 pb-3 text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
-                                  Används för kvitto.
-                                </p>
-                              )}
-                            </>
-                          );
-                          // Efter första beställningen är uppgifterna redan
-                          // ifyllda — då räcker en kollapsad rad, precis som i
-                          // appen. Första gången visas fälten direkt.
-                          if (guestDetailsKnown) {
-                            return (
-                              <div className="rounded-xl overflow-hidden px-4" style={{ border: "1px solid var(--border-muted)", backgroundColor: "var(--bg-card)" }}>
-                                <CartCollapsibleRow
-                                  first
-                                  label={t("cart.yourInfo.title")}
-                                  hint={formData.customerName.trim() || "Gäst"}
-                                  icon={<UserIcon size={15} style={{ color: "var(--text-secondary)" }} />}
-                                >
-                                  <div className="-mx-4 overflow-hidden rounded-lg" style={{ border: "1px solid var(--border-muted)" }}>
-                                    {fields}
-                                  </div>
-                                </CartCollapsibleRow>
-                              </div>
-                            );
-                          }
-                          return (
-                            <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-muted)", backgroundColor: "var(--bg-card)" }}>
-                              <div className="px-4 py-3 flex items-center justify-between gap-3" style={{ borderBottom: "1px solid var(--border-muted)" }}>
-                                <span className="text-[14px] font-bold" style={{ color: "var(--text-primary)" }}>{t("cart.yourInfo.title")}</span>
-                                <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ color: "var(--gold-ink)", backgroundColor: "var(--gold-soft)" }}>Gäst</span>
-                              </div>
-                              {fields}
-                            </div>
-                          );
-                        })()}
-
-                        {orderType === "PICKUP" && (
-                          <div className="rounded-xl border px-4 py-3 flex gap-3" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
-                            <Store size={17} className="shrink-0 mt-0.5" style={{ color: "var(--gold-ink)" }} />
-                            <div className="min-w-0">
-                              <p className="text-[13.5px] font-semibold" style={{ color: "var(--text-primary)" }}>
-                                Hämtas hos {cartRestaurantName || "restaurangen"}
-                              </p>
-                              {cartRestaurantAddress ? (
-                                <a
-                                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${cartRestaurantName || ""} ${cartRestaurantAddress}`.trim())}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="mt-0.5 block text-[12.5px] font-medium underline underline-offset-2"
-                                  style={{ color: "var(--text-secondary)" }}
-                                >
-                                  {cartRestaurantAddress}
-                                </a>
-                              ) : null}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* ── Mobile only: extras (desktop shows these in left column) ── */}
-                        <div className="lg:hidden space-y-4">
-                        {renderCartExtras("mb")}
-
-                     {/* BOGO: påminn om gratisprodukt(er) om fler kan väljas.
-                         För scaled-BOGO (maxFreeItems > 1): visar antal kvar.
-                         "Välj N fler gratis varor" istället för bara "Välj". */}
-                     {bogoPreview && bogoPicksRemaining > 0 && bogoPreview.rewardProducts.length > 0 && (
-                       <motion.button
-                         type="button"
-                         initial={{ opacity: 0, y: 6 }}
-                         animate={{ opacity: 1, y: 0 }}
-                         onClick={() => setShowBogoPicker(true)}
-                         className="mt-6 w-full rounded-2xl border px-4 py-3.5 text-left transition-all hover:brightness-[0.99] active:scale-[0.99]"
-                         style={{
-                           background: "var(--gold-soft)",
-                           borderColor: "rgba(240,83,28,0.22)",
-                         }}
-                       >
-                         <div className="flex items-center justify-between gap-2">
-                           <div className="flex items-center gap-3 min-w-0">
-                             <span
-                               className="shrink-0 w-9 h-9 rounded-xl grid place-items-center"
-                               style={{ backgroundColor: "rgba(240,83,28,0.16)" }}
-                             >
-                               <Gift size={17} strokeWidth={2.3} style={{ color: "var(--gold-ink)" }} />
-                             </span>
-                             <div className="min-w-0">
-                               <p className="text-[12.5px] font-semibold" style={{ color: "var(--gold-ink)" }}>
-                                 {bogoPickedCount > 0
-                                   ? (bogoPicksRemaining === 1
-                                       ? t("cart.bogo.pickMoreOne")
-                                       : t("cart.bogo.pickMoreMany", { count: bogoPicksRemaining }))
-                                   : t("cart.bogo.pickFree")}
-                               </p>
-                               <p className="text-xs font-bold mt-0.5 line-clamp-1" style={{ color: "var(--text-secondary)" }}>
-                                 {bogoPickedCount > 0
-                                   ? t("cart.bogo.progress", { picked: bogoPickedCount, max: bogoMaxFreeItems })
-                                   : bogoMaxFreeItems > 1
-                                     ? t("cart.bogo.canPickMany", { max: bogoMaxFreeItems })
-                                     : (bogoPreview.rewardCategoryName
-                                         ? t("cart.bogo.notPickedNamed", { name: bogoPreview.rewardCategoryName.toLowerCase() })
-                                         : t("cart.bogo.notPickedGeneric"))}
-                               </p>
-                             </div>
-                           </div>
-                           <span
-                             className="shrink-0 inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-semibold"
-                             style={{ backgroundColor: "var(--text-primary)", color: "var(--bg-primary)" }}
-                           >
-                             {t("cart.bogo.choose")} <ArrowRight size={12} strokeWidth={3} />
-                           </span>
-                         </div>
-                       </motion.button>
-                     )}
-
-                     {/* BOGO: alla gratisprodukter valda — visa lista */}
-                     {bogoPreview && bogoPickedCount > 0 && bogoPicksRemaining === 0 && (
-                       <motion.div
-                         initial={{ opacity: 0, y: 6 }}
-                         animate={{ opacity: 1, y: 0 }}
-                         className="mt-6 rounded-2xl border px-4 py-3"
-                         style={{ background: "rgba(16,185,129,0.08)", borderColor: "rgba(16,185,129,0.25)" }}
-                       >
-                         <div className="flex items-center justify-between gap-2">
-                           <div className="flex items-center gap-2.5">
-                             <span className="text-lg">🎁</span>
-                             <div>
-                               <p className="text-[13px] font-medium text-emerald-400">
-                                 {bogoMaxFreeItems === 1 ? t("cart.bogo.pickedOne") : t("cart.bogo.pickedMany", { count: bogoPickedCount })}
-                               </p>
-                               <p className="text-xs font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                                 {bogoPreview.dealTitle}
-                               </p>
-                             </div>
-                           </div>
-                           {/* Byt gratis-vara: ta bort nuvarande val → picker öppnas igen */}
-                           <button
-                             type="button"
-                             onClick={() => {
-                               items
-                                 .filter((i) => i.bogoFreeFromDealId === bogoPreview.dealId)
-                                 .forEach((i) => removeItem(i.cartItemId));
-                               setShowBogoPicker(true);
-                             }}
-                             className="shrink-0 rounded-full border border-emerald-500/30 px-3 py-1.5 text-[13px] font-medium text-emerald-400 transition-colors hover:bg-emerald-500/10"
-                           >
-                             {t("cart.bogo.swap")}
-                           </button>
-                         </div>
-                       </motion.div>
-                     )}
-
-                     {/* Deal tröskel-nudge — visas diskret om man är nära en deal */}
-                     {dealNudge && (
-                       <motion.div
-                         initial={{ opacity: 0, y: 6 }}
-                         animate={{ opacity: 1, y: 0 }}
-                         className="mt-6 rounded-2xl border px-4 py-3"
-                         style={{ background: "var(--bg-deep)", borderColor: "var(--border-muted)" }}
-                       >
-                         <div className="flex items-center justify-between gap-2 mb-2">
-                           <p className="text-[13px] font-medium" style={{ color: "var(--text-primary)" }}>
-                             {t("cart.dealNudge.remaining", { amount: formatSekAmount(dealNudge.missing), reward: formatCartDealReward(dealNudge.deal) })}
-                           </p>
-                           <Tag size={12} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
-                         </div>
-                         <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: "var(--border-muted)" }}>
-                           <motion.div
-                             className="h-full rounded-full"
-                             style={{ backgroundColor: "var(--text-primary)" }}
-                             initial={{ width: 0 }}
-                             animate={{ width: `${Math.min((subtotal / dealNudge.deal.minOrder) * 100, 100)}%` }}
-                             transition={{ duration: 0.5, ease: "easeOut" }}
-                           />
-                         </div>
-                       </motion.div>
-                     )}
-
-                     {/* Min-order-banner med komplettering-toggle — default på,
-                         kund betalar mellanskillnaden så ordern kan slutföras.
-                         Göms vid zone-error eftersom det är meningslöst att
-                         pressa kund att fylla upp beloppet när checkout
-                         ändå är blockerad pga olevererbar adress.
-                         Banner triggar nu bara när kunden ligger UNDER den
-                         effektiva min-gränsen (min − 40 kr tolerans). Hamnar
-                         kunden i 110-149-spannet på en 150-min: ingen banner,
-                         ingen topUp, ordern går igenom direkt om de har en
-                         rabatt eller om totalen efter rabatt fortfarande är ≥
-                         effektiv min. */}
-                     {renderMinOrderBanner("mt-6")}
-
-                     <div className="mt-6 pt-5 space-y-3" style={{ borderTop: "1px solid var(--border-muted)" }}>
-                        <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.subtotal")}</span><span>{formatSekAmount(subtotal)} {t("common.sek")}</span></div>
-                        {orderType === 'DELIVERY' && (
-                          <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
-                            <span>{t("cart.summary.deliveryFee")}</span>
-                            <span style={{ color: "var(--text-primary)" }}>
-                              {addressZoneStatus === "checking" ? t("cart.summary.deliveryCalculating") : `${formatSekAmount(deliveryFee)} ${t("common.sek")}`}
-                            </span>
-                          </div>
-                        )}
-                        {effectiveTip > 0 && <div className="flex justify-between text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.tip")}</span><span style={{ color: "var(--text-primary)" }}>+{formatSekAmount(effectiveTip)} {t("common.sek")}</span></div>}
-                        {minOrderTopUp > 0 && <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}><span>{t("cart.summary.minOrderTopUp")}</span><span style={{ color: "var(--text-primary)" }}>+{formatSekAmount(minOrderTopUp)} {t("common.sek")}</span></div>}
-                        {(() => {
-                          // Display-källan ska matcha vad som FAKTISKT appliceras
-                          // på totalen. Tidigare visades bogoPreview-raden så
-                          // länge bogoDiscount >= finalDiscount, men finalDiscount
-                          // använder userPickedDiscount först — då blev
-                          // displayen lägre/högre än verkligt avdrag.
-                          //
-                          // Ordningen nedan matchar finalDiscount-prioriteten:
-                          //   1. Användarens kupong (selectedPersonalDeal)
-                          //   2. Vald account-deal (välkomst)
-                          //   3. Pure-discount bogoPreview (om ej dismissad)
-                          //   4. Free-item bogoPreview (alltid aktiv)
-                          //   5. Client-side automaticDeal (om ej dismissad)
-                          // Om kunden har skrivit/valt något — visa BARA det
-                          // (inkl. 0 kr om koden inte är giltig för denna
-                          // order). Auto-källor får aldrig kreepa tillbaka
-                          // när kunden gjort ett explicit val.
-                          if (selectedPersonalDeal) {
-                            if (personalDiscount <= 0) return null;
-                            return (
-                              <div className="flex justify-between text-[13px] font-semibold text-emerald-600">
-                                <span>{t("cart.summary.coupon", { code: selectedPersonalDeal.code })}</span>
-                                <span>-{formatSekAmount(personalDiscount)} {t("common.sek")}</span>
-                              </div>
-                            );
-                          }
-                          if (selectedAccountDealId) {
-                            if (accountDealDiscount <= 0) return null;
-                            return (
-                              <div className="flex justify-between text-[13px] font-semibold text-emerald-600">
-                                <span>{selectedAccountDeal ? dealTypeLabel(selectedAccountDeal.type, t) : t("cart.summary.reward")}</span>
-                                <span>-{formatSekAmount(accountDealDiscount)} {t("common.sek")}</span>
-                              </div>
-                            );
-                          }
-                          // Auto-källor (bara om inga user-val ovan)
-                          // Välkomsterbjudandet visas först om det är den största
-                          // auto-rabatten (= det som faktiskt dras på totalen).
-                          if (
-                            !automaticDealDismissed &&
-                            welcomeDiscount > 0 &&
-                            welcomeDiscount >= automaticDeal.discountAmount &&
-                            welcomeDiscount >= bogoDiscount
-                          ) {
-                            return (
-                              <div className="flex justify-between text-[13px] font-semibold text-emerald-600">
-                                <span>{welcomeOffer?.title}</span>
-                                <span>-{formatSekAmount(welcomeDiscount)} {t("common.sek")}</span>
-                              </div>
-                            );
-                          }
-                          // Pick-reward visas INTE som rabattrad: gratis-varan
-                          // ligger redan som "Gratis"-rad i artikellistan, och
-                          // totalen subtraherar inte (skulle annars visa -95 mot
-                          // en oförändrad total). Pure-discount + samma-kategori
-                          // (rabatt faktiskt avdragen) visas däremot.
-                          if (!automaticDealDismissed && bogoPreview && !bogoPreview.isPickReward && bogoDiscount > 0) {
-                            return (
-                              <div className="flex justify-between text-[13px] font-semibold text-emerald-600">
-                                <span>{bogoIsPureDiscount ? "" : "🎁 "}{bogoChoice && !bogoIsPureDiscount ? bogoChoice.product.name : bogoPreview.dealTitle}</span>
-                                <span>-{formatSekAmount(bogoDiscount)} {t("common.sek")}</span>
-                              </div>
-                            );
-                          }
-                          if (!automaticDealDismissed && automaticDeal.deal && automaticDeal.discountAmount > 0) {
-                            return (
-                              <div className="flex justify-between text-[13px] font-semibold text-emerald-600">
-                                <span>{automaticDeal.deal.title}</span>
-                                <span>-{formatSekAmount(automaticDeal.discountAmount)} {t("common.sek")}</span>
-                              </div>
-                            );
-                          }
-                          return null;
-                        })()}
-                        {typeof vatPercent === "number" && (
-                          <div className="flex justify-between text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>
-                            <span>{t("cart.summary.vat", { percent: vatPercent })}</span>
-                            <span>{formatSekAmount(vatAmount)} {t("common.sek")}</span>
-                          </div>
-                        )}
-                        <div className="flex justify-between items-center mt-6">
-                           <span className="text-[16px] font-bold" style={{ color: "var(--text-primary)" }}>{t("cart.summary.total")}</span>
-                           <span className="text-[22px] font-bold tracking-tight leading-none" style={{ color: "var(--gold-ink)", fontVariantNumeric: "tabular-nums" }}>{formatSekAmount(total)} <span className="text-[13px] font-semibold" style={{ color: "var(--text-secondary)" }}>{t("common.sek")}</span></span>
-                        </div>
-                     </div>
-
-                      {/* Guest info banner — not blocking, just informative */}
-                      {!user && (
-                        <div className="mt-8 p-4 rounded-2xl border flex items-center gap-3" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
-                          <UserIcon size={16} className="text-zinc-400 shrink-0" />
-                          <p className="text-[10px] font-bold leading-snug flex-1" style={{ color: "var(--text-secondary)" }}>
-                            {embedMode ? "Du beställer som gäst – du kan beställa direkt." : <>{t("cart.guest.banner")}{" "}
-                              <Link href="/profile" className="underline hover:opacity-70" style={{ color: "var(--text-primary)" }}>{t("cart.guest.loginLink")}</Link>{" "}
-                              {t("cart.guest.bannerSuffix")}</>}
-                          </p>
-                        </div>
-                     )}
-                        </div>{/* end lg:hidden mobile-only extras */}
-                     </div>{/* end space-y-8 */}
-
-                     {/* Mobile: checkout (desktop has this in left column) */}
-                     <div className="lg:hidden">
-                       {error && (
-                         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[13.5px] font-medium text-center leading-snug">
-                           <p>{error}</p>
-                           {pendingOrderId && (
-                             <button
-                               type="button"
-                               onClick={() => { void handlePaymentCancelled(pendingOrderId); }}
-                               className="mt-3 rounded-lg border border-rose-500/30 px-3 py-2 text-[12.5px] font-semibold"
-                             >
-                               Avbryt väntande betalning säkert
-                             </button>
-                           )}
-                         </motion.div>
-                       )}
-
-                       {/* Betalsätt direkt i kassan — samma val som på desktop.
-                           Extra bottenluft så knapparna klarar hemindikatorn i
-                           den installerade PWA:n. */}
-                       <div className="mt-8" style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 8px)" }}>
-                         {renderCheckoutMethods("mb-")}
-                       </div>
-                     </div>
-                 </motion.div>
-               )}
-             </AnimatePresence>
-          </div>
-        </div>
+            {/* Betala med — Swish eller kort via hostad sida. Extra bottenluft
+                så raderna klarar hemindikatorn i den installerade PWA:n. */}
+            <section className="mt-7" style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 8px)" }}>
+              {!checkoutBlocked && sectionTitle("Betala med")}
+              {renderCheckoutMethods("mb-")}
+            </section>
+          </>
+        )}
       </div>
-      )}
 
       <AnimatePresence>
         {addingProduct && (
-          <ProductModal
+          <ProductSheet
             product={addingProduct}
             restaurantId={cartRestaurantId || addingProduct.restaurantId}
             restaurantSlug={cartRestaurantSlug || undefined}
@@ -4494,7 +4166,7 @@ export default function CartPage() {
       {/* Cart item edit */}
       <AnimatePresence>
         {editingCartItem && (
-          <ProductModal
+          <ProductSheet
             product={editingCartItem.product}
             restaurantId={cartRestaurantId || editingCartItem.item.restaurantId}
             restaurantSlug={cartRestaurantSlug || undefined}

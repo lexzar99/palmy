@@ -275,8 +275,25 @@ ink-2, svart pill `Gå hem`. Inga träffar = 56 px grå platta med lupp, titel
 6. Återanvänd `Segmented`, `Stepper`, `PriceLine`, `CartBar`-mönstret och
    toasten i stället för att rita nya varianter.
 
+### Kassan (`apps/web/app/cart/page.tsx`, renderlagret från "Delade render-block")
+Byggd 2026-09-16 enligt punkterna ovan: en kolumn (680 px), rubrikrad med
+rund tillbaka-knapp + `Varukorg` 26/600 + restaurang · leveranssätt, sedan
+kort i ordning: **varor** (60 px bild, namn 16/600 + tillval 13, pris tabulärt
++ liten stepper-pill, sist raden "Lägg till mer"), **"Har du glömt något?"**-
+rail (128 px-kort), **leverans/avhämtning** (ikonplatta, titel + tid, adress,
+grön bock/loader), **Dina uppgifter** (grupperade rader Namn/Telefon/E-post
+utan hjälptexter — inga "du handlar som gäst"-banners), **Mer** (kollapsade
+rader: meddelande, dricks-pills, rabattkod & erbjudanden), min-order-kort med
+iOS-toggle, **summering** (rader i ink-2, total 22/600 i bläck) och **Betala
+med**: ett kort med två rader — Swish (logga i vit 44 px-platta, "Betala
+direkt") och Kort och mer (kortikon, undertext, varumärkesrad Apple Pay ·
+Klarna · VISA · Mastercard · G Pay) med chevron. Blockerat läge = grå
+inaktiv pill med orsaken. Betalsteget använder samma kort och en svart pill
+`Öppna Swish`. Redigering av rad öppnar `ProductSheet`.
+
 Filkarta: `apps/web/components/restaurant/` (RestaurantMenu, ProductSheet,
 CartBar, PlainImage, restaurant.css), `apps/web/components/Toast.tsx`,
-`apps/web/app/restaurants/[slug]/page.tsx`. Partner-embedden (`/embed/[slug]`)
-kör fortfarande `components/MenuContent.tsx` + `ProductModal.tsx` i den gamla
-designen tills den flyttas över.
+`apps/web/app/restaurants/[slug]/page.tsx`, `apps/web/app/embed/[slug]/page.tsx`
+(samma RestaurantMenu med `embedMode`), `apps/web/app/cart/page.tsx`.
+`components/MenuContent.tsx`, `ProductModal.tsx` och `FloatingCartButton.tsx`
+är kvar bara som referens/testunderlag och används inte längre av någon route.
