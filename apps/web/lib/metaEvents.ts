@@ -3,19 +3,19 @@
 /**
  * Meta-konverteringar.
  *
- * Pixeln i `components/MetaPixel.tsx` skickar bara PageView. Utan ett
- * Purchase-event kan en Sales-kampanj aldrig lära sig vem som faktiskt
- * beställer — Meta ser trafik men aldrig utfall, och "Website purchases"
- * står kvar på "--" hur många ordrar som än kommer in.
+ * Pixeln skickar PageView; här finns kundresans konverteringshändelser.
+ * Purchase anropas med serververifierat underlag från orderns API-svar.
  *
  * Allt här är tyst om kunden inte aktivt godkänt marknadsföringscookies.
- * Ingen personuppgift skickas: bara ordervärde, valuta och ett event-id.
+ * Händelsens egna fält är ordervärde, valuta och ett pseudonymt event-id.
+ * Meta-pixeln använder även sina vanliga matchningsuppgifter efter samtycke.
  */
 
 import { hasMarketingConsent } from "@/lib/cookieConsent";
 
 const SENT_EVENTS_KEY = "viaeats.meta.sentEvents.v1";
-const SENT_EVENTS_LIMIT = 20;
+const SENT_EVENTS_LIMIT = 100;
+const sentInMemory = new Set<string>();
 
 function readSentEvents(): string[] {
   try {
@@ -33,20 +33,22 @@ function readSentEvents(): string[] {
  * Nyckeln lagras därför lokalt och eventet skickas en enda gång per order.
  */
 function alreadySent(eventKey: string): boolean {
-  return readSentEvents().includes(eventKey);
+  return sentInMemory.has(eventKey) || readSentEvents().includes(eventKey);
 }
 
 function markSent(eventKey: string): void {
+  sentInMemory.add(eventKey);
   try {
     const next = [...readSentEvents().filter((row) => row !== eventKey), eventKey].slice(-SENT_EVENTS_LIMIT);
     localStorage.setItem(SENT_EVENTS_KEY, JSON.stringify(next));
   } catch {
-    // Privat läge/kvot: hellre ett event för mycket än inget alls.
+    // Minnesmarkören skyddar även när webbläsarens lagring är blockerad.
   }
 }
 
 /**
- * Returnerar true bara när eventet faktiskt lämnade klienten. Anroparen får
+ * Returnerar true när eventet överlämnats till Metas laddade dispatcher.
+ * Det är inte en nätverkskvittens från Meta. Anroparen får
  * inte kvittera ett event som stoppades av samtyckesgrinden eller av att
  * pixeln ännu inte hunnit laddas — då hade det brunnit för alltid och aldrig
  * kunnat skickas om.
@@ -59,7 +61,7 @@ function track(
   if (typeof window === "undefined") return false;
   if (!hasMarketingConsent()) return false;
   const fbq = window.fbq;
-  if (typeof fbq !== "function") return false;
+  if (typeof fbq !== "function" || typeof fbq.callMethod !== "function") return false;
   try {
     if (options) fbq("track", eventName, payload, options);
     else fbq("track", eventName, payload);

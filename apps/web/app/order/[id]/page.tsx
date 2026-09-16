@@ -1,11 +1,13 @@
 "use client";
+import EmbedViaeatsPromotion from "@/components/EmbedViaeatsPromotion";
+import MetaPurchase from "@/components/MetaPurchase";
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Clock, Truck, Store, Loader2, Calendar, Phone, Mail, AlertCircle, ShieldCheck, ShoppingBag, MapPin, ArrowRight, Star, X, MessageSquare, ChevronDown, Navigation, Receipt, Download } from "lucide-react";
+import { Check, Clock, Store, Loader2, Phone, AlertCircle, ShieldCheck, MapPin, Star, X, MessageSquare, ChevronLeft, ChevronRight, Navigation, Receipt, Download, Bike, Flame, PackageCheck, CreditCard, Bell } from "lucide-react";
 import { io as socketIO } from "socket.io-client";
 import { SOCKET_URL } from "@/lib/api";
 import { cacheOrderDetail, getCachedOrderDetail } from "@/lib/offlineOrders";
@@ -13,8 +15,6 @@ import { getOrderAccessProof, isPushSupported, getPushPublicKey, subscribeOrderP
 import { addSkippedReviewOrderId, isReviewSkipped } from "@/lib/reviewPrompt";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import dynamic from "next/dynamic";
-import { OrderTrackingCard } from "@/components/OrderTrackingCard";
-import { BreathingTrackingPanel } from "@/components/BreathingTracking";
 import { forgetRawOrderAccessToken, readOrderHistory, saveOrderToHistory } from "@/lib/orderHistory";
 import { rememberActiveOrder } from "@/lib/activeOrder";
 import { ensureKioskAccess } from "@/lib/kioskAccessClient";
@@ -27,84 +27,11 @@ import {
 import { orderTrackingCopy, orderTrackingProgress } from "@/lib/orderTrackingPresentation";
 import PhoneAuth from "@/components/PhoneAuth";
 import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
+import { useDesignBackground } from "@/components/restaurant/useDesignBackground";
+import "@/components/restaurant/restaurant.css";
 
 // Live-karta laddas bara på klienten (Leaflet behöver window).
 const CourierTrackingMap = dynamic(() => import("@/components/CourierTrackingMap"), { ssr: false });
-
-const FlameIcon = ({ size = 24, className = "" }: { size?: number; className?: string }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.3-2.35 1-3.5 1.1 2.6 2.2 3.5 3.5 3.5z" />
-  </svg>
-);
-
-const BoxCheckIcon = ({ size = 24, className = "" }: { size?: number; className?: string }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="m16 16 2 2 4-4"/><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14"/><path d="m7.5 4.27 9 5.15"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" x2="12" y1="22" y2="12"/>
-  </svg>
-);
-
-// Stil + icon per status. Label + desc resolveras via t() inne i komponenten
-// (order.status.*.label / .desc) eftersom STATUS_CONFIG är module-level.
-// EN statuspalett, en form ("tyst & direkt"): väntande = neutral yta,
-// aktivt arbete (tillagas/på väg) = mjuk guldyta, klart = mjuk grön,
-// fel/avbrutet = mjuk rosé. Inga glow-skuggor eller spridda accentfärger.
-const STATUS_CONFIG: Record<string, { icon: any; colorClass: string; textClass: string }> = {
-  AWAITING_PAYMENT: {
-    icon: Clock,
-    colorClass: "bg-[var(--bg-deep)] border-[var(--border-muted)]",
-    textClass: "text-[var(--text-secondary)]",
-  },
-  PENDING: {
-    icon: Clock,
-    colorClass: "bg-[var(--bg-deep)] border-[var(--border-muted)]",
-    textClass: "text-[var(--text-secondary)]",
-  },
-  ACCEPTED: {
-    icon: Check,
-    colorClass: "bg-[var(--bg-deep)] border-[var(--border-muted)]",
-    textClass: "text-[var(--text-primary)]",
-  },
-  PREPARING: {
-    icon: FlameIcon,
-    colorClass: "bg-[var(--gold-soft)] border-[var(--border-muted)]",
-    textClass: "text-[var(--gold-ink)]",
-  },
-  READY: {
-    icon: BoxCheckIcon,
-    colorClass: "bg-[var(--gold-soft)] border-[var(--border-muted)]",
-    textClass: "text-[var(--gold-ink)]",
-  },
-  DELIVERING: {
-    icon: Truck,
-    colorClass: "bg-[var(--gold-soft)] border-[var(--border-muted)]",
-    textClass: "text-[var(--gold-ink)]",
-  },
-  DELIVERY_FAILED: {
-    icon: AlertCircle,
-    colorClass: "bg-rose-500/8 border-rose-500/20",
-    textClass: "text-rose-600",
-  },
-  REJECTED: {
-    icon: AlertCircle,
-    colorClass: "bg-rose-500/8 border-rose-500/20",
-    textClass: "text-rose-600",
-  },
-  DELIVERED: {
-    icon: Check,
-    colorClass: "bg-[var(--success-soft)] border-[var(--border-muted)]",
-    textClass: "text-[var(--success-ink)]",
-  },
-  COMPLETED: {
-    icon: Check,
-    colorClass: "bg-[var(--success-soft)] border-[var(--border-muted)]",
-    textClass: "text-[var(--success-ink)]",
-  },
-  CANCELLED: {
-    icon: AlertCircle,
-    colorClass: "bg-[var(--bg-deep)] border-[var(--border-muted)]",
-    textClass: "text-[var(--text-secondary)]",
-  },
-};
 
 // Avslutade lägen är "sticky": en redan levererad/avbruten order får ALDRIG
 // dras tillbaka till ett aktivt läge av en stale poll, en cachad GET (backend
@@ -242,8 +169,7 @@ function buildReceiptHtml(order: any): string {
 
 const OrderStatusPage = () => {
   const { t } = useTranslation();
-  const statusLabel = (s: string) => t(`order.status.${s}.label`);
-  const statusDesc = (s: string) => t(`order.status.${s}.desc`);
+  useDesignBackground();
   const { id } = useParams();
   const orderId = Array.isArray(id) ? id[0] : id;
   const [embedMode, setEmbedMode] = useState(false);
@@ -288,8 +214,6 @@ const OrderStatusPage = () => {
   const [courierPos, setCourierPos] = useState<{ lat: number; lng: number } | null>(null);
   // Retractable sektioner — kompakta tills man klickar (kund ser totalt /
   // hanteringsrubriken direkt, expanderar för fullständig info).
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [handlingOpen, setHandlingOpen] = useState(false);
   // Recensionen visas numera inline (mellan status och detaljer), inte som
   // popup. reviewDismissed låter kunden stänga den utan att se den igen.
   const [reviewDismissed, setReviewDismissed] = useState(false);
@@ -305,10 +229,6 @@ const OrderStatusPage = () => {
   const [receiptDownloads, setReceiptDownloads] = useState(0);
   // Förstora leveransfotot.
   const [proofZoom, setProofZoom] = useState(false);
-  const [trackingSheetExpanded, setTrackingSheetExpanded] = useState(false);
-  const [trackingSheetDragStartY, setTrackingSheetDragStartY] = useState<number | null>(null);
-  const [trackingSheetDragOffsetY, setTrackingSheetDragOffsetY] = useState(0);
-  const trackingSheetDragActiveRef = useRef(false);
   // Web push: visas bara när webbläsaren stödjer push OCH servern har VAPID-
   // nycklar (annars null → raden renderas inte alls).
   const [pushAvailable, setPushAvailable] = useState(false);
@@ -615,16 +535,16 @@ const OrderStatusPage = () => {
     // Skeleton som matchar sidans faktiska layout (paritet med övriga sidor —
     // ingen blockerande spinner). Status-kort → kvitto → info-kort.
     return (
-      <div className="min-h-screen pb-[calc(env(safe-area-inset-bottom,0px)+7rem)] pt-[calc(env(safe-area-inset-top,0px)+1rem)] md:pt-24 md:pb-16" style={{ backgroundColor: "var(--bg-primary)" }}>
-        <div className="mx-auto max-w-2xl px-4">
-          <div className="flex items-center justify-between py-3">
-            <div className="skeleton h-9 w-28 rounded-full" />
-            <div className="skeleton h-7 w-32 rounded-full" />
+      <div className="ve-root min-h-screen pb-24 pt-[calc(env(safe-area-inset-top,0px)+12px)] md:pt-24">
+        <div className="mx-auto max-w-[680px] px-4">
+          <div className="flex items-center gap-3 py-2">
+            <div className="ve-skeleton h-10 w-10 rounded-full" />
+            <div className="ve-skeleton h-6 w-32 rounded-md" />
+            <div className="ve-skeleton ml-auto h-7 w-16 rounded-full" />
           </div>
-          <div className="skeleton h-8 w-48 rounded-xl mb-5" />
-          <div className="skeleton h-44 w-full rounded-2xl mb-4" />
-          <div className="skeleton h-64 w-full rounded-2xl mb-4" />
-          <div className="skeleton h-48 w-full rounded-2xl" />
+          <div className="ve-skeleton mt-3 h-[236px] w-full rounded-[20px]" />
+          <div className="ve-skeleton mt-4 h-[140px] w-full rounded-[20px]" />
+          <div className="ve-skeleton mt-4 h-[220px] w-full rounded-[20px]" />
         </div>
       </div>
     );
@@ -635,24 +555,15 @@ const OrderStatusPage = () => {
   // betalat ska aldrig se "Order ej hittad" pga en 30s-backend-blip.
   if (!order && fetchError === "network") {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ backgroundColor: "var(--bg-primary)" }}>
-        <AlertCircle size={44} className="text-amber-500 mb-6" />
-        <h1 className="text-2xl font-bold tracking-tight mb-3" style={{ color: "var(--text-primary)" }}>{t("order.error.networkTitle")}</h1>
-        <p className="text-sm max-w-md mb-8" style={{ color: "var(--text-secondary)" }}>
-          {t("order.error.networkSub")}
-        </p>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <button
-            onClick={() => { setLoading(true); setFetchError(null); fetchOrder(); }}
-            className="px-8 py-4 bg-gold-500 text-zinc-950 rounded-full font-bold text-sm"
-          >
+      <div className="ve-root min-h-screen flex flex-col items-center justify-center p-6 text-center">
+        <span className="mb-5 grid h-16 w-16 place-items-center rounded-full" style={{ backgroundColor: "#FFF4DF", color: "#C77800" }}><AlertCircle size={28} strokeWidth={2.2} /></span>
+        <h1 className="m-0 text-[22px] font-semibold" style={{ letterSpacing: "-0.02em", color: "var(--ve-ink)" }}>{t("order.error.networkTitle")}</h1>
+        <p className="m-0 mt-2 max-w-sm text-[15px]" style={{ color: "var(--ve-ink-2)" }}>{t("order.error.networkSub")}</p>
+        <div className="mt-7 flex flex-col gap-2.5 sm:flex-row">
+          <button onClick={() => { setLoading(true); setFetchError(null); fetchOrder(); }} className="ve-press h-12 rounded-full px-7 text-[16px] font-semibold" style={{ backgroundColor: "var(--ve-cta)", color: "var(--ve-cta-ink)" }}>
             {t("order.error.retry")}
           </button>
-          <Link
-            href={embedMode ? embedMenuHref : "/orders"}
-            className="px-8 py-4 border rounded-full font-bold text-sm text-center"
-            style={{ borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}
-          >
+          <Link href={embedMode ? embedMenuHref : "/orders"} className="ve-press flex h-12 items-center justify-center rounded-full px-7 text-[16px] font-medium" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>
             {embedMode ? t("order.error.menuCta") : t("order.error.myOrders")}
           </Link>
         </div>
@@ -664,21 +575,17 @@ const OrderStatusPage = () => {
   // ownership-bevis). Härifrån är "till startsidan" rätt åtgärd.
   if (!order) {
     return (
-       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ backgroundColor: "var(--bg-primary)" }}>
-          <AlertCircle size={44} className="text-rose-500 mb-6" />
-          <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("order.error.notFoundTitle")}</h1>
-          <p className="text-sm max-w-md mt-3" style={{ color: "var(--text-secondary)" }}>
-            {t("order.error.notFoundSub")}
-          </p>
-          <Link href={embedMode ? embedMenuHref : "/"} className="mt-8 px-8 py-4 bg-gold-500 text-zinc-950 rounded-full font-bold text-sm">{t("order.error.notFoundCta")}</Link>
+       <div className="ve-root min-h-screen flex flex-col items-center justify-center p-6 text-center">
+          <span className="mb-5 grid h-16 w-16 place-items-center rounded-full" style={{ backgroundColor: "#FDECEE", color: "#D70015" }}><AlertCircle size={28} strokeWidth={2.2} /></span>
+          <h1 className="m-0 text-[22px] font-semibold" style={{ letterSpacing: "-0.02em", color: "var(--ve-ink)" }}>{t("order.error.notFoundTitle")}</h1>
+          <p className="m-0 mt-2 max-w-sm text-[15px]" style={{ color: "var(--ve-ink-2)" }}>{t("order.error.notFoundSub")}</p>
+          <Link href={embedMode ? embedMenuHref : "/"} className="ve-press mt-7 flex h-12 items-center rounded-full px-7 text-[16px] font-semibold" style={{ backgroundColor: "var(--ve-cta)", color: "var(--ve-cta-ink)" }}>{t("order.error.notFoundCta")}</Link>
        </div>
     );
   }
 
   const isCompleted = order.status === "DELIVERED" || order.status === "COMPLETED";
   const currentStatus = order.status;
-  const statusInfo = STATUS_CONFIG[currentStatus] ?? STATUS_CONFIG.PENDING;
-  const StatusIcon = statusInfo.icon;
   const isRejected = currentStatus === "REJECTED" || currentStatus === "CANCELLED" || currentStatus === "DELIVERY_FAILED";
   const trackingProgress = orderTrackingProgress(order);
   const stepDefs = trackingProgress.labels.map((label) => ({ label }));
@@ -848,147 +755,364 @@ const OrderStatusPage = () => {
   const statusDescription = deliveryOverdue ? t("order.eta.overdueBusy") : statusCopy.description;
   const showEtaAsEstimate = etaMinutes != null && ["ACCEPTED", "PREPARING", "DELIVERING", "OUT_FOR_DELIVERY", "ON_THE_WAY"].includes(currentStatus);
 
-  const TrackingLineWeb = ({ pickupReady = false }: { pickupReady?: boolean }) => {
-    const labels = trackingProgress.labels;
-    const selected = pickupReady ? labels.length - 1 : Math.min(labels.length - 1, activeStep);
-    const lineProgress = isCompleted || pickupReady ? 1 : Math.max(0.18, Math.min(1, (selected + 1) / labels.length));
-    return (
-      <div className="mt-6 w-full">
-        <div className="relative h-[9px] overflow-hidden rounded-full" style={{ backgroundColor: isGreenStatus || pickupReady ? "#EAF7EF" : statusTone === "yellow" ? "#FFF7DB" : "#F0F0EC" }}>
-          <div className="h-full rounded-full transition-[width] duration-500 ease-out" style={{ width: `${Math.round(lineProgress * 100)}%`, backgroundColor: isGreenStatus || pickupReady ? "#2E7D4F" : statusAccent }} />
-        </div>
-        <div className="mt-2.5 flex justify-between gap-2">
-          {labels.map((label, index) => (
-            <span
-              key={label}
-              className="flex-1 truncate text-[11.5px] font-semibold"
-              style={{
-                textAlign: index === 0 ? "left" : index === labels.length - 1 ? "right" : "center",
-                color: index === selected ? (isGreenStatus || pickupReady ? "#1F6B41" : statusAccentInk) : index < selected ? "var(--text-primary)" : "var(--text-secondary)",
-              }}
-            >
-              {label}
-            </span>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  const ContactActionsWeb = ({ primaryLabel = "Kontakta restaurang" }: { primaryLabel?: string }) => (
-    <div className="mt-3.5 flex gap-2.5">
-      {order.restaurantPhone ? (
-        <a
-          href={`tel:${String(order.restaurantPhone).replace(/\s+/g, "")}`}
-          target="_top"
-          className="flex h-[52px] flex-1 items-center justify-center gap-2 rounded-[14px] border bg-white text-[14.5px] font-bold active:opacity-70"
-          style={{ borderColor: "rgba(17,17,19,0.12)", color: "var(--text-primary)" }}
-        >
-          <Phone size={18} />
-          {primaryLabel}
-        </a>
-      ) : null}
-      {isPickup ? (
-        <a
-          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(restAddr || restName)}`}
-          target="_blank"
-          rel="noreferrer"
-          className="grid h-[52px] w-14 place-items-center rounded-[14px] text-white shadow-lg active:opacity-80"
-          style={{ backgroundColor: statusAccent, boxShadow: `0 8px 18px color-mix(in srgb, ${statusAccent} 28%, transparent)` }}
-        >
-          <Navigation size={20} />
-        </a>
-      ) : null}
-    </div>
-  );
-
-  const DestRowWeb = ({ mini, main, sub, icon: Icon, call, sep }: { mini: string; main: string; sub?: string; icon: any; call?: boolean; sep?: boolean }) => (
-    <div className="flex items-center gap-3 px-3.5 py-3.5" style={{ borderTop: sep ? "1px solid rgba(17,17,19,0.08)" : "0" }}>
-      <Icon size={21} style={{ color: "#F0531C" }} />
-      <div className="min-w-0 flex-1">
-        <p className="text-[10.5px] font-bold uppercase tracking-[0.04em]" style={{ color: "var(--text-secondary)" }}>{mini}</p>
-        <p className="mt-0.5 truncate text-[14.5px] font-bold" style={{ color: "var(--text-primary)" }}>{main}</p>
-        {sub ? <p className="mt-0.5 line-clamp-2 text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>{sub}</p> : null}
-      </div>
-      {call && order.restaurantPhone ? (
-        <a href={`tel:${String(order.restaurantPhone).replace(/\s+/g, "")}`} target="_top" className="grid h-9 w-9 place-items-center rounded-full" style={{ color: "var(--text-primary)" }}>
-          <Phone size={17} />
-        </a>
-      ) : null}
-    </div>
-  );
-
   const rawSubtotal = (order.items ?? []).reduce((s: number, it: any) => s + (Number(it.subtotal) || 0), 0);
   const deliveryFee = Number(order.deliveryFee || 0);
   const smallOrderFee = Number(order.smallOrderFee || 0);
   const tipAmount = Number(order.tipAmount || 0);
   const discount = authoritativeDiscount(order, rawSubtotal);
   const vatRows = receiptVatRows(order);
-  const paymentLabel = order.paymentMethod === "ONLINE" ? "Betalt med Apple Pay" : order.paymentMethod ? `Betalt med ${order.paymentMethod}` : "Betalning registrerad";
-  const sheetDragOffsetFromDelta = (delta: number, expanded: boolean) => {
-    return expanded
-      ? Math.max(0, Math.min(360, delta))
-      : Math.min(0, Math.max(-360, delta));
+  const paymentLabel = order.paymentMethod === "ONLINE" ? "Betalt online" : order.paymentMethod ? `Betalt med ${order.paymentMethod}` : "Betalning registrerad";
+
+  // ── Fas och färg ─────────────────────────────────────────────────────────
+  // Varje fas har EN egen färg så inget blandas ihop mellan flödena:
+  //   skickad/bekräftad = indigo, tillagas = orange, klar (väntar på
+  //   utkörning) = amber, på väg = blå, klar att hämta/levererad = grön,
+  //   avbruten/fel = röd, väntar på betalning = grå.
+  type Phase = "payment" | "sent" | "confirmed" | "cooking" | "readyWait" | "onWay" | "readyPickup" | "done" | "failed";
+  const phase: Phase = isRejected
+    ? "failed"
+    : isCompleted
+      ? "done"
+      : awaitingPayment
+        ? "payment"
+        : awaitingAccept
+          ? "sent"
+          : currentStatus === "ACCEPTED"
+            ? "confirmed"
+            : currentStatus === "PREPARING"
+              ? "cooking"
+              : currentStatus === "READY"
+                ? (isPickup ? "readyPickup" : "readyWait")
+                : isOnWay
+                  ? "onWay"
+                  : "confirmed";
+  const PHASE: Record<Phase, { color: string; soft: string; label: string; icon: any }> = {
+    payment: { color: "#8E8E93", soft: "#F2F2F4", label: "Väntar på betalning", icon: CreditCard },
+    sent: { color: "#5E5CE6", soft: "#EEEEFC", label: "Skickad", icon: Clock },
+    confirmed: { color: "#5E5CE6", soft: "#EEEEFC", label: "Bekräftad", icon: Check },
+    cooking: { color: "#F04F1A", soft: "#FFF1EB", label: "Tillagas", icon: Flame },
+    readyWait: { color: "#C77800", soft: "#FFF4DF", label: isSelf ? "Klar · restaurangen kör snart" : "Klar · budet hämtar snart", icon: PackageCheck },
+    onWay: { color: "#0A84FF", soft: "#E8F2FF", label: isSelf ? "Restaurangen kör ut" : "Budet är på väg", icon: isSelf ? Store : Bike },
+    readyPickup: { color: "#1F8A3B", soft: "#E9F6EC", label: "Klar att hämta", icon: PackageCheck },
+    done: { color: "#1F8A3B", soft: "#E9F6EC", label: isPickup ? "Hämtad" : "Levererad", icon: Check },
+    failed: { color: "#D70015", soft: "#FDECEE", label: cancelledCopy.main, icon: AlertCircle },
   };
+  const ph = PHASE[phase];
+  const PhaseIcon = ph.icon;
 
-  const finishSheetDragDelta = (delta: number) => {
-    setTrackingSheetDragStartY(null);
-    setTrackingSheetDragOffsetY(0);
-    if (delta < -36) setTrackingSheetExpanded(true);
-    else if (delta > 36) setTrackingSheetExpanded(false);
-    else setTrackingSheetExpanded((v) => !v);
-  };
+  // Steg per flöde. Avhämtning har ett eget sista steg ("Hämtad") så
+  // "Klar att hämta" och "Hämtad" aldrig visas som samma sak. Leverans har
+  // "Klar" som eget steg mellan köket och vägen.
+  const firstStep = phase === "sent" || phase === "payment" ? "Skickad" : "Bekräftad";
+  const steps: { label: string; color: string }[] = isPickup
+    ? [
+        { label: firstStep, color: PHASE.confirmed.color },
+        { label: "Tillagas", color: PHASE.cooking.color },
+        { label: "Klar", color: PHASE.readyPickup.color },
+        { label: "Hämtad", color: PHASE.done.color },
+      ]
+    : [
+        { label: firstStep, color: PHASE.confirmed.color },
+        { label: "Tillagas", color: PHASE.cooking.color },
+        { label: "Klar", color: PHASE.readyWait.color },
+        { label: isSelf ? "Kör ut" : "På väg", color: PHASE.onWay.color },
+        { label: "Levererad", color: PHASE.done.color },
+      ];
+  const stepIndex = phase === "done"
+    ? steps.length - 1
+    : phase === "readyPickup" || phase === "readyWait"
+      ? 2
+      : phase === "onWay"
+        ? 3
+        : phase === "cooking"
+          ? 1
+          : 0;
 
-  const startSheetDrag = (clientY: number) => {
-    if (trackingSheetDragActiveRef.current) return;
-    trackingSheetDragActiveRef.current = true;
-    const startY = clientY;
-    const expandedAtStart = trackingSheetExpanded;
-    setTrackingSheetDragStartY(startY);
-    setTrackingSheetDragOffsetY(0);
+  // ETA-texten: "ca 25 min" under aktivt arbete, klockslag vid schemalagd
+  // tid, annars ett kort läge. Aldrig en nedräkning som hoppar bakåt.
+  const etaBig = isRejected
+    ? null
+    : phase === "done"
+      ? null
+      : phase === "readyPickup"
+        ? "Nu"
+        : showEtaAsEstimate && etaMinutes != null
+          ? etaMinutes <= 0 ? "Snart" : `${etaMinutes} min`
+          : order.scheduledFor
+            ? new Date(order.scheduledFor).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })
+            : null;
+  const etaCaption = isRejected || phase === "done"
+    ? null
+    : phase === "readyPickup"
+      ? "Redo att hämtas"
+      : phase === "onWay"
+        ? "Framme om cirka"
+        : phase === "readyWait"
+          ? (isSelf ? "Utkörning förbereds" : "Väntar på bud")
+          : phase === "payment"
+            ? "Slutför betalningen"
+            : phase === "sent"
+              ? "Väntar på restaurangens svar"
+              : order.scheduledFor
+                ? "Schemalagd tid"
+                : isPickup ? "Klar om cirka" : "Levereras om cirka";
+  const showLiveMap = hasLiveMap;
+  const mapsHref = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(restAddr || restName)}`;
+  const telHref = order.restaurantPhone ? `tel:${String(order.restaurantPhone).replace(/\s+/g, "")}` : null;
+  const placedAt = order.createdAt ? new Date(order.createdAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" }) : null;
 
-    const eventY = (event: MouseEvent | PointerEvent | TouchEvent) => {
-      if ("touches" in event && event.touches?.[0]) return event.touches[0].clientY;
-      if ("changedTouches" in event && event.changedTouches?.[0]) return event.changedTouches[0].clientY;
-      return (event as MouseEvent | PointerEvent).clientY;
-    };
-    const cleanup = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onEnd);
-      window.removeEventListener("pointercancel", onCancel);
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onEnd);
-      window.removeEventListener("touchmove", onMove);
-      window.removeEventListener("touchend", onEnd);
-      window.removeEventListener("touchcancel", onCancel);
-      trackingSheetDragActiveRef.current = false;
-    };
-    const onMove = (event: MouseEvent | PointerEvent | TouchEvent) => {
-      if ("touches" in event) event.preventDefault();
-      const delta = eventY(event) - startY;
-      setTrackingSheetDragOffsetY(sheetDragOffsetFromDelta(delta, expandedAtStart));
-    };
-    const onEnd = (event: MouseEvent | PointerEvent | TouchEvent) => {
-      const delta = eventY(event) - startY;
-      cleanup();
-      finishSheetDragDelta(delta);
-    };
-    const onCancel = () => {
-      cleanup();
-      setTrackingSheetDragStartY(null);
-      setTrackingSheetDragOffsetY(0);
-    };
+  const hairline = "inset 0 0.5px 0 var(--ve-line)";
+  const sectionTitle = (text: string, right?: React.ReactNode) => (
+    <div className="flex items-baseline justify-between gap-3 px-1 mb-2.5">
+      <h2 className="m-0 text-[17px] font-semibold" style={{ color: "var(--ve-ink)", letterSpacing: "-0.015em" }}>{text}</h2>
+      {right}
+    </div>
+  );
+  const summaryRow = (label: React.ReactNode, value: React.ReactNode, tone: "default" | "success" = "default") => (
+    <div className="flex items-baseline justify-between gap-4 text-[15px]" style={{ color: tone === "success" ? "var(--ve-success)" : "var(--ve-ink-2)" }}>
+      <span className="min-w-0 truncate">{label}</span>
+      <span className="ve-tabular shrink-0 font-medium" style={{ color: tone === "default" ? "var(--ve-ink)" : undefined }}>{value}</span>
+    </div>
+  );
 
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onEnd);
-    window.addEventListener("pointercancel", onCancel);
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onEnd);
-    window.addEventListener("touchmove", onMove, { passive: false });
-    window.addEventListener("touchend", onEnd);
-    window.addEventListener("touchcancel", onCancel);
-  };
+  // ── Statuskort ────────────────────────────────────────────────────────────
+  const StatusHero = (
+    <motion.section
+      key={phase}
+      initial={embedMode ? false : { opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="ve-card overflow-hidden"
+    >
+      {showLiveMap && (
+        <div className="relative h-[220px] w-full overflow-hidden" style={{ backgroundColor: "#E7EAE6" }}>
+          <CourierTrackingMap
+            pickup={{ lat: order.restaurantLat, lng: order.restaurantLng }}
+            dropoff={{ lat: order.deliveryLatitude, lng: order.deliveryLongitude }}
+            courier={courierPos}
+            accentColor={ph.color}
+          />
+        </div>
+      )}
+      <div className="px-5 pt-5 pb-5">
+        <div className="flex items-start gap-4">
+          <span className="relative grid h-14 w-14 shrink-0 place-items-center rounded-[18px]" style={{ backgroundColor: ph.soft, color: ph.color }}>
+            <PhaseIcon size={26} strokeWidth={2.2} />
+            {!isRejected && phase !== "done" && phase !== "readyPickup" && (
+              <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-40" style={{ backgroundColor: ph.color }} />
+                <span className="relative inline-flex h-3.5 w-3.5 rounded-full" style={{ backgroundColor: ph.color, boxShadow: "0 0 0 2px #fff" }} />
+              </span>
+            )}
+          </span>
+          <div className="min-w-0 flex-1">
+            <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold" style={{ backgroundColor: ph.soft, color: ph.color }}>
+              <span className="h-[6px] w-[6px] rounded-full" style={{ backgroundColor: ph.color }} />
+              {ph.label}
+            </span>
+            <h1 className="m-0 mt-2 text-[22px] font-semibold leading-[1.12]" style={{ letterSpacing: "-0.022em", color: "var(--ve-ink)" }}>
+              {isRejected ? cancelledCopy.title : statusCopy.title}
+            </h1>
+            <p className="m-0 mt-1.5 text-[14.5px] leading-[1.45]" style={{ color: "var(--ve-ink-2)" }}>
+              {isRejected ? cancelledCopy.description : statusDescription}
+            </p>
+          </div>
+        </div>
 
+        {etaBig && (
+          <div className="mt-5 flex items-end justify-between gap-4 rounded-[16px] px-4 py-3.5" style={{ backgroundColor: ph.soft }}>
+            <div className="min-w-0">
+              <p className="m-0 text-[12.5px] font-medium" style={{ color: ph.color }}>{etaCaption}</p>
+              <p className="ve-tabular m-0 mt-0.5 text-[30px] font-semibold leading-none" style={{ letterSpacing: "-0.03em", color: "var(--ve-ink)" }}>{etaBig}</p>
+            </div>
+            {phase === "readyPickup" ? (
+              <span className="ve-tabular shrink-0 rounded-full px-3 py-1.5 text-[14px] font-semibold text-white" style={{ backgroundColor: ph.color }}>{orderNo}</span>
+            ) : deliveryOverdue ? (
+              <span className="shrink-0 text-[12px] font-medium" style={{ color: ph.color }}>Hög belastning</span>
+            ) : null}
+          </div>
+        )}
+        {!etaBig && etaCaption && (
+          <p className="m-0 mt-4 text-[13.5px] font-medium" style={{ color: ph.color }}>{etaCaption}</p>
+        )}
+
+        {!isRejected && (
+          <div className="mt-5">
+            <div className="flex items-center gap-1.5">
+              {steps.map((step, index) => {
+                const done = index < stepIndex || phase === "done";
+                const active = index === stepIndex && phase !== "done";
+                return (
+                  <span
+                    key={step.label}
+                    className="h-[6px] flex-1 overflow-hidden rounded-full"
+                    style={{ backgroundColor: done ? step.color : active ? step.color : "var(--ve-fill-2)", opacity: active ? 1 : done ? 0.55 : 1 }}
+                  >
+                    {active && <span className="block h-full w-full animate-pulse rounded-full" style={{ backgroundColor: step.color }} />}
+                  </span>
+                );
+              })}
+            </div>
+            <div className="mt-2 flex gap-1.5">
+              {steps.map((step, index) => {
+                const done = index < stepIndex || phase === "done";
+                const active = index === stepIndex && phase !== "done";
+                return (
+                  <span
+                    key={step.label}
+                    className="flex-1 text-[10.5px] leading-tight"
+                    style={{
+                      wordBreak: "keep-all",
+                      textAlign: index === 0 ? "left" : index === steps.length - 1 ? "right" : "center",
+                      color: active ? step.color : done ? "var(--ve-ink)" : "var(--ve-ink-3)",
+                      fontWeight: active ? 600 : 500,
+                    }}
+                  >
+                    {step.label}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </motion.section>
+  );
+
+  // ── Var-kortet: hämta hos / levereras till + restaurangen ────────────────
+  const WhereCard = (
+    <section className="ve-card overflow-hidden">
+      {isPickup ? (
+        <a href={mapsHref} target="_blank" rel="noreferrer" className="ve-row-press flex items-center gap-3.5 px-4 py-3.5">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ backgroundColor: PHASE.readyPickup.soft, color: PHASE.readyPickup.color }}>
+            <MapPin size={18} strokeWidth={2.2} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[12.5px]" style={{ color: "var(--ve-ink-3)" }}>Hämta hos</span>
+            <span className="block truncate text-[16px] font-semibold" style={{ color: "var(--ve-ink)", letterSpacing: "-0.01em" }}>{restName}</span>
+            {restAddr && <span className="block truncate text-[13.5px]" style={{ color: "var(--ve-ink-2)" }}>{restAddr}</span>}
+          </span>
+          <span className="inline-flex h-9 shrink-0 items-center gap-1 rounded-full px-3 text-[13px] font-semibold" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>
+            <Navigation size={13} strokeWidth={2.4} /> Karta
+          </span>
+        </a>
+      ) : (
+        <>
+          <div className="flex items-center gap-3.5 px-4 py-3.5">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>
+              <MapPin size={18} strokeWidth={2.2} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[12.5px]" style={{ color: "var(--ve-ink-3)" }}>Levereras till</span>
+              <span className="block truncate text-[16px] font-semibold" style={{ color: "var(--ve-ink)", letterSpacing: "-0.01em" }}>{custAddr || "Din adress"}</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-3.5 px-4 py-3.5" style={{ boxShadow: hairline }}>
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>
+              <Store size={18} strokeWidth={2.2} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[12.5px]" style={{ color: "var(--ve-ink-3)" }}>{isSelf ? "Restaurangen levererar själv" : "Restaurang"}</span>
+              <span className="block truncate text-[16px] font-semibold" style={{ color: "var(--ve-ink)", letterSpacing: "-0.01em" }}>{restName}</span>
+            </span>
+            {telHref && (
+              <a href={telHref} target="_top" aria-label="Ring restaurangen" className="ve-press grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>
+                <Phone size={17} strokeWidth={2.2} />
+              </a>
+            )}
+          </div>
+        </>
+      )}
+      {isPickup && telHref && (
+        <a href={telHref} target="_top" className="ve-row-press flex items-center gap-3.5 px-4 py-3.5" style={{ boxShadow: hairline }}>
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>
+            <Phone size={17} strokeWidth={2.2} />
+          </span>
+          <span className="min-w-0 flex-1 text-[16px] font-medium" style={{ color: "var(--ve-ink)" }}>Ring restaurangen</span>
+          <ChevronRight size={17} strokeWidth={2.2} style={{ color: "var(--ve-ink-3)" }} />
+        </a>
+      )}
+    </section>
+  );
+
+  // ── Beställningen ─────────────────────────────────────────────────────────
+  const OrderCard = (
+    <section className="ve-card overflow-hidden">
+      {(order.items ?? []).map((item: any, index: number) => (
+        <div key={`${item.id || item.productId || item.productName}-${index}`} className="mx-4 flex items-start gap-3 py-3" style={{ boxShadow: index === 0 ? undefined : hairline }}>
+          <span className="ve-tabular mt-0.5 grid h-6 min-w-[24px] shrink-0 place-items-center rounded-full px-1.5 text-[12px] font-semibold" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>{item.quantity || 1}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[15px] font-medium leading-snug" style={{ color: "var(--ve-ink)" }}>{item.productName || item.name}</span>
+            {Array.isArray(item.selectedExtras) && item.selectedExtras.length > 0 && (
+              <span className="block mt-0.5 text-[13px]" style={{ color: "var(--ve-ink-2)" }}>{item.selectedExtras.map((e: any) => e.extraName || e.name).join(" · ")}</span>
+            )}
+            {item.note && <span className="block mt-0.5 text-[12.5px] italic" style={{ color: "var(--ve-ink-3)" }}>{item.note}</span>}
+          </span>
+          <span className="ve-tabular shrink-0 text-[15px] font-medium" style={{ color: "var(--ve-ink)" }}>{formatSek(item.subtotal)} kr</span>
+        </div>
+      ))}
+      <div className="px-4 py-3.5 space-y-2" style={{ boxShadow: hairline }}>
+        {summaryRow("Delsumma", `${formatSek(rawSubtotal)} kr`)}
+        {discount > 0 && summaryRow(order.appliedDealTitle || "Rabatt", `−${formatSek(discount)} kr`, "success")}
+        {order.type === "DELIVERY" && summaryRow("Leverans", deliveryFee > 0 ? `${formatSek(deliveryFee)} kr` : "Gratis")}
+        {smallOrderFee > 0 && summaryRow("Avgift för liten beställning", `${formatSek(smallOrderFee)} kr`)}
+        {tipAmount > 0 && summaryRow("Dricks", `${formatSek(tipAmount)} kr`)}
+        <div className="flex items-baseline justify-between gap-4 pt-2.5 mt-1" style={{ boxShadow: hairline }}>
+          <span className="text-[16px] font-semibold" style={{ color: "var(--ve-ink)" }}>Totalt</span>
+          <span className="ve-tabular text-[20px] font-semibold" style={{ color: "var(--ve-ink)", letterSpacing: "-0.02em" }}>{formatSek(order.total)} kr</span>
+        </div>
+        <p className="m-0 flex items-center gap-1.5 pt-1 text-[12.5px]" style={{ color: "var(--ve-ink-3)" }}><ShieldCheck size={13} strokeWidth={2.2} /> {paymentLabel}{placedAt ? ` · lagd ${placedAt}` : ""}</p>
+      </div>
+      {!awaitingPayment && (
+        <button type="button" onClick={() => setShowReceipt(true)} className="ve-row-press flex w-full items-center gap-3.5 px-4 py-3.5 text-left" style={{ boxShadow: hairline }}>
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}><Receipt size={16} strokeWidth={2.2} /></span>
+          <span className="min-w-0 flex-1 text-[15px] font-medium" style={{ color: "var(--ve-ink)" }}>Kvitto</span>
+          <ChevronRight size={17} strokeWidth={2.2} style={{ color: "var(--ve-ink-3)" }} />
+        </button>
+      )}
+    </section>
+  );
+
+  // ── Recension efter leverans ──────────────────────────────────────────────
+  const ReviewCard = isCompleted ? (
+    <section className="ve-card px-5 py-5">
+      {order.rating || reviewDone ? (
+        <div className="flex items-center gap-3.5">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full" style={{ backgroundColor: PHASE.done.soft, color: PHASE.done.color }}><Check size={22} strokeWidth={2.6} /></span>
+          <div className="min-w-0">
+            <p className="m-0 text-[17px] font-semibold" style={{ letterSpacing: "-0.015em", color: "var(--ve-ink)" }}>Tack för din recension</p>
+            <p className="m-0 mt-0.5 text-[14px]" style={{ color: "var(--ve-ink-2)" }}>{reviewRewardText || "Den hjälper restaurangen och andra som beställer."}</p>
+          </div>
+        </div>
+      ) : reviewDismissed ? (
+        <div className="flex items-center gap-3.5">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full" style={{ backgroundColor: PHASE.done.soft, color: PHASE.done.color }}><Check size={22} strokeWidth={2.6} /></span>
+          <p className="m-0 text-[17px] font-semibold" style={{ letterSpacing: "-0.015em", color: "var(--ve-ink)" }}>Tack för att du beställer lokalt</p>
+        </div>
+      ) : (
+        <>
+          <p className="m-0 text-[17px] font-semibold" style={{ letterSpacing: "-0.015em", color: "var(--ve-ink)" }}>Hur var maten?</p>
+          <p className="m-0 mt-0.5 text-[14px]" style={{ color: "var(--ve-ink-2)" }}>Ett betyg räcker, en kommentar är extra.</p>
+          <div className="my-4 flex justify-center gap-2.5">
+            {[1, 2, 3, 4, 5].map((s) => (
+              <button key={s} type="button" onClick={() => setReviewRating(s)} aria-label={`${s} av 5`} className="ve-press">
+                <Star size={32} strokeWidth={1.6} style={s <= reviewRating ? { color: "#F5A524", fill: "#F5A524" } : { color: "var(--ve-line-2)" }} />
+              </button>
+            ))}
+          </div>
+          <textarea value={reviewText} onChange={(e) => setReviewText(e.target.value)} placeholder="Skriv något kort, valfritt" rows={2} className="ve-input w-full rounded-[14px] px-4 py-3 font-medium outline-none resize-none" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }} />
+          <div className="mt-3 flex gap-2.5">
+            <button type="button" onClick={dismissReview} className="ve-press h-12 flex-1 rounded-full text-[15px] font-medium" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>Skippa</button>
+            <button type="button" onClick={submitReview} disabled={!reviewRating || reviewSubmitting} className="ve-press flex h-12 flex-[2] items-center justify-center gap-2 rounded-full text-[15px] font-semibold disabled:opacity-40" style={{ backgroundColor: "var(--ve-cta)", color: "var(--ve-cta-ink)" }}>
+              {reviewSubmitting ? <Loader2 size={17} className="animate-spin" /> : null}
+              {reviewSubmitting ? "Skickar" : "Skicka betyg"}
+            </button>
+          </div>
+        </>
+      )}
+    </section>
+  ) : null;
+
+  // ── Kvitto-överlägg ──────────────────────────────────────────────────────
   const OrderInfoOverlayWeb = (
     <AnimatePresence>
       {showReceipt && !awaitingPayment ? (
@@ -996,902 +1120,169 @@ const OrderStatusPage = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[1900] overflow-y-auto"
-          style={{ backgroundColor: "var(--bg-primary)" }}
+          className="ve-root fixed inset-0 z-[1900] overflow-y-auto"
         >
-          <div
-            className="mx-auto min-h-[100dvh] max-w-md px-5 pt-[calc(env(safe-area-inset-top,0px)+14px)]"
-            style={{ paddingBottom: embedMode ? "calc(env(safe-area-inset-bottom, 0px) + 10rem)" : "2rem" }}
-          >
+          <div className="mx-auto min-h-[100dvh] max-w-[680px] px-4 pt-[calc(env(safe-area-inset-top,0px)+14px)]" style={{ paddingBottom: embedMode ? "calc(env(safe-area-inset-bottom, 0px) + 10rem)" : "2rem" }}>
             <div className="flex items-center gap-3 pb-4">
-              <button type="button" onClick={() => setShowReceipt(false)} className="grid h-10 w-10 place-items-center rounded-full" style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)" }}>
-                <ArrowRight size={18} className="rotate-180" />
+              <button type="button" onClick={() => setShowReceipt(false)} className="ve-press grid h-10 w-10 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }} aria-label="Tillbaka">
+                <ChevronLeft size={20} strokeWidth={2.4} className="-ml-0.5" />
               </button>
-              <h2 className="text-[22px] font-black tracking-tight" style={{ color: "var(--text-primary)" }}>Orderinfo</h2>
+              <h2 className="m-0 text-[22px] font-semibold" style={{ letterSpacing: "-0.02em", color: "var(--ve-ink)" }}>Kvitto</h2>
+              <span className="ve-tabular ml-auto text-[13px]" style={{ color: "var(--ve-ink-3)" }}>{orderNo}</span>
             </div>
 
-            <div className="rounded-[18px] border bg-white p-3.5 shadow-sm" style={{ borderColor: "rgba(17,17,19,0.07)" }}>
-              <div className="flex items-center gap-3.5">
-                <div className="grid h-[54px] w-[54px] place-items-center rounded-[14px]" style={{ backgroundColor: "var(--bg-deep)", color: "#F0531C" }}>
-                  <Store size={25} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[16px] font-bold" style={{ color: "var(--text-primary)" }}>{restName}</p>
-                  <p className="mt-0.5 truncate text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>Order {orderNo}</p>
-                </div>
-                <ChevronDown size={20} className="-rotate-90" style={{ color: "#C2C2C6" }} />
+            <div className="ve-card px-4 py-4">
+              <p className="m-0 text-[17px] font-semibold" style={{ letterSpacing: "-0.015em", color: "var(--ve-ink)" }}>{order.restaurantLegalName || restName}</p>
+              {order.restaurantOrgNr && <p className="m-0 mt-0.5 text-[13px]" style={{ color: "var(--ve-ink-3)" }}>Org.nr {order.restaurantOrgNr}</p>}
+              {restAddr && <p className="m-0 mt-0.5 text-[13px]" style={{ color: "var(--ve-ink-3)" }}>{restAddr}</p>}
+              {(order.restaurantPhone || order.restaurantEmail) && <p className="m-0 mt-0.5 text-[13px]" style={{ color: "var(--ve-ink-3)" }}>{[order.restaurantPhone, order.restaurantEmail].filter(Boolean).join(" · ")}</p>}
+              <div className="mt-3 space-y-1.5 pt-3" style={{ boxShadow: hairline }}>
+                {summaryRow("Datum", new Date(order.createdAt).toLocaleString("sv-SE", { dateStyle: "long", timeStyle: "short" }))}
+                {summaryRow("Typ", order.type === "DELIVERY" ? (isSelf ? "Leverans av restaurangen" : "Leverans") : "Avhämtning")}
+                {summaryRow("Betalsätt", paymentMethodLabel(order.paymentMethod))}
               </div>
             </div>
 
-            <p className="px-0.5 pb-2 pt-5 text-[11px] font-black uppercase tracking-[0.1em]" style={{ color: "var(--text-secondary)" }}>Din beställning</p>
-            <div className="rounded-[18px] border bg-white px-4 shadow-sm" style={{ borderColor: "rgba(17,17,19,0.07)" }}>
-              {(order.items ?? []).map((item: any, index: number) => (
-                <div key={`${item.id || item.productId || item.productName}-${index}`} className="flex items-baseline gap-2.5 py-3.5" style={{ borderTop: index > 0 ? "1px solid rgba(17,17,19,0.07)" : "0" }}>
-                  <span className="text-[13.5px] font-black" style={{ color: "#F0531C" }}>{item.quantity || 1}x</span>
-                  <span className="min-w-0 flex-1 text-[14.5px] font-bold leading-5" style={{ color: "var(--text-primary)" }}>{item.productName || item.name}</span>
-                  <span className="text-[14px] font-bold tabular-nums" style={{ color: "var(--text-primary)" }}>{formatSek(item.subtotal)} kr</span>
-                </div>
-              ))}
-            </div>
+            <div className="mt-4">{OrderCard}</div>
 
-            <p className="px-0.5 pb-2 pt-5 text-[11px] font-black uppercase tracking-[0.1em]" style={{ color: "var(--text-secondary)" }}>Kvitto</p>
-            <div className="space-y-1.5 px-0.5">
-              <div className="flex justify-between py-1 text-[13.5px] font-medium" style={{ color: "var(--text-secondary)" }}><span>Delsumma</span><span className="tabular-nums">{formatSek(rawSubtotal)} kr</span></div>
-              {order.type === "DELIVERY" ? <div className="flex justify-between py-1 text-[13.5px] font-medium" style={{ color: "var(--text-secondary)" }}><span>Leverans</span><span className="tabular-nums">{deliveryFee > 0 ? `${formatSek(deliveryFee)} kr` : "Fri"}</span></div> : null}
-              {smallOrderFee > 0 ? <div className="flex justify-between py-1 text-[13.5px] font-medium" style={{ color: "var(--text-secondary)" }}><span>Avgift för liten beställning</span><span className="tabular-nums">+{formatSek(smallOrderFee)} kr</span></div> : null}
-              {tipAmount > 0 ? <div className="flex justify-between py-1 text-[13.5px] font-medium" style={{ color: "var(--text-secondary)" }}><span>Dricks</span><span className="tabular-nums">+{formatSek(tipAmount)} kr</span></div> : null}
-              {discount > 0 ? <div className="flex justify-between py-1 text-[13.5px] font-semibold text-emerald-600"><span>Rabatt</span><span className="tabular-nums">-{formatSek(discount)} kr</span></div> : null}
-              {vatRows.map((vat) => <div key={vat.rate} className="flex justify-between py-1 text-[13.5px] font-medium" style={{ color: "var(--text-secondary)" }}><span>Varav moms ({formatSek(vat.rate)} %)</span><span className="tabular-nums">{formatSek(vat.vat)} kr</span></div>)}
-              <div className="mt-2 flex items-baseline justify-between border-t pt-3" style={{ borderColor: "rgba(17,17,19,0.12)" }}>
-                <span className="text-[16px] font-black" style={{ color: "var(--text-primary)" }}>Totalt</span>
-                <span className="text-[21px] font-black tabular-nums" style={{ color: "var(--text-primary)" }}>{formatSek(order.total)} kr</span>
+            {vatRows.length > 0 && (
+              <div className="ve-card mt-4 px-4 py-3.5 space-y-1.5">
+                {vatRows.map((vat) => <div key={vat.rate}>{summaryRow(`Varav moms ${formatSek(vat.rate)} %`, `${formatSek(vat.vat)} kr`)}</div>)}
               </div>
-              <div className="mt-2 flex items-center gap-1.5 text-[12px] font-medium" style={{ color: "var(--text-secondary)" }}>
-                <ShoppingBag size={14} /> {paymentLabel}
-              </div>
-              <button
-                type="button"
-                onClick={downloadReceipt}
-                disabled={receiptDownloads >= RECEIPT_MAX_DOWNLOADS}
-                className="mt-3 flex h-12 w-full items-center gap-2.5 rounded-[13px] border bg-white px-4 text-[14px] font-bold disabled:opacity-50"
-                style={{ borderColor: "var(--border-muted)", color: "var(--text-primary)" }}
-              >
-                <Download size={18} />
-                {receiptDownloads >= RECEIPT_MAX_DOWNLOADS ? "Kvitto nedladdat" : "Ladda ner kvitto"}
-                <span className="ml-auto text-[11px] font-medium" style={{ color: "var(--text-secondary)" }}>
-                  {receiptDownloads >= RECEIPT_MAX_DOWNLOADS ? "Max nått" : `HTML · ${RECEIPT_MAX_DOWNLOADS - receiptDownloads} kvar`}
-                </span>
-              </button>
-            </div>
+            )}
+
+            <button
+              type="button"
+              onClick={downloadReceipt}
+              disabled={receiptDownloads >= RECEIPT_MAX_DOWNLOADS}
+              className="ve-press mt-4 flex h-[52px] w-full items-center justify-center gap-2 rounded-full text-[16px] font-semibold disabled:opacity-40"
+              style={{ backgroundColor: "var(--ve-cta)", color: "var(--ve-cta-ink)" }}
+            >
+              <Download size={17} strokeWidth={2.2} />
+              {receiptDownloads >= RECEIPT_MAX_DOWNLOADS ? "Kvittot är nedladdat" : "Ladda ner kvitto"}
+            </button>
           </div>
         </motion.div>
       ) : null}
     </AnimatePresence>
   );
 
-  if (showMapFullscreen) {
-    return (
-      <div className="relative isolate min-h-[100dvh] overflow-hidden bg-white">
-        <div className="absolute inset-x-0 top-0 z-0 h-[47dvh] min-h-[330px] isolate overflow-hidden" style={{ backgroundColor: "#E7EAE6" }}>
-          <CourierTrackingMap
-            pickup={{ lat: order.restaurantLat, lng: order.restaurantLng }}
-            dropoff={{ lat: order.deliveryLatitude, lng: order.deliveryLongitude }}
-            courier={courierPos}
-            accentColor={statusAccent}
-          />
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-white/80 via-white/20 to-transparent" />
-        </div>
-        <Link href={embedMode ? embedMenuHref : "/"} aria-label="Till menyn" className="absolute left-4 top-[calc(env(safe-area-inset-top,0px)+16px)] z-[1600] grid h-11 w-11 place-items-center rounded-full border bg-white shadow-lg" style={{ borderColor: "rgba(17,17,19,0.10)", color: "var(--text-primary)" }}>
-          <ArrowRight size={18} className="rotate-180" />
-        </Link>
-        <section
-          className={`absolute inset-x-0 bottom-0 z-[1500] overflow-hidden rounded-t-[32px] border-t bg-white shadow-2xl transition-[top] duration-300 ease-out ${trackingSheetExpanded ? "top-[calc(env(safe-area-inset-top,0px)+14px)]" : "top-[calc(47dvh-28px)]"}`}
-          style={{
-            borderColor: "rgba(17,17,19,0.08)",
-            boxShadow: "0 -12px 34px rgba(17,17,19,0.16)",
-            transform: trackingSheetDragOffsetY ? `translate3d(0, ${trackingSheetDragOffsetY}px, 0)` : undefined,
-            transition: trackingSheetDragStartY == null ? undefined : "none",
-          }}
-        >
-          <button
-            type="button"
-            className="flex w-full touch-none select-none justify-center pb-3 pt-4"
-            aria-label={trackingSheetExpanded ? "Dra ner orderpanelen" : "Dra upp orderpanelen"}
-            onPointerDown={(e) => {
-              (e.currentTarget as HTMLButtonElement).setPointerCapture?.(e.pointerId);
-              startSheetDrag(e.clientY);
-            }}
-            onMouseDown={(e) => startSheetDrag(e.clientY)}
-            onTouchStart={(e) => startSheetDrag(e.touches[0]?.clientY ?? 0)}
-          >
-            <div className="h-[5px] w-12 rounded-full bg-[#D6D6D2]" />
-          </button>
-          <div className="px-5 pb-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-black uppercase tracking-[0.09em]" style={{ color: "var(--text-secondary)" }}>ORDER {order.orderNumber ? `#${order.orderNumber}` : ""}</p>
-                <h1 className="mt-0.5 text-[22px] font-black tracking-tight" style={{ color: isGreenStatus ? "#2E7D4F" : "var(--text-primary)" }}>{statusTitle}</h1>
-                <p className="mt-0.5 text-[12.5px] font-medium" style={{ color: "var(--text-secondary)" }}>{statusDescription}</p>
-              </div>
-              <div className="text-right">
-                {awaitingPayment ? null : (
-                  <button type="button" onClick={() => setShowReceipt(true)} className="mb-1 text-[11.5px] font-bold" style={{ color: statusAccentInk }}>Orderinfo & kvitto ›</button>
-                )}
-                <p className="text-[10px] font-medium" style={{ color: "var(--text-secondary)" }}>{fullscreenEtaSub}</p>
-                <p className="text-[24px] font-black tracking-tight" style={{ color: isGreenStatus ? "#2E7D4F" : "var(--text-primary)" }}>{fullscreenEtaMain}</p>
-              </div>
-            </div>
-            {TrackingLineWeb({})}
-            <div className="mt-3 flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: statusAccent }} />
-              <p className="text-[12.5px] font-medium" style={{ color: "var(--text-secondary)" }}>
-                {deliveryOverdue ? t("order.eta.overdueBusy") : isGreenStatus ? statusDescription : "Tillagad · ditt bud är på väg"}
-              </p>
-            </div>
-            {ContactActionsWeb({})}
-          </div>
-          <div className="h-[calc(100%-250px)] overflow-y-auto px-5 pb-[calc(env(safe-area-inset-bottom,0px)+24px)]">
-            <div className="overflow-hidden rounded-2xl border bg-white" style={{ borderColor: "rgba(17,17,19,0.08)" }}>
-              {DestRowWeb({ mini: "Levereras till", main: custAddr || restName, icon: MapPin })}
-            </div>
-            <div className="mt-3 overflow-hidden rounded-2xl border bg-white" style={{ borderColor: "rgba(17,17,19,0.08)" }}>
-              {DestRowWeb({ mini: "Restaurang", main: restName, sub: restAddr, icon: Store, call: true })}
-            </div>
-          </div>
-        </section>
-        {OrderInfoOverlayWeb}
-      </div>
-    );
-  }
-
-  const StatusCard = () => (
-    <motion.div
-      key={currentStatus}
-      initial={embedMode ? false : { opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="relative mt-4 overflow-hidden rounded-[26px] border bg-white px-6 py-7 text-center shadow-xl"
-      style={{ borderColor: isGreenStatus ? "rgba(46,125,79,0.22)" : "rgba(17,17,19,0.07)", boxShadow: "0 16px 34px rgba(17,17,19,0.11)" }}
-    >
-      <span aria-hidden className="pointer-events-none absolute -right-14 -top-16 h-40 w-40 rounded-full opacity-20" style={{ backgroundColor: statusAccent }} />
-      <span aria-hidden className="pointer-events-none absolute -bottom-20 -left-16 h-44 w-44 rounded-full opacity-[0.08]" style={{ backgroundColor: statusAccent }} />
-      <div className="relative mx-auto grid h-14 w-14 place-items-center rounded-2xl" style={{ backgroundColor: statusSoft, color: statusAccentInk }}>
-        <StatusIcon size={27} className={awaitingAccept ? "animate-pulse" : ""} />
-      </div>
-      <div className="relative mx-auto mt-3 inline-flex items-center gap-2 rounded-full px-3.5 py-2" style={{ backgroundColor: statusSoft }}>
-        <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-40" style={{ backgroundColor: statusAccent }} /><span className="relative inline-flex h-2 w-2 rounded-full" style={{ backgroundColor: statusAccent }} /></span>
-        <span className="text-[10.5px] font-black uppercase tracking-[0.07em]" style={{ color: statusAccentInk }}>{isPickup ? "AVHÄMTNING" : statusTitle}</span>
-      </div>
-      <p className="relative mt-4 text-[clamp(30px,11vw,48px)] font-black leading-[0.98] tracking-[-0.04em]" style={{ color: isRejected ? "#C0392B" : isGreenStatus ? "#2E7D4F" : "var(--text-primary)" }}>
-        {showEtaAsEstimate ? `ca ${etaMain}` : etaMain}
-      </p>
-      <p className="relative mx-auto mt-3 max-w-sm text-[13.5px] font-medium leading-5" style={{ color: "var(--text-secondary)" }}>{statusDescription}</p>
-      {!isRejected ? <div className="relative border-t pt-1" style={{ borderColor: "rgba(17,17,19,0.07)" }}>{TrackingLineWeb({})}</div> : null}
-    </motion.div>
-  );
-
-  const PickupReadyCard = () => (
-    <div className="mt-4 overflow-hidden rounded-[24px] border bg-white shadow-xl" style={{ borderColor: "rgba(17,17,19,0.06)", boxShadow: "0 14px 30px rgba(17,17,19,0.11)" }}>
-      <div className="relative overflow-hidden bg-[#2E7D4F] p-[22px] text-white">
-        <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-white/10" />
-        <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-2">
-          <span className="h-2 w-2 rounded-full bg-white" />
-          <span className="text-[11px] font-black uppercase tracking-[0.07em]">REDO ATT HÄMTAS</span>
-        </div>
-        <h2 className="mt-4 text-[38px] font-black tracking-tight">Din mat väntar</h2>
-        <p className="mt-1.5 text-[13.5px] font-medium leading-5 text-white/85">Visa ordernumret i restaurangen när du hämtar.</p>
-      </div>
-      <div className="p-[18px]">
-        <div className="flex items-center gap-3">
-          <MapPin size={22} style={{ color: "#2E7D4F" }} />
-          <div className="min-w-0 flex-1">
-            <p className="text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>{restName}</p>
-            <p className="mt-0.5 line-clamp-2 text-[12.5px] font-medium" style={{ color: "var(--text-secondary)" }}>{restAddr}</p>
-          </div>
-        </div>
-        <div className="mt-4 border-t pt-4" style={{ borderColor: "rgba(17,17,19,0.07)" }}>
-          {TrackingLineWeb({ pickupReady: true })}
-        </div>
-      </div>
-    </div>
-  );
-
-  const CompletedReviewCard = () => (
-    <div className="mt-4 rounded-[24px] border bg-white p-5 text-center shadow-xl" style={{ borderColor: order.rating || reviewDone ? "rgba(46,125,79,0.26)" : "rgba(240,83,28,0.24)", boxShadow: "0 14px 28px rgba(17,17,19,0.10)" }}>
-      {order.rating || reviewDone ? (
-        <>
-          <div className="mx-auto mb-3 grid h-16 w-16 place-items-center rounded-full bg-[#EAF7EF] text-[#2E7D4F]"><ShieldCheck size={34} /></div>
-          <p className="text-[30px] font-black" style={{ color: "#2E7D4F" }}>Klart</p>
-          <p className="mt-2 text-[20px] font-black" style={{ color: "var(--text-primary)" }}>Tack för att du väljer ViaEats</p>
-          {reviewRewardText && (
-            <p className="mt-2 text-[15px] font-black" style={{ color: "#F0531C" }}>{reviewRewardText}</p>
-          )}
-        </>
-      ) : reviewDismissed ? (
-        <>
-          <div className="mx-auto mb-3 grid h-16 w-16 place-items-center rounded-full bg-[#EAF7EF] text-[#2E7D4F]"><ShieldCheck size={34} /></div>
-          <p className="text-[30px] font-black" style={{ color: "#2E7D4F" }}>Levererad</p>
-          <p className="mt-2 text-[20px] font-black" style={{ color: "var(--text-primary)" }}>Tack för att du väljer ViaEats</p>
-        </>
-      ) : (
-        <>
-          <p className="text-left text-[11px] font-black uppercase tracking-[0.09em]" style={{ color: "#2E7D4F" }}>LEVERERAD</p>
-          <h2 className="mt-1 text-left text-[24px] font-black tracking-tight" style={{ color: "var(--text-primary)" }}>Betygsätt ordern</h2>
-          <div className="my-4 flex justify-center gap-3">
-            {[1, 2, 3, 4, 5].map((s) => (
-              <button key={s} type="button" onClick={() => setReviewRating(s)}>
-                <Star size={31} className={s <= reviewRating ? "fill-[var(--color-gold-500)] text-[var(--color-gold-500)]" : "text-[var(--border-muted)]"} />
-              </button>
-            ))}
-          </div>
-          <textarea value={reviewText} onChange={(e) => setReviewText(e.target.value)} placeholder="Skriv något kort, valfritt" rows={3} className="w-full rounded-[14px] p-3.5 text-sm outline-none" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }} />
-          <div className="mt-3 flex gap-2.5">
-            <button type="button" onClick={dismissReview} className="flex h-[52px] flex-1 items-center justify-center rounded-[14px] text-[14.5px] font-bold" style={{ backgroundColor: "rgba(17,17,19,0.06)", color: "var(--text-secondary)" }}>
-              Skippa
-            </button>
-            <button type="button" onClick={submitReview} disabled={!reviewRating || reviewSubmitting} className="flex h-[52px] flex-[2] items-center justify-center gap-2 rounded-[14px] text-[14.5px] font-bold text-white disabled:opacity-50" style={{ backgroundColor: "#F0531C" }}>
-              {reviewSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Star size={16} className="fill-current" />}
-              {reviewSubmitting ? "Skickar" : "Skicka"}
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-
   return (
-    // Spårningen ska bete sig som en app-skärm: den rör sig bara uppåt och
-    // nedåt. `touch-action: pan-y` stoppar sidledes dragning på touch,
-    // `overscroll-behavior` tar bort studsen mot kanterna och `overflow-x:
-    // clip` (inte hidden — hidden bryter position:sticky i descendants)
-    // ser till att inget innehåll kan skapa en sidledes scroll.
+    // Spårningen beter sig som en app-skärm: bara vertikal rörelse, ingen
+    // studs mot kanterna, inget som kan skapa sidledes scroll.
     <div
-      className="min-h-[100dvh] w-full max-w-full"
-      style={{
-        backgroundColor: "var(--bg-primary)",
-        overflowX: "clip",
-        overscrollBehavior: "none",
-        // pinch-zoom får vara kvar — det är sidledes dragningen som ska bort,
-        // inte möjligheten att zooma in texten.
-        touchAction: "pan-y pinch-zoom",
-      }}
+      className="ve-root min-h-[100dvh] w-full max-w-full md:pt-20"
+      style={{ overflowX: "clip", overscrollBehavior: "none", touchAction: "pan-y pinch-zoom" }}
     >
+      <MetaPurchase receipt={order.marketingPurchase} />
       <div
-        className="mx-auto max-w-md px-4 pt-[calc(env(safe-area-inset-top,0px)+8px)]"
-        style={{ paddingBottom: embedMode ? "calc(env(safe-area-inset-bottom, 0px) + 10rem)" : "calc(env(safe-area-inset-bottom, 0px) + 24px)" }}
+        className="mx-auto max-w-[680px] px-4 pt-[calc(env(safe-area-inset-top,0px)+12px)] md:pt-6"
+        style={{ paddingBottom: embedMode ? "calc(env(safe-area-inset-bottom, 0px) + 10rem)" : "calc(env(safe-area-inset-bottom, 0px) + 32px)" }}
       >
-        <div className="flex h-[52px] items-center gap-3 border-b" style={{ borderColor: "var(--border-muted)" }}>
-          <Link href={embedMode ? embedMenuHref : "/"} aria-label="Till menyn" className="grid h-9 w-9 place-items-center rounded-full">
-            <ArrowRight size={20} className="rotate-180" />
+        <header className="mb-4 flex items-center gap-3">
+          <Link href={embedMode ? embedMenuHref : "/"} aria-label="Till menyn" className="ve-press grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>
+            <ChevronLeft size={20} strokeWidth={2.4} className="-ml-0.5" />
           </Link>
-          <span className="text-[15px] font-bold" style={{ color: "var(--text-primary)" }}>Din order</span>
-          <span className="ml-auto text-[13px] font-medium" style={{ color: "var(--text-secondary)" }}>{orderNo}</span>
-        </div>
-
-        {/* Andningstemat bär hela sidan. Ingen karta för self-delivery, och
-            för vi-levererar dyker den upp först när budet hämtat maten. */}
-        {isRejected ? (
-          StatusCard()
-        ) : (
-          <div className="mt-3">
-            <BreathingTrackingPanel
-              order={order}
-              courier={courierPos}
-              onOpenInfo={() => setShowReceipt(true)}
-            />
+          <div className="min-w-0 flex-1">
+            <h2 className="m-0 text-[22px] font-semibold leading-tight" style={{ letterSpacing: "-0.02em", color: "var(--ve-ink)" }}>Din order</h2>
+            <p className="m-0 mt-px truncate text-[13px]" style={{ color: "var(--ve-ink-3)" }}>{restName} · {isPickup ? "Avhämtning" : isSelf ? "Leverans av restaurangen" : "Leverans"}</p>
           </div>
-        )}
+          <span className="ve-tabular shrink-0 rounded-full px-3 py-1.5 text-[13px] font-semibold" style={{ backgroundColor: "var(--ve-card)", color: "var(--ve-ink)", boxShadow: "inset 0 0 0 0.5px var(--ve-line)" }}>{orderNo}</span>
+        </header>
 
-        {isCompleted ? CompletedReviewCard() : null}
+        <div className="space-y-4">
+          {StatusHero}
+          {ReviewCard}
+          {embedMode && embedRestaurant === "palmyra-pizzeria-lund" && !isRejected && order.paymentStatus === "PAID" && <EmbedViaeatsPromotion completed={isCompleted} />}
 
-        {showPhoneVerifyPrompt && (
-          <div className="mt-3.5 rounded-[18px] border bg-white p-4 shadow-sm" style={{ borderColor: "rgba(17,17,19,0.07)" }}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[16px] font-black tracking-tight" style={{ color: "var(--text-primary)" }}>Spara den här ordern</p>
-                <p className="mt-1 text-[12.5px] font-semibold leading-5" style={{ color: "var(--text-secondary)" }}>
-                  Verifiera ditt nummer för orderhistorik och snabbare support.
-                </p>
-              </div>
-              <button type="button" onClick={dismissPhoneVerifyPrompt} className="shrink-0 rounded-full p-1.5" aria-label="Dölj" style={{ color: "var(--text-secondary)" }}>
-                <X size={18} />
-              </button>
-            </div>
-            <div className="mt-3">
-              <PhoneAuth
-                buttonLabel="Verifiera nummer"
-                prefilledPhone={order.customerPhone}
-                lockedPhone
-                prefilledName={phoneVerifyPrefillName}
-                redirectTo={null}
-                onCompleted={() => {
-                  setShowPhoneVerifyPrompt(false);
-                  void fetchOrder({ silent: true });
-                }}
-              />
-            </div>
-          </div>
-        )}
-
-      </div>
-      {OrderInfoOverlayWeb}
-    </div>
-  );
-
-  return (
-    <div className="min-h-screen pb-[calc(env(safe-area-inset-bottom,0px)+7rem)] pt-[calc(env(safe-area-inset-top,0px)+1rem)] md:pt-24 md:pb-16" style={{ backgroundColor: "var(--bg-primary)" }}>
-      <div className="mx-auto max-w-2xl px-4">
-
-        {/* Top bar */}
-        <div className="flex items-center justify-between gap-3 py-3">
-          <Link href={embedMode ? embedMenuHref : "/"} aria-label="Till menyn" className="inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-secondary)" }}>
-            <ArrowRight size={16} className="rotate-180" />
-          </Link>
-          {!isRejected && !isCompleted && (
-            <div className="inline-flex items-center gap-2 rounded-full border border-gold-500/20 bg-gold-500/10 px-3 py-1.5 text-[11px] font-bold text-gold-600">
-              <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gold-500 opacity-60" /><span className="relative inline-flex h-2 w-2 rounded-full bg-gold-500" /></span>
-              {t("order.liveTracking")}
-            </div>
-          )}
-        </div>
-        <OrderTrackingCard order={order} courier={courierPos} full />
-
-        {/* Hero: ersatt av samma React-lika OrderTrackingCard som hemskärmen. */}
-        {false && (
-        <motion.div key={currentStatus} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="overflow-hidden rounded-2xl border" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
-
-          {/* Live-karta — endast vi-levererar (ej self) + under leverans. Visas direkt vid hämtad;
-              budets prick fylls i när dess position kommit in. Försvinner vid DELIVERED. */}
-          {currentStatus === "DELIVERING" && order.type === "DELIVERY" && !order.selfDelivery && (
-            <CourierTrackingMap
-              pickup={typeof order.restaurantLat === "number" && typeof order.restaurantLng === "number" ? { lat: order.restaurantLat, lng: order.restaurantLng } : null}
-              dropoff={typeof order.deliveryLatitude === "number" && typeof order.deliveryLongitude === "number" ? { lat: order.deliveryLatitude, lng: order.deliveryLongitude } : null}
-              courier={courierPos}
-            />
-          )}
-
-          {/* Status + ETA */}
-          <div className="flex items-center gap-4 p-5">
-            <div className={`shrink-0 ${statusInfo.textClass}`}>
-              <StatusIcon size={34} className={currentStatus === "PENDING" ? "animate-pulse" : ""} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-bold leading-tight" style={{ color: "var(--text-primary)" }}>{statusLabel(currentStatus)}</h2>
-              <p className="mt-0.5 text-[13px] leading-snug" style={{ color: "var(--text-secondary)" }}>{statusDesc(currentStatus)}</p>
-            </div>
-            {!isRejected && !isCompleted && (order.estimatedTime || courierEnRoute) && (
-              <div className="shrink-0 rounded-2xl px-3.5 py-2 text-center" style={{ backgroundColor: "var(--bg-deep)" }}>
-                <div className="text-[11px] font-medium" style={{ color: "var(--text-secondary)" }}>
-                  {courierEnRoute ? t("order.eta.estDelivery") : t("order.eta.restaurantEstimates")}
-                </div>
-                <div className={`text-lg font-bold tabular-nums ${(courierEnRoute ? (!deliveryOverdue && deliverySecondsLeft !== null && deliverySecondsLeft! <= 300) : (etaLeft !== null && etaLeft! <= 300)) ? "text-emerald-500" : "text-gold-600"}`}>
-                  {courierEnRoute
-                    ? (deliverySecondsLeft === null
-                        ? t("order.eta.minEstimate", { m: deliveryEtaMin })
-                        : deliverySecondsLeft! <= 0
-                          ? t("order.eta.soon")
-                          : `${Math.floor(deliverySecondsLeft! / 60)}:${(deliverySecondsLeft! % 60).toString().padStart(2, "0")}`)
-                    : etaLeft === null
-                      ? `${order.estimatedTime} min`
-                      : etaLeft! <= 0
-                        ? t("order.eta.soon")
-                        : `${Math.floor(etaLeft! / 60)}:${(etaLeft! % 60).toString().padStart(2, "0")}`}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Steg — robust tracker: nod + halv-connectors per steg.
-              Vid "På väg" glider en liten bud-ikon fram och tillbaka ovanför
-              det aktiva steget (CSS-only, respekterar reduced motion). */}
-          {/* Segmenterad progress (ticket-design): klara = ink, aktivt = guld
-              (mjuk andning), kommande = hårfin linje. Speglar RN-appen. */}
-          {!isRejected && (
-            <div className="border-t px-5 pb-6 pt-5" style={{ borderColor: "var(--border-muted)" }}>
-              <style>{`
-                @keyframes segBreathe { 0%,100% { opacity:1 } 50% { opacity:.82 } }
-                .seg-active { animation: segBreathe 1.8s ease-in-out infinite; }
-                @media (prefers-reduced-motion: reduce) { .seg-active { animation: none; } }
-              `}</style>
-              <div className="flex gap-1.5" role="img" aria-label={`Steg ${currentIdx + 1} av ${stepDefs.length}: ${stepDefs[currentIdx]?.label ?? ""}`}>
-                {stepDefs.map((_, idx) => {
-                  const state = isCompleted ? "done" : idx < currentIdx ? "done" : idx === currentIdx ? "active" : "todo";
-                  return (
-                    <div
-                      key={idx}
-                      className={`h-[5px] flex-1 rounded-full ${state === "active" ? "seg-active" : ""}`}
-                      style={{ backgroundColor: state === "done" ? "var(--text-primary)" : state === "active" ? "var(--color-gold-500)" : "var(--border-muted)" }}
-                    />
-                  );
-                })}
-              </div>
-              <div className="mt-2 flex">
-                {stepDefs.map((step, idx) => (
-                  <span
-                    key={idx}
-                    className="truncate text-[10.5px]"
-                    style={{
-                      flex: idx === stepDefs.length - 1 ? 1.4 : 1,
-                      textAlign: idx === stepDefs.length - 1 ? "right" : "left",
-                      color: idx === currentIdx ? "var(--gold-ink)" : "var(--text-secondary)",
-                      fontWeight: idx === currentIdx ? 700 : 500,
-                      opacity: idx <= currentIdx ? 1 : 0.6,
-                    }}
-                  >
-                    {step.label}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ETA-budskap + perspektiv (vi-levererar vs levererar-själva) + quote */}
-          {!isRejected && !isCompleted && (order.estimatedTime || courierEnRoute) && (
-            <div className="border-t px-5 py-4" style={{ borderColor: "var(--border-muted)" }}>
-              <p className="text-[13px] leading-snug" style={{ color: "var(--text-secondary)" }}>
-                {courierEnRoute
-                  ? (deliveryOverdue ? t("order.eta.overdueBusy") : t("order.eta.courierOnWay"))
-                  : isWeDeliver
-                    ? t("order.eta.prepWeDeliver", { m: order.estimatedTime })
-                    : t("order.eta.prepSelfDeliver", { m: order.estimatedTime })}
-              </p>
-              {courierEnRoute && !deliveryOverdue && deliveryBusy && (
-                <p className="mt-1.5 text-[12px] leading-snug" style={{ color: "var(--text-muted)" }}>
-                  {t("order.eta.busyNote")}
-                </p>
-              )}
-            </div>
-          )}
-        </motion.div>
-        )}
-
-        {/* Web push — "Få avisering när maten är på väg". Visas bara när
-            servern har VAPID-nycklar + webbläsaren stödjer push, och döljs
-            för avslutade ordrar. */}
-        {pushAvailable && !isTerminal(currentStatus) && (
-          <div className="mt-4 flex items-center justify-between gap-4 rounded-xl px-4 py-3.5" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-            <div className="min-w-0">
-              <p className="text-[14px] font-semibold" style={{ color: "var(--text-primary)" }}>Få avisering när maten är på väg</p>
-              <p className="text-[12.5px] mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                {pushEnabled ? "Aktiverat, vi säger till även om fliken är stängd" : "Push via webben, även när fliken är stängd"}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={enablePush}
-              disabled={pushBusy || pushEnabled}
-              aria-pressed={pushEnabled}
-              className="relative w-11 h-[26px] rounded-full shrink-0 transition-colors disabled:cursor-default"
-              style={{ backgroundColor: pushEnabled ? "var(--text-primary)" : "var(--border-muted)" }}
-            >
-              <span
-                className="absolute top-[3px] w-5 h-5 rounded-full bg-white transition-all"
-                style={{ left: pushEnabled ? "calc(100% - 23px)" : "3px", boxShadow: "0 1px 3px rgba(0,0,0,0.25)" }}
-              />
-            </button>
-          </div>
-        )}
-
-        {/* ShareInviteCard borttagen — referral-systemet avstängt för launch */}
-
-        {/* Leveransbevis: budets foto + hur maten lämnades. Visas bara medan
-            fotot finns kvar (~2 dygn) och raderas sen permanent på servern. */}
-        {proofIsLive(order) && (
-          <div className="mt-4 rounded-2xl p-5 sm:p-6" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>Leveransbevis</h2>
-              <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-bold" style={{ backgroundColor: "var(--gold-soft)", color: "var(--gold-ink)" }}>
-                {order.proofMethod === "LEFT_AT_DOOR" ? "Lämnad vid dörren" : "Lämnad i handen"}
+          {pushAvailable && !isTerminal(currentStatus) && (
+            <section className="ve-card flex items-center gap-3.5 px-4 py-3.5">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-accent-soft)", color: "var(--ve-accent)" }}><Bell size={17} strokeWidth={2.2} /></span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[15px] font-medium" style={{ color: "var(--ve-ink)" }}>Avisering när maten är på väg</span>
+                <span className="block text-[13px]" style={{ color: "var(--ve-ink-3)" }}>{pushEnabled ? "Aktiverat, även när fliken är stängd" : "Även när fliken är stängd"}</span>
               </span>
-            </div>
-            <div className="flex gap-4">
-              <button type="button" onClick={() => setProofZoom(true)} className="shrink-0 overflow-hidden rounded-xl" style={{ border: "1px solid var(--border-muted)" }} title="Förstora">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={order.proofPhotoUrl} alt="Leveransfoto" className="h-24 w-24 object-cover transition hover:opacity-80" />
+              <button type="button" onClick={enablePush} disabled={pushBusy || pushEnabled} aria-pressed={pushEnabled} className="relative h-[28px] w-[48px] shrink-0 rounded-full transition-colors disabled:cursor-default" style={{ backgroundColor: pushEnabled ? "var(--ve-success)" : "var(--ve-fill-2)" }}>
+                <span className="absolute top-[3px] h-[22px] w-[22px] rounded-full bg-white transition-all" style={{ left: pushEnabled ? "calc(100% - 25px)" : "3px", boxShadow: "0 2px 4px rgba(0,0,0,0.18)" }} />
               </button>
-              <div className="min-w-0 flex-1">
-                {order.proofMessage && (
-                  <p className="text-sm whitespace-pre-wrap" style={{ color: "var(--text-primary)" }}>{order.proofMessage}</p>
-                )}
-                <p className="text-xs mt-2" style={{ color: "var(--text-secondary)" }}>Tryck på bilden för att förstora. Sparas i 2 dagar.</p>
-              </div>
-            </div>
-          </div>
-        )}
+            </section>
+          )}
 
-        {/* Inline-recension — mellan status och beställningsdetaljer. Monokrom
-            yta, guld bara på stjärnorna. Ersätter den tidigare popupen. */}
-        {showInlineReview && (
-          <div className="mt-4 rounded-2xl p-5 sm:p-6" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="text-lg font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("order.review.title")}</h2>
-                <p className="mt-1 text-[13px] leading-snug" style={{ color: "var(--text-secondary)" }}>{t("order.review.prompt", { restaurant: order.restaurantName })}</p>
+          {proofIsLive(order) && (
+            <section className="ve-card px-4 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="m-0 text-[17px] font-semibold" style={{ letterSpacing: "-0.015em", color: "var(--ve-ink)" }}>Leveransbevis</p>
+                <span className="rounded-full px-2.5 py-1 text-[12px] font-semibold" style={{ backgroundColor: PHASE.done.soft, color: PHASE.done.color }}>{order.proofMethod === "LEFT_AT_DOOR" ? "Lämnad vid dörren" : "Lämnad i handen"}</span>
               </div>
-              <button onClick={dismissReview} className="-mr-1.5 -mt-1.5 rounded-full p-2 transition-colors hover:bg-black/5" style={{ color: "var(--text-secondary)" }} aria-label={t("order.review.dismissAria")}><X size={18} /></button>
-            </div>
-            <div className="flex items-center justify-center gap-2.5 pt-5">
-              {[1,2,3,4,5].map(s => (
-                <button key={s} type="button" onClick={() => setReviewRating(s)} className="transition-transform active:scale-90 hover:scale-110" aria-label={`${s}/5`}>
-                  <Star size={34} strokeWidth={1.5} className={s <= reviewRating ? 'fill-[var(--color-gold-500)] text-[var(--color-gold-500)]' : ''} style={s <= reviewRating ? undefined : { color: "var(--line-strong)" }} />
+              <div className="mt-3 flex gap-3.5">
+                <button type="button" onClick={() => setProofZoom(true)} className="ve-press shrink-0 overflow-hidden rounded-[14px]" title="Förstora">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={order.proofPhotoUrl} alt="Leveransfoto" className="h-24 w-24 object-cover" />
                 </button>
-              ))}
-            </div>
-            <div className="space-y-4 pt-5">
-              <textarea
-                value={reviewText}
-                onChange={e => setReviewText(e.target.value)}
-                placeholder={t("order.review.placeholder")}
-                rows={3}
-                className="w-full rounded-2xl py-3.5 px-4 text-sm outline-none transition-shadow focus:ring-2 focus:ring-[var(--color-gold-500)]/35 resize-none"
-                style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
-              />
-              <button
-                onClick={submitReview}
-                disabled={!reviewRating || reviewSubmitting}
-                className="w-full py-4 rounded-full font-bold text-sm active:scale-[0.98] transition-all disabled:opacity-40 disabled:active:scale-100 flex items-center justify-center gap-2.5"
-                style={{ backgroundColor: "var(--color-gold-500)", color: "var(--text-primary)" }}
-              >
-                {reviewSubmitting ? <Loader2 className="animate-spin" size={18} /> : <><Star size={16} className="fill-current" /> {t("order.review.submit")}</>}
-              </button>
-            </div>
+                <div className="min-w-0 flex-1">
+                  {order.proofMessage && <p className="m-0 text-[14.5px] whitespace-pre-wrap" style={{ color: "var(--ve-ink)" }}>{order.proofMessage}</p>}
+                  <p className="m-0 mt-2 text-[12.5px]" style={{ color: "var(--ve-ink-3)" }}>Tryck på bilden för att förstora. Sparas i två dagar.</p>
+                </div>
+              </div>
+            </section>
+          )}
+
+          <div>
+            {sectionTitle(isPickup ? "Hämtning" : "Leverans")}
+            {WhereCard}
           </div>
-        )}
 
-        <div className="mt-4 space-y-4">
-           {/* Beställningsdetaljer — retractable: kollapsad visar bara totalen,
-               expanderad visar rader, summering, momsrad + ladda ner kvitto. */}
-            <div className="rounded-2xl p-5 sm:p-6" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-              <button type="button" onClick={() => setDetailsOpen((v) => !v)} className="w-full flex items-center justify-between gap-3" aria-expanded={detailsOpen}>
-                <h2 className="text-lg font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("order.detailsTitle")}</h2>
-                <span className="flex items-center gap-3">
-                  <span className="text-xl font-bold tracking-tight text-gold-600 tabular-nums">{formatSek(order.total)} kr</span>
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold" style={{ color: "var(--text-secondary)" }}>
-                    {detailsOpen ? t("order.details.showLess") : t("order.details.showMore")}
-                    <ChevronDown size={15} style={{ transform: detailsOpen ? "rotate(180deg)" : "none" }} />
-                  </span>
-                </span>
-              </button>
-              {detailsOpen && (
-              <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
-              <div className="space-y-4 mb-6 pt-5">
-                 {order.items.map((item: any) => (
-                    <div key={item.id} className="flex justify-between items-start gap-6">
-                       <div className="flex-1 min-w-0">
-                          <div className="flex items-baseline gap-2.5">
-                             <span className="text-xs font-bold text-gold-600 tabular-nums shrink-0">{item.quantity}×</span>
-                             <h3 className="text-sm font-semibold leading-snug" style={{ color: "var(--text-primary)" }}>{item.productName}</h3>
-                          </div>
-                          {item.selectedExtras && Array.isArray(item.selectedExtras) && item.selectedExtras.length > 0 && (
-                             <div className="flex flex-col gap-0.5 mt-1 pl-7">
-                                {item.selectedExtras.map((e: any, idx: number) => (
-                                   <span key={idx} className="text-xs" style={{ color: "var(--text-secondary)" }}>{e.extraName || e.name}</span>
-                                ))}
-                             </div>
-                          )}
-                          {item.note && <p className="text-xs mt-1.5 pl-7 italic" style={{ color: "var(--text-secondary)" }}>{t("order.itemNote")}: {item.note}</p>}
-                       </div>
-                       <div className="text-sm font-semibold tabular-nums shrink-0" style={{ color: "var(--text-primary)" }}>{item.subtotal} kr</div>
-                    </div>
-                 ))}
-              </div>
+          <div>
+            {sectionTitle("Din beställning", <span className="ve-tabular text-[13px]" style={{ color: "var(--ve-ink-3)" }}>{(order.items ?? []).length} {(order.items ?? []).length === 1 ? "vara" : "varor"}</span>)}
+            {OrderCard}
+          </div>
 
-              <div className="pt-4 space-y-2" style={{ borderTop: "1px solid var(--border-muted)" }}>
-                 {(() => {
-                   const rawSubtotal = (order.items ?? []).reduce((s: number, it: any) => s + (Number(it.subtotal) || 0), 0);
-                   const discount = authoritativeDiscount(order, rawSubtotal);
-                   return (
-                     <>
-                       <div className="flex justify-between text-[13px]" style={{ color: "var(--text-secondary)" }}><span>{t("order.summary.subtotal")}</span><span className="tabular-nums">{formatSek(rawSubtotal)} kr</span></div>
-                       {discount > 0 && (
-                         <div className="flex justify-between text-[13px] text-emerald-600">
-                           <span>{order.appliedDealTitle || t("order.summary.discount")}</span>
-                           <span className="tabular-nums">−{formatSek(discount)} kr</span>
-                         </div>
-                       )}
-                     </>
-                   );
-                 })()}
-                 {order.deliveryFee > 0 && <div className="flex justify-between text-[13px]" style={{ color: "var(--text-secondary)" }}><span>{t("order.summary.deliveryFee")}</span><span className="tabular-nums">+{formatSek(order.deliveryFee)} kr</span></div>}
-                 {Number(order.smallOrderFee || 0) > 0 && <div className="flex justify-between text-[13px]" style={{ color: "var(--text-secondary)" }}><span>Avgift för liten beställning</span><span className="tabular-nums">+{formatSek(order.smallOrderFee)} kr</span></div>}
-                 {Number(order.tipAmount || 0) > 0 && <div className="flex justify-between text-[13px]" style={{ color: "var(--text-secondary)" }}><span>Dricks</span><span className="tabular-nums">+{formatSek(order.tipAmount)} kr</span></div>}
-                 {receiptVatRows(order).map((vat) => (
-                   <div key={vat.rate} className="flex justify-between text-[13px]" style={{ color: "var(--text-secondary)" }}>
-                     <span>Varav moms ({formatSek(vat.rate)} %)</span>
-                     <span className="tabular-nums">{formatSek(vat.vat)} kr</span>
-                   </div>
-                 ))}
-                  <div className="flex justify-between items-baseline pt-3 mt-1" style={{ borderTop: "1px solid var(--border-muted)" }}>
-                     <span className="text-base font-bold" style={{ color: "var(--text-primary)" }}>{t("order.summary.total")}</span>
-                     <span className="text-2xl font-bold tracking-tight text-gold-600 tabular-nums">{formatSek(order.total)} kr</span>
-                  </div>
-              </div>
-
-              {/* Visa fullständigt kvitto (med restaurangens juridiska uppgifter)
-                  och ladda ner det som en fristående HTML-fil. */}
-              <button
-                type="button"
-                onClick={() => setShowReceipt(true)}
-                className="mt-5 w-full inline-flex items-center gap-2.5 rounded-xl px-4 py-3 text-sm font-bold transition-colors"
-                style={{ backgroundColor: "var(--bg-secondary)", color: "var(--text-primary)", border: "1px solid var(--border-muted)" }}
-              >
-                <ShoppingBag size={16} /> Ladda ner kvitto
-                <span className="ml-auto text-[11px] font-medium" style={{ color: "var(--text-secondary)" }}>
-                  {receiptDownloads >= RECEIPT_MAX_DOWNLOADS ? "Max nått" : `PDF · ${RECEIPT_MAX_DOWNLOADS - receiptDownloads} kvar`}
-                </span>
-              </button>
-              </motion.div>
-              )}
-           </div>
-
-           {/* Hantering — retractable, kompakt tills man klickar. Monokrom kontaktinfo. */}
-           <div className="rounded-2xl border p-5 sm:p-6" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
-              <button type="button" onClick={() => setHandlingOpen((v) => !v)} className="w-full flex items-center justify-between gap-3" aria-expanded={handlingOpen}>
-                <span className="flex items-center gap-2.5">
-                  {order.type === "DELIVERY" ? <Truck size={18} style={{ color: "var(--text-secondary)" }} /> : <Store size={18} style={{ color: "var(--text-secondary)" }} />}
-                  <span className="text-lg font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{t("order.handling")}</span>
-                </span>
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold" style={{ color: "var(--text-secondary)" }}>
-                  {handlingOpen ? t("order.handlingHide") : t("order.handlingShow")}
-                  <ChevronDown size={15} style={{ transform: handlingOpen ? "rotate(180deg)" : "none" }} />
-                </span>
-              </button>
-              {handlingOpen && (
-              <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
-                 <div className="space-y-5 pt-5">
-                    <div className="flex items-start gap-3.5">
-                       <Phone className="mt-0.5 shrink-0" size={16} style={{ color: "var(--text-secondary)" }} />
-                        <div>
-                           <div className="text-[10px] font-bold mb-0.5" style={{ color: "var(--text-secondary)" }}>{t("order.yourNumber")}</div>
-                           <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{order.customerPhone}</div>
-                        </div>
-                    </div>
-
-                    <div className="flex items-start gap-3.5">
-                       <Store className="mt-0.5 shrink-0" size={16} style={{ color: "var(--text-secondary)" }} />
-                        <div className="min-w-0 flex-1">
-                           <div className="text-[10px] font-bold mb-0.5" style={{ color: "var(--text-secondary)" }}>{t("order.restaurant")}</div>
-                           <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{order.restaurantName}</div>
-                           {/* Contact restaurant — phone (tel:) and email
-                               (mailto:) shown as pill links when present. */}
-                           <div className="mt-2 flex flex-wrap gap-2">
-                             {order.restaurantPhone && (
-                               <a
-                                 href={`tel:${String(order.restaurantPhone).replace(/\s+/g, "")}`}
-                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-colors"
-                                 style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)", border: "1px solid var(--border-muted)" }}
-                               >
-                                 <Phone size={11} style={{ color: "var(--text-secondary)" }} /> {order.restaurantPhone}
-                               </a>
-                             )}
-                             {(order as any).restaurantEmail && (
-                               <a
-                                 href={`mailto:${(order as any).restaurantEmail}`}
-                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-colors break-all"
-                                 style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)", border: "1px solid var(--border-muted)" }}
-                               >
-                                 <Mail size={11} style={{ color: "var(--text-secondary)" }} /> {(order as any).restaurantEmail}
-                               </a>
-                             )}
-                           </div>
-                        </div>
-                    </div>
-
-                    {order.type === 'DELIVERY' ? (
-                       order.deliveryStreet && (
-                          <div className="flex items-start gap-3.5">
-                             <MapPin className="mt-0.5 shrink-0" size={16} style={{ color: "var(--text-secondary)" }} />
-                              <div className="min-w-0 flex-1">
-                                 <div className="text-[10px] font-bold mb-0.5" style={{ color: "var(--text-secondary)" }}>{t("order.deliveryAddress")}</div>
-                                 {/* Tappable delivery address — opens in maps */}
-                                 <a
-                                   href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([order.deliveryStreet, order.restaurantCity].filter(Boolean).join(", "))}`}
-                                   target="_blank"
-                                   rel="noreferrer"
-                                   className="group block"
-                                 >
-                                   <div className="text-sm font-semibold leading-snug group-hover:opacity-80 transition-colors" style={{ color: "var(--text-primary)" }}>{order.deliveryStreet}</div>
-                                   <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{order.restaurantCity || "Lund"}</div>
-                                 </a>
-                              </div>
-                          </div>
-                       )
-                    ) : (
-                       order.restaurantAddress && (
-                          <div className="flex items-start gap-3.5">
-                             <MapPin className="mt-0.5 shrink-0" size={16} style={{ color: "var(--text-secondary)" }} />
-                              <div className="min-w-0 flex-1">
-                                 <div className="text-[10px] font-bold mb-0.5" style={{ color: "var(--text-secondary)" }}>{t("order.pickupAt")}</div>
-                                 {/* Tappable pickup address — opens in maps */}
-                                 <a
-                                   href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([order.restaurantAddress, order.restaurantZip, order.restaurantCity].filter(Boolean).join(", "))}`}
-                                   target="_blank"
-                                   rel="noreferrer"
-                                   className="group block"
-                                 >
-                                   <div className="text-sm font-semibold leading-snug group-hover:opacity-80 transition-colors" style={{ color: "var(--text-primary)" }}>{order.restaurantAddress}</div>
-                                   <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{order.restaurantZip} {order.restaurantCity}</div>
-                                 </a>
-                              </div>
-                          </div>
-                       )
-                    )}
-
-                    <div className="flex items-start gap-3.5">
-                       <Calendar className="mt-0.5 shrink-0" size={16} style={{ color: "var(--text-secondary)" }} />
-                        <div>
-                           <div className="text-[10px] font-bold mb-0.5" style={{ color: "var(--text-secondary)" }}>{t("order.placed")}</div>
-                           <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{t("order.scheduledToday", { time: new Date(order.createdAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" }) })}</div>
-                        </div>
-                    </div>
-
-                    {/* scheduledFor — visa önskad leveranstid prominent när
-                        kunden valt schemaläggning. Tidigare doldes detta helt
-                        i UI:t så kunden förlorade synlighet på sin egen tid.
-                        Skiljer formatering om datumet är idag vs ett annat
-                        datum (just nu låter vi backend acceptera valfri tid,
-                        men frontend-pickern är "samma dag"-only). */}
-                    {order.scheduledFor && (() => {
-                       const scheduled = new Date(order.scheduledFor);
-                       const today = new Date();
-                       const isToday =
-                          scheduled.getFullYear() === today.getFullYear() &&
-                          scheduled.getMonth() === today.getMonth() &&
-                          scheduled.getDate() === today.getDate();
-                       const timeStr = scheduled.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
-                       const dateStr = scheduled.toLocaleDateString("sv-SE", { weekday: "short", day: "numeric", month: "short" });
-                       return (
-                          <div className="flex items-start gap-3.5">
-                             <Clock className="mt-0.5 shrink-0" size={16} style={{ color: "var(--text-secondary)" }} />
-                              <div>
-                                 <div className="text-[10px] font-bold mb-0.5" style={{ color: "var(--text-secondary)" }}>
-                                    {order.type === "DELIVERY" ? t("order.scheduledFor.delivery") : t("order.scheduledFor.pickup")}
-                                 </div>
-                                 <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-                                    {isToday ? t("order.scheduledToday", { time: timeStr }) : t("order.review.scheduledDate", { date: dateStr, time: timeStr })}
-                                 </div>
-                              </div>
-                          </div>
-                       );
-                    })()}
-                 </div>
-              </motion.div>
-              )}
-           </div>
-
-              {/* Review Card or Thank You */}
-              {order.rating || reviewDone ? (
-                  <div className="rounded-2xl border p-5 text-center" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
-                    <div className="flex items-center justify-center gap-1 mb-3">
-                      {[1,2,3,4,5].map(s => <Star key={s} size={22} className={s <= (order.rating || reviewRating) ? 'text-gold-500 fill-gold-500' : ''} style={s <= (order.rating || reviewRating) ? undefined : { color: "var(--border-muted)" }} />)}
-                    </div>
-                    <h3 className="text-sm font-bold mb-1" style={{ color: "var(--text-primary)" }}>{t("order.review.thanksTitle")}</h3>
-                    <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{t("order.review.thanksSub")}</p>
-                 </div>
-              ) : (
-                 <div className="rounded-2xl p-5 text-center" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-                   <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center mx-auto mb-3 text-emerald-600">
-                      <ShieldCheck size={24} />
-                   </div>
-                   <h3 className="text-sm font-bold mb-1" style={{ color: "var(--text-primary)" }}>{t("order.thanksTitle")}</h3>
-                   <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{t("order.thanksSub", { number: order.orderNumber })}</p>
+          {showPhoneVerifyPrompt && (
+            <section className="ve-card px-4 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="m-0 text-[17px] font-semibold" style={{ letterSpacing: "-0.015em", color: "var(--ve-ink)" }}>Spara den här ordern</p>
+                  <p className="m-0 mt-0.5 text-[14px] leading-snug" style={{ color: "var(--ve-ink-2)" }}>Verifiera ditt nummer för orderhistorik och snabbare support.</p>
                 </div>
-              )}
-
-              {/* Primär väg: ring restaurangen om din order. Support är medvetet
-                  nedtonad till en liten ikon utan text — vi vill inte styra folk
-                  till support i första hand. Restaurang-knappen döljs om numret saknas. */}
-              <div className="flex items-center gap-2 justify-end">
-                {order.restaurantPhone && (
-                  <a
-                    href={`tel:${String(order.restaurantPhone).replace(/\s+/g, "")}`}
-                    className="flex-1 py-4 rounded-full flex items-center justify-center gap-2.5 transition-all active:scale-[0.98]"
-                    style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
-                  >
-                    <Phone size={16} style={{ color: "var(--text-secondary)" }} />
-                    <span className="text-sm font-bold">{t("order.contactRestaurant")}</span>
-                  </a>
-                )}
-                <Link
-                  href={`/contact?order=${encodeURIComponent(order.orderNumber)}`}
-                  aria-label={t("order.support")}
-                  title={t("order.support")}
-                  className="shrink-0 flex h-12 w-12 items-center justify-center rounded-full transition-all active:scale-[0.95]"
-                  style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-secondary)" }}
-                >
-                  <MessageSquare size={16} />
-                </Link>
+                <button type="button" onClick={dismissPhoneVerifyPrompt} className="grid h-8 w-8 shrink-0 place-items-center rounded-full" aria-label="Dölj" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink-2)" }}><X size={15} strokeWidth={2.6} /></button>
               </div>
+              <div className="mt-3">
+                <PhoneAuth
+                  buttonLabel="Verifiera nummer"
+                  prefilledPhone={order.customerPhone}
+                  lockedPhone
+                  prefilledName={phoneVerifyPrefillName}
+                  redirectTo={null}
+                  onCompleted={() => {
+                    setShowPhoneVerifyPrompt(false);
+                    void fetchOrder({ silent: true });
+                  }}
+                />
+              </div>
+            </section>
+          )}
+
+          {!embedMode && (
+            <Link href={`/contact?order=${encodeURIComponent(order.orderNumber || "")}`} className="ve-row-press ve-card flex items-center gap-3.5 px-4 py-3.5">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}><MessageSquare size={16} strokeWidth={2.2} /></span>
+              <span className="min-w-0 flex-1 text-[15px] font-medium" style={{ color: "var(--ve-ink)" }}>Behöver du hjälp med ordern?</span>
+              <ChevronRight size={17} strokeWidth={2.2} style={{ color: "var(--ve-ink-3)" }} />
+            </Link>
+          )}
         </div>
-
-        {/* Recensionen visas numera inline (mellan status och beställnings-
-            detaljer), inte som popup. Se {showInlineReview}-blocket ovan. */}
-
-        {/* Kvitto-modal: snyggt kvitto med restaurangens juridiska uppgifter +
-            nedladdning (max 2 ggr per order, klient-genererad HTML — ingen server). */}
-        <AnimatePresence>
-          {showReceipt && !awaitingPayment && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center px-4 pb-6 sm:pb-0 backdrop-blur-sm" style={{ backgroundColor: "rgba(10,10,10,0.7)" }} onClick={() => setShowReceipt(false)}>
-              <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="w-full max-w-md max-h-[88vh] overflow-auto rounded-2xl border shadow-2xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }} onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center justify-between px-6 pt-5 pb-3 sticky top-0" style={{ backgroundColor: "var(--bg-secondary)", borderBottom: "1px solid var(--border-muted)" }}>
-                  <h2 className="text-lg font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>Kvitto</h2>
-                  <button onClick={() => setShowReceipt(false)} className="p-2" style={{ color: "var(--text-secondary)" }} aria-label="Stäng"><X size={20} /></button>
-                </div>
-                <div className="px-6 py-4 text-sm" style={{ color: "var(--text-primary)" }}>
-                  <div className="font-extrabold text-[17px] tracking-tight">{order.restaurantLegalName || order.restaurantName}</div>
-                  {order.restaurantOrgNr && <div className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>Org.nr {order.restaurantOrgNr}</div>}
-                  {(order.restaurantAddress || order.restaurantCity) && (
-                    <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{[order.restaurantAddress, [order.restaurantZip, order.restaurantCity].filter(Boolean).join(" ")].filter(Boolean).join(", ")}</div>
-                  )}
-                  <div className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{[order.restaurantPhone, order.restaurantEmail].filter(Boolean).join(" · ")}</div>
-
-                  <div className="mt-4 pt-3 space-y-1" style={{ borderTop: "1px solid var(--border-muted)" }}>
-                    <div className="flex justify-between text-[13px]"><span style={{ color: "var(--text-secondary)" }}>Kvitto</span><span className="font-bold">#{order.orderNumber}</span></div>
-                    <div className="flex justify-between text-[13px]"><span style={{ color: "var(--text-secondary)" }}>Datum</span><span>{new Date(order.createdAt).toLocaleString("sv-SE", { dateStyle: "long", timeStyle: "short" })}</span></div>
-                    <div className="flex justify-between text-[13px]"><span style={{ color: "var(--text-secondary)" }}>Betalsätt</span><span>{paymentMethodLabel(order.paymentMethod)}</span></div>
-                  </div>
-
-                  <div className="mt-4 pt-3 space-y-2" style={{ borderTop: "1px solid var(--border-muted)" }}>
-                    {(order.items ?? []).map((it: any) => (
-                      <div key={it.id} className="flex justify-between gap-4">
-                        <div className="min-w-0">
-                          <span className="text-gold-600 font-bold text-xs">{it.quantity}×</span> <span className="font-semibold">{it.productName}</span>
-                          {Array.isArray(it.selectedExtras) && it.selectedExtras.length > 0 && (
-                            <div className="pl-6 text-xs" style={{ color: "var(--text-secondary)" }}>{it.selectedExtras.map((e: any) => e.extraName || e.name).join(", ")}</div>
-                          )}
-                        </div>
-                        <span className="font-semibold tabular-nums whitespace-nowrap">{formatSek(it.subtotal)} kr</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {(() => {
-                    const rawSubtotal = (order.items ?? []).reduce((s: number, it: any) => s + (Number(it.subtotal) || 0), 0);
-                    const tip = Number(order.tipAmount) || 0;
-                    const deliveryFee = Number(order.deliveryFee) || 0;
-                    const smallOrderFee = Number(order.smallOrderFee) || 0;
-                    const discount = authoritativeDiscount(order, rawSubtotal);
-                    return (
-                      <div className="mt-4 pt-3 space-y-1.5" style={{ borderTop: "1px solid var(--border-muted)" }}>
-                        <div className="flex justify-between text-[13px]"><span style={{ color: "var(--text-secondary)" }}>Delsumma</span><span className="tabular-nums">{formatSek(rawSubtotal)} kr</span></div>
-                        {discount > 0 && <div className="flex justify-between text-[13px] text-emerald-600"><span>{order.appliedDealTitle || "Rabatt"}</span><span className="tabular-nums">−{formatSek(discount)} kr</span></div>}
-                        {deliveryFee > 0 && <div className="flex justify-between text-[13px]"><span style={{ color: "var(--text-secondary)" }}>Leveransavgift</span><span className="tabular-nums">+{formatSek(deliveryFee)} kr</span></div>}
-                        {smallOrderFee > 0 && <div className="flex justify-between text-[13px]"><span style={{ color: "var(--text-secondary)" }}>Avgift för liten beställning</span><span className="tabular-nums">+{formatSek(smallOrderFee)} kr</span></div>}
-                        {tip > 0 && <div className="flex justify-between text-[13px]"><span style={{ color: "var(--text-secondary)" }}>Dricks</span><span className="tabular-nums">+{formatSek(tip)} kr</span></div>}
-                        {receiptVatRows(order).map((vat) => <div key={vat.rate} className="flex justify-between text-[13px]"><span style={{ color: "var(--text-secondary)" }}>Varav moms ({formatSek(vat.rate)} %)</span><span className="tabular-nums">{formatSek(vat.vat)} kr</span></div>)}
-                        <div className="flex justify-between items-baseline pt-2 mt-1" style={{ borderTop: "1px solid var(--border-muted)" }}>
-                          <span className="font-bold">Totalt</span>
-                          <span className="text-xl font-bold text-gold-600 tabular-nums">{formatSek(order.total)} kr</span>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-                <div className="px-6 pt-2 sticky bottom-0" style={{ backgroundColor: "var(--bg-secondary)", borderTop: "1px solid var(--border-muted)", paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)" }}>
-                  <button
-                    type="button"
-                    onClick={downloadReceipt}
-                    disabled={receiptDownloads >= RECEIPT_MAX_DOWNLOADS}
-                    className="w-full py-3 rounded-full font-bold text-sm bg-gold-500 text-zinc-950 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    {receiptDownloads >= RECEIPT_MAX_DOWNLOADS ? "Nedladdningsgräns nådd (2/2)" : `Ladda ner kvitto (${receiptDownloads}/${RECEIPT_MAX_DOWNLOADS})`}
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Lightbox: förstorat leveransfoto. */}
-        <AnimatePresence>
-          {proofZoom && order?.proofPhotoUrl && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[320] flex items-center justify-center p-4 backdrop-blur-sm" style={{ backgroundColor: "rgba(10,10,10,0.85)" }} onClick={() => setProofZoom(false)}>
-              <button onClick={() => setProofZoom(false)} className="absolute top-5 right-5 text-white/90 p-2" aria-label="Stäng"><X size={26} /></button>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <motion.img initial={{ scale: 0.92 }} animate={{ scale: 1 }} exit={{ scale: 0.92 }} src={order.proofPhotoUrl} alt="Leveransfoto" className="max-h-[86vh] max-w-full rounded-2xl object-contain" onClick={(e) => e.stopPropagation()} />
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
+
+      {OrderInfoOverlayWeb}
+
+      <AnimatePresence>
+        {proofZoom && order?.proofPhotoUrl && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[2000] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.85)" }} onClick={() => setProofZoom(false)}>
+            <button onClick={() => setProofZoom(false)} className="absolute right-5 top-5 grid h-10 w-10 place-items-center rounded-full text-white" style={{ backgroundColor: "rgba(255,255,255,0.16)" }} aria-label="Stäng"><X size={20} /></button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <motion.img initial={{ scale: 0.92 }} animate={{ scale: 1 }} exit={{ scale: 0.92 }} src={order.proofPhotoUrl} alt="Leveransfoto" className="max-h-[86vh] max-w-full rounded-[20px] object-contain" onClick={(e) => e.stopPropagation()} />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

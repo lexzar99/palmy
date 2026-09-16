@@ -325,6 +325,23 @@ taggplatta. Emblemet är `public/brand/viaeats-smiley.png` (den riktiga
 orange smileyn) via `components/ViaEatsWordmark.tsx`; `mark` ger bara
 smileyn.
 
+### Orderspårning (`app/order/[id]/page.tsx`)
+Ett statuskort överst med **en färg per fas** så flödena aldrig blandas:
+skickad/bekräftad indigo `#5E5CE6`, tillagas orange `#F04F1A`, klar och
+väntar på utkörning amber `#C77800`, på väg blå `#0A84FF`, klar att hämta
+och levererad/hämtad grön `#1F8A3B`, avbruten/avböjd röd `#D70015`, väntar
+på betalning grå. Kortet: ikonplatta i fasens mjuka färg med pulserande
+punkt, faspill, titel 22/600, beskrivning, ETA-ruta i fasens mjuka färg
+(30/600 tabulärt, t.ex. "21 min" eller "Nu" + ordernummer vid avhämtning),
+och en stegrad med färgade segment. Stegen skiljer sig per flöde:
+avhämtning = Bekräftad · Tillagas · Klar · Hämtad, leverans = Bekräftad ·
+Tillagas · Klar · På väg/Kör ut · Levererad ("Kör ut" när restaurangen
+levererar själv). Live-kartan ligger i kortets topp bara när ett viaeats-bud
+är på väg. Under kortet: recension (grön bock när klar), "Hämtning"/"Leverans"-
+kort med rader (adress, restaurang, ring, karta), "Din beställning" med
+rader, summering, betalrad och kvittorad, sedan verifiera-nummer och hjälp.
+Kvittot öppnas som helsidesöverlägg i samma stil.
+
 ### Flikrad (BottomNav) och Deals
 `components/BottomNav.tsx`: frostat glas (`ve-glass`), hårfin topplinje, fem
 lika breda flikar (ikon 22 px + etikett 10 px), aktiv i bläck, övriga i ink-3,

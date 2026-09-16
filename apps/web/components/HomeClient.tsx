@@ -765,7 +765,7 @@ const isRetiredFavoriteDeal = (deal: any) => {
 export default function HomeClient({ initialData = null, partnerSlug = null }: { initialData?: HomeInitialData | null; partnerSlug?: string | null }) {
   // Deals-kortet visar riktiga rätter från dagens sänkta priser: tre bilder
   // och antalet. Hämtas via proxyn efter mount så startsidan inte väntar.
-  const [dealPreview, setDealPreview] = useState<{ count: number; items: { id: string; imageUrl: string; off: number }[] }>({ count: 0, items: [] });
+  const [dealPreview, setDealPreview] = useState<{ count: number; fromPrice: number | null; items: { id: string; imageUrl: string; off: number }[] }>({ count: 0, fromPrice: null, items: [] });
   useEffect(() => {
     let cancelled = false;
     axios.get("/api/menu/discounted", { params: { _t: Date.now() } })
@@ -782,7 +782,8 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
               ? Math.round(row.discountPercent)
               : row.originalPrice && row.discountPrice ? Math.max(0, Math.round((1 - row.discountPrice / row.originalPrice) * 100)) : 0,
           }));
-        setDealPreview({ count: rows.length, items });
+        const prices = rows.map((row) => Number(row.discountPrice)).filter((n) => Number.isFinite(n) && n > 0);
+        setDealPreview({ count: rows.length, fromPrice: prices.length ? Math.min(...prices) : null, items });
       })
       .catch(() => { /* kortet visas ändå, utan bilder */ });
     return () => { cancelled = true; };
@@ -2202,8 +2203,15 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                 ? `${dealPreview.count} ${dealPreview.count === 1 ? "rätt" : "rätter"} till sänkt pris just nu`
                 : "Dagens sänkta priser från restaurangerna"}
             </span>
-            <span className="mt-3.5 inline-flex h-9 items-center gap-1 whitespace-nowrap rounded-full bg-white px-3.5 text-[13.5px] font-semibold" style={{ color: "#1D1D1F" }}>
-              Se alla deals <ChevronRight size={14} strokeWidth={2.6} />
+            <span className="mt-3.5 flex flex-wrap items-center gap-2">
+              <span className="inline-flex h-9 items-center gap-1 whitespace-nowrap rounded-full bg-white px-3.5 text-[13.5px] font-semibold" style={{ color: "#1D1D1F" }}>
+                Se alla deals <ChevronRight size={14} strokeWidth={2.6} />
+              </span>
+              {dealPreview.fromPrice != null && (
+                <span className="inline-flex h-9 items-center whitespace-nowrap rounded-full px-3 text-[13px] font-semibold text-white" style={{ backgroundColor: "rgba(255,255,255,0.12)" }}>
+                  från {Math.round(dealPreview.fromPrice)} kr
+                </span>
+              )}
             </span>
           </div>
           {dealPreview.items.length > 0 && (
@@ -2212,7 +2220,7 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
                 <span
                   key={item.id}
                   className="relative block h-[60px] w-[60px] overflow-hidden rounded-[16px]"
-                  style={{ marginLeft: index === 0 ? 0 : -20, zIndex: 3 - index, boxShadow: "0 0 0 3px #1D1D1F, 0 6px 16px rgba(0,0,0,0.35)", transform: `translateY(${index === 1 ? -12 : index === 2 ? 6 : 0}px)` }}
+                  style={{ marginLeft: index === 0 ? 0 : -18, zIndex: 3 - index, boxShadow: "0 0 0 3px #1D1D1F, 0 8px 18px rgba(0,0,0,0.4)", transform: `translateY(${index === 1 ? -14 : index === 2 ? 8 : 2}px) rotate(${index === 0 ? -8 : index === 1 ? 5 : -3}deg)` }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={item.imageUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
