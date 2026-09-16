@@ -259,7 +259,25 @@ ink-2, svart pill `Gå hem`. Inga träffar = 56 px grå platta med lupp, titel
 
 ---
 
-## 7. Att bygga vidare (kassan, spårning, hem)
+## 7. Så håller sig embedden i synk (utan hårdkodning)
+
+Partner-embedden (`/embed/[slug]`, laddad i iframe på t.ex. palmyrapizzeria.se)
+har **ingen egen styling och inga partnerspecifika värden**:
+
+- Den renderar exakt samma `RestaurantMenu` som `/restaurants/[slug]`, bara
+  med `embedMode`. Kassan är samma `/cart`-sida med `?embed=1`.
+- `restaurant.css` importeras **av komponenterna själva** (RestaurantMenu,
+  ProductSheet), inte av sidorna. Alla routes som använder komponenterna får
+  tokens automatiskt.
+- Färger utanför React (body-bakgrund i overscroll/safe-area) läses från
+  token `--ve-bg` via `useDesignBackground()` — inga hex-koder i TSX.
+- Tider, stad för avhämtning och namn kommer från restaurangens data i API:t.
+  Tillåtna partnerursprung ägs av `lib/embedPartner.ts`.
+
+Regel: **ändra tokens i `restaurant.css` eller mönster i komponenterna — aldrig
+i embed-routen.** Då följer partnerns sajt med av sig själv vid deploy.
+
+## 8. Att bygga vidare (kassan, spårning, hem)
 
 1. Omslut sidan i `.ve-root` och importera `restaurant.css`.
 2. Sätt `document.body.style.backgroundColor = "#F5F5F7"` medan sidan är

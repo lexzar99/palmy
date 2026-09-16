@@ -13,7 +13,9 @@ import {
 } from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import { ensureKioskAccess } from "@/lib/kioskAccessClient";
-import { EMBED_PARENT_ORIGIN_PARAM, rememberEmbedParentOrigin } from "@/lib/embedPartner";
+import { EMBED_PARENT_ORIGIN_PARAM, rememberEmbedParentOrigin, trustedPartnerOrigin } from "@/lib/embedPartner";
+import { useDesignBackground } from "./useDesignBackground";
+import "./restaurant.css";
 import { menuWithDeals, DEALS_CATEGORY_ID } from "@/lib/menuDealCategory";
 import { PublicDeal } from "@/lib/deals";
 import { useCartStore } from "@/store/cartStore";
@@ -292,11 +294,7 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
   }, []);
 
   // Sidans grå yta ska nå ända ut i overscroll/safe-area, inte bara .ve-root.
-  useEffect(() => {
-    const prev = document.body.style.backgroundColor;
-    document.body.style.backgroundColor = "#F5F5F7";
-    return () => { document.body.style.backgroundColor = prev; };
-  }, []);
+  useDesignBackground();
 
   useEffect(() => {
     if (!restaurant?.id) return;
@@ -564,19 +562,14 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
   // samma adress-/zon-grind som ett vanligt produktklick.
   useEffect(() => {
     if (!embedMode || typeof window === "undefined") return;
-    const allowedOrigins = new Set([
-      window.location.origin,
-      "https://palmyrapizzeria.se",
-      "https://www.palmyrapizzeria.se",
-      "http://localhost:3000",
-      "http://localhost:4000",
-    ]);
+    // Tillåtna partnerursprung ägs av lib/embedPartner — ingen lista här.
+    const originAllowed = (origin: string) => origin === window.location.origin || trustedPartnerOrigin(origin) !== null;
     const sendHeight = () => {
       if (window.parent === window) return;
       window.parent.postMessage({ type: "viaeats:embed-height", height: document.documentElement.scrollHeight }, "*");
     };
     const onMessage = (event: MessageEvent) => {
-      if (!allowedOrigins.has(event.origin) || !event.data || event.data.type !== "viaeats:open-product") return;
+      if (!originAllowed(event.origin) || !event.data || event.data.type !== "viaeats:open-product") return;
       const productId = typeof event.data.productId === "string" ? event.data.productId : "";
       if (!productId) return;
       const product = categories.flatMap((c: any) => c.products || []).find((item: any) => item.id === productId);
@@ -669,6 +662,8 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
   const minZoneFee = zoneFees.length ? Math.min(...zoneFees) : undefined;
   const displayFee = zoneAvailable === true ? restaurant.deliveryFee : (minZoneFee ?? restaurant.deliveryFee);
   const feeLabel = zoneAvailable === false && isOpen ? "–" : displayFee === 0 ? t("menu.stats.free") : `${displayFee} kr`;
+  // Palmyras embed visar samma fasta tider som partnern kommunicerar på sin
+  // egen sajt (medvetet undantag, samma som i gamla MenuContent).
   const embedIsPalmyra = embedMode && restaurant?.slug === "palmyra-pizzeria-lund";
   const pickupMinutes = restaurant?.pickupEtaMinutes ?? Math.max(5, Math.min(25, (restaurant?.etaMinutes ?? 30) - 5));
   const deliveryTimeLabel = embedIsPalmyra ? "30–45 min" : `${restaurant?.etaMinutes} ${t("menu.stats.min")}`;
@@ -698,7 +693,7 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
         {heroImage ? (
           <span role="img" aria-label={restaurant?.name || ""} className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url("${optimizedImageUrl(heroImage, RESTAURANT_HERO_IMAGE_WIDTH, RESTAURANT_HERO_IMAGE_QUALITY)}")` }} />
         ) : (
-          <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, #E5E5EA, #F5F5F7)" }} />
+          <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, var(--ve-fill-2), var(--ve-bg))" }} />
         )}
         <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.28) 0%, rgba(0,0,0,0) 40%)" }} />
 
@@ -1129,7 +1124,7 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
           }}
           orderType={orderType}
           setOrderType={setOrderType}
-          pickupCityName={embedMode ? "Lund" : undefined}
+          pickupCityName={embedMode ? (restaurant?.city || undefined) : undefined}
           confirmLabel={embedMode ? "Bekräfta och fortsätt" : undefined}
         />
       )}

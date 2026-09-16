@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import RestaurantMenu from "@/components/restaurant/RestaurantMenu";
-import "@/components/restaurant/restaurant.css";
 import { MENU_FORMAT_PARAM, rehydrateMenuCategories } from "@/lib/menu";
 
 type EmbedPageProps = {
@@ -61,8 +60,9 @@ export default async function PartnerEmbedPage({ params }: EmbedPageProps) {
   if (!data || data.restaurant.comingSoon) notFound();
 
   return (
-    <main data-viaeats-embed="1" className="min-h-screen" style={{ backgroundColor: "#F5F5F7" }}>
-      {/* Samma nya design som /restaurants/[slug] (docs/DESIGN_SYSTEM.md), i embed-läge. */}
+    <main data-viaeats-embed="1" className="ve-root min-h-screen">
+      {/* Exakt samma komponent och tokens som /restaurants/[slug] — embedden har
+          ingen egen styling, så en designändring där slår igenom här automatiskt. */}
       <RestaurantMenu restaurantSlug={slug} embedMode initialData={data} />
     </main>
   );

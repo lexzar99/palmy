@@ -2,7 +2,6 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import RestaurantMenu from "@/components/restaurant/RestaurantMenu";
 import { rehydrateMenuCategories } from "@/lib/menu";
-import "@/components/restaurant/restaurant.css";
 
 // ISR: cache the rendered page per slug for 5 min so 1000 same-restaurant loads
 // hit a cached shell instead of 1000 live SSR renders (each re-parsing ~1.5MB).

@@ -12,6 +12,7 @@ import { useToast } from "@/components/Toast";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import { trackJourney } from "@/lib/journey";
 import PlainImage from "./PlainImage";
+import "./restaurant.css";
 
 /**
  * ProductSheet — produktmodalen i ve-designen.
@@ -533,7 +534,7 @@ export default function ProductSheet({
             style={{ backgroundColor: "var(--ve-cta)", color: "var(--ve-cta-ink)" }}
           >
             <span className="text-[16px] font-semibold truncate" style={{ letterSpacing: "-0.01em" }}>
-              {editCartItemId ? t("product.saveChanges") : bogoFreeFromDealId ? t("product.pickAsFree") : t("product.addToCart")}
+              {editCartItemId ? t("common.save") : bogoFreeFromDealId ? t("product.pickAsFree") : t("product.addToCart")}
             </span>
             <span className="ve-tabular text-[16px] font-semibold shrink-0">
               {bogoFreeFromDealId

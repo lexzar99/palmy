@@ -46,7 +46,7 @@ import { trackMetaInitiateCheckout } from "@/lib/metaEvents";
 // Stripes egen, alltid domänverifierade, betalsida.
 import ProductSheet from "@/components/restaurant/ProductSheet";
 import PlainImage from "@/components/restaurant/PlainImage";
-import "@/components/restaurant/restaurant.css";
+import { useDesignBackground } from "@/components/restaurant/useDesignBackground";
 import { saveOrderToHistory } from "@/lib/orderHistory";
 import {
   type QuickAddress,
@@ -381,11 +381,7 @@ export default function CartPage() {
   const [cartRestaurantAddress, setCartRestaurantAddress] = useState<string | null>(null);
   const router = useRouter();
   // Designsystemets grå yta ska nå ända ut i overscroll/safe-area (docs/DESIGN_SYSTEM.md).
-  useEffect(() => {
-    const prev = document.body.style.backgroundColor;
-    document.body.style.backgroundColor = "#F5F5F7";
-    return () => { document.body.style.backgroundColor = prev; };
-  }, []);
+  useDesignBackground();
   const [embedMode, setEmbedMode] = useState(false);
   const [embedRestaurantFromUrl, setEmbedRestaurantFromUrl] = useState<string | null>(null);
   useEffect(() => {
@@ -398,18 +394,41 @@ export default function CartPage() {
   const [editingCartItem, setEditingCartItem] = useState<any>(null);
   const cartDiscountHydrationRef = useRef<Set<string>>(new Set());
 
+  // /api/menu/products/:id saknar menyrabattfälten (discountActive/-Price/
+  // -Percent). Utan dem skulle produktarket visa och spara ORDINARIE pris för
+  // en rabatterad vara. Vi lägger tillbaka rabatten från menylistan (färskast)
+  // eller, vid redigering, från raden i varukorgen.
+  const menuProductsRef = useRef<CartMenuProduct[]>([]);
+  const withCatalogDiscount = useCallback((product: any, knownPrice?: number | null) => {
+    if (!product || typeof product.price !== "number") return product;
+    const fromMenu = menuProductsRef.current.find((entry) => entry.id === product.id);
+    const menuDiscountPrice = typeof fromMenu?.discountPrice === "number" && fromMenu.discountPrice > 0 && fromMenu.discountPrice < product.price ? fromMenu.discountPrice : null;
+    const menuDiscountPercent = typeof fromMenu?.discountPercent === "number" && fromMenu.discountPercent > 0 ? fromMenu.discountPercent : null;
+    if (menuDiscountPrice != null || menuDiscountPercent != null) {
+      return { ...product, discountActive: true, discountPrice: menuDiscountPrice ?? undefined, discountPercent: menuDiscountPercent ?? undefined };
+    }
+    if (typeof knownPrice === "number" && knownPrice > 0 && knownPrice < product.price) {
+      return { ...product, discountActive: true, discountPrice: knownPrice };
+    }
+    return product;
+  }, []);
+
   /**
    * Öppnar befintlig ProductModal för redigering av en cart-rad. Hämtar produkten
    * med extras-grupper från API:et så användaren kan ändra val direkt från kassan.
    */
+  // Går via same-origin-proxyn (/api/platform) precis som rekommendationsraden:
+  // fungerar identiskt på localhost, viaeats.se och i partnerns iframe, utan
+  // att bero på API:ts CORS-lista. Fel loggas så ett stängt ark inte blir tyst.
   const handleEditCartItem = useCallback(async (item: any) => {
     try {
-      const res = await axios.get(`${API_URL}/api/menu/products/${item.productId}`);
-      setEditingCartItem({ product: res.data, item });
-    } catch {
-      /* noop */
+      const res = await axios.get(`/api/platform/menu/products/${item.productId}`);
+      const knownPrice = item.catalogDiscountApplied && typeof item.originalPrice === "number" && item.originalPrice > item.price ? item.price : null;
+      setEditingCartItem({ product: withCatalogDiscount(res.data, knownPrice), item });
+    } catch (err) {
+      console.error("Kunde inte öppna produkten för redigering:", err);
     }
-  }, []);
+  }, [withCatalogDiscount]);
 
   // Rekommenderad vara öppnas i samma produktmodal som menyn använder, så
   // tillvalsgrupper och priser blir identiska med restaurangsidan.
@@ -421,14 +440,14 @@ export default function CartPage() {
   const handleAddRecommended = useCallback(async (productId: string) => {
     setAddingProductId(productId);
     try {
-      const res = await axios.get(`${API_URL}/api/menu/products/${productId}`);
-      setAddingProduct(res.data);
-    } catch {
-      /* noop */
+      const res = await axios.get(`/api/platform/menu/products/${productId}`);
+      setAddingProduct(withCatalogDiscount(res.data));
+    } catch (err) {
+      console.error("Kunde inte öppna rekommenderad produkt:", err);
     } finally {
       setAddingProductId(null);
     }
-  }, []);
+  }, [withCatalogDiscount]);
 
   // Menyn hämtas bara för rekommendationsraden i kassan. Samma normaliserade
   // payload som restaurangsidan använder, så inga extra fält behövs.
@@ -450,7 +469,9 @@ export default function CartPage() {
       .then((res) => {
         if (cancelled) return;
         const categories = Array.isArray(res.data?.categories) ? res.data.categories : [];
-        setMenuProducts(categories.flatMap((category: any) => (Array.isArray(category?.products) ? category.products : [])));
+        const flat = categories.flatMap((category: any) => (Array.isArray(category?.products) ? category.products : []));
+        menuProductsRef.current = flat;
+        setMenuProducts(flat);
       })
       .catch(() => {
         if (!cancelled) setMenuProducts([]);
@@ -820,7 +841,7 @@ export default function CartPage() {
         const uniqueIds = Array.from(new Set(items.map((it: any) => it.productId)));
         const fresh = await Promise.all(uniqueIds.map(async (pid) => {
           try {
-            const r = await axios.get(`${API_URL}/api/menu/products/${pid}`);
+            const r = await axios.get(`/api/platform/menu/products/${pid}`);
             return { id: pid, isActive: r.data?.isActive !== false, name: r.data?.name as string };
           } catch {
             return { id: pid, isActive: false, name: '' };
@@ -1058,7 +1079,7 @@ export default function CartPage() {
     let cancelled = false;
     staleDiscountRows.forEach((item: any) => {
       cartDiscountHydrationRef.current.add(item.cartItemId);
-      axios.get(`${API_URL}/api/menu/products/${item.productId}`)
+      axios.get(`/api/platform/menu/products/${item.productId}`)
         .then((res) => {
           if (cancelled) return;
           const product = res.data || {};
