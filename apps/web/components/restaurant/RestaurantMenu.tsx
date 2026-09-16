@@ -7,6 +7,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
+import { createPortal } from "react-dom";
 import {
   Search, Info, ChevronLeft, MapPin, Phone, Mail, Clock, Star, X,
   AlertTriangle, Heart, Plus, Utensils, Store, Bike, ChevronRight,
@@ -279,8 +280,34 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
   const [address, setAddress] = useState("");
   const [orderType, setOrderType] = useState<OrderType>("DELIVERY");
   const [hydrated, setHydrated] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  // Förladda adressmodalen och Leaflet när sidan är klar, så kartan är
+  // redo när kunden trycker på adressraden i stället för att laddas då.
+  useEffect(() => {
+    const idle = (cb: () => void) => ("requestIdleCallback" in window ? (window as any).requestIdleCallback(cb, { timeout: 2500 }) : window.setTimeout(cb, 1200));
+    const handle = idle(() => {
+      void import("@/components/AddressModal");
+      void import("@/lib/leaflet").then((m) => m.loadLeaflet()).catch(() => {});
+    });
+    return () => { if ("cancelIdleCallback" in window) (window as any).cancelIdleCallback(handle); else window.clearTimeout(handle); };
+  }, []);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
+  // Lås bakgrundsscrollen medan infoarket är öppet (html + body för iOS).
+  useEffect(() => {
+    if (!showInfoModal) return;
+    const prevHtml = document.documentElement.style.overflowY;
+    const prevBody = document.body.style.overflow;
+    document.documentElement.style.overflowY = "hidden";
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.documentElement.style.overflowY = prevHtml;
+      document.body.style.overflow = prevBody;
+    };
+  }, [showInfoModal]);
+
   const [pendingProduct, setPendingProduct] = useState<any>(null);
   const [zoneAvailable, setZoneAvailable] = useState<boolean | null>(null);
   const [checkingZone, setCheckingZone] = useState(false);
@@ -1003,13 +1030,14 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
         />
       )}
 
+      {mounted && createPortal(
       <AnimatePresence>
         {showInfoModal && (
           <motion.div
             key="info"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
             className="ve-root fixed inset-0 z-[1300] flex items-end sm:items-center justify-center"
-            style={{ backgroundColor: "rgba(0,0,0,0.42)" }}
+            style={{ backgroundColor: "rgba(0,0,0,0.42)", touchAction: "none" }}
             onClick={() => setShowInfoModal(false)}
           >
             <motion.div
@@ -1017,11 +1045,11 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
               transition={{ type: "spring", stiffness: 380, damping: 38 }}
               onClick={(e) => e.stopPropagation()}
               role="dialog" aria-modal="true" aria-label={t("menu.info.title")}
-              className="relative w-full sm:max-w-[480px] max-h-[88dvh] flex flex-col overflow-hidden"
-              style={{ backgroundColor: "var(--ve-bg)", borderRadius: "var(--ve-radius-xl)" }}
+              className="relative flex w-full flex-col overflow-hidden rounded-t-[26px] sm:max-w-[480px] sm:rounded-[26px]"
+              style={{ backgroundColor: "var(--ve-bg)", height: "min(88dvh, 720px)", maxHeight: "calc(100dvh - env(safe-area-inset-top, 0px))", boxShadow: "0 -8px 40px rgba(0,0,0,0.18)", touchAction: "pan-y" }}
             >
-              <div className="flex justify-center pt-2.5"><span className="ve-sheet-handle" /></div>
-              <div className="flex items-start justify-between px-5 pt-3 pb-3">
+              <div className="flex shrink-0 justify-center pt-2.5"><span className="ve-sheet-handle" /></div>
+              <div className="flex shrink-0 items-start justify-between px-5 pt-3 pb-3">
                 <div className="min-w-0">
                   <p className="m-0 text-[13px] font-medium" style={{ color: "var(--ve-ink-3)" }}>{t("menu.info.title")}</p>
                   <h2 className="m-0 text-[22px] font-semibold truncate" style={{ letterSpacing: "-0.02em" }}>{restaurant?.name}</h2>
@@ -1030,7 +1058,7 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
                   <X size={16} strokeWidth={2.6} />
                 </button>
               </div>
-              <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-6 flex flex-col gap-4" style={{ overscrollBehavior: "contain", paddingBottom: "max(env(safe-area-inset-bottom, 0px), 24px)" }}>
+              <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4" style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" as any, paddingBottom: "max(env(safe-area-inset-bottom, 0px), 24px)" }}>
                 {restaurant?.description && (
                   <div className="ve-card px-4 py-3.5">
                     <p className="m-0 text-[15px] leading-relaxed" style={{ color: "var(--ve-ink)" }}>{restaurant.description}</p>
@@ -1098,7 +1126,8 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body)}
 
       {showAddressModal && (
         <AddressModal

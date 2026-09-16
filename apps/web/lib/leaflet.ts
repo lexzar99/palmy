@@ -12,7 +12,26 @@ export function loadLeaflet(): Promise<LeafletModule> {
   if (w.L) return Promise.resolve(w.L);
   if (leafletPromise) return leafletPromise;
 
-  leafletPromise = new Promise((resolve, reject) => {
+  // Leaflet ligger som npm-beroende och buntas av Next: laddas som en egen
+  // chunk från samma origin (cachad av service workern) i stället för att
+  // hämtas från unpkg vid varje öppning. CDN:en finns kvar som reserv om
+  // chunken av någon anledning inte går att ladda.
+  leafletPromise = Promise.all([
+    import("leaflet"),
+    import("leaflet/dist/leaflet.css"),
+  ])
+    .then(([mod]) => {
+      const L = ((mod as unknown as { default?: LeafletModule }).default ?? (mod as unknown as LeafletModule)) as LeafletModule;
+      w.L = L;
+      return L;
+    })
+    .catch(() => loadLeafletFromCdn(w));
+
+  return leafletPromise;
+}
+
+function loadLeafletFromCdn(w: Window & { L?: LeafletModule }): Promise<LeafletModule> {
+  return new Promise((resolve, reject) => {
     const fail = (err: Error) => { leafletPromise = null; reject(err); };
 
     if (!document.getElementById("leaflet-css")) {
@@ -48,8 +67,6 @@ export function loadLeaflet(): Promise<LeafletModule> {
     s.onerror = () => fail(new Error("Leaflet failed to load"));
     document.head.appendChild(s);
   });
-
-  return leafletPromise;
 }
 
 // Tile-URL:erna bor numera i ETT ställe (lib/mapTiles.ts) så hela webben byter

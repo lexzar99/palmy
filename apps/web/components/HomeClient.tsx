@@ -1044,6 +1044,16 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
     };
   }, [activeOrders]);
   const [showAddressModal, setShowAddressModal] = useState(false);
+  // Förladda adressmodalen och Leaflet när startsidan är klar, så kartan
+  // är redo när kunden trycker på adressraden.
+  useEffect(() => {
+    const idle = (cb: () => void) => ("requestIdleCallback" in window ? (window as any).requestIdleCallback(cb, { timeout: 3000 }) : window.setTimeout(cb, 1500));
+    const handle = idle(() => {
+      void import("@/components/AddressModal");
+      void import("@/lib/leaflet").then((m) => m.loadLeaflet()).catch(() => {});
+    });
+    return () => { if ("cancelIdleCallback" in window) (window as any).cancelIdleCallback(handle); else window.clearTimeout(handle); };
+  }, []);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
   const [closedRestaurant, setClosedRestaurant] = useState<Restaurant | null>(null);
