@@ -15,7 +15,7 @@
     "test:refunds": "ts-node --transpile-only src/contracts/refundContracts.test.ts",
     "test:stripe": "ts-node --transpile-only src/contracts/stripeContracts.test.ts",
     "test:swish-refund-mss": "ts-node --transpile-only scripts/test-swish-refund-mss.ts",
-    "test:finance-payouts": "ts-node --transpile-only src/contracts/financePayoutContracts.test.ts && ts-node --transpile-only src/contracts/stripeFinanceContracts.test.ts",
+    "test:finance-payouts": "ts-node --transpile-only src/contracts/financePayoutContracts.test.ts",
     "test:settlement-model": "ts-node --transpile-only src/contracts/settlementModel.test.ts",
     "test:payment-details": "ts-node --transpile-only src/contracts/paymentDetails.test.ts",
     "test:payout-period": "ts-node --transpile-only src/contracts/payoutPeriodParity.test.ts",

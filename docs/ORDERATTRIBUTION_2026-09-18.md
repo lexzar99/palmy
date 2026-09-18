@@ -26,3 +26,7 @@ Miljövariabler: META_CAPI_ENABLED=1, META_PIXEL_ID=1850021916382355, META_GRAPH
 PA-1193-JV, PA-1196-DP och PA-1197-CF har enbart VIAEATS_WEB i sparad kanallogg. Exakt trafikkälla kan inte bevisas. PA-1196-DP har tidigare beställningar; tidigare Palmyra-källa bevisar inte dagens källa. Inga påhittade konverteringar eller historiska källor har skrivits tillbaka.
 
 Det publicerade webbgränssnittet väntade på marketingPurchase, som saknades i publicerad backend. Denna leverans lägger till den betalverifierade kvittensen. Betalningar och Meta-rapportering är separata; ett fullständigt köp inuti Facebook/Instagram på fysisk telefon återstår att verifiera.
+
+## CI-konfiguration
+
+Det äldre test:finance-payouts pekade även på stripeFinanceContracts.test.ts, som tillsammans med stripeFinance.ts bara fanns lokalt och aldrig checkats in. Kommandot kör nu den befintliga incheckade finanssviten; det ofärdiga Stripe-ekonomiarbetet och produktionslogiken lämnas orörda. De nya spårnings- och kundresetesterna ingår i CI.

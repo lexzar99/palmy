@@ -39,6 +39,8 @@ jobs:
       - name: API launch contracts
         run: |
           pnpm --filter @viaeats/api test:contracts
+          pnpm --filter @viaeats/api test:order-attribution
+          pnpm --filter @viaeats/api test:journey
           pnpm --filter @viaeats/api test:order-status
           pnpm --filter @viaeats/api test:referrals
           pnpm --filter @viaeats/api test:refunds
