@@ -132,6 +132,10 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
     const accept = request.headers.get("accept");
     if (contentType) headers.set("content-type", contentType);
     if (accept) headers.set("accept", accept);
+    // Bevara kundens webbläsare för orderloggen och samtyckesstyrd Meta-matchning.
+    // Proxyns egen Node-user-agent får inte ersätta Facebook/Instagram/Safari.
+    const userAgent = request.headers.get("user-agent");
+    if (userAgent) headers.set("user-agent", userAgent.slice(0, 512));
     if (token) headers.set("authorization", `Bearer ${token}`);
     if (orderId) {
       const orderCookieName = orderSessionCookieName(orderId);
