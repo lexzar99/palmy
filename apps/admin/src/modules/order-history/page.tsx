@@ -1,5 +1,6 @@
 "use client";
 
+import { customerDisplayName, OrderSource } from "../orders/order-source";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Download, FileText, RefreshCw } from "lucide-react";
@@ -379,7 +380,7 @@ export function OrderHistoryPage() {
                     <td data-label="Order" style={{ fontFamily: "ui-monospace, Menlo, monospace", fontWeight: 700 }}>#{order.orderNumber}</td>
                     <td data-label="Restaurang" className="font-semibold">{order.restaurantName}</td>
                     <td data-label="Kund">
-                      <div>{order.customerName}</div>
+                      <div>{customerDisplayName(order.customerName)}<OrderSource order={order} /></div>
                       <div className="text-xs text-[var(--text-secondary)]">{order.customerPhone}</div>
                     </td>
                     <td data-label="Datum/tid" className="text-[var(--text-secondary)]">{formatDateTime(order.createdAt)}</td>

@@ -80,6 +80,8 @@ import {
 } from '../lib/checkoutIntegrity';
 import { resolvePlatformFundedDiscount } from '../lib/discountFunding';
 import { customerNameWithOrderChannel, ORDER_CHANNELS, orderChannelAuditChanges, resolveOrderChannel } from '../lib/orderChannel';
+import { normalizeOrderAttribution } from '../lib/orderAttribution';
+import { metaPurchaseReceipt } from '../lib/metaPurchase';
 import { isPartnerEmbedDiscountEnabled, partnerEmbedEnabledIds } from '../lib/partnerEmbedDiscounts';
 
 const router = Router();
@@ -243,6 +245,7 @@ const OrderItemSchema = z.object({
 });
 
 const CreateOrderSchema = z.object({
+  attribution: z.unknown().optional(),
   restaurantId: z.string().min(1).optional(),
   restaurantSlug: z.string().min(1).optional(),
   type: z.enum(['PICKUP', 'DELIVERY']),
@@ -1675,6 +1678,7 @@ router.post('/', async (req: Request, res: Response) => {
               changes: orderChannelAuditChanges(orderChannel, {
                 clientType,
                 restaurantSlug: restaurant?.slug || null,
+                attribution: normalizeOrderAttribution(data.attribution, orderChannel),
               }),
               ipAddress: req.ip || null,
               userAgent: req.get('user-agent') || null,
@@ -2299,6 +2303,7 @@ router.get('/:id', async (req: Request, res: Response) => {
         vatOre: row.vatOre,
       })),
       paymentStatus: order.paymentStatus,
+      marketingPurchase: await metaPurchaseReceipt(order),
       paymentMethod: order.paymentMethod,
       rating: order.rating ?? null,
       review: order.review ?? null,

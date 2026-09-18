@@ -52,6 +52,7 @@ import paymentRoutes from './routes/payments';
 import discountRoutes from './routes/discount';
 import journeyRoutes from './routes/journey';
 import journeyAdminRoutes from './routes/journeyAdmin';
+import { startMetaPurchaseWorker } from './lib/metaPurchase';
 import settingsRoutes from './routes/settings';
 import dealsRoutes from './routes/deals';
 import homePulseRoutes from './routes/homePulse';
@@ -686,6 +687,7 @@ const PORT = Number(process.env.PORT || 4000);
   // This starts outside the unrelated best-effort bootstrap below. A failure
   // therefore cannot be swallowed by menu prewarm, watchdog or mail setup;
   // its local heartbeat makes /ready fail until notification delivery recovers.
+  startMetaPurchaseWorker();
   try {
     startCustomerNotificationWorkers();
     console.log('🔔 Customer notification workers started');

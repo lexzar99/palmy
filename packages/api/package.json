@@ -32,6 +32,7 @@
     "test:swish-mss": "ts-node --transpile-only scripts/test-swish-mss.ts",
     "test:readiness": "ts-node --transpile-only src/contracts/launchReadiness.test.ts",
     "test:admin-auth-p0": "ts-node --transpile-only src/contracts/adminAuthP0.test.ts",
+    "test:journey": "ts-node --transpile-only src/contracts/journeyConversions.test.ts && ts-node --transpile-only src/contracts/journeyRegistration.test.ts",
     "test:database-readiness": "ts-node --transpile-only src/contracts/launchDatabaseReadiness.test.ts",
     "db:readiness": "ts-node --transpile-only scripts/check-launch-database.ts",
     "test:prelaunch-access": "ts-node --transpile-only src/contracts/prelaunchAccess.test.ts",
@@ -49,7 +50,8 @@
     "test:migration-customer-auth": "bash scripts/test-customer-auth-migrations.sh",
     "start": "node dist/index.js",
     "migrate:r2": "ts-node scripts/migrate-cloudinary-to-r2.ts",
-    "send:launch-coupons": "ts-node --transpile-only -r dotenv/config scripts/send-launch-coupons.ts"
+    "send:launch-coupons": "ts-node --transpile-only -r dotenv/config scripts/send-launch-coupons.ts",
+    "test:order-attribution": "ts-node --transpile-only src/contracts/orderAttribution.test.ts"
   },
   "dependencies": {
     "@adyen/api-library": "^30.1.0",

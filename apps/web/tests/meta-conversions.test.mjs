@@ -33,19 +33,12 @@ test("ett event kvitteras först när det faktiskt lämnat klienten", () => {
   );
 });
 
-test("Purchase rapporteras en gång per order, från det betalda flödet", () => {
-  // goToOrderTracking är kassans enda väg in i spårningen efter att
-  // betalningen bekräftats, och nås från providerreturen, pollningen och den
-  // passiva återhämtningen. Ligger eventet där räknas ordern exakt en gång.
-  const start = cart.indexOf("const goToOrderTracking");
-  const end = cart.indexOf("const submitOrder");
-  assert.ok(start > 0 && end > start, "kassans betalda flöde hittades inte");
-  assert.match(
-    cart.slice(start, end),
-    /trackMetaPurchase\(\{/,
-    "Purchase ska skickas från goToOrderTracking",
-  );
-  assert.match(metaEvents, /alreadySent\(eventKey\)\) return;/);
+test("Purchase ligger på orderns serververifierade underlag", () => {
+  const orderPage = readFileSync(new URL("../app/order/[id]/page.tsx", import.meta.url), "utf8");
+  const component = readFileSync(new URL("../components/MetaPurchase.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(cart, /trackMetaPurchase/);
+  assert.match(orderPage, /MetaPurchase receipt=\{order.marketingPurchase\}/);
+  assert.match(component, /receipt.expiresAt > Date.now/);
 });
 
 test("test- och gratisordrar rapporteras aldrig som köp", () => {
@@ -64,7 +57,7 @@ test("ordervärdet överlever redirecten till betalningen", () => {
   // varukorgen är tömd. Utan det sparade beloppet hade Purchase rapporterats
   // utan värde och kampanjen kunnat optimera mot fel ordrar.
   assert.match(cart, /localStorage\.setItem\("pending_order_value"/);
-  assert.match(cart, /localStorage\.getItem\("pending_order_value"\)/);
+
   assert.equal(
     (cart.match(/localStorage\.removeItem\("pending_order_value"\)/g) || []).length,
     2,

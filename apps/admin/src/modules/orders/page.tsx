@@ -1,5 +1,6 @@
 "use client";
 
+import { customerDisplayName, OrderSource } from "./order-source";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
@@ -393,7 +394,7 @@ function OrderDetailsModalContent({
           <div className="order-customer-summary">
             <Avatar name={order.customerName} />
             <div className="order-customer-copy">
-              {order.userId && onViewCustomer ? <button type="button" onClick={() => onViewCustomer(order.userId!)}><strong>{order.customerName}</strong></button> : <strong>{order.customerName}</strong>}
+              {order.userId && onViewCustomer ? <button type="button" onClick={() => onViewCustomer(order.userId!)}><strong>{customerDisplayName(order.customerName)}<OrderSource order={order} /></strong></button> : <strong>{customerDisplayName(order.customerName)}<OrderSource order={order} /></strong>}
               <p>{isDelivery ? [order.deliveryStreet || "Adress saknas", order.deliveryZip, order.deliveryCity].filter(Boolean).join(", ") : "Avhämtning i restaurangen"}</p>
               {order.deliveryInstructions ? <small>{deliveryInstructionLabel(order.deliveryInstructions)}</small> : null}
               <small>{order.customerPhone}{order.customerStats?.orderCount ? ` · ${formatNumber(order.customerStats.orderCount)} ordrar` : ""}</small>
@@ -960,13 +961,7 @@ function OrderRowBase({ order, nowMs, isAdvancing, onOpen, onOpenCustomer, onAdv
   const next = nextAction(order.status, isDelivery);
   const isPending = order.status === "PENDING";
   const isLate = tis?.tone === "danger";
-  const channelLabel = order.channel === "PARTNER_EMBED"
-    ? "Privat embed"
-    : order.channel === "VIAEATS_APP"
-      ? "viaeats app"
-      : order.channel === "VIAEATS_WEB"
-        ? "viaeats webb"
-        : null;
+
 
   const renderAction = () => {
     if (isPending && next) {
@@ -1020,7 +1015,6 @@ function OrderRowBase({ order, nowMs, isAdvancing, onOpen, onOpenCustomer, onAdv
         <span className="min-w-0">
           <span className="block truncate font-semibold text-[var(--text-primary)]">{order.restaurantName || "—"}</span>
           <span className="order-row-total">{formatCurrency(order.total)}</span>
-          {channelLabel ? <span className="block truncate text-[10.5px] font-semibold text-[var(--text-muted)]">{channelLabel}</span> : null}
         </span>
 
         {order.userId ? (
@@ -1029,10 +1023,10 @@ function OrderRowBase({ order, nowMs, isAdvancing, onOpen, onOpenCustomer, onAdv
             onClick={(event) => { event.stopPropagation(); onOpenCustomer(order.userId!); }}
             className="truncate text-left text-[var(--text-secondary)] transition-colors hover:text-[var(--accent-strong)]"
           >
-            {order.customerName}
+            {customerDisplayName(order.customerName)}<OrderSource order={order} />
           </button>
         ) : (
-          <span className="truncate text-[var(--text-secondary)]">{order.customerName}</span>
+          <span className="truncate text-[var(--text-secondary)]">{customerDisplayName(order.customerName)}<OrderSource order={order} /></span>
         )}
 
         <span className="min-w-0"><StatusBadge status={order.status} isPickup={!isDelivery} paymentStatus={order.paymentStatus} /></span>
@@ -1070,7 +1064,6 @@ function OrderRowBase({ order, nowMs, isAdvancing, onOpen, onOpenCustomer, onAdv
               {isLive ? <span className="live-dot" aria-hidden /> : null}
               <span className={`${MONO} text-[11.5px] font-bold text-[var(--text-primary)]`}>{order.orderNumber}</span>
               <span className="text-[11px] text-[var(--text-muted)]">{orderTypeLabel(order.type)}</span>
-              {channelLabel ? <Badge tone={order.channel === "PARTNER_EMBED" ? "info" : "neutral"}>{channelLabel}</Badge> : null}
               {order.scheduledFor ? <Badge tone="warning">Förbeställd</Badge> : null}
             </div>
             <div className="mt-1.5 flex min-w-0 items-baseline gap-2">
@@ -1083,10 +1076,10 @@ function OrderRowBase({ order, nowMs, isAdvancing, onOpen, onOpenCustomer, onAdv
                   onClick={(event) => { event.stopPropagation(); onOpenCustomer(order.userId!); }}
                   className="mt-0.5 max-w-full truncate text-left text-[12px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
                 >
-                  {order.customerName}
+                  {customerDisplayName(order.customerName)}<OrderSource order={order} />
                 </button>
               ) : (
-                <p className="mt-0.5 truncate text-[12px] text-[var(--text-secondary)]">{order.customerName}</p>
+                <p className="mt-0.5 truncate text-[12px] text-[var(--text-secondary)]">{customerDisplayName(order.customerName)}<OrderSource order={order} /></p>
               )}
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--text-muted)]">
               <span style={isLate ? { color: "var(--danger)", fontWeight: 700 } : undefined}>

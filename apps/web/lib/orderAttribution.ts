@@ -5,13 +5,17 @@ import { journeySessionId } from "@/lib/journey";
 
 let entryCaptured = false;
 let explicitSignature = "";
+let landing: AttributionTouch | null | undefined;
+let landingClick: string | null = null;
 const KEY = "viaeats.order-attribution.v1";
+const VISIT_KEY = "viaeats.order-attribution.visit.v1";
+const VISIT_MS = 30 * 60 * 1000;
 const WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 export type AttributionTouch = {
   source: string; evidence: string; at: number; referrer?: string;
-  campaign?: string; medium?: string; content?: string; adId?: string; adSetId?: string;
+  campaign?: string; medium?: string; content?: string; adId?: string; adSetId?: string; sourceName?: string;
 };
-type Stored = { first: AttributionTouch; last: AttributionTouch; fbc?: string };
+type Stored = { first: AttributionTouch; last: AttributionTouch; current?: AttributionTouch; fbc?: string };
 const clean = (value: string | null) => value?.trim().slice(0, 120) || undefined;
 const ownOrPayment = /(^|\.)(viaeats\.se|localhost|stripe\.com|mollie\.com|adyen\.com|swish\.nu)$/;
 
@@ -26,20 +30,22 @@ function touch(): AttributionTouch | null {
     : /email|mail/.test(raw) ? "email"
     : /google/.test(raw) ? "google"
     : /palmyra/.test(raw) ? "palmyra"
+    : /tiktok|bing|snapchat|youtube/.test(raw) ? (/tiktok|bing|snapchat|youtube/.exec(raw)![0])
     : raw ? "other"
     : p.has("fbclid") ? "meta"
-    : p.has("gclid") ? "google"
+    : (p.has("gclid") || p.has("gbraid") || p.has("wbraid")) ? "google"
     : /(^|\.)instagram\.com$/.test(referrer) ? "ig"
     : /(^|\.)(facebook\.com|fb\.com|fb\.me)$/.test(referrer) ? "fb"
     : /(^|\.)palmyrapizzeria\.se$/.test(referrer) ? "palmyra"
     : /(^|\.)(mail\.google\.com|outlook\.live\.com)$/.test(referrer) ? "email"
     : /(^|\.)google\.[a-z.]+$/.test(referrer) ? "google"
+    : /(^|\.)(tiktok|bing|snapchat|youtube)\.com$/.test(referrer) ? referrer.split(".").slice(-2)[0]
     : referrer && !ownOrPayment.test(referrer) ? "referral" : "direct";
   // Betalreturer och intern navigation får aldrig skriva över förvärvskällan.
-  if (!raw && !p.has("fbclid") && !p.has("gclid") && ownOrPayment.test(referrer)) return null;
-  return { source, evidence: raw ? "utm" : p.has("fbclid") || p.has("gclid") ? "click_id" : source === "direct" ? "direct" : "referrer",
+  if (!raw && !p.has("fbclid") && !(p.has("gclid") || p.has("gbraid") || p.has("wbraid")) && ownOrPayment.test(referrer)) return null;
+  return { source, evidence: raw ? "utm" : p.has("fbclid") || (p.has("gclid") || p.has("gbraid") || p.has("wbraid")) ? "click_id" : source === "direct" ? "direct" : "referrer",
     at: Date.now(), ...(referrer && !ownOrPayment.test(referrer) ? { referrer } : {}),
-    campaign: clean(p.get("utm_campaign")), medium: clean(p.get("utm_medium")), content: clean(p.get("utm_content")),
+    sourceName: clean(p.get("utm_source")), campaign: clean(p.get("utm_campaign")), medium: clean(p.get("utm_medium")), content: clean(p.get("utm_content")),
     adId: clean(p.get("ad_id")), adSetId: clean(p.get("adset_id")) };
 }
 function cookie(name: string) {
@@ -54,27 +60,39 @@ export function captureOrderAttribution(): Stored | undefined {
     const embedded = window.parent !== window || new URLSearchParams(window.location.search).get('embed') === '1';
     if (embedded) window.sessionStorage.setItem('viaeats.checkout-surface', 'embed');
     else if (!/^\/(cart|pay|order)(\/|$)/.test(window.location.pathname)) window.sessionStorage.removeItem('viaeats.checkout-surface');
-    if (!hasMarketingConsent()) { window.localStorage.removeItem(KEY); entryCaptured = false; explicitSignature = ""; return undefined; }
+    // Behåll bara landningen i minnet tills besökaren har valt samtycke.
+    if (landing === undefined) { landing = touch(); landingClick = new URLSearchParams(window.location.search).get("fbclid"); }
+    if (!hasMarketingConsent()) { window.localStorage.removeItem(KEY); window.sessionStorage.removeItem(VISIT_KEY); entryCaptured = false; explicitSignature = ""; return undefined; }
     const now = Date.now();
     const parsed = JSON.parse(window.localStorage.getItem(KEY) || "null") as Stored | null;
     let stored = parsed?.last?.at && now - parsed.last.at <= WINDOW_MS && parsed.last.at <= now ? parsed : null;
     const params = new URLSearchParams(window.location.search);
-    const signature = ['utm_source', 'utm_campaign', 'utm_content', 'ad_id', 'adset_id', 'fbclid', 'gclid'].map(k => params.get(k) || '').join('|');
-    const explicit = [...params.keys()].some(k => ['utm_source', 'utm_campaign', 'fbclid', 'gclid'].includes(k));
-    const incoming = !entryCaptured || (explicit && signature !== explicitSignature) ? touch() : null;
+    const signature = ['utm_source', 'utm_campaign', 'utm_content', 'ad_id', 'adset_id', 'fbclid', 'gclid', 'gbraid', 'wbraid'].map(k => params.get(k) || '').join('|');
+    const explicit = [...params.keys()].some(k => ['utm_source', 'utm_campaign', 'fbclid', 'gclid', 'gbraid', 'wbraid'].includes(k));
+    const visit = JSON.parse(window.sessionStorage.getItem(VISIT_KEY) || "null") as { touch: AttributionTouch; seenAt: number } | null;
+    const activeVisit = visit && now - visit.seenAt < VISIT_MS && visit.seenAt <= now ? visit : null;
+    const changedCampaign = explicit && signature !== explicitSignature;
+    const incoming = !entryCaptured ? landing : changedCampaign ? touch() : null;
+    let current = activeVisit?.touch;
+    // Ny extern ingång byter besökskälla. Betalretur och omladdning behåller den.
+    if (incoming && (!activeVisit || (incoming.source !== "direct" && (!entryCaptured || changedCampaign)))) current = incoming;
+    if (!current) current = incoming || { source: "direct", evidence: "direct", at: now };
+    window.sessionStorage.setItem(VISIT_KEY, JSON.stringify({ touch: current, seenAt: now }));
     entryCaptured = true;
     if (explicit) explicitSignature = signature;
     if (incoming && (!stored || incoming.source !== "direct")) {
       // Samma landnings-URL på flera React-renderingar förlänger inte klickets liv.
       const same = stored && ["source", "campaign", "content", "adId", "medium", "referrer"].every(k =>
         stored!.last[k as keyof AttributionTouch] === incoming[k as keyof AttributionTouch]);
-      if (!same) stored = { first: stored && now - stored.first.at <= WINDOW_MS ? stored.first : incoming, last: incoming };
+      if (!same) stored = { first: stored && now - stored.first.at <= WINDOW_MS ? stored.first : incoming, last: incoming, ...(stored?.fbc ? { fbc: stored.fbc } : {}) };
     }
     if (!stored) stored = { first: incoming || { source: "direct", evidence: "direct", at: now }, last: incoming || { source: "direct", evidence: "direct", at: now } };
-    const fbclid = new URLSearchParams(window.location.search).get("fbclid");
+    const fbclid = new URLSearchParams(window.location.search).get("fbclid") || landingClick;
     if (fbclid && /^[A-Za-z0-9_\-]{1,500}$/.test(fbclid) && !stored.fbc?.endsWith(`.${fbclid}`)) {
       stored.fbc = `fb.1.${now}.${fbclid}`;
     }
+    if (now - stored.first.at > WINDOW_MS) stored.first = stored.last;
+    stored.current = current;
     window.localStorage.setItem(KEY, JSON.stringify(stored));
     return stored;
   } catch { return undefined; }

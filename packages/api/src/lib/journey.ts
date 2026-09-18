@@ -56,7 +56,7 @@ export const STEP_LABELS: Record<string, string> = {
   ADDRESS_ACCEPTED: 'Adressen godkändes',
   CONTACT_ENTERED: 'Fyllde i namn och telefon',
   PAYMENT_STARTED: 'Startade betalningen',
-  ORDER_PLACED: 'Lade ordern',
+  ORDER_PLACED: 'Skapade ordern (före betalning)',
   ADDRESS_REJECTED: 'Adressen låg utanför zonen',
   PAYMENT_FAILED: 'Betalningen gick inte igenom',
 };

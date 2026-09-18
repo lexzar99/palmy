@@ -30,9 +30,8 @@ test("Palmyras uppladdningssida använder den centrala viaeats-embedden", () => 
   assert.match(palmyraLoader, /https:\/\/www\.viaeats\.se\/embed\.js/);
   assert.match(palmyraHome, /href="meny\.html"/);
   assert.match(palmyraHome, /Powered by <b>viaeats<\/b>/);
-  assert.match(palmyraHome, /utm_source=palmyra&amp;utm_medium=owned/);
+  assert.match(palmyraHome, /utm_source=palmyra-rabatt&amp;utm_medium=partner-site&amp;utm_campaign=valj-viaeats/);
   assert.match(palmyraHome, /viaeats\.se\/restaurants\/palmyra-pizzeria-lund/);
-  assert.match(palmyraHome, /utvalda erbjudanden från Palmyra/);
   assert.match(palmyraHome, /hero-viaeats/);
   assert.match(palmyraMenu, /Powered by <a[^>]+>viaeats<\/a>/);
   assert.match(palmyraMenu, /https:\/\/www\.viaeats\.se\/embed\.js\?v=20260905/);

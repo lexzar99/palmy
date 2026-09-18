@@ -1,5 +1,6 @@
 "use client";
 
+import { OrderAttribution } from "./order-attribution";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, MapPinOff, Search } from "lucide-react";
@@ -55,7 +56,7 @@ export function JourneyPage() {
     const q = filter.trim().toLowerCase();
     if (!q) return all;
     return all.filter((p) =>
-      [p.phone, p.email, p.outcome, p.deepestStepLabel, p.channel, p.referrer, p.utmSource, p.rejectedAddress, ...p.restaurants]
+      [p.phone, p.email, p.outcome, p.deepestStepLabel, p.channel, p.referrer, p.utmSource, p.utmCampaign, p.rejectedAddress, ...p.restaurants]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q)),
     );
@@ -93,20 +94,22 @@ export function JourneyPage() {
         }
       />
       <p className="-mt-3 text-[13px] text-[var(--text-secondary)]">
-        Var besökarna tar vägen, och var de tar slut.
+        Besök, nya telefonverifierade konton och betalda köp. Mätning efter analyssamtycke.
       </p>
+      <OrderAttribution key={days} days={days} />
+      {data.limited ? <p className="text-sm text-[var(--text-secondary)]">Rapporten visar de senaste 500 sessionerna i perioden. Välj en kortare period för att undvika ett begränsat urval.</p> : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Besök" value={String(data.totals.sessions)} detail="sessioner i perioden" />
         <MetricCard
-          label="Beställde"
+          label="Besök med betalt köp"
           value={String(data.totals.ordered)}
           detail={`${procent(data.totals.conversion)} av besöken`}
         />
         <MetricCard
-          label="Vet vi vilka de är"
-          value={String(data.totals.identified)}
-          detail="lämnade telefon eller mejl"
+          label="Nya konton"
+          value={String(data.totals.registered ?? 0)}
+          detail="nya konton efter verifierad telefon-OTP"
         />
         <MetricCard
           label="Största tappet"
@@ -185,7 +188,7 @@ export function JourneyPage() {
         </Surface>
 
         <Surface>
-          <SectionHeader title="Varifrån de kom" description="Plattform och hur många som beställde" />
+          <SectionHeader title="Varifrån de kom" description="Kanal, nya konton och betalda köp" />
           <div className="mt-4 space-y-3">
             {data.sources.length === 0 ? (
               <p className="text-[13px] text-[var(--text-secondary)]">Ingen data ännu.</p>
@@ -194,7 +197,7 @@ export function JourneyPage() {
                 <div key={s.source} className="flex items-center justify-between gap-3">
                   <span className="text-[13px] text-[var(--text-secondary)]">{s.source}</span>
                   <span className="text-[13px] text-[var(--text-primary)]">
-                    <strong>{s.sessions}</strong> besök · <strong>{s.orders}</strong> ordrar
+                    <strong>{s.sessions}</strong> besök · <strong>{s.registrations ?? 0}</strong> konton · <strong>{s.orders}</strong> köp
                   </span>
                 </div>
               ))
@@ -202,6 +205,17 @@ export function JourneyPage() {
           </div>
         </Surface>
       </div>
+
+      <Surface>
+        <SectionHeader title="Kampanjer" description="Senaste kampanjklicket inom 30 dagar i samma webbläsare. Köp kontrolleras mot betalstatus; testordrar och helt återbetalda köp räknas bort." />
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[520px] text-left text-sm responsive-table">
+            <thead><tr className="border-b border-[var(--border-subtle)]"><th scope="col" className="py-3">Kampanj</th><th scope="col">Besök</th><th scope="col">Nya konton</th><th scope="col">Betalda köp</th></tr></thead>
+            <tbody>{(data.campaigns ?? []).map(c => <tr key={c.campaign} className="border-b border-[var(--border-subtle)]"><td data-label="Kampanj" className="py-3">{c.campaign}</td><td data-label="Besök">{c.sessions}</td><td data-label="Nya konton">{c.registrations}</td><td data-label="Betalda köp">{c.orders}</td></tr>)}</tbody>
+          </table>
+        </div>
+        <p className="mt-3 text-xs text-[var(--text-secondary)]">Gästköp räknas utan att kunden behöver skapa konto. Besök och köp från olika enheter kopplas inte automatiskt ihop. Äldre data saknar registreringssteget.</p>
+      </Surface>
 
       <Surface>
         <SectionHeader
@@ -232,7 +246,7 @@ export function JourneyPage() {
             <Input
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              placeholder="Sök på telefon, mejl, restaurang eller utfall"
+              placeholder="Sök på kampanj, telefon, mejl, restaurang eller utfall"
               className="pl-9"
             />
           </div>
@@ -294,6 +308,7 @@ export function JourneyPage() {
                     </td>
                     <td data-label="Kanal" className="py-3 pr-4 text-[var(--text-secondary)]">
                       <div>{p.channel || "Direkt"}</div>
+                      {p.utmCampaign ? <div className="text-[12px] opacity-70">{p.utmCampaign}</div> : null}
                       {p.referrer && p.channel === "Hänvisad" ? (
                         <div className="text-[12px] opacity-70">{p.referrer}</div>
                       ) : null}

@@ -32,6 +32,8 @@ export interface JourneyPerson {
   /** Läsbar förklaring till var det tog slut. */
   outcome: string;
   ordered: boolean;
+  registered: boolean;
+  paidOrders: number;
   restaurants: string[];
   rejectedAddress: string | null;
 }
@@ -39,11 +41,13 @@ export interface JourneyPerson {
 export interface JourneyReport {
   days: number;
   from: string;
-  totals: { sessions: number; identified: number; ordered: number; conversion: number };
+  limited: boolean;
+  totals: { sessions: number; identified: number; ordered: number; conversion: number; registered: number; paidOrders: number };
   funnel: FunnelStep[];
   problems: { step: string; label: string; sessions: number }[];
   outcomes: { outcome: string; sessions: number }[];
-  sources: { source: string; sessions: number; orders: number }[];
+  sources: { source: string; sessions: number; orders: number; registrations: number }[];
+  campaigns: { campaign: string; sessions: number; orders: number; registrations: number }[];
   people: JourneyPerson[];
 }
 

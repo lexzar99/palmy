@@ -10,6 +10,7 @@
  * status/RESERVED/discountUsageCounted).
  */
 import prisma from '../prisma';
+import { enqueueMetaPurchase } from '../metaPurchase';
 import { getIO } from '../socket';
 import { incrementDiscountUsageIfNotCounted } from '../discountUsage';
 import { notifyPartnerDevicesOfNewOrder } from '../partnerFcm';
@@ -146,6 +147,7 @@ export async function finalizePaymentSuccess(
   }
   if (order.paymentStatus === 'PAID' && !isAwaitingPayment) {
     await repairPaymentBusinessEffects(order.id);
+    await enqueueMetaPurchase(order.id);
     return { ok: true, status: order.status, paymentStatus: order.paymentStatus };
   }
 
@@ -210,6 +212,7 @@ export async function finalizePaymentSuccess(
   if (!updatedOrder) return { ok: false };
 
   await repairPaymentBusinessEffects(order.id);
+  await enqueueMetaPurchase(order.id);
 
   // Pending-payment-order: nu bekräftad → broadcasta till restaurang.
   if (isAwaitingPayment) {

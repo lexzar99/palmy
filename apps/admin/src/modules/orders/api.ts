@@ -93,6 +93,7 @@ export interface AdminOrder {
   paymentStatus?: string | null;
   /** Beställningsyta, sparad server-side när ordern skapas. */
   channel?: "PARTNER_EMBED" | "VIAEATS_WEB" | "VIAEATS_APP" | null;
+  attribution?: { surfaceLabel: string; source: string; sourceLabel: string; campaign: string | null; adId: string | null; firstSource?: string | null; marketingSource?: string | null; marketingCampaign?: string | null; referrer?: string | null; medium?: string | null; sourceName?: string | null } | null;
   paymentRefunds?: PaymentRefundLedgerEntry[];
   customerStats?: CustomerStats | null;
   // Tilldelad kurir + statusövergångs-tider (null = avhämtning/self/ej tilldelad)

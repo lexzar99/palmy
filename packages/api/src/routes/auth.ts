@@ -39,6 +39,7 @@ import {
   getCachedCustomerIdentity,
   setCachedCustomerIdentity,
 } from '../lib/customerIdentityCache';
+import { recordJourneyRegistration } from '../lib/journeyRegistration';
 
 const router = Router();
 
@@ -396,6 +397,7 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
           },
         }).catch(() => null);
         if (!wasExistingUser && upsertedUser) {
+          void recordJourneyRegistration(req.body?.journey, upsertedUser.id);
           void sendHermesAlert({
             source: 'viaeats-auth',
             type: 'customer:new',

@@ -46,6 +46,7 @@ import { deleteServerTerminalTestOrder } from '../lib/terminalTestOrder';
 import { recordOrderOnWay, recordOrderDelivered } from '../lib/orderTimingStats';
 import { learnedEta, suggestedDeliveryEtaMinutes } from '../lib/learnedEta';
 import { customerNameWithOrderChannel, orderChannelFromAuditChanges } from '../lib/orderChannel';
+import { orderAttributionSummary } from '../lib/orderAttribution';
 import {
   partnerEmbedEnabledIds,
   removePartnerEmbedDiscountSetting,
@@ -582,6 +583,8 @@ router.get('/orders', async (req, res) => {
       channelRows.map((row) => [row.resourceId, orderChannelFromAuditChanges(row.changes)]),
     );
 
+    const attributionByOrderId = new Map(channelRows.map(row => [row.resourceId, orderAttributionSummary(row.changes)]));
+
     // Customer context: lifetime order/refund counts per userId for any
     // user-linked orders in this page. Single grouped query, no N+1.
     const userIds = Array.from(new Set(orders.map((o) => o.userId).filter((id): id is string => Boolean(id))));
@@ -628,6 +631,7 @@ router.get('/orders', async (req, res) => {
         const base = {
           ...o,
           channel: orderChannel,
+          attribution: attributionByOrderId.get(o.id) || null,
           customerName: customerNameWithOrderChannel(o.customerName, orderChannel),
           totalOre: o.total,
           totalMoney: moneyDto(o.total),
@@ -773,6 +777,7 @@ router.get('/orders/:id', async (req, res) => {
     const base = {
       ...order,
       channel: orderChannel,
+      attribution: orderAttributionSummary(channelRow?.changes),
       customerName: customerNameWithOrderChannel(order.customerName, orderChannel),
       courier,
       totalOre: order.total,

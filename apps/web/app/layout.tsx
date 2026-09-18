@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import localFont from "next/font/local";
 import "./globals.css";
 import BottomNav from "@/components/BottomNav";
@@ -131,7 +132,7 @@ export default function RootLayout({
           <CookieConsent />
           <MetaPixel />
           <Analytics />
-          <JourneyTracker />
+          <Suspense fallback={null}><JourneyTracker /></Suspense>
           <DeferredGlobalClients />
         </Providers>
       </body>
