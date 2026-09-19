@@ -31,6 +31,7 @@ import {
   Bike,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
+import { palmyraCartPrice } from "@/lib/palmyraCartPrice";
 import { ensureKioskAccess } from "@/lib/kioskAccessClient";
 import { EMBED_PARENT_ORIGIN_PARAM, partnerOriginForRestaurant, readEmbedParentOrigin, trustedPartnerOrigin } from "@/lib/embedPartner";
 import { checkDeliveryStreet, isDeliverableStreet } from "@/lib/deliveryAddress";
@@ -402,6 +403,9 @@ export default function CartPage() {
   const withCatalogDiscount = useCallback((product: any, knownPrice?: number | null) => {
     if (!product || typeof product.price !== "number") return product;
     const fromMenu = menuProductsRef.current.find((entry) => entry.id === product.id);
+    if (fromMenu && cartRestaurantSlug === 'palmyra-pizzeria-lund') {
+      return { ...product, ...fromMenu, extraGroups: product.extraGroups };
+    }
     const menuDiscountPrice = typeof fromMenu?.discountPrice === "number" && fromMenu.discountPrice > 0 && fromMenu.discountPrice < product.price ? fromMenu.discountPrice : null;
     const menuDiscountPercent = typeof fromMenu?.discountPercent === "number" && fromMenu.discountPercent > 0 ? fromMenu.discountPercent : null;
     if (menuDiscountPrice != null || menuDiscountPercent != null) {
@@ -411,7 +415,7 @@ export default function CartPage() {
       return { ...product, discountActive: true, discountPrice: knownPrice };
     }
     return product;
-  }, []);
+  }, [cartRestaurantSlug]);
 
   /**
    * Öppnar befintlig ProductModal för redigering av en cart-rad. Hämtar produkten
@@ -478,6 +482,22 @@ export default function CartPage() {
       });
     return () => { cancelled = true; };
   }, [cartRestaurantSlug, embedMode]);
+
+  const [menuPriceUpdated, setMenuPriceUpdated] = useState(false);
+  useEffect(() => {
+    if (cartRestaurantSlug !== 'palmyra-pizzeria-lund' || !menuProducts.length) return;
+    for (const item of items) {
+      if (item.bogoFreeFromDealId) continue;
+      const product: any = menuProducts.find(entry => entry.id === item.productId);
+      if (!product || !Number.isFinite(product.price)) continue;
+      const sale = palmyraCartPrice(product);
+      if (sale === null) continue;
+      if (item.price !== sale || !!item.catalogDiscountApplied !== (sale < product.price)) {
+        updateItem(item.cartItemId, { price: sale, originalPrice: product.price, catalogDiscountApplied: sale < product.price });
+        setMenuPriceUpdated(true);
+      }
+    }
+  }, [items, menuProducts, cartRestaurantSlug, updateItem]);
 
   // Ordningen slumpas en gång per meny — inte per render, annars skulle raden
   // hoppa runt varje gång kassan uppdateras.
@@ -3712,7 +3732,7 @@ export default function CartPage() {
   const checkoutBelowMinimum = Math.max(0, subtotal - foodDiscountComponent) < effectiveMinOrder && !topUpToMinimum;
   const via50Invalid = ['VIA50', 'VIA70'].includes(selectedPersonalDeal?.code.toUpperCase() || '') && (subtotal < (selectedPersonalDeal?.campaign.minOrder || 150) || hasCatalogDiscountedItems || items.some(item => !!item.bogoFreeFromDealId));
   const checkoutBlocked =
-    via50Invalid ||
+    (cartRestaurantSlug === 'palmyra-pizzeria-lund' && menuProducts.length === 0) || via50Invalid ||
     loading
     || bogoMustPick
     || (!isTestFlow && activeDealBelowMinimum)
@@ -4047,6 +4067,7 @@ export default function CartPage() {
               </Link>
               <div className="min-w-0 flex-1">
                 <h1 className="m-0 text-[26px] font-semibold leading-tight" style={{ color: "var(--ve-ink)", letterSpacing: "-0.024em" }}>{t("cart.heading.prefix")}</h1>
+                {menuPriceUpdated && <p role="status" className="text-sm px-1">Varukorgen har uppdaterats till priserna i den aktuella menyn.</p>}
                 <p className="m-0 mt-0.5 text-[13.5px] truncate" style={{ color: "var(--ve-ink-3)" }}>
                   {cartRestaurantName ? (
                     <Link href={menuHref} className="font-medium" style={{ color: "var(--ve-ink-2)" }}>{cartRestaurantName}</Link>
