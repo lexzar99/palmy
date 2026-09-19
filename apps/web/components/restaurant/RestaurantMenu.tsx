@@ -724,7 +724,6 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
 
   return (
     <div className="ve-root min-h-screen pb-36 md:pt-20">
-      {restaurantSlug === 'palmyra-pizzeria-lund' && !embedMode && Date.now() <= Date.parse('2026-09-19T21:59:59.999Z') && <div className="px-5 py-4 text-center" style={{background:'#fff2e8',color:'#0a2340'}}><strong>VIA50: 50 kr från 150 kr · VIA70: 70 kr från 250 kr</strong><p className="text-sm mt-1">Fri hemleverans inom Lund. Gäller idag och ej rabatterade varor. Adressen kontrolleras i kassan.</p></div>}
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <div ref={heroRef} className="ve-fade-in relative w-full overflow-hidden" style={{ height: "min(50vw, 320px)", minHeight: 210, backgroundColor: "#E5E5EA" }}>
         {heroImage ? (
@@ -856,6 +855,13 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
             </span>
             <ChevronRight size={17} strokeWidth={2.2} style={{ color: "var(--ve-ink-3)" }} />
           </button>
+
+          {restaurantSlug === 'palmyra-pizzeria-lund' && !embedMode && Date.now() <= Date.parse('2026-09-19T21:59:59.999Z') && (
+            <div className="mt-4 rounded-[14px] px-5 py-4 text-center" style={{ background: '#fff2e8', color: '#0a2340' }}>
+              <strong>VIA50: 50 kr från 150 kr · VIA70: 70 kr från 250 kr</strong>
+              <p className="text-sm mt-1">Fri hemleverans inom Lund. Gäller idag och ej rabatterade varor. Adressen kontrolleras i kassan.</p>
+            </div>
+          )}
 
           {/* Faktarad */}
           <div className="mt-4 grid rounded-[14px] overflow-hidden" style={{ gridTemplateColumns: `repeat(${facts.length}, minmax(0, 1fr))`, backgroundColor: "var(--ve-card-2)", boxShadow: "inset 0 0 0 0.5px var(--ve-line)" }}>
