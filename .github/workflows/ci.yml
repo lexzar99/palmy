@@ -38,6 +38,7 @@ jobs:
 
       - name: API launch contracts
         run: |
+          pnpm --filter @viaeats/api exec ts-node --transpile-only src/contracts/partnerApplications.test.ts
           pnpm --filter @viaeats/api test:contracts
           pnpm --filter @viaeats/api test:order-attribution
           pnpm --filter @viaeats/api test:journey

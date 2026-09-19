@@ -47,3 +47,11 @@ test("middleware and homepage both use the shared prelaunch decision", () => {
   assert.match(middleware, /isLaunchGateBypassPath\(pathname\)/);
   assert.match(homepage, /if \(prelaunchModeEnabled\(\)\)/);
 });
+
+
+test("partnerprogrammet är publikt utan att öppna liknande butiksrutter", () => {
+  for (const path of ["/tipsa", "/tipsa/villkor", "/tipsa/installation", "/for-restauranger", "/partners/recruitment/kort-animation.mp4", "/partners/recruitment/viaeats-rekrytering.zip", "/partners/studio/product-music.mp4"]) assert.equal(isLaunchGateBypassPath(path), true);
+  assert.equal(isLaunchGateBypassPath("/tipsa-annat"), false);
+  assert.equal(isLaunchGateBypassPath("/for-restauranger-admin"), false);
+  assert.equal(isLaunchGateBypassPath("/partners/private/file.zip"), false);
+});

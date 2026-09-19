@@ -43,7 +43,7 @@ const Navbar = () => {
   );
 
   useEffect(() => {
-    if (embedMode || pathname?.startsWith("/order/")) return;
+    if (embedMode || pathname === "/for-restauranger" || pathname === "/tipsa" || pathname?.startsWith("/tipsa/") || pathname?.startsWith("/order/")) return;
     let cancelled = false;
     const loadUser = async () => {
       try {
@@ -72,7 +72,7 @@ const Navbar = () => {
     };
   }, [embedMode, pathname]);
 
-  if (pathname?.startsWith("/order/") || embedMode) return null;
+  if (pathname?.startsWith("/order/") || embedMode || pathname === "/for-restauranger" || pathname === "/tipsa" || pathname?.startsWith("/tipsa/")) return null;
 
   // Visningsnamn: först + efternamn om finns, annars name-fältet, annars null
   const displayName = user

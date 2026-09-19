@@ -42,6 +42,10 @@ export function isLaunchGateBypassPath(pathname: string): boolean {
     || pathname.startsWith("/order/")
     || pathname.startsWith("/_next/")
     || pathname.startsWith("/.well-known/")
+    || pathname === "/for-restauranger"
+    || /^\/partners\/(?:studio|recruitment)\/[a-zA-Z0-9_.-]+\.(?:mp4|webm|zip|vtt)$/.test(pathname)
+    || pathname === "/tipsa"
+    || pathname.startsWith("/tipsa/")
     || pathname === "/privacy"
     || pathname === "/terms"
     || pathname === "/contact"

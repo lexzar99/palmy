@@ -1,0 +1,5 @@
+import Link from "next/link";
+import localFont from "next/font/local";
+import "../tipsa/partners.css";
+const brandFont=localFont({src:"../fonts/Baloo2-latin-variable.woff2",weight:"500 800",display:"swap",variable:"--font-baloo"});
+export default function Layout({children}:{children:React.ReactNode}){return <div className={`partner-site ${brandFont.variable}`}><a className="partner-skip" href="#restaurant-content">Till innehållet</a><header className="partner-header"><Link href="/for-restauranger" className="partner-wordmark">viaeats<span>restaurang</span></Link><nav aria-label="För restauranger"><a href="#bestallning">Se hur det fungerar</a><a href="#kontakt" className="partner-header-cta">Prata med oss ↗</a></nav></header><div id="restaurant-content">{children}</div><footer className="partner-footer"><Link href="/" className="partner-wordmark">viaeats</Link><p>Er mat. Er hemsida. En enklare beställning.</p><div><Link href="/tipsa">Samarbeta med oss</Link><Link href="/contact">Kontakt</Link><Link href="/privacy">Integritet</Link></div></footer></div>}

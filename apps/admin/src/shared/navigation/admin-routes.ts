@@ -62,6 +62,7 @@ const route = (
 ): AdminRouteDefinition => ({ ...definition, requiredRole: "SUPER_ADMIN" });
 
 export const ADMIN_ROUTES: AdminRouteDefinition[] = [
+  route({ id: "partner-applications", href: "/partner-applications", label: "Partneranmälningar", icon: UserPlus, section: "partners", keywords: "tipsa säljare installation anmälan rekrytering" }),
   route({ id: "dashboard", href: "/dashboard", label: "Översikt", shortLabel: "Översikt", icon: LayoutDashboard, section: "live", keywords: "dashboard start hem drift sla" }),
   route({ id: "orders", href: "/orders", label: "Ordrar", shortLabel: "Ordrar", icon: ClipboardList, section: "live", keywords: "live aktiva nya order kö" }),
   route({ id: "order-history", href: "/order-history", label: "Orderhistorik", shortLabel: "Historik", icon: History, section: "live", keywords: "historik gamla export" }),

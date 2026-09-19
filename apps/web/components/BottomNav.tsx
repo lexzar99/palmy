@@ -73,6 +73,8 @@ const BottomNav = () => {
     { href: "/profile", label: t("nav.account"), icon: User },
   ];
 
+  if (pathname === "/for-restauranger" || pathname === "/tipsa" || pathname?.startsWith("/tipsa/")) return null;
+
   return (
     <nav
       className="ve-root ve-glass fixed left-0 right-0 bottom-0 z-[100] md:hidden flex transition-[transform,opacity] duration-300 ease-out"
