@@ -807,6 +807,9 @@ export default function CartPage() {
   const [quickAddresses, setQuickAddresses] = useState<QuickAddress[]>([]);
 
   const [promoCodeInput, setPromoCodeInput] = useState("");
+  useEffect(() => {
+    try { const pending = sessionStorage.getItem('viaeats.pending-code') || ''; if (['VIA50', 'VIA70'].includes(pending)) setPromoCodeInput(pending); } catch { /* lagring blockerad */ }
+  }, []);
   const [addressInput, setAddressInput] = useState(() => {
     if (typeof window === "undefined") return "";
     return localStorage.getItem("platform_delivery_address") || localStorage.getItem("platform_address") || "";
@@ -1211,6 +1214,7 @@ export default function CartPage() {
   const personalDiscount = useMemo(() => {
     if (!selectedPersonalDeal) return 0;
     const { campaign } = selectedPersonalDeal;
+    if (['VIA50', 'VIA70'].includes(selectedPersonalDeal.code.toUpperCase()) && (hasCatalogDiscountedItems || items.some(item => !!item.bogoFreeFromDealId))) return 0;
     if (subtotal < (campaign.minOrder || 0)) return 0;
 
     // Underlaget koden får bita på. excludeDiscountedItems → bara varor som
@@ -1244,7 +1248,7 @@ export default function CartPage() {
     }
 
     return amount;
-  }, [selectedPersonalDeal, subtotal, discountableSubtotal, deliveryFee]);
+  }, [selectedPersonalDeal, subtotal, discountableSubtotal, deliveryFee, hasCatalogDiscountedItems, items]);
   const personalDeliveryDiscount = personalDiscount > 0 && selectedPersonalDeal && (
     selectedPersonalDeal.campaign?.discountType === "FREE_DELIVERY" ||
     selectedPersonalDeal.campaign?.freeDelivery
@@ -1415,7 +1419,8 @@ export default function CartPage() {
   // tröskeln även med 100%-rabatt eftersom basbeloppet är för litet.
   const MIN_ORDER_TOLERANCE_KR = 40;
   const hasActiveDiscount = foodDiscountComponent > 0;
-  const effectiveMinOrder = hasActiveDiscount
+  const effectiveMinOrder = ['VIA50', 'VIA70'].includes(selectedPersonalDeal?.code.toUpperCase() || '') && personalDiscount > 0
+    ? minOrder : hasActiveDiscount
     ? Math.max(0, minOrder - MIN_ORDER_TOLERANCE_KR)
     : minOrder;
   // Komplettering till minimum: kund kan välja att betala mellanskillnaden så
@@ -1681,6 +1686,8 @@ export default function CartPage() {
       // när kunden hade extras som faktiskt gjorde att de mötte minOrder.
       const res = await axios.post(`/api/platform/discount/validate`, {
         code: promoCodeInput.trim(),
+        restaurantId: currentRestaurantId,
+        hasDiscountedItems: hasCatalogDiscountedItems || items.some(item => !!item.bogoFreeFromDealId),
         subtotal,
         discountableSubtotal,
       });
@@ -3255,6 +3262,7 @@ export default function CartPage() {
           {applyingCode ? <Loader2 size={15} className="animate-spin" /> : selectedPersonalDeal ? t("cart.discount.promoRemove") : t("cart.discount.promoCheck")}
         </button>
       </div>
+      {['VIA50', 'VIA70'].includes(selectedPersonalDeal?.code.toUpperCase() || '') && (subtotal < (selectedPersonalDeal?.campaign.minOrder || 150) || hasCatalogDiscountedItems || items.some(item => !!item.bogoFreeFromDealId)) && <p role="alert" className="text-sm px-1" style={{color:'var(--ve-danger)'}}>{subtotal < (selectedPersonalDeal?.campaign.minOrder || 150) ? `Koden kräver mat för minst ${selectedPersonalDeal?.campaign.minOrder || 150} kr.` : 'Koden gäller ej rabatterade varor. Ta bort kampanjvarorna eller koden för att fortsätta.'}</p>}
       {referralMessage && (
         <p className="flex items-center gap-1.5 px-1 text-[13px] font-medium" style={{ color: referralMessage.ok ? "var(--ve-success)" : "var(--ve-danger)" }}>
           {referralMessage.ok ? <CheckCircle2 size={14} className="shrink-0" /> : <AlertCircle size={14} className="shrink-0" />}
@@ -3702,7 +3710,9 @@ export default function CartPage() {
   // Kunden väljer betalsätt direkt i kassan. Först när ett val är gjort byter
   // sidan till det fokuserade betalsteget (Swish-väntan eller Stripe-redirect).
   const checkoutBelowMinimum = Math.max(0, subtotal - foodDiscountComponent) < effectiveMinOrder && !topUpToMinimum;
+  const via50Invalid = ['VIA50', 'VIA70'].includes(selectedPersonalDeal?.code.toUpperCase() || '') && (subtotal < (selectedPersonalDeal?.campaign.minOrder || 150) || hasCatalogDiscountedItems || items.some(item => !!item.bogoFreeFromDealId));
   const checkoutBlocked =
+    via50Invalid ||
     loading
     || bogoMustPick
     || (!isTestFlow && activeDealBelowMinimum)

@@ -1,3 +1,4 @@
+import { via50Code, via50Error } from '../lib/palmyraCampaign';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import prisma from '../lib/prisma';
@@ -38,7 +39,7 @@ router.post('/validate', validateLimiter, async (req, res) => {
       return;
     }
 
-    const discount = await prisma.discountCode.findUnique({
+    const discount = via50Code(code) || await prisma.discountCode.findUnique({
       where: { code: code.toUpperCase(), isActive: true },
     });
 
@@ -48,6 +49,10 @@ router.post('/validate', validateLimiter, async (req, res) => {
     }
 
     const privateEmbed = Boolean(validKioskAccessProof(req.headers[KIOSK_ACCESS_HEADER]));
+    if (!!via50Code(discount.code)) {
+      const error = via50Error({ code: discount.code, restaurant: req.body.restaurantId || req.body.restaurantSlug, subtotalOre: Math.round(Number(subtotal) * 100), discounted: req.body.hasDiscountedItems === true || Number(discountableSubtotal) < Number(subtotal), privateEmbed });
+      if (error) { res.status(400).json({ error }); return; }
+    }
     if (privateEmbed && !(await isPartnerEmbedDiscountEnabled('discount-code', discount.id))) {
       res.status(400).json({ error: 'Rabattkoden gäller bara på viaeats.se eller i appen' });
       return;
@@ -136,7 +141,7 @@ router.post('/validate', validateLimiter, async (req, res) => {
       code: discount.code,
       description: discount.description,
       type: discount.type,
-      value: discount.value,
+      value: via50Code(discount.code) ? discount.value / 100 : discount.value,
       // Client expects kr
       discountAmount: discountAmountOre / 100,
       // minOrder (kr) — klienten lagrar detta så pending-discount-raden

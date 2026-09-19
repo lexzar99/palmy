@@ -1,3 +1,4 @@
+import { palmyraRegularPricing, via50Code, via50Error } from '../lib/palmyraCampaign';
 import { Router, Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
@@ -246,6 +247,7 @@ const OrderItemSchema = z.object({
 
 const CreateOrderSchema = z.object({
   attribution: z.unknown().optional(),
+  offerChannel: z.enum(['palmyra', 'regular']).optional(),
   restaurantId: z.string().min(1).optional(),
   restaurantSlug: z.string().min(1).optional(),
   type: z.enum(['PICKUP', 'DELIVERY']),
@@ -522,6 +524,7 @@ router.post('/', async (req: Request, res: Response) => {
       restaurantSlug: restaurant.slug || null,
     });
     const isPartnerEmbedOrder = orderChannel === ORDER_CHANNELS.partnerEmbed;
+    const regularPricing = palmyraRegularPricing(restaurant.id, isPartnerEmbedOrder, data.offerChannel);
 
     // En gästorder ska fortfarande ge admin en kundrad med namn + telefon.
     // Registrerade användare länkas aldrig genom ett osignerat telefonnummer;
@@ -749,7 +752,7 @@ router.post('/', async (req: Request, res: Response) => {
     const partnerEmbedDealIds = isPartnerEmbedOrder
       ? await partnerEmbedEnabledIds('deal', allActiveDeals.map((deal) => deal.id))
       : null;
-    const activeDeals = allActiveDeals.filter((deal) =>
+    const activeDeals = (regularPricing ? [] : allActiveDeals).filter((deal) =>
       (!isPartnerEmbedOrder || partnerEmbedDealIds?.has(deal.id)) &&
       dealMatchesRestaurant(deal, restaurant.id),
     ).map((deal) => isPartnerEmbedOrder ? ({ ...deal, showOnSite: true }) : deal);
@@ -877,7 +880,7 @@ router.post('/', async (req: Request, res: Response) => {
 
       const extrasTotal = validatedExtras.reduce((sum, e) => sum + Math.round(e.priceAddon * 100) * ((e as any).quantity ?? 1), 0);
       const displayPromotion = resolveDisplayPromotionForProduct({
-        product: isPartnerEmbedOrder
+        product: (isPartnerEmbedOrder || regularPricing)
           ? { ...product, discountActive: false, discountPercent: null, discountPrice: null }
           : product,
         categoryId: (product as any).categoryId,
@@ -950,11 +953,16 @@ router.post('/', async (req: Request, res: Response) => {
         validatedCode = codeVal;
         manualFoodDiscountAmount = 0; // Total will be forced to 0 below.
       } else {
-        const code = await prisma.discountCode.findUnique({
+        const code = via50Code(data.discountCode) || await prisma.discountCode.findUnique({
           where: { code: data.discountCode.toUpperCase(), isActive: true },
         });
 
         if (code) {
+          if (via50Code(code.code)) {
+            const error = via50Error({ code: code.code, restaurant: restaurant.id, subtotalOre: subtotal, discounted: hasCatalogDiscountedItems || hasRequestedBogoFreeItem, privateEmbed: isPartnerEmbedOrder, now });
+            if (error) throw new OrderValidationError(error);
+            if (data.userDealId) throw new OrderValidationError('Kampanjkoden kan inte kombineras med en annan kupong.');
+          }
           if (
             isPartnerEmbedOrder &&
             !(await isPartnerEmbedDiscountEnabled('discount-code', code.id))
@@ -1457,7 +1465,8 @@ router.post('/', async (req: Request, res: Response) => {
     if ((!confirmedPayment || isPendingPayment) && !isTestOrder) {
       const MIN_ORDER_TOLERANCE_ORE = 4000; // 40 kr
       const hasActiveDiscount = foodDiscountAmount > 0;
-      const effectiveMinOrderAmount = hasActiveDiscount
+      const effectiveMinOrderAmount = via50Code(validatedCode)
+        ? minOrderAmount : hasActiveDiscount
         ? Math.max(0, minOrderAmount - MIN_ORDER_TOLERANCE_ORE)
         : minOrderAmount;
       const afterDiscountValue = Math.max(0, subtotal - foodDiscountAmount);
@@ -1678,6 +1687,7 @@ router.post('/', async (req: Request, res: Response) => {
               changes: orderChannelAuditChanges(orderChannel, {
                 clientType,
                 restaurantSlug: restaurant?.slug || null,
+                offerChannel: isPartnerEmbedOrder ? 'private' : data.offerChannel || 'regular',
                 attribution: normalizeOrderAttribution(data.attribution, orderChannel),
               }),
               ipAddress: req.ip || null,

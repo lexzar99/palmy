@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import { PALMYRA_ID, palmyraRegularPricing, via50Error, via50Code } from '../lib/palmyraCampaign';
+const now = new Date('2026-09-19T12:00:00Z');
+assert.equal(palmyraRegularPricing(PALMYRA_ID, false, 'regular', now), true);
+assert.equal(palmyraRegularPricing(PALMYRA_ID, false, 'palmyra', now), false);
+assert.equal(palmyraRegularPricing(PALMYRA_ID, true, 'regular', now), false);
+assert.equal(palmyraRegularPricing('another', false, 'regular', now), false);
+assert.equal(palmyraRegularPricing(PALMYRA_ID, false, 'regular', new Date('2026-09-20')), false);
+const valid = {restaurant: PALMYRA_ID, subtotalOre: 15000, discounted:false, privateEmbed:false, now};
+assert.equal(via50Error(valid), null);
+assert.match(via50Error({...valid, subtotalOre:14999})!, /150/);
+assert.match(via50Error({...valid, discounted:true})!, /ej rabatterade/);
+assert.match(via50Error({...valid, privateEmbed:true})!, /privata/);
+assert.match(via50Error({...valid, restaurant:'another'})!, /Palmyra/);
+assert.match(via50Error({...valid, now:new Date('2026-09-20')})!, /gått ut/);
+assert.equal(via50Code('via50').value,5000);
+assert.equal(via50Code('UNKNOWN'),null);
+console.log('Palmyra: kanaler, blandad korg, prisgräns, restaurang och utgång verifierade');
+
+assert.equal(via50Code('VIA70').value,7000);
+assert.equal(via50Error({...valid,code:'VIA70',subtotalOre:25000}),null);
+assert.match(via50Error({...valid,code:'VIA70',subtotalOre:24999})!,/250/);
