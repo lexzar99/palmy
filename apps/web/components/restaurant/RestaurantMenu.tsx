@@ -723,7 +723,7 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
     : undefined;
 
   return (
-    <div className="ve-root min-h-screen pb-36 md:pt-20">
+    <div className={`ve-root min-h-screen md:pt-20 ${embedMode ? "pb-56 md:pb-36" : "pb-36"}`}>
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <div ref={heroRef} className="ve-fade-in relative w-full overflow-hidden" style={{ height: "min(50vw, 320px)", minHeight: 210, backgroundColor: "#E5E5EA" }}>
         {heroImage ? (
@@ -1189,7 +1189,7 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
         />
       )}
 
-      <CartBar href={embedMode ? `/cart?embed=1&restaurant=${encodeURIComponent(restaurantSlug)}` : "/cart"} />
+      <CartBar href={embedMode ? `/cart?embed=1&restaurant=${encodeURIComponent(restaurantSlug)}` : "/cart"} aboveEmbedNav={embedMode} />
     </div>
   );
 }
