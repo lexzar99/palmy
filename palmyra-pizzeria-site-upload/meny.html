@@ -12,45 +12,37 @@
   <style>
     :root { color-scheme: light; }
     * { box-sizing: border-box; }
-    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #fbf5e8; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #fbfbfc; }
     body { color: #211709; font-family: "Baloo 2", system-ui, -apple-system, "Segoe UI", sans-serif; }
-    .menu-page { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
-    .menu-heading { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: max(8px, env(safe-area-inset-top)) 12px 8px; border-bottom: 1.5px solid #211709; background: #fbf5e8; }
-    .menu-home-link { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 0 10px; border: 1px solid rgba(33,23,9,.28); border-radius: 999px; color: #211709; text-decoration: none; font-size: 12px; font-weight: 800; white-space: nowrap; }
-    .menu-home-link:active { transform: scale(.98); }
-    .powered { color: #776a52; font-size: 11px; font-weight: 700; white-space: nowrap; }
-    .powered a { color: #c22016; font-weight: 800; text-decoration: none; }
-    [data-viaeats-menu] { width: 100%; flex: 1 1 auto; min-height: 0; }
+    /* Ingen egen ram: beställningen äger hela skärmen på mobil och dator.
+       Tillbaka-knappen och "Powered by viaeats" ligger i embeddens navbar.
+       Safe-area-paddingen håller navbaren fri från notch/hemindikator när
+       sidan körs som installerad app. */
+    [data-viaeats-menu] {
+      position: fixed; inset: 0;
+      padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+      background: #fbfbfc;
+    }
     .menu-loading { display: grid; min-height: 220px; place-items: center; margin: 0; color: #776a52; font-size: 14px; font-weight: 700; }
     .menu-error { margin: 24px auto; max-width: 520px; padding: 20px; text-align: center; color: #8f241a; }
     .menu-error a { color: #c22016; font-weight: 800; }
-    @media (min-width: 768px) {
-      .menu-heading { padding-left: clamp(28px, 5vw, 80px); padding-right: clamp(28px, 5vw, 80px); }
-      [data-viaeats-menu] { max-width: 1120px; margin: 0 auto; padding: 0 clamp(28px, 5vw, 80px); }
-    }
   </style>
 </head>
 <body>
-  <div class="menu-page">
-    <header class="menu-heading">
-      <a class="menu-home-link" href="index.html" aria-label="Tillbaka till Palmyra Pizzeria">← Tillbaka</a>
-      <span class="powered">Powered by <a href="https://www.viaeats.se" target="_blank" rel="noopener">viaeats</a></span>
-    </header>
-    <main data-viaeats-menu="palmyra-pizzeria-lund" data-viaeats-fullscreen="1" aria-busy="true">
-      <p class="menu-loading">Laddar Palmyras meny…</p>
-    </main>
-  </div>
+  <main data-viaeats-menu="palmyra-pizzeria-lund" data-viaeats-fullscreen="1" data-viaeats-back="index.html" aria-busy="true">
+    <p class="menu-loading">Laddar Palmyras meny…</p>
+  </main>
   <script>
     function showMenuFallback() {
       var host = document.querySelector('[data-viaeats-menu]');
       if (!host || host.querySelector('iframe')) return;
       host.removeAttribute('aria-busy');
-      host.innerHTML = '<p class="menu-error">Menyn kunde inte laddas just nu. <a href="https://www.viaeats.se/embed/palmyra-pizzeria-lund">Öppna Palmyras beställning på viaeats</a> eller ring 046-12 06 12.</p>';
+      host.innerHTML = '<p class="menu-error">Menyn kunde inte laddas just nu. <a href="https://www.viaeats.se/embed/palmyra-pizzeria-lund">Öppna Palmyras beställning på viaeats</a> eller ring 046-12 06 12.<br><a href="index.html">← Tillbaka till Palmyra</a></p>';
     }
     window.addEventListener('DOMContentLoaded', function () {
       window.setTimeout(showMenuFallback, 8000);
     });
   </script>
-  <script src="https://www.viaeats.se/embed.js?v=20260905" defer onerror="showMenuFallback()"></script>
+  <script src="https://www.viaeats.se/embed.js?v=20260923" defer onerror="showMenuFallback()"></script>
 </body>
 </html>

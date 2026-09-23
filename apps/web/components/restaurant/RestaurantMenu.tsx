@@ -768,12 +768,26 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
               <ChevronLeft size={20} strokeWidth={2.4} className="-ml-0.5" />
             </button>
           )}
-          <span
-            aria-hidden={collapse < 0.5}
-            className="max-w-[56vw] justify-self-center truncate text-center text-[16px] font-semibold"
-            style={{ color: "var(--ve-ink)", letterSpacing: "-0.015em", opacity: collapse, transform: `translateY(${((1 - collapse) * 8).toFixed(2)}px)` }}
-          >
-            {restaurant?.name}
+          <span className="relative grid max-w-[56vw] justify-self-center place-items-center">
+            {/* Embed: "Powered by viaeats" ligger i navbaren ovanpå heron och
+                tonar ut när restaurangnamnet tonar in. Ingen länk — embedden
+                leder aldrig kunden bort från partnerns flöde. */}
+            {embedMode && (
+              <span
+                aria-hidden={collapse >= 0.5}
+                className="ve-glass-btn col-start-1 row-start-1 inline-flex h-8 items-center whitespace-nowrap rounded-full px-3 text-[12px] font-semibold"
+                style={{ color: "var(--ve-ink-2)", opacity: 1 - collapse }}
+              >
+                Powered by&nbsp;<span style={{ color: "#F04F1A", fontWeight: 800 }}>viaeats</span>
+              </span>
+            )}
+            <span
+              aria-hidden={collapse < 0.5}
+              className="col-start-1 row-start-1 max-w-full truncate text-center text-[16px] font-semibold"
+              style={{ color: "var(--ve-ink)", letterSpacing: "-0.015em", opacity: collapse, transform: `translateY(${((1 - collapse) * 8).toFixed(2)}px)` }}
+            >
+              {restaurant?.name}
+            </span>
           </span>
           <div className="flex items-center justify-end gap-2 pointer-events-auto">
             <button type="button" onClick={() => setShowInfoModal(true)} aria-label={t("menu.info")} className="ve-glass-btn w-10 h-10 rounded-full grid place-items-center" style={barButtonStyle}>
