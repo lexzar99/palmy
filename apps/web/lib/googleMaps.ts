@@ -94,6 +94,11 @@ export const DARK_MAP_STYLE: Record<string, unknown>[] = [
   { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#37373d" }] },
   { featureType: "water", elementType: "geometry", stylers: [{ color: "#141619" }] },
   { featureType: "landscape.natural", elementType: "geometry", stylers: [{ color: "#212124" }] },
+  // Byggnader ljusare än marken + kontur, så kunden kan pricka rätt hus.
+  { featureType: "landscape.man_made", elementType: "geometry.fill", stylers: [{ color: "#34343a" }] },
+  { featureType: "landscape.man_made", elementType: "geometry.stroke", stylers: [{ color: "#4a4a52" }] },
+  // Husnummer och gatunamn läsbara på nära zoom.
+  { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#c4c7cc" }] },
 ];
 
 // Default-center när vi inte har en sparad position (Lund-trakten där

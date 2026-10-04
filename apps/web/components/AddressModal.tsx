@@ -170,7 +170,7 @@ export default function AddressModal({
         const start = selectedCoordsRef.current || DEFAULT_MAP_CENTER;
         const map = new maps.Map(node, {
           center: start,
-          zoom: selectedCoordsRef.current ? 16 : 12,
+          zoom: selectedCoordsRef.current ? 18 : 15,
           styles: DARK_MAP_STYLE,
           backgroundColor: "#1d1d20",
           disableDefaultUI: true,
@@ -200,7 +200,7 @@ export default function AddressModal({
     userMovedRef.current = false;
     if (mapRef.current) {
       mapRef.current.setCenter({ lat, lng });
-      mapRef.current.setZoom(16);
+      mapRef.current.setZoom(18);
     }
   }, []);
 
