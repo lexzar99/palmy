@@ -284,13 +284,13 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
-  // Förladda adressmodalen och Leaflet när sidan är klar, så kartan är
+  // Förladda adressmodalen och Google Maps när sidan är klar, så kartan är
   // redo när kunden trycker på adressraden i stället för att laddas då.
   useEffect(() => {
     const w = window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
     const preload = () => {
       void import("@/components/AddressModal");
-      void import("@/lib/leaflet").then((m) => m.loadLeaflet()).catch(() => {});
+      void import("@/lib/googleMaps").then((m) => m.loadGoogleMaps()).catch(() => {});
     };
     const useIdle = typeof w.requestIdleCallback === "function";
     const handle = useIdle ? w.requestIdleCallback!(preload, { timeout: 2500 }) : window.setTimeout(preload, 1200);

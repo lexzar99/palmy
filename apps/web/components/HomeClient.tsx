@@ -1044,13 +1044,13 @@ export default function HomeClient({ initialData = null, partnerSlug = null }: {
     };
   }, [activeOrders]);
   const [showAddressModal, setShowAddressModal] = useState(false);
-  // Förladda adressmodalen och Leaflet när startsidan är klar, så kartan
+  // Förladda adressmodalen och Google Maps när startsidan är klar, så kartan
   // är redo när kunden trycker på adressraden.
   useEffect(() => {
     const w = window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
     const preload = () => {
       void import("@/components/AddressModal");
-      void import("@/lib/leaflet").then((m) => m.loadLeaflet()).catch(() => {});
+      void import("@/lib/googleMaps").then((m) => m.loadGoogleMaps()).catch(() => {});
     };
     const useIdle = typeof w.requestIdleCallback === "function";
     const handle = useIdle ? w.requestIdleCallback!(preload, { timeout: 2500 }) : window.setTimeout(preload, 1200);

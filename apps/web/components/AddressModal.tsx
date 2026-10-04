@@ -8,7 +8,7 @@ import {
   MapPin, X, ArrowRight, Truck, Store, AlertCircle,
   Loader2, CheckCircle2, Building2, ChevronRight, Search, LocateFixed, RotateCw,
 } from "lucide-react";
-import { loadLeaflet, CARTO_LIGHT, CARTO_ATTRIBUTION, DEFAULT_MAP_CENTER } from "@/lib/leaflet";
+import { loadGoogleMaps, DARK_MAP_STYLE, DEFAULT_MAP_CENTER } from "@/lib/googleMaps";
 import { checkDeliveryStreet } from "@/lib/deliveryAddress";
 
 // Liten cookie-hjälpare — kommer ihåg om användaren nekat GPS, så vi inte
@@ -87,7 +87,6 @@ export default function AddressModal({
   const [locating, setLocating] = useState(false);
   const autoLocatedRef = useRef(false);
   const mapRef = useRef<any>(null);
-  const tileLayerRef = useRef<any>(null);
   const userMovedRef = useRef(false); // true när användaren själv pannat kartan
   const selectedCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
 
@@ -157,58 +156,51 @@ export default function AddressModal({
     finally { setLoading(false); }
   }, []);
 
-  // ── Callback-ref: initierar Leaflet-kartan (keyless CARTO-tiles) när div:en
-  //    monteras. Fast nål i mitten — man flyttar KARTAN för att välja plats. ──
+  // ── Callback-ref: initierar Google-kartan (mörk stil) när div:en monteras.
+  //    Fast nål i mitten — man flyttar KARTAN för att välja plats. ──
   const initMap = useCallback((node: HTMLDivElement | null) => {
-    if (!node) { mapRef.current = null; tileLayerRef.current = null; setMapReady(false); return; }
+    if (!node) { mapRef.current = null; setMapReady(false); return; }
     if (node.dataset.gmInit === "1") return;
     node.dataset.gmInit = "1";
     setMapError(false);
-    loadLeaflet()
-      .then((L) => {
+    loadGoogleMaps()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((maps: any) => {
         if (!node.isConnected) return;
         const start = selectedCoordsRef.current || DEFAULT_MAP_CENTER;
-        const map = L.map(node, { zoomControl: false, attributionControl: true })
-          .setView([start.lat, start.lng], selectedCoordsRef.current ? 16 : 12);
-        const tile = L.tileLayer(CARTO_LIGHT, {
-          attribution: CARTO_ATTRIBUTION,
-          maxZoom: 19,
-          subdomains: "abcd",
-        }).addTo(map);
+        const map = new maps.Map(node, {
+          center: start,
+          zoom: selectedCoordsRef.current ? 16 : 12,
+          styles: DARK_MAP_STYLE,
+          backgroundColor: "#1d1d20",
+          disableDefaultUI: true,
+          clickableIcons: false,
+          gestureHandling: "greedy",
+        });
         mapRef.current = map;
-        tileLayerRef.current = tile;
         setMapReady(true);
-        // Bottom-sheet animerar in → säkerställ korrekt tile-storlek efteråt.
-        setTimeout(() => { try { map.invalidateSize(); } catch { /* noop */ } }, 300);
 
         // Fast nål: när användaren själv drar kartan (dragstart) reverse-geocodar
-        // vi mittpunkten på moveend. Programmatiska setView (sök/sparad/GPS)
-        // fyller redan i adressen → hoppas över via userMovedRef.
-        map.on("dragstart", () => { userMovedRef.current = true; });
-        map.on("moveend", () => {
+        // vi mittpunkten när kartan stannat (idle). Programmatiska panTo
+        // (sök/sparad/GPS) fyller redan i adressen → hoppas över via userMovedRef.
+        map.addListener("dragstart", () => { userMovedRef.current = true; });
+        map.addListener("idle", () => {
           if (!userMovedRef.current) return;
           userMovedRef.current = false;
           const c = map.getCenter();
-          if (c) handleMapPosition(c.lat, c.lng);
+          if (c) handleMapPosition(c.lat(), c.lng());
         });
       })
       .catch(() => { node.dataset.gmInit = ""; setMapError(true); });
   }, [handleMapPosition]);
-
-  // Säkerställ rätt storlek när modalen öppnas (container var 0 under animation).
-  useEffect(() => {
-    if (isOpen && mapReady && mapRef.current) {
-      const t = setTimeout(() => { try { mapRef.current.invalidateSize(); } catch { /* noop */ } }, 320);
-      return () => clearTimeout(t);
-    }
-  }, [isOpen, mapReady]);
 
   // Panna kartan till en ny position (fast nål följer mitten). Programmatisk
   // → triggar INTE reverse-geocode (userMovedRef förblir false).
   const recenterMap = useCallback((lat: number, lng: number) => {
     userMovedRef.current = false;
     if (mapRef.current) {
-      mapRef.current.setView([lat, lng], 16);
+      mapRef.current.setCenter({ lat, lng });
+      mapRef.current.setZoom(16);
     }
   }, []);
 
@@ -556,14 +548,14 @@ export default function AddressModal({
                   </div>
 
                   {/* Karta — flytta kartan under den fasta nålen för exakt plats. */}
-                  <div className="relative z-0 min-h-[240px] flex-1 overflow-hidden rounded-[20px]" style={{ backgroundColor: "#E5E5EA", boxShadow: "inset 0 0 0 0.5px var(--ve-line)" }}>
+                  <div className="relative z-0 min-h-[240px] flex-1 overflow-hidden rounded-[20px]" style={{ backgroundColor: "#1d1d20", boxShadow: "inset 0 0 0 0.5px var(--ve-line)" }}>
                     <div key={mapKey} ref={initMap} className="absolute inset-0" />
                     {!mapError && (
                       <>
                         <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1000] -mt-1 -translate-x-1/2 -translate-y-full">
-                          <MapPin size={40} strokeWidth={2.2} fill="#1D1D1F" style={{ color: "#1D1D1F", filter: "drop-shadow(0 5px 6px rgba(0,0,0,0.35))" }} />
+                          <MapPin size={40} strokeWidth={2.2} fill="#FFFFFF" style={{ color: "#1D1D1F", filter: "drop-shadow(0 5px 6px rgba(0,0,0,0.35))" }} />
                         </div>
-                        <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1000] h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ backgroundColor: "rgba(29,29,31,0.4)" }} />
+                        <div className="pointer-events-none absolute left-1/2 top-1/2 z-[1000] h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ backgroundColor: "rgba(255,255,255,0.5)" }} />
                       </>
                     )}
                     {mapError && (

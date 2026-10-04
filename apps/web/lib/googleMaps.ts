@@ -81,6 +81,21 @@ export function loadGoogleMaps(): Promise<GoogleMapsNamespace> {
   return mapsPromise;
 }
 
+// Mörk, lugn kartstil (döljer POI:er och kollektivtrafik). Används av
+// adressväljaren och kundens spårningskarta.
+export const DARK_MAP_STYLE: Record<string, unknown>[] = [
+  { elementType: "geometry", stylers: [{ color: "#1d1d20" }] },
+  { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#9aa0a6" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#1d1d20" }] },
+  { featureType: "poi", stylers: [{ visibility: "off" }] },
+  { featureType: "transit", stylers: [{ visibility: "off" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#2a2a2e" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#37373d" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#141619" }] },
+  { featureType: "landscape.natural", elementType: "geometry", stylers: [{ color: "#212124" }] },
+];
+
 // Default-center när vi inte har en sparad position (Lund-trakten där
 // plattformen primärt opererar).
 export const DEFAULT_MAP_CENTER = { lat: 55.7047, lng: 13.1910 };
