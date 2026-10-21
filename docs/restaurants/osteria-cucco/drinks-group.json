@@ -1,0 +1,17 @@
+{
+  "_kommentar": "Body till PATCH /api/admin/extra-groups/:id för gruppen 'Lägg till dryck' efter massimporten (ersätter hela extras-listan). Samma upplägg som Palmyras 'Lägg till dryck': bildrutor (BOX_IMAGE). Bilderna är Palmyras befintliga R2-bilder (burk) – byt mot Cuccos glasflaskor när foton finns. San Pellegrino saknar bild i plattformen.",
+  "name": "Lägg till dryck",
+  "type": "CHECKBOX",
+  "required": false,
+  "minSelections": 0,
+  "maxSelections": 5,
+  "displayStyle": "BOX_IMAGE",
+  "allowQuantity": false,
+  "extras": [
+    { "name": "San Pellegrino 50 cl", "priceAddon": 30, "imageUrl": null },
+    { "name": "Coca-Cola 33 cl", "priceAddon": 25, "imageUrl": "https://pub-3aa62f4934014835956fe3777d5b3abd.r2.dev/lund/palmyra-pizzeria-lund/menu/dryck-palmyra-pizzeria/coca-cola-original-taste-33-cl-palmyra-pizzeria-lund.webp" },
+    { "name": "Coca-Cola Zero 33 cl", "priceAddon": 25, "imageUrl": "https://pub-3aa62f4934014835956fe3777d5b3abd.r2.dev/lund/palmyra-pizzeria-lund/menu/dryck-palmyra-pizzeria/coca-cola-zero-33-cl-palmyra-pizzeria-lund.webp" },
+    { "name": "Fanta 33 cl", "priceAddon": 25, "imageUrl": "https://pub-3aa62f4934014835956fe3777d5b3abd.r2.dev/lund/palmyra-pizzeria-lund/menu/dryck-palmyra-pizzeria/fanta-orange-50-cl-palmyra-pizzeria-lund.webp" },
+    { "name": "Bonaqua Citron 50 cl", "priceAddon": 25, "imageUrl": "https://pub-3aa62f4934014835956fe3777d5b3abd.r2.dev/lund/palmyra-pizzeria-lund/menu/dryck-palmyra-pizzeria/bonaqua-citron-lime-33-cl-palmyra-pizzeria-lund.webp" }
+  ]
+}

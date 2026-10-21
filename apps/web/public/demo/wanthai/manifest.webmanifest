@@ -1,0 +1,20 @@
+{
+  "name": "Wanthai Foodtruck",
+  "short_name": "Wanthai",
+  "description": "Thaimat från kocken Wan. Beställ i förväg och hämta vid vagnen.",
+  "lang": "sv",
+  "id": "/demo/wanthai/",
+  "start_url": "/demo/wanthai/index.html",
+  "scope": "/demo/wanthai/",
+  "display": "standalone",
+  "background_color": "#f6f1e7",
+  "theme_color": "#f6f1e7",
+  "icons": [
+    { "src": "/demo/wanthai/img/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/demo/wanthai/img/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/demo/wanthai/img/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Beställ", "url": "/demo/wanthai/meny.html", "icons": [{ "src": "/demo/wanthai/img/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

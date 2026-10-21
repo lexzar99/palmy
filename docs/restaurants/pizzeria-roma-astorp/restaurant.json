@@ -1,0 +1,28 @@
+{
+  "_kommentar": "Body till POST /api/restaurants (SUPER_ADMIN). Skapas som UTKAST (draft=true). Telefon och organisationsnummer läggs medvetet INTE in. Källa: Romas Lumit-data (embed.lumit.se/stores/802/data.json) 2026-10-21. Lumit har endast avhämtning och äta på plats (ingen hemkörning), därav pickupOnly. Öppettiderna är Lumits; gamla sajten visar äldre tider (se README). rating/ratingCount = 0 skriver över databasens standardvärde 4.6 (120).",
+  "name": "Pizzeria Roma",
+  "slug": "pizzeria-roma-astorp",
+  "description": "Pizzeria på Nya Torg i Åstorp sedan 2003. Över 80 pizzor, kebab, grill och sallader. Familjepizza, glutenfri botten och barnpizza på alla vanliga pizzor.",
+  "cuisine": "Pizza · Kebab · Grill",
+  "address": "Nya Torg 1C, Åstorp",
+  "city": "Åstorp",
+  "zip": "265 34",
+  "legalName": "Tratoria De Roma AB",
+  "latitude": 56.13503,
+  "longitude": 12.94467,
+  "etaMinutes": 20,
+  "vatPercent": 6,
+  "rating": 0,
+  "ratingCount": 0,
+  "pickupOnly": true,
+  "draft": true,
+  "openingHours": {
+    "monday":    { "open": "13:00", "close": "21:00", "closed": false },
+    "tuesday":   { "open": "13:00", "close": "21:00", "closed": false },
+    "wednesday": { "open": "13:00", "close": "21:00", "closed": false },
+    "thursday":  { "open": "13:00", "close": "21:00", "closed": false },
+    "friday":    { "open": "11:00", "close": "21:00", "closed": false },
+    "saturday":  { "open": "11:00", "close": "21:00", "closed": false },
+    "sunday":    { "open": "11:00", "close": "21:00", "closed": false }
+  }
+}

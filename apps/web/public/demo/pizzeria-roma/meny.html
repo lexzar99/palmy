@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Beställ från Pizzeria Roma</title>
+  <meta name="theme-color" content="#faf6ef">
+  <link rel="manifest" href="/demo/pizzeria-roma/manifest.webmanifest">
+  <link rel="icon" href="/demo/pizzeria-roma/img/icon-192.png">
+  <link rel="apple-touch-icon" href="/demo/pizzeria-roma/img/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Roma">
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #fbf6ee; }
+    body { color: #17251f; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+    /* Beställningen äger hela skärmen. Tillbaka-knappen och "Powered by viaeats" ligger i
+       embeddens egen navbar; safe-area håller den fri från notch när sidan körs som app. */
+    [data-viaeats-menu] {
+      position: fixed; inset: 0;
+      padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+      background: #fbf6ee;
+    }
+    .menu-loading { display: grid; min-height: 220px; place-items: center; margin: 0; color: #5d6b63; font-size: 14px; font-weight: 600; }
+    .menu-error { margin: 24px auto; max-width: 520px; padding: 20px; text-align: center; color: #8f241a; line-height: 1.6; }
+    .menu-error a { color: #c2361f; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <main data-viaeats-menu="pizzeria-roma-astorp" data-viaeats-fullscreen="1" data-viaeats-back="/demo/pizzeria-roma" aria-busy="true">
+    <p class="menu-loading">Laddar Romas meny</p>
+  </main>
+  <script>
+    // Lokal förhandsvisning: embedden och API-anropen går till samma Next-server i stället för produktion.
+    if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+      window.VIAEATS_SITE = location.origin;
+      window.VIAEATS_API = location.origin;
+    }
+    function showMenuFallback() {
+      var host = document.querySelector('[data-viaeats-menu]');
+      if (!host || host.querySelector('iframe')) return;
+      host.removeAttribute('aria-busy');
+      host.innerHTML = '<p class="menu-error">Menyn kunde inte laddas just nu. <a href="https://www.viaeats.se/restaurants/pizzeria-roma-astorp">Öppna Romas beställning på viaeats</a>.<br><a href="/demo/pizzeria-roma">Tillbaka till Pizzeria Roma</a></p>';
+    }
+    window.addEventListener('DOMContentLoaded', function () { window.setTimeout(showMenuFallback, 8000); });
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/demo/pizzeria-roma/sw.js', { scope: '/demo/pizzeria-roma/' }).catch(function () {});
+  </script>
+  <script src="/embed.js?v=20261021" defer onerror="showMenuFallback()"></script>
+</body>
+</html>

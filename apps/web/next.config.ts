@@ -65,6 +65,10 @@ const nextConfig: NextConfig = {
           source: "/pay/back",
           destination: "/cart",
         },
+        // Partnerdemo (statisk sajt i public/demo/osteria-cucco) — ren länk utan /index.html.
+        { source: "/demo/osteria-cucco", destination: "/demo/osteria-cucco/index.html" },
+        { source: "/demo/wanthai", destination: "/demo/wanthai/index.html" },
+        { source: "/demo/pizzeria-roma", destination: "/demo/pizzeria-roma/index.html" },
       ],
       fallback: [
         {

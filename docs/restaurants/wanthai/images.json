@@ -1,0 +1,112 @@
+{
+  "_kommentar": "Bildkarta för apply.mjs. Bildrutorna (boxImageGroups) använder tiles/: kvadratiska utsnitt med inbakade rundade hörn, eftersom rutan visar bilden i 48x48 med object-contain. Sökvägar relativt apps/web/public/demo/wanthai/img (serveras som /demo/wanthai/img/...). Rätt- och tillbehörsfoton är Wanthais egna menybilder från WEIQ; dryckernas och chipsens bilder är tillverkarnas förpackningsbilder.",
+  "restaurant": {
+    "logo": "logo-square.webp",
+    "hero": "dishes/pad-thai.webp"
+  },
+  "categories": {
+    "Wok": "dishes/pad-ka-prao.webp",
+    "Curry": "dishes/rod-curry.webp",
+    "Sallader": "dishes/laab.webp",
+    "Smårätter": "sides/varrullar.webp",
+    "Dryck": "drinks/krating.webp"
+  },
+  "products": {
+    "Pad Thai": "dishes/pad-thai.webp",
+    "Kao Pad – stekt ris": "dishes/kao-pad.webp",
+    "Pad Kra Pao – thaibasilika": "dishes/pad-ka-prao.webp",
+    "Pad Himmaphan – cashewnötter": "dishes/pad-himmaphan.webp",
+    "Phad Nam Mun Hoy – ostronsås": "dishes/phad-nam-mun-hoy.webp",
+    "Pad Mama – äggnudlar": "dishes/pad-mama.webp",
+    "Phad Phak Ruam Mit – wokade grönsaker": "dishes/phad-phak-ruam-mit.webp",
+    "Phad Prik Thai Dam – svartpeppar": "dishes/phad-prik-thai-damm.webp",
+    "Panaeng – thaicurry": "dishes/paneang-curry.webp",
+    "Gaeng Keaw Wan – grön curry": "dishes/gron-curry.webp",
+    "Gaeng Daeng – röd curry": "dishes/rod-curry.webp",
+    "Gaeng Kari – gul curry": "dishes/gul-curry.webp",
+    "Laab – het fläskfärssallad": "dishes/laab.webp",
+    "Crispy kycklingsallad": "dishes/crispy-kyckling-sallad.webp",
+    "Vegetariska vårrullar 3 st": "sides/varrullar.webp",
+    "Crispy chicken": "sides/fried-crispy-chicken.webp",
+    "Kycklingnuggets 6 st": "sides/kyckling-nuggets.webp",
+    "Räkchips": "sides/rakchips.webp",
+    "Extra jasminris": "sides/extra-jasminris.webp",
+    "Extra äggnudlar": "sides/extra-aggnudlar.webp",
+    "Extra räka": "sides/extra-rakor.webp",
+    "Sweet chili-dipp": "sides/sweet-chili-dipp.webp",
+    "Vitlöksdipp": "sides/vitloksdipp.webp",
+    "Mangoraja-dipp": "sides/mangoraja-dipp.webp",
+    "Jordnötssås": "sides/jordnotssas.webp",
+    "Estrella lättsaltade chips 40 g": "sides/estrella-lattsaltade.webp",
+    "Estrella sourcream & onion 40 g": "sides/estrella-sourcream-onion.webp",
+    "Coca-Cola 33 cl": "drinks/cola.webp",
+    "Coca-Cola Zero 33 cl": "drinks/cola-zero.webp",
+    "Fanta 33 cl": "drinks/fanta.webp",
+    "Fanta Exotic 33 cl": "drinks/fanta-exotic.webp",
+    "Fanta Exotic Zero 33 cl": "drinks/fanta-exotic-zero.webp",
+    "Pepsi Max 33 cl": "drinks/pepsimax.webp",
+    "Pepsi Max Lime 33 cl": "drinks/pepsimax-lime.webp",
+    "Ramlösa Naturell 33 cl": "drinks/ramlosa-natur.webp",
+    "Ramlösa Citrus 33 cl": "drinks/ramlosa-citrus.webp",
+    "Ramlösa Granatäpple 33 cl": "drinks/ramlosa-granat.webp",
+    "Ramlösa Grönt äpple 33 cl": "drinks/ramlosa-apple.webp",
+    "Ramlösa Körsbär 33 cl": "drinks/ramlosa-korsbar.webp",
+    "Ramlösa Mango Grapefrukt 33 cl": "drinks/ramlosa-mango.webp",
+    "Krating Daeng": "drinks/krating.webp",
+    "Lipovitan-D": "drinks/lipo.webp",
+    "Red Bull 25 cl": "drinks/redbull.webp",
+    "Red Bull Peach Edition": "drinks/redbull-peach.webp",
+    "Red Bull Summer Edition": "drinks/redbull-summer.webp",
+    "Mer Apelsin 20 cl": "drinks/mer-apelsin.webp",
+    "Mer Jordgubb 20 cl": "drinks/mer-jordgubb.webp"
+  },
+  "boxImageGroups": {
+    "Lägg till tillbehör": {
+      "allowQuantity": true,
+      "extras": {
+        "Vårrullar 3 st": "tiles/varrullar.webp",
+        "Crispy chicken": "tiles/fried-crispy-chicken.webp",
+        "Kycklingnuggets 6 st": "tiles/kyckling-nuggets.webp",
+        "Räkchips": "tiles/rakchips.webp",
+        "Extra jasminris": "tiles/extra-jasminris.webp",
+        "Extra äggnudlar": "tiles/extra-aggnudlar.webp",
+        "Extra räka": "tiles/extra-rakor.webp",
+        "Jordnötssås": "tiles/jordnotssas.webp"
+      }
+    },
+    "Dipp": {
+      "allowQuantity": true,
+      "extras": {
+        "Sweet chili": "tiles/sweet-chili-dipp.webp",
+        "Vitlöksdipp": "tiles/vitloksdipp.webp",
+        "Mangoraja": "tiles/mangoraja-dipp.webp",
+        "Jordnötssås": "tiles/jordnotssas.webp"
+      }
+    },
+    "Lägg till dryck": {
+      "allowQuantity": true,
+      "extras": {
+        "Coca-Cola 33 cl": "drinks/cola.webp",
+        "Coca-Cola Zero 33 cl": "drinks/cola-zero.webp",
+        "Fanta 33 cl": "drinks/fanta.webp",
+        "Fanta Exotic 33 cl": "drinks/fanta-exotic.webp",
+        "Fanta Exotic Zero 33 cl": "drinks/fanta-exotic-zero.webp",
+        "Pepsi Max 33 cl": "drinks/pepsimax.webp",
+        "Pepsi Max Lime 33 cl": "drinks/pepsimax-lime.webp",
+        "Ramlösa Naturell 33 cl": "drinks/ramlosa-natur.webp",
+        "Ramlösa Citrus 33 cl": "drinks/ramlosa-citrus.webp",
+        "Ramlösa Granatäpple 33 cl": "drinks/ramlosa-granat.webp",
+        "Ramlösa Grönt äpple 33 cl": "drinks/ramlosa-apple.webp",
+        "Ramlösa Körsbär 33 cl": "drinks/ramlosa-korsbar.webp",
+        "Ramlösa Mango Grapefrukt 33 cl": "drinks/ramlosa-mango.webp",
+        "Krating Daeng": "drinks/krating.webp",
+        "Lipovitan-D": "drinks/lipo.webp",
+        "Red Bull 25 cl": "drinks/redbull.webp",
+        "Red Bull Peach Edition": "drinks/redbull-peach.webp",
+        "Red Bull Summer Edition": "drinks/redbull-summer.webp",
+        "Mer Apelsin 20 cl": "drinks/mer-apelsin.webp",
+        "Mer Jordgubb 20 cl": "drinks/mer-jordgubb.webp"
+      }
+    }
+  }
+}

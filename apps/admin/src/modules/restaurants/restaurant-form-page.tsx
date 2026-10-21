@@ -150,7 +150,7 @@ type FormState = {
   placeId: string;
   openingHours: HoursForm; logoutCode: string;
   announcementText: string; vatPercent: string;
-  selfDelivery: boolean; commissionPctOverride: string;
+  selfDelivery: boolean; pickupOnly: boolean; commissionPctOverride: string;
   tagIds: string[];
   homeBoost: string; homeBoostStartsAt: string; homeBoostEndsAt: string;
 };
@@ -167,7 +167,7 @@ const emptyForm: FormState = {
   placeId: "",
   openingHours: buildDefaultHours(), logoutCode: "",
   announcementText: "", vatPercent: "6",
-  selfDelivery: false, commissionPctOverride: "",
+  selfDelivery: false, pickupOnly: false, commissionPctOverride: "",
   tagIds: [],
   homeBoost: "0", homeBoostStartsAt: "", homeBoostEndsAt: "",
 };
@@ -198,6 +198,7 @@ const mapDetailToForm = (d: RestaurantDetail): FormState => ({
   announcementText: (d as any).announcementText || "",
   vatPercent: (d as any).vatPercent != null ? String((d as any).vatPercent) : "6",
   selfDelivery: (d as any).selfDelivery ?? false,
+  pickupOnly: (d as any).pickupOnly ?? false,
   commissionPctOverride: (d as any).commissionPctOverride != null ? String((d as any).commissionPctOverride) : "",
   tagIds: d.tagIds || [],
   homeBoost: String(d.homeBoost ?? 0),
@@ -238,6 +239,7 @@ const mapFormToPayload = (f: FormState): RestaurantFormPayload => ({
   announcementText: f.announcementText.trim() || null,
   vatPercent: f.vatPercent ? Number(f.vatPercent) : null,
   selfDelivery: f.selfDelivery,
+  pickupOnly: f.pickupOnly,
   commissionPctOverride: f.commissionPctOverride.trim() === "" ? null : Number(f.commissionPctOverride),
   tagIds: f.tagIds,
 });
@@ -838,6 +840,10 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                     <span className="onb-choice-sub">Restaurangen kör</span>
                   </button>
                 </div>
+                <label className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
+                  <input type="checkbox" checked={form.pickupOnly} onChange={(e) => set("pickupOnly", e.target.checked)} />
+                  Endast avhämtning (ingen leverans erbjuds)
+                </label>
               </div>
 
               <div className="grid gap-2.5">
@@ -1424,6 +1430,12 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                   <Select value={form.selfDelivery ? "self" : "platform"} onChange={(e) => set("selfDelivery", e.target.value === "self")}>
                     <option value="platform">Vi levererar</option>
                     <option value="self">Levererar själv</option>
+                  </Select>
+                </Field>
+                <Field label="Beställningssätt" hint="Endast avhämtning döljer leveransvalet för kunden och nekar leveransordrar">
+                  <Select value={form.pickupOnly ? "pickup" : "both"} onChange={(e) => set("pickupOnly", e.target.value === "pickup")}>
+                    <option value="both">Leverans och avhämtning</option>
+                    <option value="pickup">Endast avhämtning</option>
                   </Select>
                 </Field>
                 <Field label="Egen provision" hint="Tomt = global sats · 0 % = provisionsfritt">

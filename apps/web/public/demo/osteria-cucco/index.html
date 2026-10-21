@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Osteria Cucco · Napolitansk pizza, pasta och gelato i Lund</title>
+<meta name="description" content="Demo: Osteria Cucco på Västra Mårtensgatan 10 A i Lund. Napolitansk pizza, färsk pasta och gelato. Beställ online och hämta hos oss.">
+<meta name="theme-color" content="#14110e">
+<link rel="icon" href="/demo/osteria-cucco/img/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="preload" as="image" href="/demo/osteria-cucco/img/hero.webp">
+<style>
+  :root {
+    --paper: #f4efe6; --paper-2: #ebe3d5; --card: #fbf8f2;
+    --ink: #14110e; --ink-2: #4d463d; --ink-3: #8a8073; --line: rgba(20,17,14,.13);
+    --night: #14110e; --night-2: #1e1a16; --on-night: #ece5d8; --on-night-2: #a89f90; --line-night: rgba(236,229,216,.16);
+    --accent: #a8402a; --brass: #b08a55;
+    --serif: "Cormorant Garamond", "Iowan Old Style", Georgia, serif;
+    --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --wrap: min(1240px, 100% - 48px);
+    --ease: cubic-bezier(.2,.7,.2,1);
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 300 16.5px/1.7 var(--sans); -webkit-font-smoothing: antialiased; }
+  img { display: block; max-width: 100%; }
+  a { color: inherit; }
+  ::selection { background: var(--accent); color: #fff; }
+  .wrap { width: var(--wrap); margin-inline: auto; }
+
+  h1, h2, h3 { font-family: var(--serif); font-weight: 400; margin: 0; letter-spacing: -.012em; }
+  h1 { font-size: clamp(3.1rem, 8.4vw, 7.2rem); line-height: .96; font-weight: 300; }
+  h2 { font-size: clamp(2.4rem, 5.2vw, 4.3rem); line-height: 1; font-weight: 300; }
+  h1 em, h2 em { font-style: italic; font-weight: 400; color: var(--accent); }
+  .on-night h2 em { color: var(--brass); }
+  .label { display: inline-block; font: 500 .7rem/1 var(--sans); letter-spacing: .26em; text-transform: uppercase; color: var(--ink-3); }
+  .on-night .label { color: var(--on-night-2); }
+  p { margin: 0 0 1.1em; }
+  .lead { font-size: clamp(1.05rem, 1.35vw, 1.2rem); color: var(--ink-2); max-width: 44ch; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 56px; padding: 0 30px; border-radius: 999px; border: 1px solid transparent; font: 500 .82rem/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; text-decoration: none; cursor: pointer; transition: background .35s var(--ease), color .35s var(--ease), border-color .35s var(--ease), transform .2s var(--ease); }
+  .btn:active { transform: scale(.985); }
+  .btn svg { width: 16px; height: 16px; transition: transform .35s var(--ease); }
+  .btn:hover svg { transform: translateX(4px); }
+  .btn-solid { background: var(--ink); color: var(--paper); }
+  .btn-solid:hover { background: var(--accent); }
+  .btn-line { border-color: var(--ink); color: var(--ink); }
+  .btn-line:hover { background: var(--ink); color: var(--paper); }
+  .btn-light { background: var(--on-night); color: var(--night); }
+  .btn-light:hover { background: var(--brass); color: var(--night); }
+  .link { display: inline-flex; align-items: center; gap: 10px; font: 500 .78rem/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; text-decoration: none; padding-bottom: 8px; border-bottom: 1px solid currentColor; transition: gap .35s var(--ease), color .3s ease; }
+  .link:hover { gap: 16px; color: var(--accent); }
+
+  /* Demorad */
+  .demo-flag { background: var(--night); color: var(--on-night-2); font: 400 .74rem/1.4 var(--sans); letter-spacing: .04em; text-align: center; padding: 9px 16px; }
+  .demo-flag b { color: var(--on-night); font-weight: 500; }
+
+  /* Navigation */
+  .nav { position: sticky; top: 0; z-index: 50; background: rgba(244,239,230,.82); backdrop-filter: saturate(1.3) blur(16px); -webkit-backdrop-filter: saturate(1.3) blur(16px); border-bottom: 1px solid var(--line); }
+  .nav-in { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; height: 84px; }
+  .nav-links { display: flex; gap: 34px; }
+  .nav-links a { font: 400 .76rem/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; text-decoration: none; color: var(--ink-2); padding: 8px 0; background: linear-gradient(currentColor, currentColor) 0 100% / 0 1px no-repeat; transition: background-size .4s var(--ease), color .3s ease; }
+  .nav-links a:hover { color: var(--ink); background-size: 100% 1px; }
+  .nav-logo img { height: 46px; width: auto; }
+  .nav-cta { justify-self: end; }
+  .nav .btn { min-height: 46px; padding: 0 24px; font-size: .74rem; }
+  @media (max-width: 900px) {
+    .nav-in { grid-template-columns: auto 1fr; height: 68px; }
+    .nav-links { display: none; }
+    .nav-logo img { height: 36px; }
+    .nav .btn { min-height: 42px; padding: 0 18px; font-size: .7rem; letter-spacing: .1em; }
+  }
+
+  /* Hero */
+  .hero { position: relative; padding: clamp(40px, 6vw, 88px) 0 clamp(56px, 8vw, 120px); }
+  .hero-grid { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr); gap: clamp(32px, 6vw, 96px); align-items: center; }
+  .hero h1 { margin: 26px 0 30px; }
+  .hero-cta { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 28px; margin-top: 40px; }
+  .hero-meta { display: grid; grid-template-columns: repeat(3, auto); justify-content: start; gap: 0; margin-top: clamp(40px, 6vw, 72px); border-top: 1px solid var(--line); }
+  .hero-meta div { padding: 18px 26px 0 0; margin-right: 26px; border-right: 1px solid var(--line); white-space: nowrap; }
+  .hero-meta div:last-child { border-right: 0; margin-right: 0; padding-right: 0; }
+  .hero-meta dt { font: 500 .66rem/1 var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 9px; }
+  .hero-meta dd { margin: 0; font: 400 1.12rem/1.2 var(--serif); }
+  .hero-meta dd .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #4c7a45; margin-right: 9px; vertical-align: middle; transform: translateY(-2px); }
+  .hero-meta dd .dot.closed { background: var(--ink-3); }
+  .hero-art { position: relative; }
+  .hero-frame { aspect-ratio: 4 / 5; border-radius: 999px 999px 6px 6px; overflow: hidden; background: var(--paper-2); }
+  .hero-frame img { width: 100%; height: 100%; object-fit: cover; transform: scale(1.12); animation: settle 2.4s var(--ease) forwards; }
+  @keyframes settle { to { transform: scale(1.02); } }
+  .hero-seal { position: absolute; right: -22px; top: 12%; width: 128px; height: 128px; color: var(--ink); animation: spin 32s linear infinite; }
+  .hero-seal text { font: 500 9.4px var(--sans); letter-spacing: .34em; text-transform: uppercase; fill: currentColor; }
+  .hero-seal-core { position: absolute; right: -22px; top: 12%; width: 128px; height: 128px; display: grid; place-items: center; font: 400 italic 1.7rem var(--serif); color: var(--accent); pointer-events: none; }
+  .hero-seal-bg { position: absolute; right: -22px; top: 12%; width: 128px; height: 128px; border-radius: 50%; background: var(--paper); box-shadow: 0 20px 44px -24px rgba(20,17,14,.5); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (max-width: 900px) {
+    .hero-grid { grid-template-columns: 1fr; align-items: start; }
+    .hero-art { order: -1; width: min(420px, 86%); margin-inline: auto; }
+    .hero-seal, .hero-seal-core, .hero-seal-bg { right: -14px; width: 104px; height: 104px; }
+    .hero-seal-core { font-size: 1.4rem; }
+    .hero-meta { grid-template-columns: 1fr; }
+    .hero-meta div { border-right: 0; margin-right: 0; padding: 16px 0; border-bottom: 1px solid var(--line); }
+    .hero-meta div:last-child { border-bottom: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { .hero-seal, .hero-frame img { animation: none; } }
+
+  /* Manifest */
+  .manifest { padding: clamp(72px, 10vw, 150px) 0; border-top: 1px solid var(--line); }
+  .manifest p { font: 300 clamp(1.7rem, 3.5vw, 3rem)/1.25 var(--serif); letter-spacing: -.01em; max-width: 24ch; margin: 26px 0 0; }
+  .manifest p span { color: var(--ink-3); }
+  .manifest-grid { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(32px, 6vw, 96px); align-items: end; }
+  .trio { display: grid; gap: 0; border-top: 1px solid var(--line); }
+  .trio div { display: grid; grid-template-columns: 74px 1fr; gap: 18px; align-items: baseline; padding: 22px 0; border-bottom: 1px solid var(--line); }
+  .trio b { font: 300 2.5rem/1 var(--serif); color: var(--accent); }
+  .trio span { color: var(--ink-2); font-size: .98rem; }
+  .trio strong { display: block; font: 500 1.35rem/1.2 var(--serif); color: var(--ink); margin-bottom: 2px; }
+  @media (max-width: 900px) { .manifest-grid { grid-template-columns: 1fr; } .manifest p { max-width: none; } }
+
+  /* Beställ (mörk) */
+  .on-night { background: var(--night); color: var(--on-night); }
+  .order { padding: clamp(72px, 10vw, 150px) 0; }
+  .order-grid { display: grid; grid-template-columns: .95fr 1.05fr; gap: clamp(32px, 6vw, 96px); align-items: center; }
+  .order-img { aspect-ratio: 5 / 6; border-radius: 6px; overflow: hidden; }
+  .order-img img { width: 100%; height: 100%; object-fit: cover; }
+  .order h2 { margin: 24px 0 34px; }
+  .steps { list-style: none; margin: 0 0 44px; padding: 0; border-top: 1px solid var(--line-night); counter-reset: s; }
+  .steps li { counter-increment: s; display: grid; grid-template-columns: 56px 1fr; gap: 12px; padding: 22px 0; border-bottom: 1px solid var(--line-night); align-items: baseline; }
+  .steps li::before { content: "0" counter(s); font: 300 italic 1.5rem/1 var(--serif); color: var(--brass); }
+  .steps b { display: block; font: 400 1.5rem/1.2 var(--serif); color: var(--on-night); }
+  .steps small { display: block; margin-top: 4px; font-size: .95rem; color: var(--on-night-2); }
+  .order-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; }
+  .order-foot span { font-size: .9rem; color: var(--on-night-2); }
+  @media (max-width: 900px) { .order-grid { grid-template-columns: 1fr; } .order-img { aspect-ratio: 4 / 3; } }
+
+  /* Meny */
+  .menu { padding: clamp(72px, 10vw, 150px) 0; }
+  .menu-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: clamp(40px, 6vw, 80px); }
+  .menu-head h2 { margin-top: 22px; }
+  .menu-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(36px, 7vw, 110px); }
+  .menu-col h3 { display: flex; justify-content: space-between; align-items: baseline; font: 500 .72rem/1 var(--sans); letter-spacing: .24em; text-transform: uppercase; color: var(--ink-3); padding-bottom: 18px; border-bottom: 1px solid var(--ink); }
+  .menu-col h3 + .dish { border-top: 0; }
+  .dish { display: grid; grid-template-columns: 1fr auto; gap: 6px 20px; padding: 24px 0; border-bottom: 1px solid var(--line); text-decoration: none; transition: padding-left .4s var(--ease); }
+  .dish:hover { padding-left: 12px; }
+  .dish-name { font: 400 1.75rem/1.1 var(--serif); transition: color .3s ease; }
+  .dish:hover .dish-name { color: var(--accent); }
+  .dish-price { font: 400 1.3rem/1.1 var(--serif); color: var(--ink-2); font-variant-numeric: lining-nums; }
+  .dish-price small { font: 400 .68rem var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); margin-left: 4px; }
+  .dish-desc { grid-column: 1 / -1; font-size: .93rem; color: var(--ink-3); line-height: 1.55; max-width: 52ch; }
+  .menu-col .gap { margin-top: 56px; }
+  .menu-foot { margin-top: clamp(40px, 6vw, 72px); display: flex; flex-wrap: wrap; align-items: center; gap: 18px 32px; }
+  .menu-foot p { margin: 0; color: var(--ink-3); font-size: .95rem; }
+  @media (max-width: 800px) { .menu-grid { grid-template-columns: 1fr; } .dish-name { font-size: 1.5rem; } }
+
+  /* Bildband */
+  .band { position: relative; height: clamp(360px, 62vw, 720px); overflow: hidden; }
+  .band img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 62%; }
+  .band::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(20,17,14,.05), rgba(20,17,14,.62)); }
+  .band-text { position: absolute; left: 0; right: 0; bottom: clamp(28px, 5vw, 64px); z-index: 2; color: #f5efe4; }
+  .band-text .label { color: rgba(245,239,228,.75); }
+  .band-text h2 { margin-top: 18px; max-width: 16ch; }
+  .band-text h2 em { color: #e0b37a; }
+
+  /* Hantverk */
+  .craft { padding: clamp(72px, 10vw, 150px) 0; }
+  .craft-grid { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(32px, 6vw, 96px); }
+  .craft-grid article { border-top: 1px solid var(--ink); padding-top: 26px; }
+  .craft-grid h3 { font: 400 2rem/1.1 var(--serif); margin: 14px 0 16px; }
+  .craft-grid p { color: var(--ink-2); max-width: 46ch; }
+  @media (max-width: 800px) { .craft-grid { grid-template-columns: 1fr; } }
+
+  /* Gelato */
+  .gelato { background: var(--paper-2); padding: clamp(72px, 10vw, 150px) 0; }
+  .gelato-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: clamp(28px, 5vw, 80px); align-items: center; }
+  .gelato-mosaic { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .gelato-mosaic figure { margin: 0; overflow: hidden; border-radius: 6px; aspect-ratio: 3 / 4; }
+  .gelato-mosaic figure:first-child { grid-column: 1 / -1; aspect-ratio: 16 / 10; }
+  .gelato-mosaic img { width: 100%; height: 100%; object-fit: cover; transition: transform 1.2s var(--ease); }
+  .gelato-mosaic figure:hover img { transform: scale(1.05); }
+  .gelato h2 { margin: 24px 0 28px; }
+  .gelato p { color: var(--ink-2); max-width: 44ch; }
+  @media (max-width: 900px) { .gelato-grid { grid-template-columns: 1fr; } .gelato-text { order: -1; } }
+
+  /* Besök */
+  .visit { padding: clamp(72px, 10vw, 150px) 0; }
+  .visit-grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: clamp(32px, 6vw, 96px); align-items: stretch; }
+  .visit-img { border-radius: 6px; overflow: hidden; min-height: 420px; }
+  .visit-img img { width: 100%; height: 100%; object-fit: cover; }
+  .visit-info { display: grid; align-content: center; gap: 38px; }
+  .visit-info h2 { margin-top: 22px; }
+  .visit-block .label { margin-bottom: 16px; }
+  .address { font: 400 1.7rem/1.3 var(--serif); }
+  .address a { text-decoration: none; background: linear-gradient(currentColor, currentColor) 0 100% / 100% 1px no-repeat; transition: color .3s ease; }
+  .address a:hover { color: var(--accent); }
+  .hours { width: 100%; border-collapse: collapse; }
+  .hours td { padding: 13px 0; border-bottom: 1px solid var(--line); font: 400 1.22rem/1.2 var(--serif); }
+  .hours td:last-child { text-align: right; font-variant-numeric: lining-nums tabular-nums; color: var(--ink-2); }
+  .hours tr.today td { color: var(--accent); }
+  .hours tr.today td:first-child::after { content: "Idag"; margin-left: 12px; font: 500 .62rem var(--sans); letter-spacing: .2em; text-transform: uppercase; vertical-align: middle; }
+  @media (max-width: 900px) { .visit-grid { grid-template-columns: 1fr; } .visit-img { min-height: 280px; } }
+
+  /* Sidfot */
+  footer { background: var(--night); color: var(--on-night-2); padding: clamp(56px, 8vw, 110px) 0 130px; }
+  .foot-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 32px; padding-bottom: 44px; border-bottom: 1px solid var(--line-night); }
+  .foot-top img { height: 74px; width: auto; filter: invert(1) brightness(1.6); opacity: .94; }
+  .foot-top h2 { color: var(--on-night); max-width: 14ch; }
+  .foot-bottom { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 14px 32px; padding-top: 28px; font-size: .84rem; }
+  .foot-bottom a { color: var(--on-night); text-decoration: none; }
+  .foot-bottom b { color: #f04f1a; font-weight: 600; }
+
+  /* Mobilknapp */
+  .dock { position: fixed; inset: auto 0 0 0; z-index: 60; padding: 14px 18px calc(14px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--paper) 58%, rgba(244,239,230,0)); display: none; }
+  .dock .btn { width: 100%; }
+  @media (max-width: 900px) { .dock { display: block; } }
+
+  .reveal { opacity: 0; transform: translateY(26px); transition: opacity 1s var(--ease), transform 1s var(--ease); }
+  .reveal.in { opacity: 1; transform: none; }
+  .reveal[data-d="1"] { transition-delay: .12s; } .reveal[data-d="2"] { transition-delay: .24s; }
+  @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="demo-flag">Demo för <b>Osteria Cucco</b>. Så här kan er sajt se ut med onlinebeställning via viaeats.</div>
+
+<header class="nav">
+  <div class="wrap nav-in">
+    <nav class="nav-links" aria-label="Huvudmeny">
+      <a href="#meny">Meny</a>
+      <a href="#hantverk">Hantverket</a>
+      <a href="#gelato">Gelato</a>
+      <a href="#besok">Besök oss</a>
+    </nav>
+    <a class="nav-logo" href="#top" aria-label="Osteria Cucco"><img src="/demo/osteria-cucco/img/logo.webp" alt="Cucco Osteria" width="768" height="365"></a>
+    <a class="btn btn-solid nav-cta" href="/demo/osteria-cucco/meny.html">Beställ</a>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <span class="label">Osteria i hjärtat av Lund</span>
+        <h1>Napolitansk pizza, färsk pasta och <em>gelato</em></h1>
+        <p class="lead">Degen vilar i minst 36 timmar innan den möter stenugnen. Tomaterna är San Marzano, mozzarellan fior di latte och gelaton görs från grunden varje dag.</p>
+        <div class="hero-cta">
+          <a class="btn btn-solid" href="/demo/osteria-cucco/meny.html">Beställ och hämta
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16M14 6l6 6-6 6"/></svg>
+          </a>
+          <a class="link" href="#meny">Se menyn</a>
+        </div>
+        <dl class="hero-meta">
+          <div><dt>Just nu</dt><dd><i class="dot" id="open-dot"></i><span id="open-text">Se öppettider</span></dd></div>
+          <div><dt>Adress</dt><dd>Västra Mårtensgatan 10 A</dd></div>
+          <div><dt>Beställning</dt><dd>Endast avhämtning</dd></div>
+        </dl>
+      </div>
+      <div class="hero-art">
+        <div class="hero-frame"><img src="/demo/osteria-cucco/img/hero.webp" alt="Pizza Margherita från Osteria Cucco, nygräddad i stenugn" width="1378" height="1536" fetchpriority="high"></div>
+        <div class="hero-seal-bg" aria-hidden="true"></div>
+        <svg class="hero-seal" viewBox="0 0 128 128" aria-hidden="true">
+          <defs><path id="seal" d="M64,64 m-48,0 a48,48 0 1,1 96,0 a48,48 0 1,1 -96,0"/></defs>
+          <text><textPath href="#seal">Deg som vilar i trettiosex timmar · Bakad i stenugn ·</textPath></text>
+        </svg>
+        <div class="hero-seal-core" aria-hidden="true">36 h</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="manifest">
+    <div class="wrap manifest-grid">
+      <div class="reveal">
+        <span class="label">Vår idé</span>
+        <p>Få råvaror, de bästa vi kan hitta, <span>och all tid i världen åt degen.</span></p>
+      </div>
+      <div class="trio reveal" data-d="1">
+        <div><b>36</b><span><strong>Timmar</strong>Så länge vilar degen som minst innan den bakas ut.</span></div>
+        <div><b>3</b><span><strong>Ingredienser</strong>San Marzano, lite salt och färsk basilika. Mer behövs inte i såsen.</span></div>
+        <div><b>1</b><span><strong>Dag</strong>Gelaton görs från grunden varje morgon, på naturliga råvaror.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="order on-night">
+    <div class="wrap order-grid">
+      <div class="order-img reveal"><img src="/demo/osteria-cucco/img/pizza-hands.webp" alt="Nygräddad pizza bärs ut från köket" width="1080" height="720" loading="lazy"></div>
+      <div class="reveal" data-d="1">
+        <span class="label">Beställ online</span>
+        <h2>Beställ här. Hämta den <em>varm</em> hos oss.</h2>
+        <ol class="steps">
+          <li><div><b>Välj i menyn</b><small>Pizza, pasta, antipasti och dryck. Glutenfri botten och extra pålägg finns som tillval.</small></div></li>
+          <li><div><b>Betala med Swish eller kort</b><small>Inget konto behövs. Det tar under en minut.</small></div></li>
+          <li><div><b>Hämta på Västra Mårtensgatan</b><small>Du följer ordern live och ser när maten är klar.</small></div></li>
+        </ol>
+        <div class="order-foot">
+          <a class="btn btn-light" href="/demo/osteria-cucco/meny.html">Öppna menyn
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16M14 6l6 6-6 6"/></svg>
+          </a>
+          <span>Vi erbjuder endast avhämtning, ingen hemkörning.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="menu" id="meny">
+    <div class="wrap">
+      <div class="menu-head reveal">
+        <div>
+          <span class="label">Ur menyn</span>
+          <h2>Enkelt och italienskt, <em>på riktigt</em></h2>
+        </div>
+        <a class="link" href="/demo/osteria-cucco/meny.html">Hela menyn och beställning</a>
+      </div>
+      <div class="menu-grid">
+        <div class="menu-col reveal">
+          <h3><span>Pizza Napoletana</span><span>Tolv sorter</span></h3>
+          <a class="dish" href="/demo/osteria-cucco/meny.html"><span class="dish-name">Margherita</span><span class="dish-price">145<small>kr</small></span><span class="dish-desc">San Marzano, fior di latte, Pecorino Romano DOP, färsk basilika</span></a>
+          <a class="dish" href="/demo/osteria-cucco/meny.html"><span class="dish-name">Diavola</span><span class="dish-price">145<small>kr</small></span><span class="dish-desc">Stark salami Ventricina, Pecorino Romano DOP, chiliolivolja</span></a>
+          <a class="dish" href="/demo/osteria-cucco/meny.html"><span class="dish-name">Prosciutto e Coppa</span><span class="dish-price">145<small>kr</small></span><span class="dish-desc">Prosciutto di Parma lagrad 24 månader, Coppa di Parma, Parmigiano, rucola</span></a>
+          <a class="dish" href="/demo/osteria-cucco/meny.html"><span class="dish-name">Funghi e Tartufo</span><span class="dish-price">145<small>kr</small></span><span class="dish-desc">Salsa bianca, karljohansvamp, champinjoner, vit tryffelolja</span></a>
+          <a class="dish" href="/demo/osteria-cucco/meny.html"><span class="dish-name">Mortadella e Pistacchio</span><span class="dish-price">145<small>kr</small></span><span class="dish-desc">Pistagekräm, mortadella, stracciatella, hackade pistagenötter</span></a>
+        </div>
+        <div class="menu-col reveal" data-d="1">
+          <h3><span>Pasta</span><span>Alltid färsk</span></h3>
+          <a class="dish" href="/demo/osteria-cucco/meny.html"><span class="dish-name">Bolognese</span><span class="dish-price">135<small>kr</small></span><span class="dish-desc">Nötfärs och fläskfärs, San Marzano, rött vin, Parmigiano Reggiano</span></a>
+          <a class="dish" href="/demo/osteria-cucco/meny.html"><span class="dish-name">alla Puttanesca</span><span class="dish-price">135<small>kr</small></span><span class="dish-desc">Körsbärstomater, chili, sardeller, oliver, kapris, mynta</span></a>
+          <a class="dish" href="/demo/osteria-cucco/meny.html"><span class="dish-name">al Pesto</span><span class="dish-price">135<small>kr</small></span><span class="dish-desc">Pesto alla genovese, burrata, semitorkade körsbärstomater</span></a>
+          <h3 class="gap"><span>Antipasti</span><span>Att dela på två</span></h3>
+          <a class="dish" href="/demo/osteria-cucco/meny.html"><span class="dish-name">Tagliere alla Cucco</span><span class="dish-price">249<small>kr</small></span><span class="dish-desc">Charkuterier och ostar med fikonmarmelad, oliver och nybakat bröd</span></a>
+          <a class="dish" href="/demo/osteria-cucco/meny.html"><span class="dish-name">Tagliere di Formaggi</span><span class="dish-price">179<small>kr</small></span><span class="dish-desc">Fontina, Gorgonzola Piccante, Parmigiano och Taleggio</span></a>
+        </div>
+      </div>
+      <div class="menu-foot reveal">
+        <a class="btn btn-solid" href="/demo/osteria-cucco/meny.html">Beställ för avhämtning</a>
+        <p>Glutenfri botten för 25 kr och extra pålägg väljer du i beställningen.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" aria-label="Stenugnen">
+    <img src="/demo/osteria-cucco/img/oven.webp" alt="Pizzabagare tar ut en pizza ur stenugnen" width="1000" height="1500" loading="lazy">
+    <div class="band-text"><div class="wrap">
+      <span class="label">Pizza Napoletana</span>
+      <h2>Tre råvaror och <em>inga genvägar</em></h2>
+    </div></div>
+  </section>
+
+  <section class="craft" id="hantverk">
+    <div class="wrap craft-grid">
+      <article class="reveal">
+        <span class="label">Degen</span>
+        <h3>Biga och mjöl från Neapel</h3>
+        <p>Degen görs i två steg med en fördeg, biga, och högkvalitativt mjöl från Neapel som tar upp mycket vatten. Efter minst 36 timmars vila får den sin luftiga, lätt brända kant i den heta stenugnen.</p>
+      </article>
+      <article class="reveal" data-d="1">
+        <span class="label">Såsen och osten</span>
+        <h3>San Marzano och fior di latte</h3>
+        <p>Tomatsåsen består av San Marzano, lite salt och färska basilikablad. Ovanpå smälter mozzarella fior di latte, gjord på komjölk, jämnt utan att tappa färg eller smak.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="gelato" id="gelato">
+    <div class="wrap gelato-grid">
+      <div class="gelato-mosaic reveal">
+        <figure><img src="/demo/osteria-cucco/img/gelato-trio.webp" alt="Tre bägare gelato från Cucco" width="1024" height="683" loading="lazy"></figure>
+        <figure><img src="/demo/osteria-cucco/img/gelato-cone.webp" alt="Gelato i strut" width="900" height="1350" loading="lazy"></figure>
+        <figure><img src="/demo/osteria-cucco/img/gelato-pink.webp" alt="Gelato i strut mot rosa vägg" width="683" height="1024" loading="lazy"></figure>
+      </div>
+      <div class="gelato-text reveal" data-d="1">
+        <span class="label">Gelato</span>
+        <h2>Gjord från grunden, <em>varje dag</em></h2>
+        <p>Riktig gelato innehåller mindre luft än industriglass. Därför känns den tätare och smakar mer. Vi gör den på färsk mjölk, grädde och naturliga råvaror.</p>
+        <p>Sorbeterna görs på färsk frukt, fruktpuré, vatten och socker. Smakerna byts efter säsong, så fråga gärna vad som ligger i disken idag.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="visit" id="besok">
+    <div class="wrap visit-grid">
+      <div class="visit-img reveal"><img src="/demo/osteria-cucco/img/terrace.webp" alt="Uteserveringen på Osteria Cucco i Lund" width="1080" height="720" loading="lazy"></div>
+      <div class="visit-info reveal" data-d="1">
+        <div>
+          <span class="label">Besök oss</span>
+          <h2>Mitt i <em>Lund</em></h2>
+        </div>
+        <div class="visit-block">
+          <span class="label">Adress och kontakt</span>
+          <div class="address">
+            <a href="https://www.google.com/maps/search/?api=1&query=Osteria+Cucco+V%C3%A4stra+M%C3%A5rtensgatan+10A+Lund" target="_blank" rel="noopener">Västra Mårtensgatan 10 A, Lund</a><br>
+            <a href="tel:+4646130150">046 13 01 50</a><br>
+            <a href="mailto:info@cucco.se">info@cucco.se</a>
+          </div>
+        </div>
+        <div class="visit-block">
+          <span class="label">Öppettider</span>
+          <table class="hours" id="hours">
+            <tr data-days="1,2,3,4"><td>Måndag till torsdag</td><td>16 till 22</td></tr>
+            <tr data-days="5"><td>Fredag</td><td>12 till 23</td></tr>
+            <tr data-days="6"><td>Lördag</td><td>12 till 23</td></tr>
+            <tr data-days="0"><td>Söndag</td><td>12 till 21</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-top">
+      <img src="/demo/osteria-cucco/img/logo.webp" alt="Cucco Osteria" width="768" height="365">
+      <a class="btn btn-light" href="/demo/osteria-cucco/meny.html">Beställ för avhämtning</a>
+    </div>
+    <div class="foot-bottom">
+      <span>© Osteria Cucco · Västra Mårtensgatan 10 A, 223 51 Lund</span>
+      <span>Onlinebeställning via <a href="https://www.viaeats.se" target="_blank" rel="noopener"><b>viaeats</b></a></span>
+    </div>
+  </div>
+</footer>
+
+<div class="dock"><a class="btn btn-solid" href="/demo/osteria-cucco/meny.html">Beställ för avhämtning</a></div>
+
+<script>
+  // Öppet eller stängt just nu (svensk tid) och markering av dagens rad.
+  (function () {
+    var H = { 0: [12, 21], 1: [16, 22], 2: [16, 22], 3: [16, 22], 4: [16, 22], 5: [12, 23], 6: [12, 23] };
+    var p = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Stockholm", weekday: "short", hour: "numeric", minute: "numeric", hour12: false }).formatToParts(new Date());
+    var get = function (t) { return (p.find(function (x) { return x.type === t; }) || {}).value; };
+    var day = { "sön": 0, "mån": 1, "tis": 2, "ons": 3, "tors": 4, "tor": 4, "fre": 5, "lör": 6 }[String(get("weekday")).replace(".", "").toLowerCase()];
+    if (day === undefined) return;
+    var now = Number(get("hour")) + Number(get("minute")) / 60, h = H[day], open = now >= h[0] && now < h[1];
+    document.getElementById("open-dot").classList.toggle("closed", !open);
+    document.getElementById("open-text").textContent = open ? "Öppet till " + h[1] : (now < h[0] ? "Öppnar kl. " + h[0] : "Stängt för idag");
+    document.querySelectorAll("#hours tr").forEach(function (tr) {
+      if (tr.getAttribute("data-days").split(",").indexOf(String(day)) !== -1) tr.classList.add("today");
+    });
+  })();
+  // Mjuk infasning
+  (function () {
+    var els = document.querySelectorAll(".reveal");
+    if (!("IntersectionObserver" in window)) { els.forEach(function (e) { e.classList.add("in"); }); return; }
+    var io = new IntersectionObserver(function (entries) { entries.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); } }); }, { threshold: .1, rootMargin: "0px 0px -6% 0px" });
+    els.forEach(function (e) { io.observe(e); });
+  })();
+</script>
+</body>
+</html>

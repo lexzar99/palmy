@@ -1,0 +1,231 @@
+# Wanthai Foodtruck – meny för massimport (Admin → Meny → Massimport, eller POST /api/admin/menu/bulk-import).
+# Källa: Wanthais WEIQ-meny (weiq.app/Wanthai/meny), avläst 2026-10-21. Priser i KRONOR, exakt som hos WEIQ.
+# Tillval per rätt följer WEIQ: protein, ris eller nudlar och hetta där WEIQ har dem.
+# WEIQ:s flik "Allergier" (Nötallergi, Glutenallergi, 0 kr) blir gruppen "Allergi" på alla varmrätter.
+# Efter importen görs "Lägg till tillbehör", "Lägg till dryck" och "Dipp" om till bildrutor (BOX_IMAGE)
+# med groups-box-image.json – importformatet bär inte bilder.
+extraGroups:
+  - name: Välj protein
+    type: radio
+    required: true
+    options:
+      - { name: Kyckling, price: 0 }
+      - { name: Fläskkött, price: 0 }
+      - { name: Biff, price: 13 }
+      - { name: Räkor, price: 13 }
+      - { name: Vegetariskt, price: 0 }
+  - name: Ris eller nudlar
+    type: radio
+    required: true
+    options:
+      - { name: Jasminris, price: 0 }
+      - { name: Äggnudlar, price: 0 }
+  - name: Hetta
+    type: radio
+    required: true
+    options:
+      - { name: "Mai pet – inte stark", price: 0 }
+      - { name: "Pet – medelstark", price: 0 }
+      - { name: "Pet maak – mycket stark", price: 0 }
+  # Currys, laab och pad ka prao lagas alltid med chili – WEIQ erbjuder inte mild variant på dem.
+  - name: Hetta (lagas alltid med chili)
+    type: radio
+    required: true
+    options:
+      - { name: "Pet – medelstark", price: 0 }
+      - { name: "Pet maak – mycket stark", price: 0 }
+  - name: Vegetariskt alternativ
+    type: checkbox
+    required: false
+    max: 1
+    options:
+      - { name: "Vegofärs i stället för fläskfärs", price: 0 }
+  - name: Allergi
+    type: checkbox
+    required: false
+    max: 2
+    options:
+      - { name: "Nötallergi – tål inte nötter", price: 0 }
+      - { name: "Glutenallergi – tål inte gluten", price: 0 }
+  - name: Lägg till tillbehör
+    type: checkbox
+    required: false
+    max: 10
+    options:
+      - { name: Vårrullar 3 st, price: 49 }
+      - { name: Crispy chicken, price: 52 }
+      - { name: Kycklingnuggets 6 st, price: 39 }
+      - { name: Räkchips, price: 23 }
+      - { name: Extra jasminris, price: 16 }
+      - { name: Extra äggnudlar, price: 16 }
+      - { name: Extra räka, price: 6 }
+      - { name: Jordnötssås, price: 13 }
+  - name: Dipp
+    type: checkbox
+    required: false
+    max: 6
+    options:
+      - { name: Sweet chili, price: 5 }
+      - { name: Vitlöksdipp, price: 5 }
+      - { name: Mangoraja, price: 5 }
+      - { name: Jordnötssås, price: 13 }
+  - name: Lägg till dryck
+    type: checkbox
+    required: false
+    max: 10
+    options:
+      - { name: Coca-Cola 33 cl, price: 18 }
+      - { name: Coca-Cola Zero 33 cl, price: 18 }
+      - { name: Fanta 33 cl, price: 18 }
+      - { name: Fanta Exotic 33 cl, price: 18 }
+      - { name: Fanta Exotic Zero 33 cl, price: 18 }
+      - { name: Pepsi Max 33 cl, price: 18 }
+      - { name: Pepsi Max Lime 33 cl, price: 18 }
+      - { name: Ramlösa Naturell 33 cl, price: 18 }
+      - { name: Ramlösa Citrus 33 cl, price: 18 }
+      - { name: Ramlösa Granatäpple 33 cl, price: 18 }
+      - { name: Ramlösa Grönt äpple 33 cl, price: 18 }
+      - { name: Ramlösa Körsbär 33 cl, price: 18 }
+      - { name: Ramlösa Mango Grapefrukt 33 cl, price: 18 }
+      - { name: Krating Daeng, price: 23 }
+      - { name: Lipovitan-D, price: 23 }
+      - { name: Red Bull 25 cl, price: 25 }
+      - { name: Red Bull Peach Edition, price: 25 }
+      - { name: Red Bull Summer Edition, price: 25 }
+      - { name: Mer Apelsin 20 cl, price: 14 }
+      - { name: Mer Jordgubb 20 cl, price: 14 }
+
+categories:
+  - name: Wok
+    description: "Wokat i stora lågor direkt i vagnen. Välj kyckling, fläsk, biff, räkor eller vegetariskt."
+    products:
+      - name: Pad Thai
+        description: "Risnudlar, ägg, böngroddar, tamarind, vårlök och thaikryddor. Lime och nötter serveras vid sidan om."
+        price: 112
+        extras: [Välj protein, Allergi, Lägg till tillbehör, Lägg till dryck]
+      - name: "Kao Pad – stekt ris"
+        description: "Ägg, gul lök, morot, broccoli, vitlök, tomat, blomkål, salladslök och vitpeppar. Lime vid sidan om."
+        price: 109
+        extras: [Välj protein, Hetta, Allergi, Lägg till tillbehör, Lägg till dryck]
+      - name: "Pad Kra Pao – thaibasilika"
+        description: "Stekt ägg, thaibasilika, chili, vitlök, paprika, långböna, gul lök, morot och röd peppar."
+        price: 112
+        extras: [Välj protein, Ris eller nudlar, Hetta (lagas alltid med chili), Allergi, Lägg till tillbehör, Lägg till dryck]
+      - name: "Pad Himmaphan – cashewnötter"
+        description: "Cashewnötter, gul lök, morot, paprika, vitlök, salladslök, chilipasta och thaikryddor. Med ris eller äggnudlar."
+        price: 113
+        extras: [Välj protein, Ris eller nudlar, Hetta, Allergi, Lägg till tillbehör, Lägg till dryck]
+      - name: "Phad Nam Mun Hoy – ostronsås"
+        description: "Wokad broccoli, blomkål, sockerärtor, champinjoner, paprika, lök, vitlök, morot och thaikryddor. Med ris eller äggnudlar."
+        price: 109
+        extras: [Välj protein, Ris eller nudlar, Hetta, Allergi, Lägg till tillbehör, Lägg till dryck]
+      - name: "Pad Mama – äggnudlar"
+        description: "Äggnudlar, vitlök, ägg, morot, gul lök, broccoli, salladslök och thaikryddor."
+        price: 109
+        extras: [Välj protein, Allergi, Lägg till tillbehör, Lägg till dryck]
+      - name: "Phad Phak Ruam Mit – wokade grönsaker"
+        description: "Morot, broccoli, paprika, gul lök, champinjoner, vitlök, blomkål, sockerärtor, salladslök och ingefära."
+        price: 109
+        extras: [Välj protein, Ris eller nudlar, Hetta, Allergi, Lägg till tillbehör, Lägg till dryck]
+      - name: "Phad Prik Thai Dam – svartpeppar"
+        description: "Grovmalen svartpeppar, lök, paprika, salladslök, morot, sockerärtor och champinjoner."
+        price: 109
+        extras: [Välj protein, Ris eller nudlar, Hetta, Allergi, Lägg till tillbehör, Lägg till dryck]
+
+  - name: Curry
+    description: "Krämiga currys på kokosmjölk med jasminris eller äggnudlar."
+    products:
+      - name: "Panaeng – thaicurry"
+        description: "Limeblad, paprika, kokos, röd peppar, panaengkrydda, broccoli och blomkål."
+        price: 109
+        extras: [Välj protein, Ris eller nudlar, Hetta (lagas alltid med chili), Allergi, Lägg till tillbehör, Lägg till dryck]
+      - name: "Gaeng Keaw Wan – grön curry"
+        description: "Kryddig och krämig curry med kokosmjölk, bambuskott, broccoli, champinjoner, morot, paprika, lök och thailändska örter."
+        price: 109
+        extras: [Välj protein, Ris eller nudlar, Hetta (lagas alltid med chili), Allergi, Lägg till tillbehör, Lägg till dryck]
+      - name: "Gaeng Daeng – röd curry"
+        description: "Kokosmjölk, limeblad, basilika, champinjoner, rödpeppar, paprika, bambuskott och thaikryddor."
+        price: 109
+        extras: [Välj protein, Ris eller nudlar, Hetta (lagas alltid med chili), Allergi, Lägg till tillbehör, Lägg till dryck]
+      - name: "Gaeng Kari – gul curry"
+        description: "Lök, rödpeppar, paprika, morot, potatis och thailändska örter."
+        price: 109
+        extras: [Välj protein, Ris eller nudlar, Hetta (lagas alltid med chili), Allergi, Lägg till tillbehör, Lägg till dryck]
+
+  - name: Sallader
+    products:
+      - name: "Laab – het fläskfärssallad"
+        description: "Klassisk thairätt med fläskfärs (eller vegofärs), rödlök, mynta, koriander, lime och chili. Inget gluten och inga nötter. Med ris eller äggnudlar."
+        price: 112
+        extras: [Ris eller nudlar, Hetta (lagas alltid med chili), Vegetariskt alternativ, Allergi, Lägg till tillbehör, Lägg till dryck]
+      - name: Crispy kycklingsallad
+        description: "Panerade kycklingbitar, rödlök, krossat torkat ris och thaipersilja. Med ris eller äggnudlar."
+        price: 116
+        extras: [Ris eller nudlar, Allergi, Lägg till tillbehör, Lägg till dryck]
+
+  - name: Smårätter
+    description: "Gott att dela, eller som tillbehör till rätten."
+    products:
+      - name: Vegetariska vårrullar 3 st
+        description: "Tre stora vårrullar, cirka 160 g, med morot, kål, mu-err-svamp och glasnudlar."
+        price: 49
+        extras: [Dipp, Lägg till dryck]
+      - name: Crispy chicken
+        description: "Panerade, friterade kycklingbitar, cirka 150 g."
+        price: 52
+        extras: [Dipp, Lägg till dryck]
+      - name: Kycklingnuggets 6 st
+        description: "Sex nuggets från Gastrino. Innehåller gluten."
+        price: 39
+        extras: [Dipp, Lägg till dryck]
+      - name: Räkchips
+        description: "Friterade kex av tapiokamjöl och kryddor. En påse, cirka 135 g."
+        price: 23
+      - name: Extra jasminris
+        description: "Jasminris från Thailand av AAA-kvalitet."
+        price: 16
+      - name: Extra äggnudlar
+        description: "Nudlar gjorda på ägg och mjöl."
+        price: 16
+      - name: Extra räka
+        description: "Pris per styck."
+        price: 6
+      - name: Sweet chili-dipp
+        description: "Cirka 55 g."
+        price: 5
+      - name: Vitlöksdipp
+        description: "Cirka 55 g."
+        price: 5
+      - name: Mangoraja-dipp
+        description: "Mango och curry, cirka 55 g."
+        price: 5
+      - name: Jordnötssås
+        description: "Kockens eget recept, cirka 55 g."
+        price: 13
+      - name: Estrella lättsaltade chips 40 g
+        price: 15
+      - name: Estrella sourcream & onion 40 g
+        price: 15
+
+  - name: Dryck
+    products:
+      - { name: Coca-Cola 33 cl, price: 18 }
+      - { name: Coca-Cola Zero 33 cl, price: 18 }
+      - { name: Fanta 33 cl, price: 18 }
+      - { name: Fanta Exotic 33 cl, price: 18 }
+      - { name: Fanta Exotic Zero 33 cl, price: 18 }
+      - { name: Pepsi Max 33 cl, price: 18 }
+      - { name: Pepsi Max Lime 33 cl, price: 18 }
+      - { name: Ramlösa Naturell 33 cl, price: 18 }
+      - { name: Ramlösa Citrus 33 cl, price: 18 }
+      - { name: Ramlösa Granatäpple 33 cl, price: 18 }
+      - { name: Ramlösa Grönt äpple 33 cl, price: 18 }
+      - { name: Ramlösa Körsbär 33 cl, price: 18 }
+      - { name: Ramlösa Mango Grapefrukt 33 cl, price: 18 }
+      - { name: Krating Daeng, description: "Thailändsk energidryck, utan kolsyra.", price: 23 }
+      - { name: Lipovitan-D, description: "Thailändsk vitamindryck.", price: 23 }
+      - { name: Red Bull 25 cl, price: 25 }
+      - { name: Red Bull Peach Edition, description: "Sockerfri.", price: 25 }
+      - { name: Red Bull Summer Edition, description: "Sockerfri.", price: 25 }
+      - { name: Mer Apelsin 20 cl, price: 14 }
+      - { name: Mer Jordgubb 20 cl, price: 14 }

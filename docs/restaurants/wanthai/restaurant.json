@@ -1,0 +1,27 @@
+{
+  "_kommentar": "Body till POST /api/restaurants (SUPER_ADMIN). Skapas som UTKAST (draft=true): osynlig för kunder och ordrar spärras tills den publiceras. Telefon och organisationsnummer läggs medvetet INTE in. rating/ratingCount = 0 skriver över databasens standardvärde 4.6 (120), så inga påhittade omdömen visas. Adressen är vagnens plats 2026-10-21 (Sundstorget, Höganäs) – vagnen flyttar, se README. Öppettiderna är ANTAGNA utifrån dagens tid hos WEIQ och måste bekräftas med Wan.",
+  "name": "Wanthai",
+  "slug": "wanthai-foodtruck",
+  "description": "Thailändsk foodtruck med kocken Wan vid wokpannan. Pad thai, currys och wok lagade på beställning, med kyckling, fläsk, biff, räkor eller vegetariskt.",
+  "cuisine": "Thailändskt · Wok · Curry",
+  "address": "Sundstorget, Höganäs",
+  "city": "Höganäs",
+  "zip": "263 38",
+  "latitude": 56.20136,
+  "longitude": 12.55048,
+  "etaMinutes": 15,
+  "vatPercent": 6,
+  "rating": 0,
+  "ratingCount": 0,
+  "pickupOnly": true,
+  "draft": true,
+  "openingHours": {
+    "monday":    { "open": "11:30", "close": "19:00", "closed": false },
+    "tuesday":   { "open": "11:30", "close": "19:00", "closed": false },
+    "wednesday": { "open": "11:30", "close": "19:00", "closed": false },
+    "thursday":  { "open": "11:30", "close": "19:00", "closed": false },
+    "friday":    { "open": "11:30", "close": "19:00", "closed": false },
+    "saturday":  { "open": "11:30", "close": "19:00", "closed": false },
+    "sunday":    { "open": "11:30", "close": "19:00", "closed": false }
+  }
+}

@@ -16,11 +16,11 @@ import {
   evaluateDeal,
   isAutomaticBasketDeal,
   isDealAvailableNow,
-  parseApplicableRestaurantIds,
   resolveDisplayPromotionForProduct,
   userDealRestaurantScope,
   type CartItemForBogo,
 } from '../lib/deals';
+import { discountCodeAppliesToRestaurant } from '../lib/discountRestaurantScope';
 import { getWelcomeOffer, isWelcomeEligible, welcomeOfferDiscountOre } from './referrals';
 import { ALLOW_TEST_ORDERS } from '../lib/config';
 import { bustCache } from '../lib/ttlCache';
@@ -613,6 +613,14 @@ router.post('/', async (req: Request, res: Response) => {
     let resolvedZoneDeliveryFee = 0;
 
     if (data.type === 'DELIVERY') {
+      // Restauranger med endast avhämtning tar aldrig emot leveransordrar,
+      // oavsett vad klienten skickar (webben döljer valet, men API:t är grinden).
+      if ((restaurant as any).pickupOnly) {
+        res.status(400).json({
+          error: 'Den här restaurangen erbjuder endast avhämtning. Välj avhämtning för att beställa.',
+        });
+        return;
+      }
       if (!data.lat || !data.lng) {
         res.status(400).json({
           error: 'Leveransadressen kunde inte hittas. Välj din adress från listan eller välj avhämtning.',
@@ -964,14 +972,7 @@ router.post('/', async (req: Request, res: Response) => {
           const isExpired = (code.validUntil && code.validUntil < now) ||
             (code.maxUsages !== null && code.usageCount >= code.maxUsages);
 
-          const applicableIds = parseApplicableRestaurantIds((code as any).applicableRestaurantIds);
-          const codeRestaurantId = (code as any).restaurantId;
-          const restaurantAllowed =
-            applicableIds.length > 0
-              ? applicableIds.includes(restaurant.id)
-              : codeRestaurantId
-                ? codeRestaurantId === restaurant.id
-                : true;
+          const restaurantAllowed = discountCodeAppliesToRestaurant(code as any, restaurant.id);
 
           // Plattforms-spärr (backstop). Klienten avvisas redan i
           // /discount/validate, men vi återvaliderar här (server-sanning):

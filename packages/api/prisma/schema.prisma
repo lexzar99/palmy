@@ -1044,6 +1044,9 @@ model Restaurant {
   // true = restaurangen levererar själv (ingen budmatchning).
   // Styr provisionssats, dispatch-grind och färg-separation i admin.
   selfDelivery                  Boolean                       @default(false)
+  // Endast avhämtning. true = restaurangen erbjuder ingen leverans alls:
+  // webben döljer leveransvalet och API:t nekar DELIVERY-ordrar.
+  pickupOnly                    Boolean                       @default(false)
   // Manuell provisions-override i procent (t.ex. ny restaurang 5% första månaden).
   // null = använd den globala self/platform-satsen från RestaurantSettings.
   commissionPctOverride         Int?

@@ -1,0 +1,26 @@
+{
+  "_kommentar": "Body till POST /api/restaurants (SUPER_ADMIN). Skapas som UTKAST (draft=true): osynlig för kunder och ordrar spärras tills den publiceras.",
+  "name": "Osteria Cucco",
+  "slug": "osteria-cucco-lund",
+  "description": "Napolitansk pizza med deg som jäser i minst 36 timmar, färsk pasta och gelato som görs från grunden varje dag, i hjärtat av Lund.",
+  "cuisine": "Italienskt · Pizza · Pasta",
+  "address": "Västra Mårtensgatan 10 A, Lund",
+  "city": "Lund",
+  "zip": "223 51",
+  "phone": "046-13 01 50",
+  "email": "info@cucco.se",
+  "legalName": "Cafe&le AB",
+  "etaMinutes": 25,
+  "vatPercent": 6,
+  "pickupOnly": true,
+  "draft": true,
+  "openingHours": {
+    "monday":    { "open": "16:00", "close": "22:00", "closed": false },
+    "tuesday":   { "open": "16:00", "close": "22:00", "closed": false },
+    "wednesday": { "open": "16:00", "close": "22:00", "closed": false },
+    "thursday":  { "open": "16:00", "close": "22:00", "closed": false },
+    "friday":    { "open": "12:00", "close": "23:00", "closed": false },
+    "saturday":  { "open": "12:00", "close": "23:00", "closed": false },
+    "sunday":    { "open": "12:00", "close": "21:00", "closed": false }
+  }
+}

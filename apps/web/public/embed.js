@@ -254,6 +254,12 @@
     orderUrl: function (slug) { return SITE + "/embed/" + encodeURIComponent(slug); },
   };
 
+  // Bakåt från Stripe återställer partnersidan ur bfcache med en fryst kassa i iframen.
+  // Ladda om så att kassan kör sin återhämtning och kunden hamnar i kassan igen.
+  window.addEventListener("pageshow", function (event) {
+    if (event.persisted && document.querySelector("[data-viaeats-menu] iframe")) window.location.reload();
+  });
+
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 })();

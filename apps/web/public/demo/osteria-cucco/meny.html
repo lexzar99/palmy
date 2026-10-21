@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Beställ från Osteria Cucco</title>
+  <meta name="theme-color" content="#f4efe6">
+  <link rel="icon" href="/demo/osteria-cucco/img/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #f4efe6; }
+    body { color: #14110e; font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .menu-page { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+    .menu-heading { flex: 0 0 auto; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding: max(10px, env(safe-area-inset-top)) 18px 10px; border-bottom: 1px solid rgba(20,17,14,.13); background: #f4efe6; }
+    .menu-home-link { justify-self: start; display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px; border: 1px solid rgba(20,17,14,.22); border-radius: 999px; color: #14110e; text-decoration: none; font-size: 11px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; white-space: nowrap; transition: background .3s ease, color .3s ease; }
+    .menu-home-link:hover { background: #14110e; color: #f4efe6; }
+    .menu-home-link:active { transform: scale(.98); }
+    .menu-logo img { display: block; height: 34px; width: auto; }
+    .powered { justify-self: end; color: #8a8073; font-size: 11px; font-weight: 500; white-space: nowrap; }
+    .powered a { color: #f04f1a; font-weight: 600; text-decoration: none; }
+    [data-viaeats-menu] { width: 100%; flex: 1 1 auto; min-height: 0; }
+    .menu-loading { display: grid; min-height: 220px; place-items: center; margin: 0; color: #8a8073; font-size: 14px; }
+    .menu-error { margin: 24px auto; max-width: 520px; padding: 20px; text-align: center; color: #8f241a; }
+    .menu-error a { color: #a8402a; font-weight: 600; }
+    @media (max-width: 520px) { .powered { font-size: 10px; } .menu-logo img { height: 28px; } .menu-home-link { padding: 0 11px; letter-spacing: .1em; } }
+    @media (min-width: 768px) {
+      .menu-heading { padding-left: clamp(28px, 5vw, 80px); padding-right: clamp(28px, 5vw, 80px); }
+      [data-viaeats-menu] { max-width: 1120px; margin: 0 auto; padding: 0 clamp(28px, 5vw, 80px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="menu-page">
+    <header class="menu-heading">
+      <a class="menu-home-link" href="/demo/osteria-cucco" aria-label="Tillbaka till Osteria Cucco">← Tillbaka</a>
+      <a class="menu-logo" href="/demo/osteria-cucco" aria-label="Osteria Cucco"><img src="/demo/osteria-cucco/img/logo.webp" alt="Cucco Osteria" width="768" height="365"></a>
+      <span class="powered">Powered by <a href="https://www.viaeats.se" target="_blank" rel="noopener">viaeats</a></span>
+    </header>
+    <!-- Samma viaeats-embed som palmyrapizzeria.se/meny.html: hela beställningssystemet i en ram. -->
+    <main data-viaeats-menu="osteria-cucco-lund" data-viaeats-fullscreen="1" aria-busy="true">
+      <p class="menu-loading">Laddar Cuccos meny</p>
+    </main>
+  </div>
+  <script>
+    // Lokal förhandsvisning pekar embedden mot samma Next-server i stället för produktion.
+    if (location.hostname === "localhost" || location.hostname === "127.0.0.1") window.VIAEATS_SITE = location.origin;
+    function showMenuFallback() {
+      var host = document.querySelector('[data-viaeats-menu]');
+      if (!host || host.querySelector('iframe')) return;
+      host.removeAttribute('aria-busy');
+      host.innerHTML = '<p class="menu-error">Menyn kunde inte laddas just nu. <a href="https://www.viaeats.se/restaurants/osteria-cucco-lund">Öppna Cuccos beställning på viaeats</a> eller ring 046 13 01 50.</p>';
+    }
+    window.addEventListener('DOMContentLoaded', function () { window.setTimeout(showMenuFallback, 8000); });
+  </script>
+  <script src="/embed.js?v=20260921" defer onerror="showMenuFallback()"></script>
+</body>
+</html>

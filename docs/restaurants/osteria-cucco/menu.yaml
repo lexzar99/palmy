@@ -1,0 +1,119 @@
+# Osteria Cucco — meny för massimport (Admin → Meny → Massimport, eller POST /api/admin/menu/bulk-import).
+# Källa: Cuccos Eatsmart-meny, avläst 2026-09-21 (23 rätter, priser i KRONOR).
+# Tillval per rätt följer Eatsmart exakt: pizzor = Glutenfri botten + Något extra på pizzan + Dryck,
+# pasta = Dryck, antipasti och drycker = inga tillval.
+# OBS: dryckesgruppen "Lägg till dryck" görs om till bildrutor (BOX_IMAGE) efter importen — importformatet bär inte bilder.
+extraGroups:
+  - name: Glutenfri botten
+    type: checkbox
+    required: false
+    max: 1
+    options:
+      - { name: Glutenfri botten, price: 25 }
+  - name: Något extra på pizzan
+    type: checkbox
+    required: false
+    max: 5
+    options:
+      - { name: "Prosciutto di Parma DOP (lufttorkad skinka)", price: 40 }
+      - { name: "Mortadella (innehåller pistagenötter)", price: 35 }
+      - { name: "Svamp mix (champinjoner & karljohanssvamp)", price: 30 }
+      - { name: Fänkålssalami, price: 35 }
+      - { name: Gorgonzola, price: 30 }
+  - name: Lägg till dryck
+    type: checkbox
+    required: false
+    max: 5
+    options:
+      - { name: "San Pellegrino 50 cl", price: 30 }
+      - { name: "Coca-Cola 33 cl", price: 25 }
+      - { name: "Coca-Cola Zero 33 cl", price: 25 }
+      - { name: "Fanta 33 cl", price: 25 }
+      - { name: "Bonaqua Citron 50 cl", price: 25 }
+
+categories:
+  - name: Pizza Napoletana
+    description: "Napolitansk pizza. Degen jäser i minst 36 timmar och bakas i stenugn."
+    products:
+      - name: Pizza Margherita
+        description: "San Marzano-tomater, mozzarella fior di latte, Pecorino Romano DOP, färsk basilika, extra jungfruolivolja"
+        price: 145
+        extras: [Glutenfri botten, Något extra på pizzan, Lägg till dryck]
+      - name: Pizza Romana
+        description: "San Marzano-tomater, mozzarella fior di latte, sardeller, vitlök, oregano, oliver, färsk basilika, extra jungfruolivolja"
+        price: 145
+        extras: [Glutenfri botten, Något extra på pizzan, Lägg till dryck]
+      - name: "Pizza Prosciutto & Coppa"
+        description: "San Marzano, mozzarella fior di latte, Prosciutto di Parma (lagrad 24 mån), Coppa di Parma, Parmigiano Reggiano (lagrad 18 mån), rucola, färsk basilika, extra jungfruolivolja"
+        price: 145
+        extras: [Glutenfri botten, Något extra på pizzan, Lägg till dryck]
+      - name: Pizza Diavola
+        description: "San Marzano, mozzarella fior di latte, salami Ventricina (stark), Pecorino Romano DOP, färsk basilika, chiliolivolja"
+        price: 145
+        extras: [Glutenfri botten, Något extra på pizzan, Lägg till dryck]
+      - name: Pizza Salame
+        description: "San Marzano-tomater, mozzarella fior di latte, salami Ventricina (stark), salami Finocchiona IGP Toscana, färsk basilika, extra jungfruolivolja"
+        price: 145
+        extras: [Glutenfri botten, Något extra på pizzan, Lägg till dryck]
+      - name: Pizza Cacciatora
+        description: "San Marzano-tomater, mozzarella fior di latte, paprika, kyckling, svarta oliver, färsk basilika, extra jungfruolivolja, Parmigiano Reggiano"
+        price: 145
+        extras: [Glutenfri botten, Något extra på pizzan, Lägg till dryck]
+      - name: Pizza Tonno e Pomodoro
+        description: "San Marzano-tomater, mozzarella fior di latte, tonfisk, picklad rödlök, oliver, färsk basilika, oregano, extra jungfruolivolja"
+        price: 145
+        extras: [Glutenfri botten, Något extra på pizzan, Lägg till dryck]
+      - name: Pizza ai Funghi e Tartufo
+        description: "Salsa bianca, mozzarella fior di latte, karljohansvamp, champinjoner, Parmigiano Reggiano, färsk basilika, vit tryffelolja"
+        price: 145
+        extras: [Glutenfri botten, Något extra på pizzan, Lägg till dryck]
+      - name: Pizza Quattro Formaggi
+        description: "Salsa bianca, mozzarella fior di latte, gorgonzola, Taleggio DOP Cameri, Parmigiano Reggiano (lagrad 18 mån), fikonmarmelad, extra jungfruolivolja"
+        price: 145
+        extras: [Glutenfri botten, Något extra på pizzan, Lägg till dryck]
+      - name: Pizza con Mortadella e Pistacchio
+        description: "Mozzarella fior di latte, hackade pistagenötter och pistagekräm, mortadella, stracciatella, extra jungfruolivolja"
+        price: 145
+        extras: [Glutenfri botten, Något extra på pizzan, Lägg till dryck]
+      - name: Pizza Pesto
+        description: "Pesto alla genovese, mozzarella fior di latte, semitorkade körsbärstomater, pinjenötter, Parmigiano Reggiano, färsk basilika, extra jungfruolivolja"
+        price: 145
+        extras: [Glutenfri botten, Något extra på pizzan, Lägg till dryck]
+      - name: Pizza Agnello e Piselli
+        description: "Ärtkräm, mozzarella fior di latte, lammfärs, chili- och vitlöksolja, Pecorino Romano DOP, färsk mynta"
+        price: 145
+        extras: [Glutenfri botten, Något extra på pizzan, Lägg till dryck]
+
+  - name: Pasta
+    description: "Alla pastarätter görs på färsk pasta."
+    products:
+      - name: Pasta Bolognese
+        description: "Färsk pasta, San Marzano, nötfärs, fläskfärs, lök, morot, selleri, vitlök, muskotnöt, rött vin, Parmigiano Reggiano (lagrad 18 mån), färsk basilika, extra jungfruolivolja"
+        price: 135
+        extras: [Lägg till dryck]
+      - name: Pasta alla Puttanesca
+        description: "Färsk pasta, körsbärstomater, chilipeppar, sardeller, oliver, kapris, mynta, Parmigiano Reggiano (lagrad 18 mån), färsk basilika, extra jungfruolivolja"
+        price: 135
+        extras: [Lägg till dryck]
+      - name: Pasta al Pesto
+        description: "Färsk pasta, pesto alla genovese, burrata, semitorkade körsbärstomater La Nostrane, Parmigiano Reggiano, färsk basilika, extra jungfruolivolja"
+        price: 135
+        extras: [Lägg till dryck]
+
+  - name: Antipasti
+    products:
+      - name: "Tagliere alla Cucco (rekommenderas för 2 personer)"
+        description: "Bricka med Prosciutto di Parma (lagrad 24 mån), Coppa di Parma, Mortadella ai Pistacchi, salami Ventricina, Fontina DOP, Parmigiano Reggiano (lagrad 18 mån), Taleggio DOP Cameri och Gorgonzola Piccante DOP. Serveras med fikonmarmelad, oliver och nybakat bröd."
+        price: 249
+      - name: "Tagliere di Formaggi (rekommenderas för 2 personer)"
+        description: "Ostbricka med Fontina DOP, Gorgonzola Piccante DOP, Parmigiano Reggiano och Taleggio DOP Cameri. Serveras med fikonmarmelad och nybakat bröd."
+        price: 179
+
+  - name: Dryck
+    products:
+      - { name: "San Pellegrino (mineralvatten)", description: "50 cl, glasflaska", price: 30, displayMode: COMPACT }
+      - { name: "Coca-Cola", description: "33 cl, glasflaska", price: 25, displayMode: COMPACT }
+      - { name: "Coca-Cola Zero", description: "33 cl, glasflaska", price: 25, displayMode: COMPACT }
+      - { name: "Fanta", description: "33 cl, glasflaska", price: 25, displayMode: COMPACT }
+      - { name: "Sprite", description: "33 cl, glasflaska", price: 25, displayMode: COMPACT }
+      - { name: "Bonaqua Citron", description: "50 cl", price: 25, displayMode: COMPACT }

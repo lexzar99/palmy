@@ -185,6 +185,8 @@ const restaurantSchema = z.object({
   vatPercent: z.union([z.literal(0), z.literal(6), z.literal(12), z.literal(25)]).nullable().optional(),
   // Leveransansvar: true = restaurangen levererar själv, false = plattformen.
   selfDelivery: z.boolean().optional(),
+  // Endast avhämtning: ingen leverans erbjuds, DELIVERY-ordrar nekas.
+  pickupOnly: z.boolean().optional(),
   // Provisions-override i %. null = global sats, 0 = provisionsfritt avtal.
   commissionPctOverride: z.number().int().min(0).max(100).nullable().optional(),
   // Restaurangspecifika tier-priser i kr/mån. null = använd global tier-sats.
@@ -326,6 +328,7 @@ const formatRestaurant = (
   // Every app order is takeaway/delivery; current Swedish food default is 6%.
   vatPercent: normalizeFoodVatPercent(restaurant.vatPercent, 6),
   selfDelivery: restaurant.selfDelivery ?? false,
+  pickupOnly: restaurant.pickupOnly ?? false,
   commissionPctOverride: restaurant.commissionPctOverride ?? null,
   tierGoldFeeOverride: restaurant.tierGoldFeeOverride == null ? null : fromOre(restaurant.tierGoldFeeOverride),
   tierSilverFeeOverride: restaurant.tierSilverFeeOverride == null ? null : fromOre(restaurant.tierSilverFeeOverride),
@@ -716,6 +719,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       openingHours,
       internalInfo: payload.internalInfo,
       selfDelivery: payload.selfDelivery,
+      pickupOnly: payload.pickupOnly,
       commissionPctOverride: payload.commissionPctOverride == null
         ? payload.commissionPctOverride
         : payload.commissionPctOverride,
@@ -1062,6 +1066,7 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     if (payload.announcementText !== undefined) data.announcementText = payload.announcementText || null;
     if (payload.vatPercent !== undefined) data.vatPercent = payload.vatPercent ?? null;
     if ((payload as any).selfDelivery !== undefined) data.selfDelivery = Boolean((payload as any).selfDelivery);
+    if ((payload as any).pickupOnly !== undefined) data.pickupOnly = Boolean((payload as any).pickupOnly);
     if ((payload as any).commissionPctOverride !== undefined) {
       const v = (payload as any).commissionPctOverride;
       data.commissionPctOverride = v === null ? null : Number(v);
@@ -1264,6 +1269,7 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       // Levereras maten av plattformen eller restaurangen själv? Flutter-
       // order-appen byter förvald tillagningstid + knapp-etikett LIVE på detta.
       selfDelivery: restaurant.selfDelivery ?? false,
+      pickupOnly: (restaurant as any).pickupOnly ?? false,
     });
 
     // Edit shows immediately: bust the API caches that embed this restaurant

@@ -586,6 +586,8 @@ export default function CartPage() {
   // True när kunden återvänt från en betalprovider och vi verifierar status.
   const [verifyingPayment, setVerifyingPayment] = useState(false);
   const [cancellingPayment, setCancellingPayment] = useState(false);
+  // Betalsättet kunden just tryckt på, tills startCheckout är klar (direkt spinner på raden).
+  const [startingMethod, setStartingMethod] = useState<CheckoutMethod | null>(null);
   // Varje poll-loop äger en generation. Ny checkout, explicit avbryt eller
   // unmount invaliderar äldre loopar så ett sovande/avslutat anrop aldrig kan
   // skriva stale state eller navigera efteråt.
@@ -1472,6 +1474,12 @@ export default function CartPage() {
       // and in that case the zone check endpoint already returns the restaurant default.
       if (restaurantRes.data) {
         if (restaurantRes.data.name) setCartRestaurantName(restaurantRes.data.name);
+        // Endast avhämtning: lås kassan till PICKUP även om kunden kommer hit
+        // med en gammal leveranstyp i localStorage. API:t nekar DELIVERY ändå.
+        if (restaurantRes.data.pickupOnly) {
+          setOrderType("PICKUP");
+          try { localStorage.setItem("platform_order_type", "PICKUP"); } catch { /* privat läge */ }
+        }
         setCartRestaurantAddress((() => {
           const street = String(restaurantRes.data.address || "").trim();
           if (!street) return null;
@@ -1683,6 +1691,8 @@ export default function CartPage() {
         code: promoCodeInput.trim(),
         subtotal,
         discountableSubtotal,
+        // Restaurangbegränsade koder valideras mot korgens restaurang (samma regel som ordern).
+        restaurantId: cartRestaurantId || undefined,
       });
       if (res.status >= 200 && res.status < 300) {
         const data = res.data;
@@ -2186,7 +2196,8 @@ export default function CartPage() {
       setVerifyingPayment(false);
       setCancellingPayment(false);
       setSelectedCheckoutMethod(null);
-      setPaymentStepOpen(true);
+      // Avbrottet är bekräftat: tillbaka till kassan med varukorgen kvar, där betalknapparna finns.
+      setPaymentStepOpen(false);
       clearPendingPaymentStorage();
       setPendingOrderId(null);
       setError(null);
@@ -2294,7 +2305,7 @@ export default function CartPage() {
           setSwishCheckout(null);
           setHostedCheckoutUrl(null);
           setSelectedCheckoutMethod(null);
-          setPaymentStepOpen(true);
+          setPaymentStepOpen(false);
           clearCartReturnParams();
           clearPendingPaymentStorage();
           setPendingOrderId(null);
@@ -2312,7 +2323,7 @@ export default function CartPage() {
           setSwishCheckout(null);
           setHostedCheckoutUrl(null);
           setSelectedCheckoutMethod(null);
-          setPaymentStepOpen(true);
+          setPaymentStepOpen(false);
           clearCartReturnParams();
           clearPendingPaymentStorage();
           setPendingOrderId(null);
@@ -2321,11 +2332,11 @@ export default function CartPage() {
           return;
         }
         if (Number(responseStatus) === 404) {
-          // Status-endpointen använder även 404 när order-sessionen saknas.
-          // Det är inte bevis på terminal PSP-status: bevara recovery-underlag.
-          setVerifyingPayment(false);
-          setPendingOrderId(orderId);
-          if (!passive) setError("Betalningen finns kvar men orderåtkomsten kunde inte återställas. Ladda om sidan eller vänta en stund – starta inte en ny betalning.");
+          // Status-endpointen svarar 404 både när ordern redan städats bort (obetald, utgången
+          // session) och när order-sessionen saknas. 404 är alltså inte bevis på terminal PSP-status,
+          // så underlaget rensas inte här. Abandon avgör: borta → tillbaka till kassan, betald →
+          // spårning, okänd åtkomst → underlaget bevaras och avbrottet försöks igen.
+          await handlePaymentCancelled(orderId);
           return;
         }
         /* nätverksfel: fortsätt polla */
@@ -2502,6 +2513,20 @@ export default function CartPage() {
     } catch {
       return "pending";
     }
+  }, []);
+
+  // Bakåtknappen från Stripe/Swish återställer ofta kassan ur webbläsarens bfcache precis som den
+  // var när kunden lämnade den ("Öppnar säker betalning…"), utan att återhämtningen körs. Ladda då
+  // om: statusen hämtas, ett övergivet försök avbryts säkert och kunden hamnar i kassan igen.
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      let pending: string | null = null;
+      try { pending = localStorage.getItem("pending_order_id"); } catch { /* privat läge */ }
+      if (pending || paymentInFlightRef.current) window.location.reload();
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
   }, []);
 
   // ── Tracka pågående betalning så pagehide-handlern inte abandonar ─────────
@@ -3671,18 +3696,27 @@ export default function CartPage() {
     event: { preventDefault: () => void },
     method: CheckoutMethod,
   ) => {
-    void startCheckout(event, method);
+    // Respons direkt i trycket: kontrollerna före betalningen (kioskåtkomst, order) tar ibland
+    // en stund, och utan spinner ser knappen fast ut. Ett andra tryck under tiden ignoreras.
+    if (startingMethod) return;
+    setStartingMethod(method);
+    void startCheckout(event, method).finally(() => setStartingMethod(null));
   };
 
   // En betalrad: märke · titel + undertext · chevron. Kort-raden visar
   // varumärkena under texten.
+  // Stripe tar inte emot belopp under 3 kr (t.ex. med en demokod). Säg det i förväg i stället för
+  // att skapa en order som sedan misslyckas med "Kunde inte initiera betalning".
+  const STRIPE_MIN_SEK = 3;
+  const cardBelowMinimum = (method: (typeof paymentMethods)[number]) => method.provider === "stripe" && total > 0 && total < STRIPE_MIN_SEK;
   const renderPaymentMethodChoice = (method: (typeof paymentMethods)[number], keyPrefix = "", last = false) => (
     <button
       key={`${keyPrefix}${method.id}`}
       type="button"
       onClick={(event) => { choosePaymentMethod(event, method.id); }}
-      disabled={loading || embeddedStripeProcessing}
-      className="ve-row-press flex w-full items-center gap-3.5 px-4 py-3.5 text-left disabled:opacity-50"
+      disabled={loading || embeddedStripeProcessing || Boolean(startingMethod) || cardBelowMinimum(method)}
+      aria-busy={startingMethod === method.id}
+      className={`ve-row-press flex w-full items-center gap-3.5 px-4 py-3.5 text-left ${startingMethod === method.id ? "" : "disabled:opacity-50"}`}
       style={{ boxShadow: last ? undefined : hairline }}
     >
       {method.id === "swish" ? renderMethodMark(method.id) : (
@@ -3692,10 +3726,12 @@ export default function CartPage() {
       )}
       <span className="min-w-0 flex-1">
         <span className="block text-[16px] font-semibold" style={{ color: "var(--ve-ink)", letterSpacing: "-0.01em" }}>{method.label}</span>
-        <span className="mt-0.5 block text-[13px]" style={{ color: "var(--ve-ink-2)" }}>{method.hint}</span>
+        <span className="mt-0.5 block text-[13px]" style={{ color: "var(--ve-ink-2)" }}>{startingMethod === method.id ? "Startar betalningen…" : cardBelowMinimum(method) ? `Kort kräver minst ${STRIPE_MIN_SEK} kr – välj Swish` : method.hint}</span>
         {method.id !== "swish" && <span className="mt-2 block">{renderMethodMark(method.id)}</span>}
       </span>
-      <ChevronRight size={18} strokeWidth={2.2} className="shrink-0" style={{ color: "var(--ve-ink-3)" }} />
+      {startingMethod === method.id
+        ? <Loader2 size={18} className="shrink-0 animate-spin" style={{ color: "var(--ve-ink)" }} />
+        : <ChevronRight size={18} strokeWidth={2.2} className="shrink-0" style={{ color: "var(--ve-ink-3)" }} />}
     </button>
   );
 

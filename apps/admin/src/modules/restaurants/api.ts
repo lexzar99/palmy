@@ -73,6 +73,7 @@ export interface RestaurantDetail {
   draft?: boolean;
   featuredClass: number;
   selfDelivery?: boolean;
+  pickupOnly?: boolean;
   commissionPctOverride?: number | null;
   tierGoldFeeOverride?: number | null;
   tierSilverFeeOverride?: number | null;
@@ -167,6 +168,7 @@ export interface RestaurantFormPayload {
   announcementText?: string | null;
   vatPercent?: number | null;
   selfDelivery?: boolean;
+  pickupOnly?: boolean;
   commissionPctOverride?: number | null;
   tierGoldFeeOverride?: number | null;
   tierSilverFeeOverride?: number | null;

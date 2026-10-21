@@ -444,7 +444,7 @@ export default function ProductSheet({
                               ) : null}
                               <span className={`line-clamp-2 w-full break-words text-[13px] font-semibold leading-tight ${groupHasImages ? "min-h-[2.2rem]" : ""}`} style={{ color: "var(--ve-ink)" }}>{extra.name}</span>
                               <span className="ve-tabular text-[12px] font-medium" style={{ color: "var(--ve-ink-3)" }}>
-                                {extra.priceAddon > 0 ? `+${extra.priceAddon} kr` : "Ingår"}
+                                {extra.priceAddon > 0 ? `+${extra.priceAddon} kr` : extra.priceAddon < 0 ? `−${Math.abs(extra.priceAddon)} kr` : "Ingår"}
                               </span>
                             </button>
                             {isQty && (
@@ -478,8 +478,8 @@ export default function ProductSheet({
                               <span className="text-[16px] font-medium truncate" style={{ color: "var(--ve-ink)", letterSpacing: "-0.01em" }}>{extra.name}</span>
                             </span>
                             <span className="flex items-center gap-3 shrink-0">
-                              {extra.priceAddon > 0 && (
-                                <span className="ve-tabular text-[14px]" style={{ color: "var(--ve-ink-3)" }}>+{extra.priceAddon} kr</span>
+                              {extra.priceAddon !== 0 && (
+                                <span className="ve-tabular text-[14px]" style={{ color: "var(--ve-ink-3)" }}>{extra.priceAddon > 0 ? "+" : "−"}{Math.abs(extra.priceAddon)} kr</span>
                               )}
                               {isQty && <Stepper small value={getQty(extra.id)} decDisabled={getQty(extra.id) <= 0} onDec={() => setExtraQty(group, extra, -1)} onInc={() => setExtraQty(group, extra, +1)} />}
                             </span>

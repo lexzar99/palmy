@@ -1,0 +1,1685 @@
+{
+ "_kommentar": "GENERERAD av build.mjs. Läses av apply.mjs. sizeGroups: en grupp per familjepris (Lumits prisklasser), alla med namnet Storlek. productGroups: gruppordning per rätt; 'size:<familjetillägg>' pekar på en storleksgrupp.",
+ "sizeGroups": [
+  {
+   "key": "size:165",
+   "description": "roma-storlek-165",
+   "extras": [
+    [
+     "Normal",
+     0
+    ],
+    [
+     "Familjepizza",
+     165
+    ],
+    [
+     "Glutenfri botten",
+     30
+    ],
+    [
+     "Barnpizza",
+     -10
+    ]
+   ]
+  },
+  {
+   "key": "size:166",
+   "description": "roma-storlek-166",
+   "extras": [
+    [
+     "Normal",
+     0
+    ],
+    [
+     "Familjepizza",
+     166
+    ],
+    [
+     "Glutenfri botten",
+     30
+    ],
+    [
+     "Barnpizza",
+     -10
+    ]
+   ]
+  },
+  {
+   "key": "size:171",
+   "description": "roma-storlek-171",
+   "extras": [
+    [
+     "Normal",
+     0
+    ],
+    [
+     "Familjepizza",
+     171
+    ],
+    [
+     "Glutenfri botten",
+     30
+    ],
+    [
+     "Barnpizza",
+     -10
+    ]
+   ]
+  },
+  {
+   "key": "size:175",
+   "description": "roma-storlek-175",
+   "extras": [
+    [
+     "Normal",
+     0
+    ],
+    [
+     "Familjepizza",
+     175
+    ],
+    [
+     "Glutenfri botten",
+     30
+    ],
+    [
+     "Barnpizza",
+     -10
+    ]
+   ]
+  },
+  {
+   "key": "size:181",
+   "description": "roma-storlek-181",
+   "extras": [
+    [
+     "Normal",
+     0
+    ],
+    [
+     "Familjepizza",
+     181
+    ],
+    [
+     "Glutenfri botten",
+     30
+    ],
+    [
+     "Barnpizza",
+     -10
+    ]
+   ]
+  },
+  {
+   "key": "size:185",
+   "description": "roma-storlek-185",
+   "extras": [
+    [
+     "Normal",
+     0
+    ],
+    [
+     "Familjepizza",
+     185
+    ],
+    [
+     "Glutenfri botten",
+     30
+    ],
+    [
+     "Barnpizza",
+     -10
+    ]
+   ]
+  },
+  {
+   "key": "size:191",
+   "description": "roma-storlek-191",
+   "extras": [
+    [
+     "Normal",
+     0
+    ],
+    [
+     "Familjepizza",
+     191
+    ],
+    [
+     "Glutenfri botten",
+     30
+    ],
+    [
+     "Barnpizza",
+     -10
+    ]
+   ]
+  },
+  {
+   "key": "size:195",
+   "description": "roma-storlek-195",
+   "extras": [
+    [
+     "Normal",
+     0
+    ],
+    [
+     "Familjepizza",
+     195
+    ],
+    [
+     "Glutenfri botten",
+     30
+    ],
+    [
+     "Barnpizza",
+     -10
+    ]
+   ]
+  },
+  {
+   "key": "size:201",
+   "description": "roma-storlek-201",
+   "extras": [
+    [
+     "Normal",
+     0
+    ],
+    [
+     "Familjepizza",
+     201
+    ],
+    [
+     "Glutenfri botten",
+     30
+    ],
+    [
+     "Barnpizza",
+     -10
+    ]
+   ]
+  }
+ ],
+ "productGroups": {
+  "Margherita": [
+   "size:166",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Vesuvio": [
+   "size:166",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Al Tonno": [
+   "size:166",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Al Funghi": [
+   "size:166",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Olympia": [
+   "size:166",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Sole Mio": [
+   "size:166",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Caruso": [
+   "size:166",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Köttfärs": [
+   "size:166",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Capricciosa": [
+   "size:166",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Calzone (inbakad)": [
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Amore": [
+   "size:166",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Bananas": [
+   "size:166",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "La Gondola": [
+   "size:166",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Hawaii": [
+   "size:166",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Venezia": [
+   "size:166",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Pompei": [
+   "size:166",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Marinara": [
+   "size:166",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Romana (inbakad)": [
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Torino (stark)": [
+   "size:165",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Italia (stark)": [
+   "size:165",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Bergamo": [
+   "size:165",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Tropical": [
+   "size:165",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Quatro Stagioni": [
+   "size:165",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Michelangelo": [
+   "size:165",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Mexicana (stark)": [
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Havet": [
+   "size:165",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Vegetariana": [
+   "size:165",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "John Blund": [
+   "size:165",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Novara": [
+   "size:165",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Napoli": [
+   "size:175",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Skåne": [
+   "size:175",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Discotomat": [
+   "size:175",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "4 Ostar": [
+   "size:175",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Monte Carlo": [
+   "size:171",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Kung Special": [
+   "size:181",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Sportens": [
+   "size:185",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Kycklingpizza": [
+   "size:181",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Bolero": [
+   "size:185",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Don Pedro": [
+   "size:185",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Kambero": [
+   "size:185",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Kyckling Special": [
+   "size:191",
+   "Välj sås (ingår)",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Pizza Doritos": [
+   "size:191",
+   "Välj sås (ingår)",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Venedig": [
+   "size:195",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Sorvento": [
+   "size:195",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Polisens": [
+   "size:195",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Casino": [
+   "size:195",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Oxfilépizza": [
+   "size:195",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Gorgonzola": [
+   "size:195",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Gourmet": [
+   "size:195",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Maykil Special": [
+   "size:195",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Capalccino": [
+   "size:181",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Riviera": [
+   "size:181",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Valentino": [
+   "size:181",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Huset Special": [
+   "size:181",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Ciao Ciao (halvinbakad)": [
+   "size:181",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Casabella": [
+   "size:175",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Azteka": [
+   "size:175",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Tacopizza": [
+   "size:175",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Acapulco": [
+   "size:195",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Formaggi": [
+   "size:191",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Bona Vista": [
+   "size:191",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Damaskus": [
+   "size:191",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "La Vecchia": [
+   "size:191",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Parma": [
+   "size:191",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Mezzadro": [
+   "size:191",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Roma Special": [
+   "Välj sås (ingår)",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Moshi Special": [
+   "size:191",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Serrano": [
+   "size:191",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Bresaola": [
+   "size:191",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "El Pollo": [
+   "size:191",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Doritos Pizza (kyckling)": [
+   "Välj sås (ingår)",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Doritos Pizza (pepperonikorv)": [
+   "Välj sås (ingår)",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Buratta Pizza": [
+   "size:191",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Kebabpizza": [
+   "size:185",
+   "Välj sås (ingår)",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Vikingbåt (halvinbakad)": [
+   "Välj sås (ingår)",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Aleppo Special": [
+   "size:201",
+   "Välj sås (ingår)",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Prins Special": [
+   "size:201",
+   "Välj sås (ingår)",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Sweden": [
+   "size:201",
+   "Välj sås (ingår)",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Åstorp Special": [
+   "size:201",
+   "Välj sås (ingår)",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Kebab Special": [
+   "size:185",
+   "Välj sås (ingår)",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Pommespizza": [
+   "size:185",
+   "Välj sås (ingår)",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Pepperoni Special": [
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Hollywood": [
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Gala Special": [
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Gracias": [
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Grillad Entrecote": [
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör"
+  ],
+  "Kycklingfilé": [
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör"
+  ],
+  "Ryggbiff": [
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Stekt potatis eller pommes"
+  ],
+  "Högrev - 200g": [
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör"
+  ],
+  "Högrev Bacon - 200g": [
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör"
+  ],
+  "Högrev Mex - 200g": [
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör"
+  ],
+  "Tonfisksallad": [
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Kycklingsallad": [
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Räksallad": [
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Kebabsallad": [
+   "Välj sås (ingår)",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Avocado Kyckling": [
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Grekisk Sallad": [
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Caesarsallad": [
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Avocado Parma": [
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Avocado Falafel": [
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Ost & Skinksallad": [
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Kebabrulle": [
+   "Välj sås (ingår)",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Kebabtallrik": [
+   "Välj sås (ingår)",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Kebab i bröd": [
+   "Välj sås (ingår)",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Kycklingrulle": [
+   "Välj sås (ingår)",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Kycklingtallrik": [
+   "Välj sås (ingår)",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Falafelrulle": [
+   "Välj sås (ingår)",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Falafeltallrik": [
+   "Välj sås (ingår)",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör",
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra ost",
+   "Extra sås på rätten"
+  ],
+  "Nuggets 9 bitar": [
+   "Välj sås (ingår)",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör"
+  ],
+  "Nuggets 5 bitar": [
+   "Välj sås (ingår)",
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör"
+  ],
+  "Hamburgare 90g": [
+   "Lägg till dryck",
+   "Sås i burk",
+   "Tillbehör"
+  ],
+  "Mozzarellasticks": [
+   "Lägg till dryck",
+   "Sås i burk"
+  ],
+  "Chili Cheese": [
+   "Lägg till dryck",
+   "Sås i burk"
+  ],
+  "Pommes låda": [
+   "Lägg till dryck",
+   "Sås i burk"
+  ],
+  "Bröd med ost": [
+   "Lägg till dryck",
+   "Sås i burk"
+  ],
+  "Vitlökssås (burk)": [],
+  "Mild sås (burk)": [],
+  "Stark sås (burk)": [],
+  "Bearnaisesås": [],
+  "Tzaziki (burk)": [],
+  "Coca-Cola Original 33 cl": [],
+  "Coca-Cola Zero 33 cl": [],
+  "Cuba Cola 33 cl": [],
+  "Cuba Cola Zero 33 cl": [],
+  "Ramlösa Original 33 cl": [],
+  "Ramlösa Citrus 33 cl": [],
+  "7up 33 cl": [],
+  "Fanta Orange 33 cl": [],
+  "Fanta Lemon Zero Sugar 33 cl": [],
+  "Fanta Exotic 33 cl": [],
+  "Fanta Strawberry 33 cl": [],
+  "Pepsi 33 cl": [],
+  "Pepsi Max 33 cl": [],
+  "Sprite 33 cl": [],
+  "Coca-Cola Original 50 cl": [],
+  "Coca-Cola Zero 50 cl": [],
+  "Fanta Orange 50 cl": [],
+  "Fanta Exotic 50 cl": [],
+  "Coca-Cola Zero 2 l": [],
+  "Coca-Cola Original 2 l": [],
+  "Sprite 2 l": []
+ },
+ "categoryOrder": [
+  "Klassiska pizzor",
+  "Husets pizzor",
+  "Kycklingpizzor",
+  "Oxfilépizzor",
+  "Fläskfilépizzor",
+  "Mexikanska pizzor",
+  "Mozzarellapizzor",
+  "Kebabpizzor",
+  "Amerikanska pizzor",
+  "Grill",
+  "Sallader",
+  "Kebab och rullar",
+  "Smårätter",
+  "Såser",
+  "Dryck"
+ ],
+ "productOrder": [
+  "Margherita",
+  "Vesuvio",
+  "Al Tonno",
+  "Al Funghi",
+  "Olympia",
+  "Sole Mio",
+  "Caruso",
+  "Köttfärs",
+  "Capricciosa",
+  "Calzone (inbakad)",
+  "Amore",
+  "Bananas",
+  "La Gondola",
+  "Hawaii",
+  "Venezia",
+  "Pompei",
+  "Marinara",
+  "Romana (inbakad)",
+  "Torino (stark)",
+  "Italia (stark)",
+  "Bergamo",
+  "Tropical",
+  "Quatro Stagioni",
+  "Michelangelo",
+  "Mexicana (stark)",
+  "Havet",
+  "Vegetariana",
+  "John Blund",
+  "Novara",
+  "Napoli",
+  "Skåne",
+  "Discotomat",
+  "4 Ostar",
+  "Monte Carlo",
+  "Kung Special",
+  "Sportens",
+  "Kycklingpizza",
+  "Bolero",
+  "Don Pedro",
+  "Kambero",
+  "Kyckling Special",
+  "Pizza Doritos",
+  "Venedig",
+  "Sorvento",
+  "Polisens",
+  "Casino",
+  "Oxfilépizza",
+  "Gorgonzola",
+  "Gourmet",
+  "Maykil Special",
+  "Capalccino",
+  "Riviera",
+  "Valentino",
+  "Huset Special",
+  "Ciao Ciao (halvinbakad)",
+  "Casabella",
+  "Azteka",
+  "Tacopizza",
+  "Acapulco",
+  "Formaggi",
+  "Bona Vista",
+  "Damaskus",
+  "La Vecchia",
+  "Parma",
+  "Mezzadro",
+  "Roma Special",
+  "Moshi Special",
+  "Serrano",
+  "Bresaola",
+  "El Pollo",
+  "Doritos Pizza (kyckling)",
+  "Doritos Pizza (pepperonikorv)",
+  "Buratta Pizza",
+  "Kebabpizza",
+  "Vikingbåt (halvinbakad)",
+  "Aleppo Special",
+  "Prins Special",
+  "Sweden",
+  "Åstorp Special",
+  "Kebab Special",
+  "Pommespizza",
+  "Pepperoni Special",
+  "Hollywood",
+  "Gala Special",
+  "Gracias",
+  "Grillad Entrecote",
+  "Kycklingfilé",
+  "Ryggbiff",
+  "Högrev - 200g",
+  "Högrev Bacon - 200g",
+  "Högrev Mex - 200g",
+  "Tonfisksallad",
+  "Kycklingsallad",
+  "Räksallad",
+  "Kebabsallad",
+  "Avocado Kyckling",
+  "Grekisk Sallad",
+  "Caesarsallad",
+  "Avocado Parma",
+  "Avocado Falafel",
+  "Ost & Skinksallad",
+  "Kebabrulle",
+  "Kebabtallrik",
+  "Kebab i bröd",
+  "Kycklingrulle",
+  "Kycklingtallrik",
+  "Falafelrulle",
+  "Falafeltallrik",
+  "Nuggets 9 bitar",
+  "Nuggets 5 bitar",
+  "Hamburgare 90g",
+  "Mozzarellasticks",
+  "Chili Cheese",
+  "Pommes låda",
+  "Bröd med ost",
+  "Vitlökssås (burk)",
+  "Mild sås (burk)",
+  "Stark sås (burk)",
+  "Bearnaisesås",
+  "Tzaziki (burk)",
+  "Coca-Cola Original 33 cl",
+  "Coca-Cola Zero 33 cl",
+  "Cuba Cola 33 cl",
+  "Cuba Cola Zero 33 cl",
+  "Ramlösa Original 33 cl",
+  "Ramlösa Citrus 33 cl",
+  "7up 33 cl",
+  "Fanta Orange 33 cl",
+  "Fanta Lemon Zero Sugar 33 cl",
+  "Fanta Exotic 33 cl",
+  "Fanta Strawberry 33 cl",
+  "Pepsi 33 cl",
+  "Pepsi Max 33 cl",
+  "Sprite 33 cl",
+  "Coca-Cola Original 50 cl",
+  "Coca-Cola Zero 50 cl",
+  "Fanta Orange 50 cl",
+  "Fanta Exotic 50 cl",
+  "Coca-Cola Zero 2 l",
+  "Coca-Cola Original 2 l",
+  "Sprite 2 l"
+ ],
+ "images": {
+  "products": {
+   "Margherita": "/demo/pizzeria-roma/img/palmyra/margherita.webp",
+   "Vesuvio": "/demo/pizzeria-roma/img/palmyra/vesuvio.webp",
+   "Al Tonno": "/demo/pizzeria-roma/img/palmyra/pescatore.webp",
+   "Al Funghi": "/demo/pizzeria-roma/img/palmyra/funghi.webp",
+   "Olympia": "/demo/pizzeria-roma/img/palmyra/bolognese.webp",
+   "Sole Mio": "/demo/pizzeria-roma/img/palmyra/bolognese.webp",
+   "Caruso": "/demo/pizzeria-roma/img/palmyra/salami.webp",
+   "Köttfärs": "/demo/pizzeria-roma/img/palmyra/bolognese.webp",
+   "Capricciosa": "/demo/pizzeria-roma/img/palmyra/mamma-mia.webp",
+   "Calzone (inbakad)": "/demo/pizzeria-roma/img/palmyra/calzone.webp",
+   "Amore": "/demo/pizzeria-roma/img/palmyra/mamma-mia.webp",
+   "Bananas": "/demo/pizzeria-roma/img/palmyra/vesuvio.webp",
+   "La Gondola": "/demo/pizzeria-roma/img/palmyra/tomaso.webp",
+   "Hawaii": "/demo/pizzeria-roma/img/palmyra/hawaii.webp",
+   "Venezia": "/demo/pizzeria-roma/img/palmyra/vesuvio.webp",
+   "Pompei": "/demo/pizzeria-roma/img/palmyra/orient.webp",
+   "Marinara": "/demo/pizzeria-roma/img/palmyra/tomaso.webp",
+   "Romana (inbakad)": "/demo/pizzeria-roma/img/palmyra/mamma-mia.webp",
+   "Torino (stark)": "/demo/pizzeria-roma/img/palmyra/salami.webp",
+   "Italia (stark)": "/demo/pizzeria-roma/img/palmyra/barbone.webp",
+   "Bergamo": "/demo/pizzeria-roma/img/palmyra/salami-special.webp",
+   "Tropical": "/demo/pizzeria-roma/img/palmyra/hawaii.webp",
+   "Quatro Stagioni": "/demo/pizzeria-roma/img/palmyra/mamma-mia.webp",
+   "Michelangelo": "/demo/pizzeria-roma/img/palmyra/mamma-mia.webp",
+   "Mexicana (stark)": "/demo/pizzeria-roma/img/palmyra/mexicana.webp",
+   "Havet": "/demo/pizzeria-roma/img/palmyra/roma.webp",
+   "Vegetariana": "/demo/pizzeria-roma/img/palmyra/vegetariana.webp",
+   "John Blund": "/demo/pizzeria-roma/img/palmyra/venedig.webp",
+   "Novara": "/demo/pizzeria-roma/img/palmyra/afrikana.webp",
+   "Napoli": "/demo/pizzeria-roma/img/palmyra/princessa.webp",
+   "Skåne": "/demo/pizzeria-roma/img/palmyra/barbone.webp",
+   "Discotomat": "/demo/pizzeria-roma/img/palmyra/tomaso.webp",
+   "4 Ostar": "/demo/pizzeria-roma/img/palmyra/fume.webp",
+   "Monte Carlo": "/demo/pizzeria-roma/img/palmyra/bombay.webp",
+   "Kung Special": "/demo/pizzeria-roma/img/palmyra/orient.webp",
+   "Sportens": "/demo/pizzeria-roma/img/palmyra/bombay.webp",
+   "Kycklingpizza": "/demo/pizzeria-roma/img/palmyra/kycklingpizza.webp",
+   "Bolero": "/demo/pizzeria-roma/img/palmyra/bombay.webp",
+   "Don Pedro": "/demo/pizzeria-roma/img/palmyra/orient.webp",
+   "Kambero": "/demo/pizzeria-roma/img/palmyra/kyckling-special.webp",
+   "Kyckling Special": "/demo/pizzeria-roma/img/palmyra/kyckling-special.webp",
+   "Pizza Doritos": "/demo/pizzeria-roma/img/palmyra/kycklingpizza.webp",
+   "Venedig": "/demo/pizzeria-roma/img/palmyra/venedig.webp",
+   "Sorvento": "/demo/pizzeria-roma/img/palmyra/bolognese.webp",
+   "Polisens": "/demo/pizzeria-roma/img/palmyra/afrikana.webp",
+   "Casino": "/demo/pizzeria-roma/img/palmyra/barbone.webp",
+   "Oxfilépizza": "/demo/pizzeria-roma/img/palmyra/salami-special.webp",
+   "Gorgonzola": "/demo/pizzeria-roma/img/palmyra/salami-special.webp",
+   "Gourmet": "/demo/pizzeria-roma/img/palmyra/salami.webp",
+   "Maykil Special": "/demo/pizzeria-roma/img/palmyra/salami-special.webp",
+   "Capalccino": "/demo/pizzeria-roma/img/palmyra/barbone.webp",
+   "Riviera": "/demo/pizzeria-roma/img/palmyra/salami-special.webp",
+   "Valentino": "/demo/pizzeria-roma/img/palmyra/salami-special.webp",
+   "Huset Special": "/demo/pizzeria-roma/img/palmyra/funghi.webp",
+   "Ciao Ciao (halvinbakad)": "/demo/pizzeria-roma/img/palmyra/kung-calzone.webp",
+   "Casabella": "/demo/pizzeria-roma/img/palmyra/mexicana.webp",
+   "Azteka": "/demo/pizzeria-roma/img/palmyra/barbone.webp",
+   "Tacopizza": "/demo/pizzeria-roma/img/palmyra/mexicana.webp",
+   "Acapulco": "/demo/pizzeria-roma/img/palmyra/mexicana.webp",
+   "Formaggi": "/demo/pizzeria-roma/img/palmyra/orient.webp",
+   "Bona Vista": "/demo/pizzeria-roma/img/palmyra/portafino.webp",
+   "Damaskus": "/demo/pizzeria-roma/img/palmyra/orient.webp",
+   "La Vecchia": "/demo/pizzeria-roma/img/palmyra/fume.webp",
+   "Parma": "/demo/pizzeria-roma/img/palmyra/fume.webp",
+   "Mezzadro": "/demo/pizzeria-roma/img/palmyra/fume.webp",
+   "Roma Special": "/demo/pizzeria-roma/img/palmyra/kebabpizza.webp",
+   "Moshi Special": "/demo/pizzeria-roma/img/palmyra/orient.webp",
+   "Serrano": "/demo/pizzeria-roma/img/palmyra/fume.webp",
+   "Bresaola": "/demo/pizzeria-roma/img/palmyra/fume.webp",
+   "El Pollo": "/demo/pizzeria-roma/img/palmyra/fume.webp",
+   "Doritos Pizza (kyckling)": "/demo/pizzeria-roma/img/palmyra/kycklingpizza.webp",
+   "Doritos Pizza (pepperonikorv)": "/demo/pizzeria-roma/img/palmyra/kebabpizza.webp",
+   "Buratta Pizza": "/demo/pizzeria-roma/img/palmyra/verdura.webp",
+   "Kebabpizza": "/demo/pizzeria-roma/img/palmyra/kebabpizza.webp",
+   "Vikingbåt (halvinbakad)": "/demo/pizzeria-roma/img/palmyra/kebabpizza.webp",
+   "Aleppo Special": "/demo/pizzeria-roma/img/palmyra/kebabpizza.webp",
+   "Prins Special": "/demo/pizzeria-roma/img/palmyra/kebabpizza.webp",
+   "Sweden": "/demo/pizzeria-roma/img/palmyra/kebabpizza.webp",
+   "Åstorp Special": "/demo/pizzeria-roma/img/palmyra/kebabpizza.webp",
+   "Kebab Special": "/demo/pizzeria-roma/img/palmyra/kebabpizza.webp",
+   "Pommespizza": "/demo/pizzeria-roma/img/palmyra/kebabpizza.webp",
+   "Pepperoni Special": "/demo/pizzeria-roma/img/palmyra/vesuvio.webp",
+   "Hollywood": "/demo/pizzeria-roma/img/palmyra/kebabpizza.webp",
+   "Gala Special": "/demo/pizzeria-roma/img/palmyra/barbone.webp",
+   "Gracias": "/demo/pizzeria-roma/img/palmyra/hawaii.webp",
+   "Grillad Entrecote": "/demo/pizzeria-roma/img/photos/oxfile.webp",
+   "Kycklingfilé": "/demo/pizzeria-roma/img/palmyra/kycklingtallrik.webp",
+   "Ryggbiff": "/demo/pizzeria-roma/img/photos/oxfile.webp",
+   "Högrev - 200g": "/demo/pizzeria-roma/img/palmyra/ostburgare-200g-meny.webp",
+   "Högrev Bacon - 200g": "/demo/pizzeria-roma/img/palmyra/baconburgare-200g-meny.webp",
+   "Högrev Mex - 200g": "/demo/pizzeria-roma/img/palmyra/chilliburgare-meny.webp",
+   "Tonfisksallad": "/demo/pizzeria-roma/img/palmyra/tonfisksallad.webp",
+   "Kycklingsallad": "/demo/pizzeria-roma/img/palmyra/kycklingsallad.webp",
+   "Räksallad": "/demo/pizzeria-roma/img/palmyra/tonfisksallad.webp",
+   "Kebabsallad": "/demo/pizzeria-roma/img/palmyra/kebabsallad.webp",
+   "Avocado Kyckling": "/demo/pizzeria-roma/img/palmyra/kycklingsallad.webp",
+   "Grekisk Sallad": "/demo/pizzeria-roma/img/palmyra/grekisk-sallad.webp",
+   "Caesarsallad": "/demo/pizzeria-roma/img/palmyra/kycklingsallad.webp",
+   "Avocado Parma": "/demo/pizzeria-roma/img/palmyra/grekisk-sallad.webp",
+   "Avocado Falafel": "/demo/pizzeria-roma/img/palmyra/grekisk-sallad.webp",
+   "Ost & Skinksallad": "/demo/pizzeria-roma/img/palmyra/grekisk-sallad.webp",
+   "Kebabrulle": "/demo/pizzeria-roma/img/palmyra/kebabrulle.webp",
+   "Kebabtallrik": "/demo/pizzeria-roma/img/palmyra/kebabtallrik.webp",
+   "Kebab i bröd": "/demo/pizzeria-roma/img/palmyra/kebab-i-pitabrod.webp",
+   "Kycklingrulle": "/demo/pizzeria-roma/img/palmyra/kycklingrulle.webp",
+   "Kycklingtallrik": "/demo/pizzeria-roma/img/palmyra/kycklingtallrik.webp",
+   "Falafelrulle": "/demo/pizzeria-roma/img/palmyra/falafelrulle.webp",
+   "Falafeltallrik": "/demo/pizzeria-roma/img/palmyra/falafeltallrik.webp",
+   "Nuggets 9 bitar": "/demo/pizzeria-roma/img/palmyra/chicken-nuggets.webp",
+   "Nuggets 5 bitar": "/demo/pizzeria-roma/img/palmyra/chicken-nuggets.webp",
+   "Hamburgare 90g": "/demo/pizzeria-roma/img/palmyra/orginal-burgare.webp",
+   "Mozzarellasticks": "/demo/pizzeria-roma/img/palmyra/mozzarella-sticks.webp",
+   "Chili Cheese": null,
+   "Pommes låda": "/demo/pizzeria-roma/img/palmyra/pommes.webp",
+   "Bröd med ost": null,
+   "Vitlökssås (burk)": "/demo/pizzeria-roma/img/palmyra/vitlokssas.webp",
+   "Mild sås (burk)": "/demo/pizzeria-roma/img/palmyra/mildsas.webp",
+   "Stark sås (burk)": "/demo/pizzeria-roma/img/palmyra/starksas.webp",
+   "Bearnaisesås": "/demo/pizzeria-roma/img/palmyra/bearnaisesas.webp",
+   "Tzaziki (burk)": null,
+   "Coca-Cola Original 33 cl": "/demo/pizzeria-roma/img/drinks/coca-cola-original-taste-33-cl.webp",
+   "Coca-Cola Zero 33 cl": "/demo/pizzeria-roma/img/drinks/coca-cola-zero-33-cl.webp",
+   "Cuba Cola 33 cl": null,
+   "Cuba Cola Zero 33 cl": null,
+   "Ramlösa Original 33 cl": "/demo/pizzeria-roma/img/drinks/ramlosa-natur.webp",
+   "Ramlösa Citrus 33 cl": "/demo/pizzeria-roma/img/drinks/ramlosa-citrus.webp",
+   "7up 33 cl": null,
+   "Fanta Orange 33 cl": "/demo/pizzeria-roma/img/drinks/fanta.webp",
+   "Fanta Lemon Zero Sugar 33 cl": "/demo/pizzeria-roma/img/drinks/fanta-lemon-zero-33-cl.webp",
+   "Fanta Exotic 33 cl": "/demo/pizzeria-roma/img/drinks/fanta-exotic.webp",
+   "Fanta Strawberry 33 cl": "/demo/pizzeria-roma/img/drinks/fanta-strawberry-kiwi-33-cl.webp",
+   "Pepsi 33 cl": "/demo/pizzeria-roma/img/drinks/pepsi-50-cl.webp",
+   "Pepsi Max 33 cl": "/demo/pizzeria-roma/img/drinks/pepsi-max-33-cl.webp",
+   "Sprite 33 cl": "/demo/pizzeria-roma/img/drinks/sprite-33-cl.webp",
+   "Coca-Cola Original 50 cl": "/demo/pizzeria-roma/img/drinks/coca-cola-original-taste-50-cl.webp",
+   "Coca-Cola Zero 50 cl": "/demo/pizzeria-roma/img/drinks/coca-cola-zero-50-cl.webp",
+   "Fanta Orange 50 cl": "/demo/pizzeria-roma/img/drinks/fanta-orange-50-cl.webp",
+   "Fanta Exotic 50 cl": "/demo/pizzeria-roma/img/drinks/fanta-exotic.webp",
+   "Coca-Cola Zero 2 l": "/demo/pizzeria-roma/img/drinks/coca-cola-zero-2-liter.webp",
+   "Coca-Cola Original 2 l": "/demo/pizzeria-roma/img/drinks/coca-cola-original-taste-2-liter.webp",
+   "Sprite 2 l": "/demo/pizzeria-roma/img/drinks/sprite-50-cl.webp"
+  },
+  "categories": {
+   "Klassiska pizzor": "/demo/pizzeria-roma/img/photos/pizza-1.webp",
+   "Husets pizzor": "/demo/pizzeria-roma/img/photos/pizza-3.webp",
+   "Kycklingpizzor": "/demo/pizzeria-roma/img/photos/pizza-4.webp",
+   "Oxfilépizzor": "/demo/pizzeria-roma/img/photos/oxfile.webp",
+   "Fläskfilépizzor": "/demo/pizzeria-roma/img/photos/pizza-5.webp",
+   "Mexikanska pizzor": "/demo/pizzeria-roma/img/photos/pizza-6.webp",
+   "Mozzarellapizzor": "/demo/pizzeria-roma/img/photos/pizza-7.webp",
+   "Kebabpizzor": "/demo/pizzeria-roma/img/photos/pizza-8.webp",
+   "Amerikanska pizzor": "/demo/pizzeria-roma/img/photos/pizza-9.webp",
+   "Grill": "/demo/pizzeria-roma/img/photos/grill.webp",
+   "Sallader": "/demo/pizzeria-roma/img/photos/sallad.webp",
+   "Kebab och rullar": "/demo/pizzeria-roma/img/photos/meze.webp",
+   "Smårätter": "/demo/pizzeria-roma/img/palmyra/chicken-nuggets.webp",
+   "Såser": "/demo/pizzeria-roma/img/palmyra/vitlokssas.webp",
+   "Dryck": "palmyra:coca-cola-original-taste-33-cl"
+  },
+  "extras": {
+   "Välj sås (ingår)": {
+    "Vitlökssås": "/demo/pizzeria-roma/img/palmyra/vitlokssas.webp",
+    "Stark sås": "/demo/pizzeria-roma/img/palmyra/starksas.webp",
+    "Mild sås": "/demo/pizzeria-roma/img/palmyra/mildsas.webp",
+    "Bearnaisesås": "/demo/pizzeria-roma/img/palmyra/bearnaisesas.webp",
+    "Vitlökssås i burk": "/demo/pizzeria-roma/img/palmyra/vitlokssas.webp",
+    "Stark sås i burk": "/demo/pizzeria-roma/img/palmyra/starksas.webp",
+    "Mild sås i burk": "/demo/pizzeria-roma/img/palmyra/mildsas.webp",
+    "Bearnaisesås i burk": "/demo/pizzeria-roma/img/palmyra/bearnaisesas.webp",
+    "Ingen sås": null
+   },
+   "Sås i burk": {
+    "Vitlökssås": "/demo/pizzeria-roma/img/palmyra/vitlokssas.webp",
+    "Mild sås": "/demo/pizzeria-roma/img/palmyra/mildsas.webp",
+    "Stark sås": "/demo/pizzeria-roma/img/palmyra/starksas.webp",
+    "Bearnaisesås": "/demo/pizzeria-roma/img/palmyra/bearnaisesas.webp",
+    "Tzatziki": null
+   },
+   "Tillbehör": {
+    "Mozzarellasticks 4 st": "/demo/pizzeria-roma/img/palmyra/mozzarella-sticks.webp",
+    "Chili cheese 6 st": null,
+    "Pommes låda": "/demo/pizzeria-roma/img/palmyra/pommes.webp",
+    "Bröd med ost": null
+   },
+   "Lägg till dryck": {
+    "Coca-Cola Original 33 cl": "/demo/pizzeria-roma/img/drinks/coca-cola-original-taste-33-cl.webp",
+    "Coca-Cola Zero 33 cl": "/demo/pizzeria-roma/img/drinks/coca-cola-zero-33-cl.webp",
+    "Cuba Cola 33 cl": null,
+    "Cuba Cola Zero 33 cl": null,
+    "Ramlösa Original 33 cl": "/demo/pizzeria-roma/img/drinks/ramlosa-natur.webp",
+    "Ramlösa Citrus 33 cl": "/demo/pizzeria-roma/img/drinks/ramlosa-citrus.webp",
+    "7up 33 cl": null,
+    "Fanta Orange 33 cl": "/demo/pizzeria-roma/img/drinks/fanta.webp",
+    "Fanta Lemon Zero Sugar 33 cl": "/demo/pizzeria-roma/img/drinks/fanta-lemon-zero-33-cl.webp",
+    "Fanta Exotic 33 cl": "/demo/pizzeria-roma/img/drinks/fanta-exotic.webp",
+    "Fanta Strawberry 33 cl": "/demo/pizzeria-roma/img/drinks/fanta-strawberry-kiwi-33-cl.webp",
+    "Pepsi 33 cl": "/demo/pizzeria-roma/img/drinks/pepsi-50-cl.webp",
+    "Pepsi Max 33 cl": "/demo/pizzeria-roma/img/drinks/pepsi-max-33-cl.webp",
+    "Sprite 33 cl": "/demo/pizzeria-roma/img/drinks/sprite-33-cl.webp",
+    "Coca-Cola Original 50 cl": "/demo/pizzeria-roma/img/drinks/coca-cola-original-taste-50-cl.webp",
+    "Coca-Cola Zero 50 cl": "/demo/pizzeria-roma/img/drinks/coca-cola-zero-50-cl.webp",
+    "Fanta Orange 50 cl": "/demo/pizzeria-roma/img/drinks/fanta-orange-50-cl.webp",
+    "Fanta Exotic 50 cl": "/demo/pizzeria-roma/img/drinks/fanta-exotic.webp",
+    "Coca-Cola Zero 2 l": "/demo/pizzeria-roma/img/drinks/coca-cola-zero-2-liter.webp",
+    "Coca-Cola Original 2 l": "/demo/pizzeria-roma/img/drinks/coca-cola-original-taste-2-liter.webp",
+    "Sprite 2 l": "/demo/pizzeria-roma/img/drinks/sprite-50-cl.webp"
+   },
+   "Storlek": {
+    "Normal": "/demo/pizzeria-roma/img/palmyra/storlek-normal.webp",
+    "Familjepizza": "/demo/pizzeria-roma/img/palmyra/storlek-familj.webp",
+    "Glutenfri botten": "/demo/pizzeria-roma/img/palmyra/storlek-normal.webp",
+    "Barnpizza": "/demo/pizzeria-roma/img/palmyra/storlek-barn.webp"
+   }
+  }
+ }
+}

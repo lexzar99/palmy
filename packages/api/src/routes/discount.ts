@@ -4,6 +4,7 @@ import prisma from '../lib/prisma';
 import { discountPlatformAllowed } from '../lib/clientPlatform';
 import { KIOSK_ACCESS_HEADER, validKioskAccessProof } from '../lib/kioskAccess';
 import { isPartnerEmbedDiscountEnabled } from '../lib/partnerEmbedDiscounts';
+import { discountCodeAppliesToRestaurant, discountCodeIsRestaurantScoped } from '../lib/discountRestaurantScope';
 
 const router = Router();
 
@@ -31,7 +32,7 @@ const validateLimiter = rateLimit({
 // POST /api/discount/validate
 router.post('/validate', validateLimiter, async (req, res) => {
   try {
-    const { code, subtotal, discountableSubtotal } = req.body;
+    const { code, subtotal, discountableSubtotal, restaurantId } = req.body;
 
     if (!code) {
       res.status(400).json({ error: 'Rabattkod krävs' });
@@ -45,6 +46,16 @@ router.post('/validate', validateLimiter, async (req, res) => {
     if (!discount) {
       res.status(404).json({ error: 'Ogiltig rabattkod' });
       return;
+    }
+
+    // Restaurangbegränsade koder valideras mot restaurangen i kassan, med samma regel som
+    // orderläggningen. Annars visar kassan en rabatt som ordern sedan inte ger.
+    if (discountCodeIsRestaurantScoped(discount as any)) {
+      const rid = typeof restaurantId === 'string' ? restaurantId.trim() : '';
+      if (!rid || !discountCodeAppliesToRestaurant(discount as any, rid)) {
+        res.status(400).json({ error: 'Rabattkoden gäller inte hos den här restaurangen' });
+        return;
+      }
     }
 
     const privateEmbed = Boolean(validKioskAccessProof(req.headers[KIOSK_ACCESS_HEADER]));

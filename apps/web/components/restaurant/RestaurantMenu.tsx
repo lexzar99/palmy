@@ -359,7 +359,7 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
     if (typeof window === "undefined") return null;
     const storedCoords = localStorage.getItem("platform_coords");
     const storedType = localStorage.getItem("platform_order_type") || "DELIVERY";
-    if (!storedCoords || storedType !== "DELIVERY" || !restaurantData?.id) { setZoneAvailable(null); return null; }
+    if (!storedCoords || storedType !== "DELIVERY" || !restaurantData?.id || restaurantData?.pickupOnly) { setZoneAvailable(null); return null; }
     setCheckingZone(true);
     try {
       const coords = JSON.parse(storedCoords);
@@ -409,6 +409,22 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
     if (!deliveryAddress || !hasCoords) { setShowAddressModal(true); return; }
     if (restaurant) void checkZone(restaurant);
   }, [checkZone, restaurant]);
+
+  // Endast avhämtning (Restaurant.pickupOnly): lås ordertypen till PICKUP och
+  // använd restaurangens ort som avhämtningsplats, så kunden aldrig möter
+  // adressgrinden eller leveransvalet. API:t nekar dessutom DELIVERY-ordrar.
+  const pickupOnly = Boolean(restaurant?.pickupOnly);
+  const pickupOnlyCity = restaurant?.city || "";
+  useEffect(() => {
+    if (!pickupOnly || typeof window === "undefined") return;
+    const pickupCity = pickupOnlyCity || "Avhämtning";
+    setOrderType("PICKUP");
+    setZoneAvailable(null);
+    setAddress(pickupCity);
+    localStorage.setItem("platform_order_type", "PICKUP");
+    localStorage.setItem("platform_pickup_city", pickupCity);
+    localStorage.setItem("platform_address", pickupCity);
+  }, [pickupOnly, pickupOnlyCity]);
 
   const ssrSeededRef = useRef(!!initialData);
   const fetchData = useCallback(async () => {
@@ -703,7 +719,9 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
   const pickupMinutes = restaurant?.pickupEtaMinutes ?? Math.max(5, Math.min(25, (restaurant?.etaMinutes ?? 30) - 5));
   const deliveryTimeLabel = embedIsPalmyra ? "30–45 min" : `${restaurant?.etaMinutes} ${t("menu.stats.min")}`;
   const pickupTimeLabel = embedIsPalmyra ? "~10 min" : `~${pickupMinutes} ${t("menu.stats.min")}`;
-  const addressLine = orderType === "PICKUP" ? (address || "Avhämtning") : (address ? address.split(",")[0] : "Välj leveransadress");
+  const addressLine = pickupOnly
+    ? (restaurant?.address ? String(restaurant.address).split(",")[0] : (address || "Avhämtning"))
+    : orderType === "PICKUP" ? (address || "Avhämtning") : (address ? address.split(",")[0] : "Välj leveransadress");
 
   const facts = orderType === "DELIVERY"
     ? [
@@ -806,19 +824,25 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
             <h1 className="m-0 text-[28px] font-semibold leading-[1.1]" style={{ letterSpacing: "-0.025em", color: "var(--ve-ink)" }}>{restaurant?.name}</h1>
             <div className="mt-2 flex items-center gap-2 flex-wrap text-[14px]" style={{ color: "var(--ve-ink-2)" }}>
               {(() => {
+                // Inga omdömen än → inget betyg. Ett påhittat 5.0 (1) är värre än ingenting.
+                if (!(Number(restaurant?.ratingCount) > 0)) return null;
                 const rating = (
                   <>
                     <Star size={13} strokeWidth={0} fill="var(--ve-ink)" />
-                    <span className="ve-tabular">{(restaurant?.rating || 5.0).toFixed(1)}</span>
-                    <span className="ve-tabular" style={{ color: "var(--ve-ink-3)" }}>({restaurant?.ratingCount || 1})</span>
+                    <span className="ve-tabular">{Number(restaurant?.rating || 0).toFixed(1)}</span>
+                    <span className="ve-tabular" style={{ color: "var(--ve-ink-3)" }}>({restaurant?.ratingCount})</span>
                   </>
                 );
-                return embedMode
-                  ? <span className="inline-flex items-center gap-1 font-medium" style={{ color: "var(--ve-ink)" }}>{rating}</span>
-                  : <Link href={`/r/${restaurantSlug}/reviews`} className="inline-flex items-center gap-1 font-medium" style={{ color: "var(--ve-ink)" }}>{rating}</Link>;
+                return (
+                  <>
+                    {embedMode
+                      ? <span className="inline-flex items-center gap-1 font-medium" style={{ color: "var(--ve-ink)" }}>{rating}</span>
+                      : <Link href={`/r/${restaurantSlug}/reviews`} className="inline-flex items-center gap-1 font-medium" style={{ color: "var(--ve-ink)" }}>{rating}</Link>}
+                    <span style={{ color: "var(--ve-ink-3)" }}>·</span>
+                  </>
+                );
               })()}
-              {restaurant?.cuisine && (<><span style={{ color: "var(--ve-ink-3)" }}>·</span><span>{restaurant.cuisine}</span></>)}
-              <span style={{ color: "var(--ve-ink-3)" }}>·</span>
+              {restaurant?.cuisine && (<><span>{restaurant.cuisine}</span><span style={{ color: "var(--ve-ink-3)" }}>·</span></>)}
               <span className="inline-flex items-center gap-1.5 font-medium" style={{ color: statusColor }}>
                 <span className="w-[7px] h-[7px] rounded-full" style={{ backgroundColor: statusColor }} />
                 {statusLabel}
@@ -827,15 +851,18 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
             </div>
           </div>
 
-          <div className="mt-5">
-            <Segmented value={orderType} onChange={handleOrderTypeChange} labels={{ DELIVERY: "Leverans", PICKUP: "Avhämtning" }} />
-          </div>
+          {!pickupOnly && (
+            <div className="mt-5">
+              <Segmented value={orderType} onChange={handleOrderTypeChange} labels={{ DELIVERY: "Leverans", PICKUP: "Avhämtning" }} />
+            </div>
+          )}
 
           {/* Adressrad — öppnar samma AddressModal som originalet */}
           <button
             type="button"
-            onClick={() => setShowAddressModal(true)}
-            className="ve-row-press mt-4 w-full flex items-center gap-3 rounded-[14px] px-3.5 py-3 text-left"
+            onClick={() => { if (!pickupOnly) setShowAddressModal(true); }}
+            aria-disabled={pickupOnly || undefined}
+            className={`${pickupOnly ? "mt-5 cursor-default" : "ve-row-press mt-4"} w-full flex items-center gap-3 rounded-[14px] px-3.5 py-3 text-left`}
             style={{ backgroundColor: "var(--ve-card-2)", boxShadow: "inset 0 0 0 0.5px var(--ve-line)" }}
           >
             <span className="w-8 h-8 rounded-full grid place-items-center shrink-0" style={{ backgroundColor: zoneAvailable === false ? "var(--ve-danger-soft)" : "var(--ve-fill)" }}>
@@ -844,7 +871,9 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
             <span className="flex-1 min-w-0">
               <span className="block text-[15px] font-medium truncate" style={{ color: "var(--ve-ink)", letterSpacing: "-0.01em" }}>{addressLine}</span>
               <span className="block text-[12.5px] mt-px" style={{ color: zoneAvailable === false ? "var(--ve-danger)" : "var(--ve-ink-3)" }}>
-                {orderType === "PICKUP"
+                {pickupOnly
+                  ? "Endast avhämtning · hämta själv i restaurangen"
+                  : orderType === "PICKUP"
                   ? "Hämta själv i restaurangen"
                   : checkingZone ? "Kontrollerar leveransområde…"
                   : zoneAvailable === true ? "Vi levererar hit"
@@ -852,7 +881,7 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
                   : "Tryck för att välja adress"}
               </span>
             </span>
-            <ChevronRight size={17} strokeWidth={2.2} style={{ color: "var(--ve-ink-3)" }} />
+            {!pickupOnly && <ChevronRight size={17} strokeWidth={2.2} style={{ color: "var(--ve-ink-3)" }} />}
           </button>
 
           {/* Faktarad */}

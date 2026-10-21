@@ -1,0 +1,2302 @@
+{
+ "source": "https://embed.lumit.se/stores/802/data.json",
+ "readAt": "2026-10-21",
+ "categories": [
+  {
+   "lumitName": "Standardpizzor 1",
+   "hasToppingExtras": true,
+   "products": [
+    {
+     "name": "Margherita",
+     "price": 109,
+     "ingredients": [
+      "Tomatsås",
+      "Ost"
+     ],
+     "description": null,
+     "familyAddon": 166,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Vesuvio",
+     "price": 109,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": 166,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Al Tonno",
+     "price": 109,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Tonfisk",
+      "Rödlök"
+     ],
+     "description": null,
+     "familyAddon": 166,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Al Funghi",
+     "price": 109,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Champinjoner"
+     ],
+     "description": null,
+     "familyAddon": 166,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    }
+   ]
+  },
+  {
+   "lumitName": "Standardpizzor 2",
+   "hasToppingExtras": true,
+   "products": [
+    {
+     "name": "Olympia",
+     "price": 119,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Köttfärs",
+      "Ananas"
+     ],
+     "description": null,
+     "familyAddon": 166,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Sole Mio",
+     "price": 119,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Bacon",
+      "Köttfärs",
+      "Rödlök"
+     ],
+     "description": null,
+     "familyAddon": 166,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Caruso",
+     "price": 119,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Skinka",
+      "Salami",
+      "Rödlök"
+     ],
+     "description": null,
+     "familyAddon": 166,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Köttfärs",
+     "price": 119,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Köttfärs",
+      "Rödlök"
+     ],
+     "description": null,
+     "familyAddon": 166,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Capricciosa",
+     "price": 119,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Skinka",
+      "Champinjoner"
+     ],
+     "description": null,
+     "familyAddon": 166,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Calzone (inbakad)",
+     "price": 119,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Skinka"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Amore",
+     "price": 119,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Champinjoner",
+      "Räkor",
+      "Rödlök"
+     ],
+     "description": null,
+     "familyAddon": 166,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Bananas",
+     "price": 119,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Skinka",
+      "Banan",
+      "Jordnötter"
+     ],
+     "description": null,
+     "familyAddon": 166,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "La Gondola",
+     "price": 119,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Skinka",
+      "Räkor"
+     ],
+     "description": null,
+     "familyAddon": 166,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Hawaii",
+     "price": 119,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Skinka",
+      "Ananas"
+     ],
+     "description": null,
+     "familyAddon": 166,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Venezia",
+     "price": 119,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Skinka",
+      "Tonfisk"
+     ],
+     "description": null,
+     "familyAddon": 166,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Pompei",
+     "price": 119,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Bacon",
+      "Rödlök",
+      "Ägg"
+     ],
+     "description": null,
+     "familyAddon": 166,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Marinara",
+     "price": 119,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Räkor",
+      "Musslor"
+     ],
+     "description": null,
+     "familyAddon": 166,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    }
+   ]
+  },
+  {
+   "lumitName": "Standardpizzor 3",
+   "hasToppingExtras": true,
+   "products": [
+    {
+     "name": "Romana (inbakad)",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Skinka",
+      "Räkor",
+      "Champinjoner"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Torino (stark)",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Köttfärs",
+      "Salami",
+      "Rödlök",
+      "Feferoni"
+     ],
+     "description": null,
+     "familyAddon": 165,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Italia (stark)",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Skinka",
+      "Köttfärs",
+      "Salami",
+      "Rödlök"
+     ],
+     "description": null,
+     "familyAddon": 165,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Bergamo",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Champinjoner",
+      "Salami",
+      "Bacon",
+      "Rödlök"
+     ],
+     "description": null,
+     "familyAddon": 165,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Tropical",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Skinka",
+      "Ananas",
+      "Banan",
+      "Curry"
+     ],
+     "description": null,
+     "familyAddon": 165,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Quatro Stagioni",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Skinka",
+      "Champinjoner",
+      "Räkor",
+      "Musslor",
+      "Kronärtskocka"
+     ],
+     "description": null,
+     "familyAddon": 165,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Michelangelo",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Skinka",
+      "Räkor",
+      "Champinjoner",
+      "Rödlök"
+     ],
+     "description": null,
+     "familyAddon": 165,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Mexicana (stark)",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Köttfärs",
+      "Rödlök",
+      "Paprika"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Havet",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Räkor",
+      "Musslor",
+      "Tonfisk",
+      "Surimi"
+     ],
+     "description": null,
+     "familyAddon": 165,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Vegetariana",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Champinjoner",
+      "Rödlök",
+      "Paprika",
+      "Oliver",
+      "Kronärtskocka"
+     ],
+     "description": null,
+     "familyAddon": 165,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "John Blund",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Skinka",
+      "Champinjoner",
+      "Ägg",
+      "Bacon",
+      "Rödlök"
+     ],
+     "description": null,
+     "familyAddon": 165,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Novara",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Banan",
+      "Ananas",
+      "Jordnötter",
+      "Curry"
+     ],
+     "description": null,
+     "familyAddon": 165,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Napoli",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Skinka",
+      "Räkor",
+      "Ananas"
+     ],
+     "description": null,
+     "familyAddon": 175,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Skåne",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Skinka",
+      "Rödlök",
+      "Bacon",
+      "Ägg",
+      "Bearnaisesås"
+     ],
+     "description": null,
+     "familyAddon": 175,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Discotomat",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Skinka",
+      "Köttfärs",
+      "Räkor"
+     ],
+     "description": null,
+     "familyAddon": 175,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "4 Ostar",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Gorgonzola",
+      "Mozzarella",
+      "Parmesanost",
+      "Vitost"
+     ],
+     "description": null,
+     "familyAddon": 175,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    }
+   ]
+  },
+  {
+   "lumitName": "Kycklingpizzor",
+   "hasToppingExtras": true,
+   "products": [
+    {
+     "name": "Monte Carlo",
+     "price": 129,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Kyckling",
+      "Banan",
+      "Jordnötter",
+      "Curry"
+     ],
+     "description": null,
+     "familyAddon": 171,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Kung Special",
+     "price": 129,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Kyckling",
+      "Köttfärs",
+      "Rödlök",
+      "Champinjoner",
+      "Curry"
+     ],
+     "description": null,
+     "familyAddon": 181,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Sportens",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Kyckling",
+      "Banan",
+      "Bacon",
+      "Räkor",
+      "Curry"
+     ],
+     "description": null,
+     "familyAddon": 185,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Kycklingpizza",
+     "price": 129,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Kyckling",
+      "Ananas",
+      "Paprika",
+      "Curry"
+     ],
+     "description": null,
+     "familyAddon": 181,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Bolero",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Skinka",
+      "Kyckling",
+      "Tomat",
+      "Curry",
+      "Bearnaisesås"
+     ],
+     "description": null,
+     "familyAddon": 185,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Don Pedro",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Kyckling",
+      "Gorgonzola",
+      "Champinjoner",
+      "Tomat",
+      "Bearnaisesås"
+     ],
+     "description": null,
+     "familyAddon": 185,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Kambero",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Kyckling",
+      "Tomat",
+      "Räkor",
+      "Vitost"
+     ],
+     "description": null,
+     "familyAddon": 185,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Kyckling Special",
+     "price": 129,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Kyckling",
+      "Pommes frites",
+      "Feferoni",
+      "Valfri sås"
+     ],
+     "description": null,
+     "familyAddon": 191,
+     "sauceIncluded": true,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Pizza Doritos",
+     "price": 129,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Kyckling",
+      "Doritos",
+      "Valfri sås"
+     ],
+     "description": null,
+     "familyAddon": 191,
+     "sauceIncluded": true,
+     "potatoChoice": false,
+     "accessory": false
+    }
+   ]
+  },
+  {
+   "lumitName": "Oxfilépizzor",
+   "hasToppingExtras": true,
+   "products": [
+    {
+     "name": "Venedig",
+     "price": 135,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Skinka",
+      "Oxfilé",
+      "Bearnaisesås"
+     ],
+     "description": null,
+     "familyAddon": 195,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Sorvento",
+     "price": 135,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Oxfilé",
+      "Rödlök",
+      "Vitlök",
+      "Bearnaisesås"
+     ],
+     "description": null,
+     "familyAddon": 195,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Polisens",
+     "price": 135,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Oxfilé",
+      "Banan",
+      "Jordnötter",
+      "Curry",
+      "Bearnaisesås"
+     ],
+     "description": null,
+     "familyAddon": 195,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Casino",
+     "price": 135,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Skinka",
+      "Oxfilé",
+      "Rödlök",
+      "Gorgonzola",
+      "Tomat",
+      "Bearnaisesås"
+     ],
+     "description": null,
+     "familyAddon": 195,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Oxfilépizza",
+     "price": 135,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Oxfilé",
+      "Champinjoner",
+      "Gorgonzola",
+      "Tomat",
+      "Paprika",
+      "Bearnaisesås"
+     ],
+     "description": null,
+     "familyAddon": 195,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Gorgonzola",
+     "price": 135,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Oxfilé",
+      "Rödlök",
+      "Champinjoner",
+      "Gorgonzola",
+      "Tomat",
+      "Bearnaisesås"
+     ],
+     "description": null,
+     "familyAddon": 195,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Gourmet",
+     "price": 135,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Oxfilé",
+      "Salami",
+      "Tomat",
+      "Rödlök",
+      "Vitlök",
+      "Bearnaisesås"
+     ],
+     "description": null,
+     "familyAddon": 195,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Maykil Special",
+     "price": 135,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Oxfilé",
+      "Champinjoner",
+      "Rödlök",
+      "Bearnaisesås"
+     ],
+     "description": null,
+     "familyAddon": 195,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    }
+   ]
+  },
+  {
+   "lumitName": "Fläskfilépizzor",
+   "hasToppingExtras": true,
+   "products": [
+    {
+     "name": "Capalccino",
+     "price": 129,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Skinka",
+      "Fläskfilé",
+      "Tomat",
+      "Gorgonzola",
+      "Rödlök",
+      "Bearnaisesås"
+     ],
+     "description": null,
+     "familyAddon": 181,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Riviera",
+     "price": 129,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Fläskfilé",
+      "Rödlök",
+      "Tomat",
+      "Champinjoner",
+      "Bearnaisesås"
+     ],
+     "description": null,
+     "familyAddon": 181,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Valentino",
+     "price": 129,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Fläskfilé",
+      "Rödlök",
+      "Champinjoner",
+      "Vitlök",
+      "Salami",
+      "Bearnaisesås"
+     ],
+     "description": null,
+     "familyAddon": 181,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Huset Special",
+     "price": 129,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Champinjoner",
+      "Fläskfilé"
+     ],
+     "description": null,
+     "familyAddon": 181,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Ciao Ciao (halvinbakad)",
+     "price": 129,
+     "ingredients": [
+      "Tomatsås",
+      "Champinjoner",
+      "Fläskfilé",
+      "Rödlök",
+      "Vitlök",
+      "Bearnaisesås"
+     ],
+     "description": null,
+     "familyAddon": 181,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    }
+   ]
+  },
+  {
+   "lumitName": "Mexikanska Pizzor",
+   "hasToppingExtras": true,
+   "products": [
+    {
+     "name": "Casabella",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Köttfärs",
+      "Tacosås",
+      "Jalapeno",
+      "Färsk vitlök",
+      "Rödlök",
+      "Stark krydda"
+     ],
+     "description": null,
+     "familyAddon": 175,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Azteka",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Skinka",
+      "Tacosås",
+      "Jalapeno",
+      "Vitlök",
+      "Salami",
+      "Stark krydda"
+     ],
+     "description": null,
+     "familyAddon": 175,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Tacopizza",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Fläskfilé",
+      "Tacosås",
+      "Jalapeno",
+      "Rödlök",
+      "Vitlök",
+      "Stark krydda"
+     ],
+     "description": null,
+     "familyAddon": 175,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Acapulco",
+     "price": 135,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Oxfilé",
+      "Champinjoner",
+      "Tacosås",
+      "Jalapeno",
+      "Vitlök",
+      "Rödlök",
+      "Stark krydda"
+     ],
+     "description": null,
+     "familyAddon": 195,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    }
+   ]
+  },
+  {
+   "lumitName": "Mozzarellapizzor",
+   "hasToppingExtras": true,
+   "products": [
+    {
+     "name": "Formaggi",
+     "price": 139,
+     "ingredients": [
+      "Tomatsås",
+      "Mozzarella",
+      "Oxfilé",
+      "Färska champinjoner",
+      "Vitost",
+      "Färska tomater",
+      "Rödlök",
+      "Ruccolasallad"
+     ],
+     "description": null,
+     "familyAddon": 191,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Bona Vista",
+     "price": 139,
+     "ingredients": [
+      "Tomatsås",
+      "Mozzarella",
+      "Fläskfilé",
+      "Parmaskinka",
+      "Färska champinjoner",
+      "Färska tomater",
+      "Vitost",
+      "Ruccolasallad",
+      "Bearnaisesås"
+     ],
+     "description": null,
+     "familyAddon": 191,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Damaskus",
+     "price": 139,
+     "ingredients": [
+      "Tomatsås",
+      "Mozzarella",
+      "Parmaskinka",
+      "Soltorkade tomater",
+      "Vitost",
+      "Färska champinjoner",
+      "Kyckling",
+      "Ruccolasallad"
+     ],
+     "description": null,
+     "familyAddon": 191,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "La Vecchia",
+     "price": 139,
+     "ingredients": [
+      "Tomatsås",
+      "Mozzarella",
+      "Soltorkade tomater",
+      "Ruccolasallad",
+      "Vitost",
+      "Färska champinjoner",
+      "Grillad paprika",
+      "Oliver"
+     ],
+     "description": null,
+     "familyAddon": 191,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Parma",
+     "price": 139,
+     "ingredients": [
+      "Tomatsås",
+      "Mozzarella",
+      "Parmaskinka",
+      "Fläskfilé",
+      "Soltorkade tomater",
+      "Färska champinjoner",
+      "Ruccolasallad",
+      "Bearnaisesås"
+     ],
+     "description": null,
+     "familyAddon": 191,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Mezzadro",
+     "price": 139,
+     "ingredients": [
+      "Tomatsås",
+      "Mozzarella",
+      "Parmaskinka",
+      "Oxfilé",
+      "Soltorkade tomater",
+      "Ruccolasallad",
+      "Bearnaisesås"
+     ],
+     "description": null,
+     "familyAddon": 191,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Roma Special",
+     "price": 139,
+     "ingredients": [
+      "Tomatsås",
+      "Mozzarella",
+      "Kebabkött",
+      "Rödlök",
+      "Färska champinjoner",
+      "Färska grönsaker",
+      "Valfri sås"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": true,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Moshi Special",
+     "price": 139,
+     "ingredients": [
+      "Tomatsås",
+      "Mozzarella",
+      "Kyckling",
+      "Paprika",
+      "Vitost",
+      "Curry"
+     ],
+     "description": null,
+     "familyAddon": 191,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Serrano",
+     "price": 149,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Chevre",
+      "Lufttorkad skinka",
+      "Honung",
+      "Ruccolasallad",
+      "Mozzarella"
+     ],
+     "description": null,
+     "familyAddon": 191,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Bresaola",
+     "price": 139,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Chevre",
+      "Honung",
+      "Valnötter",
+      "Ruccolasallad",
+      "Mozzarella",
+      "Lufttorkad skinka"
+     ],
+     "description": null,
+     "familyAddon": 191,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "El Pollo",
+     "price": 139,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Aubergine",
+      "Champinjoner",
+      "Soltorkade tomater",
+      "Paprika",
+      "Vitost",
+      "Mozzarella"
+     ],
+     "description": null,
+     "familyAddon": 191,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Doritos Pizza (kyckling)",
+     "price": 149,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Kyckling",
+      "Majs",
+      "Pesto",
+      "Valfri sås"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": true,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Doritos Pizza (pepperonikorv)",
+     "price": 149,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Pepperonikorv",
+      "Majs",
+      "Pesto",
+      "Valfri sås"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": true,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Buratta Pizza",
+     "price": 149,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Krämig burattaost",
+      "Pesto",
+      "Mozzarella",
+      "Olivolja",
+      "Mixsallad"
+     ],
+     "description": null,
+     "familyAddon": 191,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    }
+   ]
+  },
+  {
+   "lumitName": "Kebabpizzor",
+   "hasToppingExtras": true,
+   "products": [
+    {
+     "name": "Kebabpizza",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Kebabkött",
+      "Lök",
+      "Champinjoner",
+      "Feferoni",
+      "Valfri sås"
+     ],
+     "description": null,
+     "familyAddon": 185,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Vikingbåt (halvinbakad)",
+     "price": 125,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Kebabkött",
+      "Rödlök",
+      "Valfri sås"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": true,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Aleppo Special",
+     "price": 129,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Kebabkött",
+      "Skinka",
+      "Valfri sås"
+     ],
+     "description": null,
+     "familyAddon": 201,
+     "sauceIncluded": true,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Prins Special",
+     "price": 129,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Kebabkött",
+      "Rödlök",
+      "Champinjoner",
+      "Paprika",
+      "Vitlök",
+      "Valfri sås"
+     ],
+     "description": null,
+     "familyAddon": 201,
+     "sauceIncluded": true,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Sweden",
+     "price": 129,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Kebabkött",
+      "Rödlök",
+      "Champinjoner",
+      "Köttfärs",
+      "Valfri sås"
+     ],
+     "description": null,
+     "familyAddon": 201,
+     "sauceIncluded": true,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Åstorp Special",
+     "price": 129,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Kebabkött",
+      "Rödlök",
+      "Färska champinjoner",
+      "Skinka",
+      "Valfri sås"
+     ],
+     "description": null,
+     "familyAddon": 201,
+     "sauceIncluded": true,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Kebab Special",
+     "price": 135,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Kebabkött",
+      "Rödlök",
+      "Färska grönsaker",
+      "Feferoni",
+      "Valfri sås"
+     ],
+     "description": null,
+     "familyAddon": 185,
+     "sauceIncluded": true,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Pommespizza",
+     "price": 135,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Kebabkött",
+      "Pommes",
+      "Feferoni",
+      "Valfri sås"
+     ],
+     "description": null,
+     "familyAddon": 185,
+     "sauceIncluded": true,
+     "potatoChoice": false,
+     "accessory": false
+    }
+   ]
+  },
+  {
+   "lumitName": "Amerikanska Pizzor",
+   "hasToppingExtras": true,
+   "products": [
+    {
+     "name": "Pepperoni Special",
+     "price": 169,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Kebabkött",
+      "Skinka",
+      "Jalapeno",
+      "Mozzarella"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Hollywood",
+     "price": 169,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Kebabkött",
+      "Jalapeno",
+      "Gorgonzola",
+      "Färsk vitlök",
+      "Mozzarella"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Gala Special",
+     "price": 169,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Skinka",
+      "Bacon",
+      "Salami",
+      "Färsk vitlök",
+      "Pepperonikorv",
+      "Mozzarella"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Gracias",
+     "price": 169,
+     "ingredients": [
+      "Tomatsås",
+      "Ost",
+      "Kebabkött",
+      "Skinka",
+      "Ananas",
+      "Gorgonzola",
+      "Mozzarella"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    }
+   ]
+  },
+  {
+   "lumitName": "Grillrätter",
+   "hasToppingExtras": false,
+   "products": [
+    {
+     "name": "Grillad Entrecote",
+     "price": 169,
+     "ingredients": [],
+     "description": "Serveras med pommes, bearnaisesås och primörer",
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Kycklingfilé",
+     "price": 149,
+     "ingredients": [],
+     "description": "Serveras med pommes, ruccolasallad, körsbärstomat, mixsallad",
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Ryggbiff",
+     "price": 169,
+     "ingredients": [],
+     "description": "Med stekt potatis eller pommes, ruccola, champinjoner, paprika",
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": true,
+     "accessory": false
+    },
+    {
+     "name": "Högrev - 200g",
+     "price": 130,
+     "ingredients": [
+      "Ost",
+      "Mixsallad",
+      "Tomat",
+      "Lök",
+      "BBQ-sås",
+      "Dressing",
+      "Välj klyftpotatis eller pommes"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Högrev Bacon - 200g",
+     "price": 135,
+     "ingredients": [
+      "Bacon",
+      "Ost",
+      "Mixsallad",
+      "Tomat",
+      "Lök",
+      "BBQ-sås",
+      "Dressing",
+      "Välj klyftpotatis eller pommes"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Högrev Mex - 200g",
+     "price": 135,
+     "ingredients": [
+      "Ost",
+      "Mixsallad",
+      "Jalapeno",
+      "Tacosås",
+      "Tomat",
+      "Lök",
+      "BBQ-sås",
+      "Dressing",
+      "Välj klyftpotatis eller pommes"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    }
+   ]
+  },
+  {
+   "lumitName": "Sallader",
+   "hasToppingExtras": true,
+   "products": [
+    {
+     "name": "Tonfisksallad",
+     "price": 129,
+     "ingredients": [
+      "Tonfisk",
+      "Mixsallad",
+      "Körsbärstomat",
+      "Gurka",
+      "Majs",
+      "Ägg",
+      "Rödlök",
+      "Citron",
+      "Ost",
+      "Bröd"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Kycklingsallad",
+     "price": 129,
+     "ingredients": [
+      "Kyckling",
+      "Mixsallad",
+      "Körsbärstomat",
+      "Gurka",
+      "Majs",
+      "Parmesanost",
+      "Balsamico",
+      "Ost",
+      "Bröd"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Räksallad",
+     "price": 129,
+     "ingredients": [
+      "Räkor",
+      "Mixsallad",
+      "Körsbärstomat",
+      "Gurka",
+      "Majs",
+      "Ägg",
+      "Citron",
+      "Ost",
+      "Bröd"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Kebabsallad",
+     "price": 129,
+     "ingredients": [
+      "Kebabkött",
+      "Mixsallad",
+      "Körsbärstomat",
+      "Gurka",
+      "Rödlök",
+      "Feferoni",
+      "Valfri sås",
+      "Ost",
+      "Bröd"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Avocado Kyckling",
+     "price": 139,
+     "ingredients": [
+      "Avocado",
+      "Kyckling",
+      "Mixsallad",
+      "Körsbärstomat",
+      "Gurka",
+      "Grillad paprika",
+      "Parmesanost",
+      "Oliver",
+      "Balsamico",
+      "Ost",
+      "Bröd"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Grekisk Sallad",
+     "price": 129,
+     "ingredients": [
+      "Ost",
+      "Mixsallad",
+      "Gurka",
+      "Körsbärstomat",
+      "Vitost",
+      "Oliver",
+      "Lök",
+      "Olivolja",
+      "Vinäger",
+      "Oregano",
+      "Ruccolasallad",
+      "Bröd"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Caesarsallad",
+     "price": 139,
+     "ingredients": [
+      "Mixsallad",
+      "Bacon",
+      "Kyckling",
+      "Körsbärstomat",
+      "Gurka",
+      "Parmesanost",
+      "Balsamico",
+      "Ost",
+      "Bröd"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Avocado Parma",
+     "price": 139,
+     "ingredients": [
+      "Avocado",
+      "Parmaskinka",
+      "Mixsallad",
+      "Körsbärstomat",
+      "Gurka",
+      "Parmesanost",
+      "Grillad paprika",
+      "Balsamico",
+      "Ost",
+      "Bröd"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Avocado Falafel",
+     "price": 130,
+     "ingredients": [
+      "Mixsallad",
+      "Avocado",
+      "Oliver",
+      "Rödlök",
+      "Balsamico",
+      "Gurka",
+      "Körsbärstomat",
+      "Ost",
+      "Bröd"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Ost & Skinksallad",
+     "price": 120,
+     "ingredients": [
+      "Sallad",
+      "Gurka",
+      "Körsbärstomater",
+      "Ost",
+      "Skinka",
+      "Färsk paprika",
+      "Bröd"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    }
+   ]
+  },
+  {
+   "lumitName": "Kebabrätter",
+   "hasToppingExtras": true,
+   "products": [
+    {
+     "name": "Kebabrulle",
+     "price": 129,
+     "ingredients": [
+      "Romansallad",
+      "Gurka",
+      "Tomat",
+      "Lök",
+      "Feferoni",
+      "Valfri sås"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": true,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Kebabtallrik",
+     "price": 129,
+     "ingredients": [
+      "Romansallad",
+      "Gurka",
+      "Tomat",
+      "Lök",
+      "Feferoni",
+      "Valfri sås",
+      "Pommes frites"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": true,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Kebab i bröd",
+     "price": 119,
+     "ingredients": [
+      "Romansallad",
+      "Gurka",
+      "Tomat",
+      "Lök",
+      "Feferoni",
+      "Valfri sås"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": true,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Kycklingrulle",
+     "price": 129,
+     "ingredients": [
+      "Romansallad",
+      "Gurka",
+      "Tomat",
+      "Lök",
+      "Feferoni",
+      "Valfri sås"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": true,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Kycklingtallrik",
+     "price": 129,
+     "ingredients": [
+      "Romansallad",
+      "Gurka",
+      "Tomat",
+      "Lök",
+      "Feferoni",
+      "Valfri sås",
+      "Pommes frites"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": true,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Falafelrulle",
+     "price": 104,
+     "ingredients": [
+      "Romansallad",
+      "Gurka",
+      "Tomat",
+      "Lök",
+      "Valfri sås"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": true,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Falafeltallrik",
+     "price": 104,
+     "ingredients": [
+      "Sallad",
+      "Gurka",
+      "Tomat",
+      "Lök",
+      "Feferoni",
+      "Valfri sås",
+      "Pommes frites"
+     ],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": true,
+     "potatoChoice": false,
+     "accessory": false
+    }
+   ]
+  },
+  {
+   "lumitName": "Övrigt",
+   "hasToppingExtras": false,
+   "products": [
+    {
+     "name": "Nuggets 9 bitar",
+     "price": 95,
+     "ingredients": [],
+     "description": "Serveras med pommes frites & valfri sås",
+     "familyAddon": null,
+     "sauceIncluded": true,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Nuggets 5 bitar",
+     "price": 79,
+     "ingredients": [],
+     "description": "Serveras med pommes frites & valfri sås",
+     "familyAddon": null,
+     "sauceIncluded": true,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Hamburgare 90g",
+     "price": 95,
+     "ingredients": [],
+     "description": "Serveras med strips",
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": false
+    },
+    {
+     "name": "Mozzarellasticks",
+     "price": 40,
+     "ingredients": [],
+     "description": "4 stycken",
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Chili Cheese",
+     "price": 40,
+     "ingredients": [],
+     "description": "6 stycken",
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Pommes låda",
+     "price": 59,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Bröd med ost",
+     "price": 49,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    }
+   ]
+  },
+  {
+   "lumitName": "Såser",
+   "hasToppingExtras": false,
+   "products": [
+    {
+     "name": "Vitlökssås (burk)",
+     "price": 19,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Mild sås (burk)",
+     "price": 19,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Stark sås (burk)",
+     "price": 19,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Bearnaisesås",
+     "price": 19,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Tzaziki (burk)",
+     "price": 19,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    }
+   ]
+  },
+  {
+   "lumitName": "Drycker",
+   "hasToppingExtras": false,
+   "products": [
+    {
+     "name": "Coca-Cola Original - 33cl",
+     "price": 25,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Coca-Cola Zero - 33cl",
+     "price": 25,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Cuba Cola - 33cl",
+     "price": 25,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Cuba Cola Zero - 33cl",
+     "price": 25,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Ramlösa Original - 33cl",
+     "price": 25,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Ramlösa Citrus - 33cl",
+     "price": 25,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "7up - 33cl",
+     "price": 25,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Fanta Orange - 33cl",
+     "price": 25,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Fanta Lemon Zero Sugar - 33cl",
+     "price": 25,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Fanta Exotic - 33cl",
+     "price": 25,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Fanta Strawberry - 33cl",
+     "price": 25,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Pepsi - 33cl",
+     "price": 25,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Pepsi Max - 33cl",
+     "price": 25,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Sprite - 33cl",
+     "price": 25,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Coca-Cola Original - 50cl",
+     "price": 30,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Coca-Cola Zero - 50cl",
+     "price": 30,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Fanta Orange - 50cl",
+     "price": 30,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Fanta Exotic - 50cl",
+     "price": 30,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Coca-Cola Zero - 2L",
+     "price": 55,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Coca-Cola Original - 2L",
+     "price": 55,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    },
+    {
+     "name": "Sprite - 2L",
+     "price": 55,
+     "ingredients": [],
+     "description": null,
+     "familyAddon": null,
+     "sauceIncluded": false,
+     "potatoChoice": false,
+     "accessory": true
+    }
+   ]
+  }
+ ]
+}
