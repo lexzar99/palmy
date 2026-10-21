@@ -45,7 +45,10 @@
       host.innerHTML = '<p class="menu-error">Menyn kunde inte laddas just nu. <a href="https://www.viaeats.se/restaurants/pizzeria-roma-astorp">Öppna Romas beställning på viaeats</a>.<br><a href="/demo/pizzeria-roma">Tillbaka till Pizzeria Roma</a></p>';
     }
     window.addEventListener('DOMContentLoaded', function () { window.setTimeout(showMenuFallback, 8000); });
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/demo/pizzeria-roma/sw.js', { scope: '/demo/pizzeria-roma/' }).catch(function () {});
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function (rs) { rs.forEach(function (r) { if (/\/demo\/pizzeria\-roma\/$/.test(r.scope)) r.unregister(); }); }).catch(function () {});
+      navigator.serviceWorker.register('/demo/pizzeria-roma/sw.js', { scope: '/demo/pizzeria-roma' }).catch(function () {});
+    }
   </script>
   <script src="/embed.js?v=20261021" defer onerror="showMenuFallback()"></script>
 </body>

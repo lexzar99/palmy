@@ -1,8 +1,8 @@
 // Wanthai – enkel offline-cache för sajtskalet. Beställningen (iframe från viaeats) cachas aldrig.
-const CACHE = 'wanthai-v3';
+const CACHE = 'wanthai-v4';
 const ASSETS = [
-  '/demo/wanthai/index.html',
-  '/demo/wanthai/meny.html',
+  '/demo/wanthai',
+  '/demo/wanthai/meny',
   '/demo/wanthai/manifest.webmanifest',
   '/demo/wanthai/img/logo-ink.png',
   '/demo/wanthai/img/disc-pad-kra-pao.webp',
@@ -21,13 +21,13 @@ self.addEventListener('activate', (e) => {
 });
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.origin !== self.location.origin || !url.pathname.startsWith('/demo/wanthai/')) return;
+  if (e.request.method !== 'GET' || url.origin !== self.location.origin || !(url.pathname === '/demo/wanthai' || url.pathname.startsWith('/demo/wanthai/'))) return;
   if (e.request.mode === 'navigate') {
     // Nätet först så menyn och platsen alltid är färska; cachen bara när nätet saknas.
     e.respondWith(
       fetch(e.request)
         .then((r) => { const copy = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); return r; })
-        .catch(() => caches.match(e.request).then((r) => r || caches.match('/demo/wanthai/index.html'))),
+        .catch(() => caches.match(e.request).then((r) => r || caches.match('/demo/wanthai'))),
     );
     return;
   }

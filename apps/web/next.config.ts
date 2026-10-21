@@ -23,6 +23,10 @@ const optimizedImageHosts = Array.from(new Set([
   configuredR2Hostname,
 ].filter((host): host is string => Boolean(host))));
 
+// Partnerdemos (statiska sajter i public/demo/<namn>) serveras på rena adresser:
+// /demo/<namn> och /demo/<namn>/meny. De gamla .html-adresserna skickas vidare dit.
+const partnerDemos = ["osteria-cucco", "wanthai", "pizzeria-roma"];
+
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1", "localhost", "192.168.0.3"],
   // Strip console.* in production builds. console.error stays so real
@@ -49,7 +53,18 @@ const nextConfig: NextConfig = {
         source: "/.well-known/apple-developer-merchantid-domain-association",
         headers: [{ key: "Content-Type", value: "text/plain" }],
       },
+      // Demons service worker ligger i /demo/<namn>/ men ska även styra startsidan /demo/<namn>.
+      ...partnerDemos.map((demo) => ({
+        source: `/demo/${demo}/sw.js`,
+        headers: [{ key: "Service-Worker-Allowed", value: `/demo/${demo}` }],
+      })),
     ];
+  },
+  async redirects() {
+    return partnerDemos.flatMap((demo) => [
+      { source: `/demo/${demo}/index.html`, destination: `/demo/${demo}`, permanent: true },
+      { source: `/demo/${demo}/meny.html`, destination: `/demo/${demo}/meny`, permanent: true },
+    ]);
   },
   async rewrites() {
     return {
@@ -65,10 +80,10 @@ const nextConfig: NextConfig = {
           source: "/pay/back",
           destination: "/cart",
         },
-        // Partnerdemo (statisk sajt i public/demo/osteria-cucco) — ren länk utan /index.html.
-        { source: "/demo/osteria-cucco", destination: "/demo/osteria-cucco/index.html" },
-        { source: "/demo/wanthai", destination: "/demo/wanthai/index.html" },
-        { source: "/demo/pizzeria-roma", destination: "/demo/pizzeria-roma/index.html" },
+        ...partnerDemos.flatMap((demo) => [
+          { source: `/demo/${demo}`, destination: `/demo/${demo}/index.html` },
+          { source: `/demo/${demo}/meny`, destination: `/demo/${demo}/meny.html` },
+        ]),
       ],
       fallback: [
         {

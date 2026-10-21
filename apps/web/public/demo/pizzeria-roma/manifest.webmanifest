@@ -4,8 +4,8 @@
   "description": "85 pizzor, kebab och grill på Nya Torg. Beställ och hämta.",
   "lang": "sv",
   "id": "/demo/pizzeria-roma/",
-  "start_url": "/demo/pizzeria-roma/index.html",
-  "scope": "/demo/pizzeria-roma/",
+  "start_url": "/demo/pizzeria-roma",
+  "scope": "/demo/pizzeria-roma",
   "display": "standalone",
   "background_color": "#f7f3ec",
   "theme_color": "#f7f3ec",
@@ -14,5 +14,5 @@
     { "src": "/demo/pizzeria-roma/img/icon-512.png", "sizes": "512x512", "type": "image/png" },
     { "src": "/demo/pizzeria-roma/img/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
-  "shortcuts": [{ "name": "Beställ", "url": "/demo/pizzeria-roma/meny.html", "icons": [{ "src": "/demo/pizzeria-roma/img/icon-192.png", "sizes": "192x192" }] }]
+  "shortcuts": [{ "name": "Beställ", "url": "/demo/pizzeria-roma/meny", "icons": [{ "src": "/demo/pizzeria-roma/img/icon-192.png", "sizes": "192x192" }] }]
 }

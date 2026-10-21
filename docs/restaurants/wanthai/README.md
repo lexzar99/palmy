@@ -40,7 +40,7 @@ Telefon och organisationsnummer är medvetet inte inlagda.
    Token: logga in på admin som superadmin → DevTools → Application → Cookies → `admin_token`.
    Skriptet skapar staden **Höganäs** om den inte finns.
 5. **Publicera** (`draft: false` i admin) först när Wanthai sagt ja. Fram till dess svarar API:t 404 publikt, så menyn i
-   `www.viaeats.se/demo/wanthai/meny.html` laddar inte (samma som Cucco).
+   `www.viaeats.se/demo/wanthai/meny` laddar inte (samma som Cucco).
 
 Kör inte `apply.mjs` igen efter att riktiga ordrar kommit in: bildrutegrupperna skrivs om helt (nya extra-id:n).
 

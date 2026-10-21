@@ -45,7 +45,10 @@
       host.innerHTML = '<p class="menu-error">Menyn kunde inte laddas just nu. <a href="https://www.viaeats.se/restaurants/wanthai-foodtruck">Öppna Wanthais beställning på viaeats</a>.<br><a href="/demo/wanthai">Tillbaka till Wanthai</a></p>';
     }
     window.addEventListener('DOMContentLoaded', function () { window.setTimeout(showMenuFallback, 8000); });
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/demo/wanthai/sw.js', { scope: '/demo/wanthai/' }).catch(function () {});
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function (rs) { rs.forEach(function (r) { if (/\/demo\/wanthai\/$/.test(r.scope)) r.unregister(); }); }).catch(function () {});
+      navigator.serviceWorker.register('/demo/wanthai/sw.js', { scope: '/demo/wanthai' }).catch(function () {});
+    }
   </script>
   <script src="/embed.js?v=20261021" defer onerror="showMenuFallback()"></script>
 </body>
