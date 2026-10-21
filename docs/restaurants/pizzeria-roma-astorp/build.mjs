@@ -633,6 +633,7 @@ for (const n of [...new Set(palmyraDrinks)]) {
 }
 const fixDrink = (v) => (typeof v === "string" && v.startsWith("palmyra:") ? `${WEB}/drinks/${v.slice(8)}.webp` : v);
 for (const k of Object.keys(images.products)) images.products[k] = fixDrink(images.products[k]);
+for (const k of Object.keys(images.categories)) images.categories[k] = fixDrink(images.categories[k]);
 for (const g of Object.values(images.extras)) for (const k of Object.keys(g)) g[k] = fixDrink(g[k]);
 
 // ── menu.yaml ──────────────────────────────────────────────────────────────
