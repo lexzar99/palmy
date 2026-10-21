@@ -172,6 +172,77 @@ h2 em { color: var(--pink); }
 .map iframe { width: 100%; height: 100%; min-height: 400px; border: 0; filter: saturate(.75); }
 @media (max-width: 900px) { .find { grid-template-columns: 1fr; } .map, .map iframe { min-height: 300px; } }
 
+/* Rubriken glider upp rad för rad */
+.line { display: block; overflow: hidden; padding-bottom: .08em; margin-bottom: -.08em; }
+.line > * { display: inline-block; transform: translateY(105%); animation: rise 1.1s var(--ease) forwards; animation-delay: var(--d, 0s); }
+@keyframes rise { to { transform: none; } }
+.hero .lede, .hero .ctas, .hero .today { opacity: 0; animation: fadeup .9s var(--ease) forwards; }
+.hero .lede { animation-delay: .5s; } .hero .ctas { animation-delay: .62s; } .hero .today { animation-delay: .74s; }
+@keyframes fadeup { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+/* Stämpel på valvet */
+.stamp { position: absolute; right: -28px; top: 36px; z-index: 2; width: 118px; height: 118px; border-radius: 50%; background: var(--pink); color: #fff6fa; display: grid; place-items: center; box-shadow: var(--elev-3); }
+.stamp svg { position: absolute; inset: 0; width: 100%; height: 100%; animation: spin 24s linear infinite; }
+.stamp text { font-family: var(--sans); font-size: 10px; font-weight: 600; letter-spacing: 2.6px; fill: currentColor; }
+.stamp img { width: 46px; height: auto; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 900px) { .stamp { right: 6px; top: auto; bottom: 62px; width: 96px; height: 96px; } .stamp img { width: 38px; } .stamp text { font-size: 8.4px; letter-spacing: 2px; } }
+
+/* Band med rätterna på thailändska */
+.marquee { margin-top: 72px; overflow: hidden; border-block: 1px solid var(--line); padding: 16px 0; user-select: none; }
+.marquee-track { display: flex; width: max-content; will-change: transform; }
+.marquee-track > span { flex: none; display: inline-flex; align-items: baseline; gap: .5em; padding-right: .5em; white-space: nowrap; }
+.marquee .th { font-family: var(--thai); font-weight: 300; font-size: clamp(2.2rem, 1.5rem + 3.2vw, 4.6rem); line-height: 1.3; color: transparent; -webkit-text-stroke: 1px var(--pink); }
+.marquee .sv { font-family: var(--serif); font-size: clamp(1.6rem, 1.1rem + 2vw, 3rem); line-height: 1; }
+.marquee .sv + .th { margin-left: .4em; }
+
+/* Hetta: välj rätt och styrka */
+.heat { background: var(--ink); color: #f1ebe0; border-radius: 32px; overflow: hidden; position: relative; isolation: isolate; }
+.heat::before { content: ""; position: absolute; z-index: -1; width: 70%; aspect-ratio: 1; right: -6%; top: 50%; translate: 0 -50%; border-radius: 50%; background: radial-gradient(closest-side, var(--glow, rgba(201, 98, 143, .35)), transparent 72%); transition: background .8s ease; }
+.heat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: center; padding: 64px 56px; }
+.heat h2 { color: #fbf6ee; }
+.heat h2 em { color: #f0a8c6; }
+.heat .sub { margin-top: 14px; color: #bdb3a5; max-width: 40ch; }
+.heat .dishpick { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
+.heat .dishpick button { min-height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .16); color: #c8bfb2; font-size: 14.5px; transition: border-color .3s, color .3s; }
+.heat .dishpick button[aria-pressed="true"] { border-color: #f0a8c6; color: #fff; }
+.levels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+.levels button { display: grid; gap: 2px; justify-items: start; padding: 14px 14px 12px; border-radius: 18px; background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .08); text-align: left; transition: background .3s, border-color .3s, opacity .3s; }
+.levels button b { font-weight: 600; font-size: 15px; color: #fbf6ee; }
+.levels button span { font-size: 12.5px; color: #a99f92; }
+.levels .chilis { display: flex; gap: 3px; margin-bottom: 6px; }
+.levels .chilis i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255, 255, 255, .14); }
+.levels [data-level="1"] .chilis i:nth-child(-n+1), .levels [data-level="2"] .chilis i:nth-child(-n+2), .levels [data-level="3"] .chilis i:nth-child(-n+3) { background: #e2553f; }
+.levels [data-level="0"] .chilis i:first-child { background: #7fb07f; }
+.levels button[aria-pressed="true"] { background: rgba(240, 168, 198, .14); border-color: rgba(240, 168, 198, .55); }
+.levels button:disabled { opacity: .32; cursor: not-allowed; }
+.heat .note { margin-top: 14px; min-height: 1.5em; font-size: 13.5px; color: #a99f92; }
+.heat .btn { margin-top: 24px; background: #fbf6ee; color: var(--ink); }
+.heat .btn:hover { background: #fff; }
+.bowl { position: relative; display: grid; place-items: center; }
+.bowl figure { width: min(100%, 440px); aspect-ratio: 1; border-radius: 50%; overflow: hidden; box-shadow: 0 40px 80px -30px rgba(0, 0, 0, .7), 0 0 0 10px rgba(255, 255, 255, .04); transform: rotate(var(--r, 0deg)); will-change: transform; }
+.bowl img { width: 100%; height: 100%; object-fit: cover; transform: scale(1.12); }
+.bowl img.swap { animation: swap .8s var(--ease); }
+@keyframes swap { from { opacity: 0; transform: scale(1.12) rotate(-50deg); } to { opacity: 1; transform: scale(1.12); } }
+.bowl .word { position: absolute; left: -4%; bottom: 2%; font-family: var(--thai); font-weight: 300; font-size: clamp(34px, 4vw, 56px); line-height: 1; color: #f0a8c6; text-shadow: 0 6px 30px rgba(0, 0, 0, .5); transition: color .6s; }
+@media (max-width: 900px) {
+  .heat { border-radius: 24px; }
+  .heat-grid { grid-template-columns: 1fr; padding: 40px 22px 32px; }
+  .bowl { order: -1; } .bowl figure { width: 78%; } .bowl .word { left: 2%; }
+  .heat .btn { width: 100%; }
+}
+@media (max-width: 420px) { .levels button { padding: 12px 10px 10px; } .levels button b { font-size: 14px; } }
+
+/* Resvägen ritas fram */
+.places { position: relative; }
+.places::before, .places::after { content: ""; position: absolute; left: -26px; top: 0; width: 2px; }
+.places::before { bottom: 0; background: var(--line); }
+.places::after { height: calc(var(--p, 0) * 100%); background: var(--pink); }
+.places li { position: relative; }
+.places li::before { content: ""; position: absolute; left: -31px; top: 34px; width: 12px; height: 12px; border-radius: 50%; background: var(--paper); border: 2px solid var(--line); transition: background .4s, border-color .4s; }
+.places li.lit::before { background: var(--pink); border-color: var(--pink); }
+@media (max-width: 900px) { .places { margin-left: 26px; } }
+
 .install { padding-top: 72px; }
 .install-inner { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 22px; padding: 18px 22px; border-radius: var(--radius); background: var(--card); box-shadow: var(--elev-1); }
 .install-inner img { width: 54px; height: 54px; border-radius: 14px; }
@@ -200,7 +271,11 @@ footer { margin-top: 104px; border-top: 1px solid var(--line); }
 .reveal.in { opacity: 1; transform: none; }
 img.fade { opacity: 0; transition: opacity .7s ease; }
 img.fade.loaded { opacity: 1; }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .reveal { opacity: 1; transform: none; transition: none; } img.fade { opacity: 1; } .hero-photo img { transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; } .reveal { opacity: 1; transform: none; transition: none; } img.fade { opacity: 1; } .hero-photo img { transform: none; }
+  .line > *, .hero .lede, .hero .ctas, .hero .today { animation: none; opacity: 1; transform: none; }
+  .stamp svg, .bowl img.swap { animation: none; }
+}
 </style>
 </head>
 <body>
@@ -217,7 +292,7 @@ img.fade.loaded { opacity: 1; }
 
 <header class="wrap hero">
   <div>
-    <h1>Thaimat från wokpannan, <em>lagad när du beställer.</em></h1>
+    <h1 aria-label="Thaimat från wokpannan, lagad när du beställer."><span class="line" aria-hidden="true"><span>Thaimat från</span></span><span class="line" aria-hidden="true"><span style="--d:.1s">wokpannan,</span></span><span class="line" aria-hidden="true"><em style="--d:.2s">lagad när</em></span><span class="line" aria-hidden="true"><em style="--d:.3s">du beställer.</em></span></h1>
     <p class="lede">Kocken Wan lagar pad thai, currys och wok i vagnen. Beställ här, betala med Swish eller kort och hämta när maten är klar.</p>
     <div class="ctas">
       <a class="btn" href="/demo/wanthai/meny.html">Beställ för avhämtning <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h12M11 5l5 5-5 5"/></svg></a>
@@ -228,6 +303,7 @@ img.fade.loaded { opacity: 1; }
   <div class="hero-photo reveal">
     <figure><img src="/demo/wanthai/img/dishes/pad-ka-prao.webp" alt="Pad kra pao med stekt ägg, thaibasilika och jasminris" width="820" height="504"></figure>
     <span class="cap">Pad Kra Pao, med stekt ägg</span>
+    <span class="stamp" aria-hidden="true"><svg viewBox="0 0 118 118"><defs><path id="ring" d="M59 59 m-43 0 a43 43 0 1 1 86 0 a43 43 0 1 1 -86 0"/></defs><text><textPath href="#ring">WANTHAI · วันไทย · FOODTRUCK · </textPath></text></svg><img src="/demo/wanthai/img/logo-cream.png" alt=""></span>
     <span class="glyph" aria-hidden="true">กะเพรา</span>
   </div>
 </header>
@@ -236,6 +312,8 @@ img.fade.loaded { opacity: 1; }
   <div class="wrap noapp">
     <p class="reveal"><s>Ladda ner en app.</s> <s>Skapa konto.</s> Nu räcker det att trycka på Beställ.</p>
   </div>
+
+  <div class="marquee" aria-hidden="true"><div class="marquee-track" data-marquee><span><b class="th">ผัดไทย</b><b class="sv">Pad Thai</b><b class="th">แกงเขียวหวาน</b><b class="sv">Grön curry</b><b class="th">กะเพรา</b><b class="sv">Kra Pao</b><b class="th">ลาบ</b><b class="sv">Laab</b><b class="th">พะแนง</b><b class="sv">Panaeng</b></span></div></div>
 
   <section id="menyn">
     <div class="wrap">
@@ -252,6 +330,35 @@ img.fade.loaded { opacity: 1; }
         <a class="dish reveal" style="--d:.16s" href="/demo/wanthai/meny.html" data-product="Crispy kycklingsallad"><figure><img src="/demo/wanthai/img/dishes/crispy-kyckling-sallad.webp" alt="Krispig kycklingsallad" loading="lazy"></figure><div class="dish-meta"><h3>Crispy kyckling</h3><span class="price" data-price>116 kr</span></div><span class="thai">ยำไก่กรอบ</span><p>Panerad kyckling, rödlök, krossat torkat ris och thaipersilja.</p></a>
       </div>
       <div class="menu-foot"><span>Fjorton varmrätter, smårätter och thailändsk dryck.</span><a class="btn" href="/demo/wanthai/meny.html">Hela menyn</a></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="heat reveal" data-heat>
+        <div class="heat-grid">
+          <div>
+            <h2>Hur <em>starkt</em> vill du ha det?</h2>
+            <p class="sub">Du väljer hettan när du beställer. Currys och kra pao lagas alltid med chili, de går inte att få helt milda.</p>
+            <div class="dishpick" role="group" aria-label="Rätt">
+              <button type="button" data-dish="pad-thai" aria-pressed="true">Pad Thai</button>
+              <button type="button" data-dish="gron-curry" aria-pressed="false">Grön curry</button>
+              <button type="button" data-dish="pad-kra-pao" aria-pressed="false">Pad Kra Pao</button>
+            </div>
+            <div class="levels" role="group" aria-label="Hetta">
+              <button type="button" data-level="0" aria-pressed="false"><span class="chilis"><i></i><i></i><i></i></span><b>Mai pet</b><span>Inte stark</span></button>
+              <button type="button" data-level="2" aria-pressed="true"><span class="chilis"><i></i><i></i><i></i></span><b>Pet</b><span>Medelstark</span></button>
+              <button type="button" data-level="3" aria-pressed="false"><span class="chilis"><i></i><i></i><i></i></span><b>Pet maak</b><span>Mycket stark</span></button>
+            </div>
+            <p class="note" data-heat-note aria-live="polite"></p>
+            <a class="btn" data-heat-link href="/demo/wanthai/meny.html">Beställ <span data-heat-dish>Pad Thai</span> <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h12M11 5l5 5-5 5"/></svg></a>
+          </div>
+          <div class="bowl">
+            <figure><img data-heat-img src="/demo/wanthai/img/disc-pad-thai.webp" alt="Pad Thai" width="503" height="503" loading="lazy"></figure>
+            <span class="word" data-heat-word aria-hidden="true">เผ็ด</span>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -287,7 +394,7 @@ img.fade.loaded { opacity: 1; }
         <p class="reveal">Wan har lagat thaimat för turister vid havet, för grannar i en småstad och för gäster vid malaysiska gränsen, där maten är den hetaste i Thailand.</p>
         <p class="reveal">I dag står hon i vagnen tillsammans med Jan. Menyn växer hela tiden, med fler kända och okända rätter efter hand.</p>
       </div>
-      <ol class="places">
+      <ol class="places" data-journey>
         <li class="reveal"><b>Koh Chang</b><span class="thai">เกาะช้าง</span><p>Restaurang och bar på ön, med gäster från hela världen.</p></li>
         <li class="reveal" style="--d:.08s"><b>Södra Thailand</b><span class="thai">ภาคใต้</span><p>Egen restaurang nära malaysiska gränsen.</p></li>
         <li class="reveal" style="--d:.16s"><b>Phetchabun</b><span class="thai">เพชรบูรณ์</span><p>Två restauranger sju timmar norr om Bangkok, för lokalbefolkningen.</p></li>
@@ -365,6 +472,74 @@ img.fade.loaded { opacity: 1; }
     if (img.complete) img.classList.add('loaded'); else img.addEventListener('load', function () { img.classList.add('loaded'); }, { once: true });
   });
 
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var liveItems = {};
+
+  // Bandet rullar och får fart av scrollen; tallriken snurrar sakta med; resvägen ritas fram.
+  var track = document.querySelector('[data-marquee]');
+  if (track) track.innerHTML += track.innerHTML;
+  var bowl = document.querySelector('.bowl figure');
+  var journey = document.querySelector('[data-journey]');
+  var stops = journey ? [].slice.call(journey.querySelectorAll('li')) : [];
+  var mx = 0, lastY = window.scrollY, boost = 0;
+  function journeyProgress() {
+    if (!journey) return;
+    var b = journey.getBoundingClientRect(), p = Math.max(0, Math.min(1, (innerHeight * .62 - b.top) / b.height));
+    journey.style.setProperty('--p', p.toFixed(3));
+    stops.forEach(function (li) { var r = li.getBoundingClientRect(); li.classList.toggle('lit', r.top + 34 - b.top <= p * b.height + 1); });
+  }
+  if (reduce) { if (journey) { journey.style.setProperty('--p', 1); stops.forEach(function (li) { li.classList.add('lit'); }); } }
+  else (function frame() {
+    var y = window.scrollY, dy = y - lastY; lastY = y;
+    boost = boost * .92 + Math.min(40, Math.abs(dy)) * .08;
+    if (track) { var half = track.scrollWidth / 2; mx = (mx + .4 + boost * .35) % half; track.style.transform = 'translate3d(' + -mx + 'px,0,0)'; }
+    if (bowl) bowl.style.setProperty('--r', (y * .04 % 360).toFixed(2) + 'deg');
+    journeyProgress();
+    requestAnimationFrame(frame);
+  })();
+
+  // Hetta: samma val som i menyn. Currys och kra pao finns inte milda.
+  var heat = document.querySelector('[data-heat]');
+  var DISHES = {
+    'pad-thai': { name: 'Pad Thai', product: 'Pad Thai', alwaysChili: false },
+    'gron-curry': { name: 'Grön curry', product: 'Gaeng Keaw Wan – grön curry', alwaysChili: true },
+    'pad-kra-pao': { name: 'Pad Kra Pao', product: 'Pad Kra Pao – thaibasilika', alwaysChili: true }
+  };
+  var WORD = { 0: 'ไม่เผ็ด', 2: 'เผ็ด', 3: 'เผ็ดมาก' };
+  var GLOW = { 0: 'rgba(127, 176, 127, .32)', 2: 'rgba(226, 120, 80, .42)', 3: 'rgba(226, 60, 40, .6)' };
+  var NOTE = { 0: 'Utan chili. Passar barn och den som vill smaka örterna.', 2: 'Lagom hetta, som de flesta beställer.', 3: 'Som i södra Thailand. Ha vatten nära.' };
+  var choice = { dish: 'pad-thai', level: 2 };
+  function renderHeat(swap) {
+    if (!heat) return;
+    var d = DISHES[choice.dish];
+    if (d.alwaysChili && choice.level === 0) choice.level = 2;
+    heat.querySelectorAll('[data-dish]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-dish') === choice.dish)); });
+    heat.querySelectorAll('[data-level]').forEach(function (b) {
+      var lv = Number(b.getAttribute('data-level'));
+      b.disabled = d.alwaysChili && lv === 0;
+      b.setAttribute('aria-pressed', String(lv === choice.level));
+    });
+    heat.style.setProperty('--glow', GLOW[choice.level]);
+    heat.querySelector('[data-heat-word]').textContent = WORD[choice.level];
+    heat.querySelector('[data-heat-note]').textContent = (d.alwaysChili && choice.level === 2 ? 'Lagas alltid med chili. ' : '') + NOTE[choice.level];
+    heat.querySelector('[data-heat-dish]').textContent = d.name;
+    var p = liveItems[d.product];
+    heat.querySelector('[data-heat-link]').href = BASE + '/meny.html' + (p && p.id ? '?product=' + encodeURIComponent(p.id) : '');
+    if (swap) {
+      var img = heat.querySelector('[data-heat-img]');
+      img.src = BASE + '/img/disc-' + choice.dish + '.webp'; img.alt = d.name;
+      img.classList.remove('swap'); void img.offsetWidth; img.classList.add('swap');
+    }
+  }
+  if (heat) {
+    heat.addEventListener('click', function (e) {
+      var dish = e.target.closest('[data-dish]'), lv = e.target.closest('[data-level]');
+      if (dish && dish.getAttribute('data-dish') !== choice.dish) { choice.dish = dish.getAttribute('data-dish'); renderHeat(true); }
+      if (lv && !lv.disabled) { choice.level = Number(lv.getAttribute('data-level')); renderHeat(false); }
+    });
+    renderHeat(false);
+  }
+
   function stockholmNow() {
     var parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Stockholm', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());
     var get = function (t) { return (parts.find(function (p) { return p.type === t; }) || {}).value; };
@@ -408,6 +583,8 @@ img.fade.loaded { opacity: 1; }
       if (el && typeof p.price === 'number') el.textContent = Math.round(p.price) + ' kr';
       if (p.id) card.href = BASE + '/meny.html?product=' + encodeURIComponent(p.id);
     });
+    liveItems = items;
+    renderHeat(false);
   }
   var week = { open: '11:30', close: '19:00' };
   render({ openingHours: { monday: week, tuesday: week, wednesday: week, thursday: week, friday: week, saturday: week, sunday: week } });
