@@ -31,6 +31,7 @@ import {
   Bike,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
+import { palmyraCartPrice } from "@/lib/palmyraCartPrice";
 import { ensureKioskAccess } from "@/lib/kioskAccessClient";
 import { EMBED_PARENT_ORIGIN_PARAM, partnerOriginForRestaurant, readEmbedParentOrigin, trustedPartnerOrigin } from "@/lib/embedPartner";
 import { checkDeliveryStreet, isDeliverableStreet } from "@/lib/deliveryAddress";
@@ -402,6 +403,9 @@ export default function CartPage() {
   const withCatalogDiscount = useCallback((product: any, knownPrice?: number | null) => {
     if (!product || typeof product.price !== "number") return product;
     const fromMenu = menuProductsRef.current.find((entry) => entry.id === product.id);
+    if (fromMenu && cartRestaurantSlug === 'palmyra-pizzeria-lund') {
+      return { ...product, ...fromMenu, extraGroups: product.extraGroups };
+    }
     const menuDiscountPrice = typeof fromMenu?.discountPrice === "number" && fromMenu.discountPrice > 0 && fromMenu.discountPrice < product.price ? fromMenu.discountPrice : null;
     const menuDiscountPercent = typeof fromMenu?.discountPercent === "number" && fromMenu.discountPercent > 0 ? fromMenu.discountPercent : null;
     if (menuDiscountPrice != null || menuDiscountPercent != null) {
@@ -411,7 +415,7 @@ export default function CartPage() {
       return { ...product, discountActive: true, discountPrice: knownPrice };
     }
     return product;
-  }, []);
+  }, [cartRestaurantSlug]);
 
   /**
    * Öppnar befintlig ProductModal för redigering av en cart-rad. Hämtar produkten
@@ -478,6 +482,22 @@ export default function CartPage() {
       });
     return () => { cancelled = true; };
   }, [cartRestaurantSlug, embedMode]);
+
+  const [menuPriceUpdated, setMenuPriceUpdated] = useState(false);
+  useEffect(() => {
+    if (cartRestaurantSlug !== 'palmyra-pizzeria-lund' || !menuProducts.length) return;
+    for (const item of items) {
+      if (item.bogoFreeFromDealId) continue;
+      const product: any = menuProducts.find(entry => entry.id === item.productId);
+      if (!product || !Number.isFinite(product.price)) continue;
+      const sale = palmyraCartPrice(product);
+      if (sale === null) continue;
+      if (item.price !== sale || !!item.catalogDiscountApplied !== (sale < product.price)) {
+        updateItem(item.cartItemId, { price: sale, originalPrice: product.price, catalogDiscountApplied: sale < product.price });
+        setMenuPriceUpdated(true);
+      }
+    }
+  }, [items, menuProducts, cartRestaurantSlug, updateItem]);
 
   // Ordningen slumpas en gång per meny — inte per render, annars skulle raden
   // hoppa runt varje gång kassan uppdateras.
@@ -809,6 +829,9 @@ export default function CartPage() {
   const [quickAddresses, setQuickAddresses] = useState<QuickAddress[]>([]);
 
   const [promoCodeInput, setPromoCodeInput] = useState("");
+  useEffect(() => {
+    try { const pending = sessionStorage.getItem('viaeats.pending-code') || ''; if (['VIA50', 'VIA70'].includes(pending)) setPromoCodeInput(pending); } catch { /* lagring blockerad */ }
+  }, []);
   const [addressInput, setAddressInput] = useState(() => {
     if (typeof window === "undefined") return "";
     return localStorage.getItem("platform_delivery_address") || localStorage.getItem("platform_address") || "";
@@ -1213,6 +1236,7 @@ export default function CartPage() {
   const personalDiscount = useMemo(() => {
     if (!selectedPersonalDeal) return 0;
     const { campaign } = selectedPersonalDeal;
+    if (['VIA50', 'VIA70'].includes(selectedPersonalDeal.code.toUpperCase()) && (hasCatalogDiscountedItems || items.some(item => !!item.bogoFreeFromDealId))) return 0;
     if (subtotal < (campaign.minOrder || 0)) return 0;
 
     // Underlaget koden får bita på. excludeDiscountedItems → bara varor som
@@ -1246,7 +1270,7 @@ export default function CartPage() {
     }
 
     return amount;
-  }, [selectedPersonalDeal, subtotal, discountableSubtotal, deliveryFee]);
+  }, [selectedPersonalDeal, subtotal, discountableSubtotal, deliveryFee, hasCatalogDiscountedItems, items]);
   const personalDeliveryDiscount = personalDiscount > 0 && selectedPersonalDeal && (
     selectedPersonalDeal.campaign?.discountType === "FREE_DELIVERY" ||
     selectedPersonalDeal.campaign?.freeDelivery
@@ -1417,7 +1441,8 @@ export default function CartPage() {
   // tröskeln även med 100%-rabatt eftersom basbeloppet är för litet.
   const MIN_ORDER_TOLERANCE_KR = 40;
   const hasActiveDiscount = foodDiscountComponent > 0;
-  const effectiveMinOrder = hasActiveDiscount
+  const effectiveMinOrder = ['VIA50', 'VIA70'].includes(selectedPersonalDeal?.code.toUpperCase() || '') && personalDiscount > 0
+    ? minOrder : hasActiveDiscount
     ? Math.max(0, minOrder - MIN_ORDER_TOLERANCE_KR)
     : minOrder;
   // Komplettering till minimum: kund kan välja att betala mellanskillnaden så
@@ -1689,10 +1714,10 @@ export default function CartPage() {
       // när kunden hade extras som faktiskt gjorde att de mötte minOrder.
       const res = await axios.post(`/api/platform/discount/validate`, {
         code: promoCodeInput.trim(),
+        restaurantId: currentRestaurantId,
+        hasDiscountedItems: hasCatalogDiscountedItems || items.some(item => !!item.bogoFreeFromDealId),
         subtotal,
         discountableSubtotal,
-        // Restaurangbegränsade koder valideras mot korgens restaurang (samma regel som ordern).
-        restaurantId: cartRestaurantId || undefined,
       });
       if (res.status >= 200 && res.status < 300) {
         const data = res.data;
@@ -3280,6 +3305,7 @@ export default function CartPage() {
           {applyingCode ? <Loader2 size={15} className="animate-spin" /> : selectedPersonalDeal ? t("cart.discount.promoRemove") : t("cart.discount.promoCheck")}
         </button>
       </div>
+      {['VIA50', 'VIA70'].includes(selectedPersonalDeal?.code.toUpperCase() || '') && (subtotal < (selectedPersonalDeal?.campaign.minOrder || 150) || hasCatalogDiscountedItems || items.some(item => !!item.bogoFreeFromDealId)) && <p role="alert" className="text-sm px-1" style={{color:'var(--ve-danger)'}}>{subtotal < (selectedPersonalDeal?.campaign.minOrder || 150) ? `Koden kräver mat för minst ${selectedPersonalDeal?.campaign.minOrder || 150} kr.` : 'Koden gäller ej rabatterade varor. Ta bort kampanjvarorna eller koden för att fortsätta.'}</p>}
       {referralMessage && (
         <p className="flex items-center gap-1.5 px-1 text-[13px] font-medium" style={{ color: referralMessage.ok ? "var(--ve-success)" : "var(--ve-danger)" }}>
           {referralMessage.ok ? <CheckCircle2 size={14} className="shrink-0" /> : <AlertCircle size={14} className="shrink-0" />}
@@ -3738,7 +3764,9 @@ export default function CartPage() {
   // Kunden väljer betalsätt direkt i kassan. Först när ett val är gjort byter
   // sidan till det fokuserade betalsteget (Swish-väntan eller Stripe-redirect).
   const checkoutBelowMinimum = Math.max(0, subtotal - foodDiscountComponent) < effectiveMinOrder && !topUpToMinimum;
+  const via50Invalid = ['VIA50', 'VIA70'].includes(selectedPersonalDeal?.code.toUpperCase() || '') && (subtotal < (selectedPersonalDeal?.campaign.minOrder || 150) || hasCatalogDiscountedItems || items.some(item => !!item.bogoFreeFromDealId));
   const checkoutBlocked =
+    (cartRestaurantSlug === 'palmyra-pizzeria-lund' && menuProducts.length === 0) || via50Invalid ||
     loading
     || bogoMustPick
     || (!isTestFlow && activeDealBelowMinimum)
@@ -4073,6 +4101,7 @@ export default function CartPage() {
               </Link>
               <div className="min-w-0 flex-1">
                 <h1 className="m-0 text-[26px] font-semibold leading-tight" style={{ color: "var(--ve-ink)", letterSpacing: "-0.024em" }}>{t("cart.heading.prefix")}</h1>
+                {menuPriceUpdated && <p role="status" className="text-sm px-1">Varukorgen har uppdaterats till priserna i den aktuella menyn.</p>}
                 <p className="m-0 mt-0.5 text-[13.5px] truncate" style={{ color: "var(--ve-ink-3)" }}>
                   {cartRestaurantName ? (
                     <Link href={menuHref} className="font-medium" style={{ color: "var(--ve-ink-2)" }}>{cartRestaurantName}</Link>

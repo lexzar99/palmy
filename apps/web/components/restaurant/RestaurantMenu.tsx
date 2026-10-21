@@ -266,6 +266,7 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
   const { t } = useTranslation();
   const router = useRouter();
 
+  if (restaurantSlug === 'palmyra-pizzeria-lund') initialData = null; // Kanalpriset hämtas innan menyn visas.
   const [categories, setCategories] = useState<any[]>(initialData?.categories ?? []);
   const [isFramed, setIsFramed] = useState(false);
   useEffect(() => { setIsFramed(window.parent !== window); }, []);
@@ -283,13 +284,13 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
-  // Förladda adressmodalen och Leaflet när sidan är klar, så kartan är
+  // Förladda adressmodalen och Google Maps när sidan är klar, så kartan är
   // redo när kunden trycker på adressraden i stället för att laddas då.
   useEffect(() => {
     const w = window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
     const preload = () => {
       void import("@/components/AddressModal");
-      void import("@/lib/leaflet").then((m) => m.loadLeaflet()).catch(() => {});
+      void import("@/lib/googleMaps").then((m) => m.loadGoogleMaps()).catch(() => {});
     };
     const useIdle = typeof w.requestIdleCallback === "function";
     const handle = useIdle ? w.requestIdleCallback!(preload, { timeout: 2500 }) : window.setTimeout(preload, 1200);
@@ -740,7 +741,7 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
     : undefined;
 
   return (
-    <div className="ve-root min-h-screen pb-36 md:pt-20">
+    <div className={`ve-root min-h-screen md:pt-20 ${embedMode ? "pb-56 md:pb-36" : "pb-36"}`}>
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <div ref={heroRef} className="ve-fade-in relative w-full overflow-hidden" style={{ height: "min(50vw, 320px)", minHeight: 210, backgroundColor: "#E5E5EA" }}>
         {heroImage ? (
@@ -785,12 +786,26 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
               <ChevronLeft size={20} strokeWidth={2.4} className="-ml-0.5" />
             </button>
           )}
-          <span
-            aria-hidden={collapse < 0.5}
-            className="max-w-[56vw] justify-self-center truncate text-center text-[16px] font-semibold"
-            style={{ color: "var(--ve-ink)", letterSpacing: "-0.015em", opacity: collapse, transform: `translateY(${((1 - collapse) * 8).toFixed(2)}px)` }}
-          >
-            {restaurant?.name}
+          <span className="relative grid max-w-[56vw] justify-self-center place-items-center">
+            {/* Embed: "Powered by viaeats" ligger i navbaren ovanpå heron och
+                tonar ut när restaurangnamnet tonar in. Ingen länk — embedden
+                leder aldrig kunden bort från partnerns flöde. */}
+            {embedMode && (
+              <span
+                aria-hidden={collapse >= 0.5}
+                className="ve-glass-btn col-start-1 row-start-1 inline-flex h-8 items-center whitespace-nowrap rounded-full px-3 text-[12px] font-semibold"
+                style={{ color: "var(--ve-ink-2)", opacity: 1 - collapse }}
+              >
+                Powered by&nbsp;<span style={{ color: "#F04F1A", fontWeight: 800 }}>viaeats</span>
+              </span>
+            )}
+            <span
+              aria-hidden={collapse < 0.5}
+              className="col-start-1 row-start-1 max-w-full truncate text-center text-[16px] font-semibold"
+              style={{ color: "var(--ve-ink)", letterSpacing: "-0.015em", opacity: collapse, transform: `translateY(${((1 - collapse) * 8).toFixed(2)}px)` }}
+            >
+              {restaurant?.name}
+            </span>
           </span>
           <div className="flex items-center justify-end gap-2 pointer-events-auto">
             <button type="button" onClick={() => setShowInfoModal(true)} aria-label={t("menu.info")} className="ve-glass-btn w-10 h-10 rounded-full grid place-items-center" style={barButtonStyle}>
@@ -883,6 +898,13 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
             </span>
             {!pickupOnly && <ChevronRight size={17} strokeWidth={2.2} style={{ color: "var(--ve-ink-3)" }} />}
           </button>
+
+          {restaurantSlug === 'palmyra-pizzeria-lund' && !embedMode && Date.now() <= Date.parse('2026-09-19T21:59:59.999Z') && (
+            <div className="mt-4 rounded-[14px] px-5 py-4 text-center" style={{ background: '#fff2e8', color: '#0a2340' }}>
+              <strong>VIA50: 50 kr från 150 kr · VIA70: 70 kr från 250 kr</strong>
+              <p className="text-sm mt-1">Fri hemleverans inom Lund. Gäller idag och ej rabatterade varor. Adressen kontrolleras i kassan.</p>
+            </div>
+          )}
 
           {/* Faktarad */}
           <div className="mt-4 grid rounded-[14px] overflow-hidden" style={{ gridTemplateColumns: `repeat(${facts.length}, minmax(0, 1fr))`, backgroundColor: "var(--ve-card-2)", boxShadow: "inset 0 0 0 0.5px var(--ve-line)" }}>
@@ -1196,7 +1218,7 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
         />
       )}
 
-      <CartBar href={embedMode ? `/cart?embed=1&restaurant=${encodeURIComponent(restaurantSlug)}` : "/cart"} />
+      <CartBar href={embedMode ? `/cart?embed=1&restaurant=${encodeURIComponent(restaurantSlug)}` : "/cart"} aboveEmbedNav={embedMode} />
     </div>
   );
 }

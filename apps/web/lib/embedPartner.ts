@@ -42,6 +42,32 @@ export function readEmbedParentOrigin(): string | null {
   }
 }
 
+// Partnersidan ber om en tillbaka-knapp via ?back=1 på första iframe-URL:en.
+// Flaggan sparas per flik så att den följer med till kassan och spårningen.
+const EMBED_BACK_PARAM = "back";
+const EMBED_BACK_SESSION_KEY = "viaeats_embed_back_v1";
+
+export function readEmbedBackEnabled(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    if (new URLSearchParams(window.location.search).get(EMBED_BACK_PARAM) === "1") {
+      window.sessionStorage.setItem(EMBED_BACK_SESSION_KEY, "1");
+      return true;
+    }
+    return window.sessionStorage.getItem(EMBED_BACK_SESSION_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** Ber partnersidan (embed.js) att navigera till sin egen tillbaka-adress. */
+// Meddelandet bär ingen data, så "*" är ofarligt när partnerns origin är okänd
+// (t.ex. palmyrapizzeria.se utan www). embed.js bestämmer själv målet.
+export function requestEmbedBack() {
+  if (typeof window === "undefined" || window.parent === window) return;
+  window.parent.postMessage({ type: "viaeats:navigate-back" }, readEmbedParentOrigin() || "*");
+}
+
 export function partnerOriginForRestaurant(restaurantSlug: unknown): string | null {
   if (typeof restaurantSlug !== "string") return null;
   return PARTNER_ORIGIN_BY_RESTAURANT.get(restaurantSlug.trim().toLowerCase()) || null;

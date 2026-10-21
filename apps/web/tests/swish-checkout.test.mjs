@@ -33,8 +33,11 @@ test("Palmyras uppladdningssida använder den centrala viaeats-embedden", () => 
   assert.match(palmyraHome, /utm_source=palmyra-rabatt&amp;utm_medium=partner-site&amp;utm_campaign=valj-viaeats/);
   assert.match(palmyraHome, /viaeats\.se\/restaurants\/palmyra-pizzeria-lund/);
   assert.match(palmyraHome, /hero-viaeats/);
-  assert.match(palmyraMenu, /Powered by <a[^>]+>viaeats<\/a>/);
-  assert.match(palmyraMenu, /https:\/\/www\.viaeats\.se\/embed\.js\?v=20260905/);
+  // Ingen egen ram runt iframen: tillbaka-knappen och "Powered by viaeats"
+  // ligger i embeddens navbar (EmbeddedNav/RestaurantMenu).
+  assert.match(palmyraMenu, /data-viaeats-back="index\.html"/);
+  assert.doesNotMatch(palmyraMenu, /class="menu-heading"/);
+  assert.match(palmyraMenu, /https:\/\/www\.viaeats\.se\/embed\.js\?v=20260923/);
   assert.match(palmyraMenu, /showMenuFallback/);
   assert.match(menu, /channel: "partner_embed"/);
   assert.match(cart, /\.\.\.\(embedMode \? \{ channel: "partner_embed" \} : \{\}\)/);

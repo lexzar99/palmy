@@ -35,10 +35,11 @@ export function resolveOrderChannel(input: ResolveOrderChannelInput): OrderChann
 
 export function orderChannelAuditChanges(
   channel: OrderChannel,
-  context: { clientType?: unknown; restaurantSlug?: string | null; attribution?: unknown },
+  context: { clientType?: unknown; restaurantSlug?: string | null; attribution?: unknown; offerChannel?: string },
 ): string {
   return JSON.stringify({
     channel,
+    offerChannel: context.offerChannel || null,
     ...(context.attribution ? { attribution: context.attribution } : {}),
     clientType: String(context.clientType || '').trim().toLowerCase() || null,
     restaurantSlug: context.restaurantSlug || null,

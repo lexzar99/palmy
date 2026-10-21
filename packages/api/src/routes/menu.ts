@@ -1,3 +1,4 @@
+import { palmyraRegularPricing } from '../lib/palmyraCampaign';
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { getDealScopeType, isDealAvailableNow, parseApplicableRestaurantIds, parseDealTargetIds, resolveDisplayPromotionForProduct, PARTNER_DEAL_MARKER } from '../lib/deals';
@@ -27,11 +28,11 @@ const menuCache = new Map<string, MenuCacheEntry>();
 let menuCacheBytes = 0;
 // Format ingår i nyckeln: default- och normalized-svaren har olika form och
 // får aldrig dela cache-rad.
-type MenuChannel = 'viaeats' | 'partner_embed';
+type MenuChannel = 'viaeats' | 'partner_embed' | 'palmyra';
 const cacheKey = (rid: string | null, format: string = 'default', channel: MenuChannel = 'viaeats') =>
   `r:${rid ?? '_global'}:${format}:${channel}`;
-const MENU_FORMATS = ['default', 'normalized'] as const;
-const MENU_CHANNELS: MenuChannel[] = ['viaeats', 'partner_embed'];
+const MENU_FORMATS = ['default:regular', 'default:offers', 'normalized:regular', 'normalized:offers'] as const;
+const MENU_CHANNELS: MenuChannel[] = ['viaeats', 'partner_embed', 'palmyra'];
 
 function deleteMenuCacheEntry(key: string): void {
   const existing = menuCache.get(key);
@@ -127,7 +128,7 @@ router.get('/categories', async (req, res) => {
     // kedjemeny 5–10× (en dryckesgrupp med 30 val dupliceras annars i varje
     // produkt). Default-formatet är oförändrat → Flutter/RN/äldre web opåverkade.
     const normalized = req.query.format === 'normalized';
-    const menuChannel: MenuChannel = req.query.channel === 'partner_embed' ? 'partner_embed' : 'viaeats';
+    const menuChannel: MenuChannel = req.query.channel === 'partner_embed' ? 'partner_embed' : req.query.offerChannel === 'palmyra' ? 'palmyra' : 'viaeats';
     const isPartnerEmbed = menuChannel === 'partner_embed';
 
     // Hämta restaurang inkl. slug + city så vi kan bygga R2 predicted URLs
@@ -163,6 +164,7 @@ router.get('/categories', async (req, res) => {
       return;
     }
 
+    const regularPricing = palmyraRegularPricing(resolvedRestaurant?.id, isPartnerEmbed, req.query.offerChannel);
     const restSlugForR2 = resolvedRestaurant?.slug ?? '';
     const citySlugForR2 = resolvedRestaurant
       ? (resolvedRestaurant.city_relation?.slug
@@ -173,7 +175,7 @@ router.get('/categories', async (req, res) => {
     // discovery-känslan inte tappas på cached svar.
     const ck = cacheKey(
       hasRestaurantScope ? (resolvedRestaurantId ?? null) : null,
-      normalized ? 'normalized' : 'default',
+      `${normalized ? 'normalized' : 'default'}:${regularPricing ? 'regular' : 'offers'}`,
       menuChannel,
     );
     const now = Date.now();
@@ -289,7 +291,7 @@ router.get('/categories', async (req, res) => {
     const allowedPartnerDealIds = isPartnerEmbed
       ? await partnerEmbedEnabledIds('deal', queriedDeals.map((deal) => deal.id))
       : null;
-    const activeDeals = isPartnerEmbed
+    const activeDeals = regularPricing ? [] : isPartnerEmbed
       ? queriedDeals
           .filter((deal) => allowedPartnerDealIds?.has(deal.id))
           .map((deal) => ({ ...deal, showOnSite: true }))
@@ -360,7 +362,7 @@ router.get('/categories', async (req, res) => {
         }
         return ({
         ...toDisplayDiscount(
-          isPartnerEmbed
+          (isPartnerEmbed || regularPricing)
             ? { ...prod, discountActive: false, discountPercent: null, discountPrice: null }
             : prod,
           cat.id,
@@ -568,7 +570,7 @@ router.get('/discounted', async (req, res) => {
 
     const platformSettings = await prisma.restaurantSettings.findUnique({ where: { id: 'settings' } });
     const formatted = products
-      .filter((p) => p.category?.restaurant)
+      .filter((p) => p.category?.restaurant && !palmyraRegularPricing(p.category.restaurant.id, false, req.query.offerChannel))
       .map((p) => {
         const restaurant = p.category.restaurant;
         const availability = resolveRestaurantAvailability(restaurant, {

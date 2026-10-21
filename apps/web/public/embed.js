@@ -5,7 +5,7 @@
  * cart-, betalnings- och trackinglogiken körs därför av ViaEats webbapp och
  * inte som kopierad kundlogik på partnersidan.
  *
- *   <div data-viaeats-menu="palmyra-pizzeria-lund"></div>
+ *   <div data-viaeats-menu="palmyra-pizzeria-lund" data-viaeats-back="index.html"></div>
  *   <script src="https://www.viaeats.se/embed.js" defer></script>
  *
  * KANONISK KÄLLA. Partnersidan laddar den här filen direkt från viaeats.se,
@@ -120,6 +120,17 @@
     return /^[\x21-\x7e]+$/.test(raw) ? raw : null;
   }
 
+  /** Tillbaka-adressen sätts av partnersidan själv och måste stanna på dess origin. */
+  function hostBackUrl(raw) {
+    if (typeof raw !== "string" || !raw) return null;
+    try {
+      var parsed = new URL(raw, window.location.href);
+      return parsed.origin === window.location.origin ? parsed.toString() : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   function init(host) {
     var slug = host.getAttribute("data-viaeats-menu");
     if (!slug || host.getAttribute("data-ve-initialized")) return;
@@ -165,6 +176,10 @@
     if (trustedPartnerOrigin(window.location.origin)) {
       frameUrl.searchParams.set("parent_origin", window.location.origin);
     }
+    // data-viaeats-back="index.html" ger en tillbaka-knapp i embeddens egen
+    // navbar, så partnersidan inte behöver någon egen ram runt iframen.
+    var backHref = hostBackUrl(host.getAttribute("data-viaeats-back"));
+    if (backHref) frameUrl.searchParams.set("back", "1");
     frame.src = frameUrl.toString();
 
     function sendHostOrderHistory() {
@@ -200,6 +215,11 @@
         // location.href, inte assign: app-switchen ska inte lämna någon
         // historikpost bakom sig när kunden kommer tillbaka från Swish.
         if (swishUrl) window.location.href = swishUrl;
+        return;
+      }
+
+      if (event.data.type === "viaeats:navigate-back") {
+        if (backHref) window.location.assign(backHref);
         return;
       }
 

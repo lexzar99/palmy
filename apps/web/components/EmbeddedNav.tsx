@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, ReceiptText, ShoppingBag } from "lucide-react";
+import { ArrowLeft, Menu, ReceiptText, ShoppingBag } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { useEffect, useState } from "react";
+import { readEmbedBackEnabled, requestEmbedBack } from "@/lib/embedPartner";
 
 /**
  * Kiosk-navigation. Den ersätter ViaEats globala navbar när kunden kommer
@@ -15,7 +16,9 @@ export default function EmbeddedNav() {
   const pathname = usePathname() || "";
   const [embedRestaurant, setEmbedRestaurant] = useState("");
   const [embedSearch, setEmbedSearch] = useState("");
+  const [backEnabled, setBackEnabled] = useState(false);
   useEffect(() => {
+    setBackEnabled(readEmbedBackEnabled());
     const params = new URLSearchParams(window.location.search);
     setEmbedRestaurant(params.get("embed") === "1" ? params.get("restaurant") || "" : "");
     setEmbedSearch(window.location.search);
@@ -56,6 +59,19 @@ export default function EmbeddedNav() {
       }}
     >
       <div className="mx-auto flex h-16 max-w-2xl items-stretch justify-around px-2 md:max-w-5xl md:justify-start md:gap-8 md:px-6">
+        {backEnabled ? (
+          // Tillbaka till partnerns egen sajt. Navigeringen görs av embed.js
+          // på toppnivån — en cross-origin-iframe får inte styra top själv.
+          <button
+            type="button"
+            onClick={requestEmbedBack}
+            className="relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-bold md:flex-none md:flex-row md:gap-2 md:px-3 md:text-[13px]"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            <ArrowLeft size={19} strokeWidth={1.8} />
+            <span className="truncate">Tillbaka</span>
+          </button>
+        ) : null}
         {items.map(({ href, label, icon: Icon, active }) => (
           <Link
             key={label}
@@ -75,6 +91,9 @@ export default function EmbeddedNav() {
             <span className="truncate">{label}</span>
           </Link>
         ))}
+        <span className="hidden md:ml-auto md:flex md:items-center text-[12px] font-semibold" style={{ color: "var(--text-secondary)" }}>
+          Powered by&nbsp;<span style={{ color: "#F04F1A", fontWeight: 800 }}>viaeats</span>
+        </span>
       </div>
     </nav>
   );

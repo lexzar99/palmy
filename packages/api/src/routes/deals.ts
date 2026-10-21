@@ -1,3 +1,4 @@
+import { palmyraRegularPricing, PALMYRA_ID, isPalmyra } from '../lib/palmyraCampaign';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
@@ -1066,6 +1067,7 @@ router.get('/:id/restaurants', async (req, res) => {
 router.get('/banners', async (req, res) => {
   try {
     const privateEmbed = req.query.channel === 'partner_embed';
+    if (isPalmyra(req.query.restaurantId || req.query.slug) && palmyraRegularPricing(PALMYRA_ID, privateEmbed, req.query.offerChannel)) { res.json([]); return; }
     let targetRestaurantId = typeof req.query.restaurantId === 'string' ? req.query.restaurantId : null;
 
     if (!targetRestaurantId && typeof req.query.slug === 'string' && req.query.slug.trim()) {
@@ -1113,6 +1115,7 @@ router.get('/banners', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const privateEmbed = req.query.channel === 'partner_embed';
+    if (isPalmyra(req.query.restaurantId || req.query.slug) && palmyraRegularPricing(PALMYRA_ID, privateEmbed, req.query.offerChannel)) { res.json([]); return; }
     // Cache 30s keyed by restaurant scope: public deals are identical for all
     // anonymous callers of the same restaurant. Collapses the deal-fetch herd.
     const dealsKey = `${privateEmbed ? 'partner_embed' : 'viaeats'}:${(typeof req.query.restaurantId === 'string' && req.query.restaurantId)
@@ -1202,7 +1205,8 @@ router.get('/', async (req, res) => {
     );
     });
 
-    res.json(out);
+    const regular = palmyraRegularPricing(PALMYRA_ID, privateEmbed, req.query.offerChannel);
+    res.json(regular ? out.filter((deal: any) => deal.restaurant?.id !== PALMYRA_ID && deal.restaurantId !== PALMYRA_ID && !deal.applicableRestaurantIds?.includes(PALMYRA_ID)) : out);
   } catch (error) {
     console.error('Public deals error:', error);
     res.status(500).json({ error: 'Kunde inte hämta deals' });

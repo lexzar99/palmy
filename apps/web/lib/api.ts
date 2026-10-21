@@ -1,4 +1,5 @@
 import axios from "axios";
+import { palmyraOfferChannel } from "@/lib/palmyraOffer";
 import { getKioskAccessProof } from "@/lib/kioskAccessClient";
 import { EMBED_CONTEXT_HEADER } from "@/lib/orderSession";
 
@@ -29,6 +30,14 @@ if (typeof window !== "undefined" && axios.defaults.timeout === 0) {
 // fallback. Never attach it to direct API_URL calls or unrelated routes.
 if (typeof window !== "undefined") {
   axios.interceptors.request.use((config) => {
+    const offerChannel = palmyraOfferChannel();
+    const candidate = typeof config.url === 'string' ? config.url : '';
+    if (/\/api\/(?:platform\/)?(?:menu|deals)(?:[/?]|$)/.test(candidate)) {
+      config.params = { ...config.params, offerChannel };
+    }
+    if (candidate.startsWith('/api/platform/') && config.data && typeof config.data === 'object') {
+      config.data = { ...config.data, offerChannel };
+    }
     const url = typeof config.url === "string" ? config.url : "";
     if (url.startsWith("/api/platform/")) {
       const proof = getKioskAccessProof();

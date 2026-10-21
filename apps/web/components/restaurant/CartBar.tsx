@@ -11,7 +11,12 @@ import { useTranslation } from "@/lib/i18n/LocaleProvider";
  * fjäder in/ut, antalsbadge som "poppar" vid varje tillägg. Länkar till den
  * riktiga kassan (/cart) — samma cart-store som resten av sajten.
  */
-export default function CartBar({ href = "/cart" }: { href?: string }) {
+/**
+ * `aboveEmbedNav`: i partner-embedden ligger EmbeddedNav (h-16 + safe-area)
+ * i botten på mobil, så pillen lyfts ovanför den. På dator sitter navbaren
+ * högst upp och pillen ligger kvar nere.
+ */
+export default function CartBar({ href = "/cart", aboveEmbedNav = false }: { href?: string; aboveEmbedNav?: boolean }) {
   const { t } = useTranslation();
   const items = useCartStore((s) => s.items);
   const total = useCartStore((s) => s.getTotal());
@@ -26,8 +31,8 @@ export default function CartBar({ href = "/cart" }: { href?: string }) {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 24, scale: 0.98 }}
           transition={{ type: "spring", stiffness: 420, damping: 34 }}
-          className="fixed left-4 right-4 z-50 flex justify-center pointer-events-none"
-          style={{ bottom: "max(env(safe-area-inset-bottom, 0px), 14px)" }}
+          className={`fixed left-4 right-4 z-50 flex justify-center pointer-events-none ${aboveEmbedNav ? "bottom-[calc(76px+env(safe-area-inset-bottom,0px))] md:bottom-[max(env(safe-area-inset-bottom,0px),14px)]" : ""}`}
+          style={aboveEmbedNav ? undefined : { bottom: "max(env(safe-area-inset-bottom, 0px), 14px)" }}
         >
           <Link
             href={href}

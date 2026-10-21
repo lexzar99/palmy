@@ -1,8 +1,7 @@
 "use client";
 
 import { memo, useEffect, useRef } from "react";
-import "leaflet/dist/leaflet.css";
-import { MAP_TILES } from "@/lib/mapTiles";
+import { loadGoogleMaps, DARK_MAP_STYLE, DEFAULT_MAP_CENTER } from "@/lib/googleMaps";
 
 type LL = { lat: number; lng: number };
 
@@ -11,9 +10,9 @@ type LL = { lat: number; lng: number };
  *
  * Rutten ritas STATISKT restaurang→kund EN gång — den ändras inte när budet
  * rör sig, så det syns tydligt om budet viker av från vägen. Budets prick
- * skapas vid första positionen och flyttas sedan mjukt (CSS-transition) vid
- * varje ping — den försvinner aldrig och visar alltid senast kända position.
- * Modern CARTO-stil. SSR-säker: Leaflet importeras dynamiskt i useEffect.
+ * skapas vid första positionen och flyttas sedan vid varje ping — den
+ * försvinner aldrig och visar alltid senast kända position.
+ * Google Maps med mörk stil. SSR-säker: API:t laddas i useEffect.
  */
 function CourierTrackingMap({
   pickup,
@@ -30,77 +29,79 @@ function CourierTrackingMap({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const LRef = useRef<any>(null);
+  const GRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const courierMarkerRef = useRef<any>(null);
 
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
-      const L = (await import("leaflet")).default;
-      if (cancelled || !ref.current || mapRef.current) return;
-      LRef.current = L;
-      const center = pickup ?? dropoff ?? courier ?? { lat: 55.7047, lng: 13.191 };
-      const map = L.map(ref.current, { zoomControl: false, attributionControl: false }).setView([center.lat, center.lng], 14);
-      L.tileLayer(MAP_TILES.voyager.url, { maxZoom: MAP_TILES.voyager.maxZoom, subdomains: MAP_TILES.voyager.subdomains }).addTo(map);
-      mapRef.current = map;
-
-      const pinIcon = (bg: string, glyph = "") =>
-        L.divIcon({
-          className: "",
-          html: `<div style="width:28px;height:28px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:${bg};box-shadow:0 2px 8px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center"><span style="transform:rotate(45deg);font-size:12px;line-height:1">${glyph}</span></div>`,
-          iconSize: [28, 28],
-          iconAnchor: [14, 28],
+    loadGoogleMaps()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((G: any) => {
+        if (cancelled || !ref.current || mapRef.current) return;
+        GRef.current = G;
+        const center = pickup ?? dropoff ?? courier ?? DEFAULT_MAP_CENTER;
+        const map = new G.Map(ref.current, {
+          center,
+          zoom: 14,
+          styles: DARK_MAP_STYLE,
+          backgroundColor: "#1d1d20",
+          disableDefaultUI: true,
+          clickableIcons: false,
+          gestureHandling: "greedy",
         });
+        mapRef.current = map;
 
-      const bounds: [number, number][] = [];
-      if (pickup) {
-        L.marker([pickup.lat, pickup.lng], { icon: pinIcon(accentColor, "🍽️") }).addTo(map);
-        bounds.push([pickup.lat, pickup.lng]);
-      }
-      if (dropoff) {
-        L.marker([dropoff.lat, dropoff.lng], { icon: pinIcon("#0C0B0C", "🏠") }).addTo(map);
-        bounds.push([dropoff.lat, dropoff.lng]);
-      }
-      // Statisk rutt restaurang→kund — ritas en gång, ändras aldrig.
-      if (pickup && dropoff) drawRoute(L, mapRef, pickup, dropoff, accentColor);
-      // Om vi redan har en budposition (sällan vid mount) → rita pricken direkt.
-      if (courier) upsertCourier(L, map, courierMarkerRef, courier, accentColor);
-      if (bounds.length > 1) map.fitBounds(L.latLngBounds(bounds).pad(0.3));
-      setTimeout(() => {
-        if (mapRef.current === map) map.invalidateSize();
-      }, 200);
-    })();
+        const bounds = new G.LatLngBounds();
+        let points = 0;
+        if (pickup) {
+          new G.Marker({ map, position: pickup, icon: pinIcon(accentColor), label: { text: "🍽️", fontSize: "12px" } });
+          bounds.extend(pickup);
+          points++;
+        }
+        if (dropoff) {
+          new G.Marker({ map, position: dropoff, icon: pinIcon("#0C0B0C"), label: { text: "🏠", fontSize: "12px" } });
+          bounds.extend(dropoff);
+          points++;
+        }
+        // Statisk rutt restaurang→kund — ritas en gång, ändras aldrig.
+        if (pickup && dropoff) drawRoute(G, mapRef, pickup, dropoff, accentColor);
+        // Om vi redan har en budposition (sällan vid mount) → rita pricken direkt.
+        if (courier) upsertCourier(G, map, courierMarkerRef, courier, accentColor);
+        if (points > 1) map.fitBounds(bounds, 48);
+      })
+      .catch(() => { /* kartan uteblir; spårningskortet visar status ändå */ });
     return () => {
       cancelled = true;
-      if (mapRef.current?.remove) mapRef.current.remove();
+      courierMarkerRef.current?.setMap?.(null);
       mapRef.current = null;
       courierMarkerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Budets prick: skapas vid första positionen, flyttas sen mjukt. Beror BARA
+  // Budets prick: skapas vid första positionen, flyttas sen. Beror BARA
   // på lat/lng (inte på objekt-referenser) så den aldrig tas bort i onödan.
   useEffect(() => {
-    const L = LRef.current;
+    const G = GRef.current;
     const map = mapRef.current;
-    if (!L || !map || !courier) return;
-    upsertCourier(L, map, courierMarkerRef, courier, accentColor);
+    if (!G || !map || !courier) return;
+    upsertCourier(G, map, courierMarkerRef, courier, accentColor);
   }, [courier?.lat, courier?.lng, accentColor]);
 
   // Re-centrera: passa in hela rutten + budet igen — för kunden som zoomat/
   // pannat bort. Räknar bounds från aktuella props vid klick.
   const recenter = () => {
-    const L = LRef.current;
+    const G = GRef.current;
     const map = mapRef.current;
-    if (!L || !map) return;
-    const pts: [number, number][] = [];
-    if (pickup) pts.push([pickup.lat, pickup.lng]);
-    if (dropoff) pts.push([dropoff.lat, dropoff.lng]);
-    if (courier) pts.push([courier.lat, courier.lng]);
-    if (pts.length === 1) map.setView(pts[0], 15, { animate: true });
-    else if (pts.length > 1) map.fitBounds(L.latLngBounds(pts).pad(0.3), { animate: true });
+    if (!G || !map) return;
+    const pts = [pickup, dropoff, courier].filter(Boolean) as LL[];
+    if (pts.length === 1) { map.panTo(pts[0]); map.setZoom(15); }
+    else if (pts.length > 1) {
+      const b = new G.LatLngBounds();
+      pts.forEach((p) => b.extend(p));
+      map.fitBounds(b, 48);
+    }
   };
 
   return (
@@ -138,57 +139,70 @@ function CourierTrackingMap({
   );
 }
 
-// Skapar budpricken en gång och flyttar den sedan (setLatLng) — försvinner aldrig.
+// Droppformad nål i given färg (SVG-path, ankrad i spetsen).
+function pinIcon(fill: string) {
+  return {
+    path: "M12 0C5.4 0 0 5.4 0 12c0 9 12 20 12 20s12-11 12-20C24 5.4 18.6 0 12 0z",
+    fillColor: fill,
+    fillOpacity: 1,
+    strokeColor: "#ffffff",
+    strokeWeight: 1.5,
+    scale: 1,
+    anchor: { x: 12, y: 32 },
+    labelOrigin: { x: 12, y: 12 },
+  };
+}
+
+// Skapar budpricken en gång och flyttar den sedan (setPosition) — försvinner aldrig.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function upsertCourier(L: any, map: any, ref: { current: any }, courier: LL, accentColor: string) {
+function upsertCourier(G: any, map: any, ref: { current: any }, courier: LL, accentColor: string) {
   if (!ref.current) {
-    const icon = L.divIcon({
-      className: "",
-      html: `<span style="position:relative;display:block;width:22px;height:22px"><span style="position:absolute;inset:-9px;border-radius:50%;background:${hexToRgba(accentColor, 0.28)}"></span><span style="position:relative;display:block;width:22px;height:22px;border-radius:50%;background:${accentColor};border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4)"></span></span>`,
-      iconSize: [22, 22],
-      iconAnchor: [11, 11],
+    ref.current = new G.Marker({
+      map,
+      position: courier,
+      zIndex: 1000,
+      icon: {
+        path: G.SymbolPath.CIRCLE,
+        scale: 9,
+        fillColor: accentColor,
+        fillOpacity: 1,
+        strokeColor: "#ffffff",
+        strokeWeight: 3,
+      },
     });
-    ref.current = L.marker([courier.lat, courier.lng], { icon, zIndexOffset: 1000 }).addTo(map);
-    // Mjuk glidning mellan pings istället för att hoppa.
-    const el = ref.current.getElement?.();
-    if (el) el.style.transition = "transform 1s linear";
   } else {
-    ref.current.setLatLng([courier.lat, courier.lng]);
+    ref.current.setPosition(courier);
   }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function drawRoute(L: any, mapRef: { current: any }, from: LL, to: LL, accentColor: string) {
+function drawRoute(G: any, mapRef: { current: any }, from: LL, to: LL, accentColor: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let layer: any = null;
-  const add = (latlngs: [number, number][], dashed: boolean) => {
+  let line: any = null;
+  const add = (path: LL[], dashed: boolean) => {
     const map = mapRef.current;
     if (!map) return;
-    try {
-      if (layer) map.removeLayer(layer);
-      layer = L.polyline(latlngs, dashed ? { color: accentColor, weight: 4, opacity: 0.55, dashArray: "6 8" } : { color: accentColor, weight: 5, opacity: 0.95 }).addTo(map);
-    } catch {
-      /* karta borttagen */
-    }
+    line?.setMap(null);
+    line = new G.Polyline(
+      dashed
+        ? {
+            map,
+            path,
+            strokeOpacity: 0,
+            icons: [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 0.55, strokeColor: accentColor, scale: 3 }, offset: "0", repeat: "14px" }],
+          }
+        : { map, path, strokeColor: accentColor, strokeWeight: 5, strokeOpacity: 0.95 },
+    );
   };
-  const straight = () => add([[from.lat, from.lng], [to.lat, to.lng]], true);
+  const straight = () => add([from, to], true);
   fetch(`https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`)
     .then((r) => r.json())
     .then((d) => {
       const c = d?.routes?.[0]?.geometry?.coordinates as [number, number][] | undefined;
-      if (c && c.length > 1) add(c.map((x) => [x[1], x[0]] as [number, number]), false);
+      if (c && c.length > 1) add(c.map((x) => ({ lat: x[1], lng: x[0] })), false);
       else straight();
     })
     .catch(straight);
-}
-
-function hexToRgba(hex: string, alpha: number) {
-  const clean = hex.replace("#", "");
-  if (clean.length !== 6) return `rgba(46,125,79,${alpha})`;
-  const r = parseInt(clean.slice(0, 2), 16);
-  const g = parseInt(clean.slice(2, 4), 16);
-  const b = parseInt(clean.slice(4, 6), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
 }
 
 // Re-rendera bara när en koordinat faktiskt ändras (inte på varje parent-render),
