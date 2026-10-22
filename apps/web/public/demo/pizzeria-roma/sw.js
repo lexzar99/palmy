@@ -1,12 +1,11 @@
 // Pizzeria Roma – enkel offline-cache för sajtskalet. Beställningen (iframe från viaeats) cachas aldrig.
-const CACHE = 'roma-v5';
+const CACHE = 'roma-v7';
 const ASSETS = [
   '/demo/pizzeria-roma',
   '/demo/pizzeria-roma/meny',
   '/demo/pizzeria-roma/manifest.webmanifest',
-  '/demo/pizzeria-roma/menu-data.json',
   '/demo/pizzeria-roma/img/logo.svg',
-  '/demo/pizzeria-roma/img/photos/pizza-2-700.webp',
+  '/demo/pizzeria-roma/img/hd/pizza-hero.webp',
   '/demo/pizzeria-roma/img/icon-192.png',
 ];
 self.addEventListener('install', (e) => {

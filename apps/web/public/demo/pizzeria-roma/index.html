@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <title>Pizzeria Roma · Nya Torg, Åstorp</title>
-<meta name="description" content="Pizzeria Roma på Nya Torg 1C i Åstorp sedan 2003. Pizza, kebab, grill och sallader. Beställ online och hämta, betala med Swish eller kort.">
-<meta name="theme-color" content="#f7f3ec">
+<meta name="description" content="Pizzeria Roma på Nya Torg 1C i Åstorp sedan 2003. Pizza i tre storlekar, kebab och grill. Beställ online och hämta, betala med Swish eller kort.">
+<meta name="theme-color" content="#0f0f0f">
 <link rel="manifest" href="/demo/pizzeria-roma/manifest.webmanifest">
 <link rel="icon" href="/demo/pizzeria-roma/img/icon-192.png">
 <link rel="apple-touch-icon" href="/demo/pizzeria-roma/img/apple-touch-icon.png">
@@ -14,517 +14,403 @@
 <meta name="apple-mobile-web-app-title" content="Roma">
 <meta property="og:title" content="Pizzeria Roma, Åstorp">
 <meta property="og:description" content="Pizza, kebab och grill på Nya Torg sedan 2003. Beställ online och hämta.">
-<meta property="og:image" content="/demo/pizzeria-roma/img/photos/pizza-2.webp">
+<meta property="og:image" content="/demo/pizzeria-roma/img/hd/storefront.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400..700&family=Fraunces:ital,opsz,wght@0,9..144,400..600;1,9..144,400..500&display=swap" rel="stylesheet">
-<link rel="preload" as="image" href="/demo/pizzeria-roma/img/photos/pizza-2-700.webp">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&display=swap" rel="stylesheet">
+<link rel="preload" as="image" href="/demo/pizzeria-roma/img/hd/pizza-hero.webp">
 <style>
-/* Pizzeria Roma: bold minimalism. Elfenben, espresso och ett dämpat guld som enda accent –
-   rött och retro får bo i loggan. Serif för rubriker, mycket luft, maten bär färgen.
-   Djup via en fast skuggskala, rörelse bara där den ger återkoppling. */
+/* Pizzeria Roma: pizzans cirkel styr allt. En jättepizza snurrar in i hjälten, delas i sex bitar
+   när man scrollar, växer mellan tre storlekar och blir O:et i ROMA. Sotsvart grund, loggans guld
+   som accent, tomatrött som andra färg. Ett typsnitt (Bricolage Grotesque).
+   Lenis och GSAP står för rörelsen; utan skript eller med reducerad rörelse syns allt ändå. */
 :root {
-  --bg: #f7f3ec;
-  --card: #fffdf9;
-  --ink: #1d1814;
-  --muted: #6b625a;
-  --line: rgba(29, 24, 20, .09);
-  --accent: #a87a2e;          /* dämpat guld från skylten */
-  --primary: #1d1814;         /* espresso: knappar och nyckeltext */
-  --primary-hover: #3a302a;
-  --gold: #c9973f;
-  --serif: "Fraunces", "Iowan Old Style", Georgia, serif;
-  --sans: "Archivo", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
-  --fs-base: clamp(1rem, .95rem + .25vw, 1.125rem);
-  --fs-xl: clamp(1.9rem, 1.4rem + 1.8vw, 2.9rem);
-  --fs-3xl: clamp(2.6rem, 1.8rem + 3.6vw, 4.6rem);
-  --elev-1: 0 1px 2px rgba(29, 24, 20, .06), 0 1px 1px rgba(29, 24, 20, .04);
-  --elev-2: 0 6px 18px -8px rgba(29, 24, 20, .18), 0 2px 4px rgba(29, 24, 20, .05);
-  --elev-3: 0 22px 44px -22px rgba(29, 24, 20, .35), 0 4px 10px rgba(29, 24, 20, .06);
-  --wrap: min(1160px, 100% - 40px);
-  --radius: 20px;
+  --bg: #0f0f0f;
+  --surface: #1b1b1b;
+  --ink: #ffffff;
+  --muted: #a9a9a9;
+  --paper: #f4f4f2;
+  --paper-ink: #0f0f0f;
+  --paper-muted: #55524c;
+  --accent: #f7b51e;
+  --accent-ink: #0f0f0f;
+  --red: #d2402c;
+  --font: "Bricolage Grotesque", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --step-small: clamp(0.875rem, 0.85rem + 0.1vw, 0.9375rem);
+  --step-body: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);
+  --step-lead: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
+  --step-head: clamp(2.2rem, 1.3rem + 3.4vw, 4.4rem);
+  --step-display: clamp(2.7rem, 1rem + 4.6vw, 5.6rem);
+  --m: clamp(20px, 4vw, 56px);
   --ease: cubic-bezier(.22, .9, .36, 1);
-  color-scheme: light;
+  color-scheme: dark;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
-body { font-family: var(--sans); font-size: var(--fs-base); background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; overflow-x: clip; line-height: 1.55; }
+html { -webkit-text-size-adjust: 100%; }
+html.lenis, html.lenis body { height: auto; }
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+body { font-family: var(--font); font-size: var(--step-body); line-height: 1.5; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; overflow-x: clip; }
 img { display: block; max-width: 100%; }
 a { color: inherit; text-decoration: none; }
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
-:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; border-radius: 8px; }
-.wrap { width: var(--wrap); margin-inline: auto; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 999px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-.demo-flag { background: var(--ink); color: #eadccd; font-size: 13px; text-align: center; padding: 8px 16px; }
-.demo-flag b { color: #f1dfb8; font-weight: 600; }
+.demo-flag { background: var(--surface); color: #d9d6d0; font-size: var(--step-small); text-align: center; padding: 8px max(16px, calc((100% - 72ch) / 2)); }
 
-nav.top { position: sticky; top: 0; z-index: 50; background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
-.nav-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 68px; }
-.nav-logo img { height: 46px; width: auto; }
-.nav-links { display: flex; gap: 28px; font-weight: 500; font-size: 15px; color: var(--muted); }
-.nav-links a:hover { color: var(--ink); }
-@media (max-width: 760px) { .nav-links { display: none; } }
-
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 54px; padding: 0 26px; border-radius: 999px; font-weight: 600; font-size: 16px; letter-spacing: .1px; background: var(--primary); color: var(--card); box-shadow: var(--elev-2); transition: background .25s, transform .25s var(--ease), box-shadow .25s; }
-.btn:hover { background: var(--primary-hover); transform: translateY(-1px); box-shadow: var(--elev-3); }
-.btn:active { transform: scale(.97); box-shadow: var(--elev-1); }
-.btn svg { transition: transform .25s var(--ease); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 56px; padding: 0 30px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: var(--step-body); transition: transform .3s var(--ease), background .3s; }
+.btn:hover { background: #ffc94a; transform: translateY(-2px); }
+.btn:active { transform: scale(.97); }
+.btn svg { width: 17px; height: 17px; transition: transform .3s var(--ease); }
 .btn:hover svg { transform: translateX(3px); }
-.btn svg { width: 17px; height: 17px; }
-.btn.small { min-height: 40px; padding: 0 18px; font-size: 14.5px; }
-.link { font-weight: 600; font-size: 15.5px; color: var(--ink); background: linear-gradient(currentColor, currentColor) 0 100% / 100% 1.5px no-repeat; padding-bottom: 3px; transition: background-size .35s var(--ease); }
-.link:hover { background-size: 0 1.5px; background-position: 100% 100%; }
+.btn.dark { background: var(--paper-ink); color: var(--paper); }
+.btn.dark:hover { background: #2b2b2b; }
+.dot { flex: none; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #3f8f5a; }
+.dot.closed { background: #8d8a84; }
 
-/* Hero */
-.hero-grid { display: grid; grid-template-columns: .95fr 1.05fr; gap: 56px; align-items: center; padding: 64px 0 40px; }
-h1 { font-family: var(--serif); font-weight: 500; font-size: var(--fs-3xl); line-height: 1.02; letter-spacing: -.02em; font-variation-settings: "opsz" 144; }
-.lede { margin-top: 20px; max-width: 42ch; font-size: 18px; line-height: 1.6; color: var(--muted); }
-.ctas { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 24px; margin-top: 30px; }
-.facts { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-top: 30px; font-size: 14.5px; color: var(--muted); }
-.facts span { display: inline-flex; align-items: center; gap: 8px; }
-.facts b { color: var(--ink); font-weight: 600; }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: #3f8f5a; box-shadow: 0 0 0 4px rgba(63, 143, 90, .14); }
-.dot.closed { background: #b7a99c; box-shadow: none; }
-.star { color: var(--gold); }
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin-top: 56px; }
-.stat { padding: 26px 8px; text-align: center; }
-.stat + .stat { border-left: 1px solid var(--line); }
-.stat b { display: block; font-family: var(--serif); font-weight: 500; font-size: clamp(2rem, 1.5rem + 2vw, 3.2rem); line-height: 1; font-variant-numeric: tabular-nums; }
-.stat span { display: block; margin-top: 8px; font-size: 14px; color: var(--muted); letter-spacing: .2px; }
-@media (max-width: 620px) { .stat { padding: 18px 4px; } .stat span { font-size: 12.5px; } }
-
-.mosaic { display: grid; grid-template-columns: 1.4fr 1fr; grid-template-rows: 1fr 1fr; gap: 12px; aspect-ratio: 1.15; }
-.mosaic figure { position: relative; border-radius: var(--radius); overflow: hidden; background: #e9e1d4; box-shadow: var(--elev-2); }
-.mosaic figure:first-child { grid-row: span 2; }
-.mosaic img { width: 100%; height: 100%; object-fit: cover; transition: transform 1.2s var(--ease); }
-.mosaic figure:hover img { transform: scale(1.04); }
-.mosaic figcaption { position: absolute; left: 12px; bottom: 12px; padding: 6px 12px; border-radius: 999px; background: rgba(255, 253, 249, .72); backdrop-filter: blur(10px) saturate(160%); -webkit-backdrop-filter: blur(10px) saturate(160%); border: 1px solid rgba(255, 255, 255, .5); font-size: 13px; font-weight: 600; }
-@media (max-width: 900px) {
-  .hero-grid { grid-template-columns: 1fr; gap: 32px; padding-top: 36px; }
-  .lede { font-size: 16.5px; }
-  .ctas .btn { flex: 1 1 100%; }
-  .mosaic { aspect-ratio: 1.05; }
+/* Hero: jättepizzan kommer in från höger. */
+.hero { position: relative; min-height: calc(100svh - 38px); overflow: hidden; display: flex; flex-direction: column; padding: 24px var(--m) 48px; isolation: isolate; }
+.nav { display: flex; align-items: center; justify-content: space-between; gap: 20px; position: relative; z-index: 3; }
+.nav .logo { width: clamp(120px, 12vw, 180px); height: auto; }
+.nav-links { display: flex; align-items: center; gap: 28px; padding: 6px 6px 6px 24px; border-radius: 999px; background: var(--bg); font-weight: 500; }
+.nav-links a:not(.btn):hover { color: var(--accent); }
+.nav .btn { min-height: 44px; padding: 0 20px; }
+.hero-text { position: relative; z-index: 3; margin-top: auto; max-width: min(48vw, 720px); padding-top: 64px; }
+h1 { font-weight: 800; font-size: var(--step-display); line-height: .95; letter-spacing: -.045em; max-width: 16ch; }
+.hero-text p { margin-top: 28px; max-width: 34ch; font-size: var(--step-lead); line-height: 1.3; color: #e4e2de; }
+.hero-act { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 26px; margin-top: 36px; }
+.hero-act .status { display: flex; align-items: center; gap: 10px; color: var(--muted); }
+.hero-act .status b { color: var(--ink); font-weight: 600; }
+.giant { position: absolute; z-index: 1; top: 50%; right: calc(-1 * min(42vh, 30vw)); width: min(118vh, 84vw); aspect-ratio: 1; translate: 0 -50%; pointer-events: none; }
+.giant img { width: 100%; height: 100%; }
+.giant::before { content: ""; position: absolute; inset: -4%; border-radius: 50%; border: 3px solid var(--accent); opacity: .9; }
+@media (max-width: 860px) {
+  .nav-links a:not(.btn) { display: none; }
+  .hero { min-height: 0; padding-bottom: 40px; }
+  .giant { position: relative; top: auto; right: auto; translate: none; width: min(112vw, 54svh); margin: 12px max(-24vw, -8svh) 24px 0; align-self: flex-end; }
+  .hero-text { max-width: none; padding-top: 0; margin-top: 0; }
+  h1 { font-size: clamp(1.9rem, 8.6vw, 2.6rem); }
+  .hero-text p { font-size: 1.125rem; }
+  .hero-act .btn { width: 100%; }
 }
 
-/* Sektioner */
-section { padding: 88px 0 0; }
-h2 { font-family: var(--serif); font-weight: 500; font-size: var(--fs-xl); line-height: 1.08; letter-spacing: -.015em; font-variation-settings: "opsz" 96; }
-h2 em { font-style: italic; color: var(--accent); }
-.sec-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px 40px; margin-bottom: 30px; }
-.sec-head p { max-width: 46ch; color: var(--muted); font-size: 16.5px; }
-@media (max-width: 760px) { section { padding-top: 64px; } }
-
-/* Det här lagar vi */
-.kinds { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
-.kind { display: flex; flex-direction: column; background: var(--card); border-radius: var(--radius); overflow: hidden; box-shadow: var(--elev-1); transition: transform .4s var(--ease), box-shadow .4s; }
-.kind:hover { transform: translateY(-5px); box-shadow: var(--elev-3); }
-.kind img { transition: transform 1s var(--ease); }
-.kind:hover img { transform: scale(1.05); }
-.kind > img, .kind > div { position: relative; }
-.kind > :first-child { overflow: hidden; }
-.kind img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; }
-.kind div { padding: 14px 16px 16px; }
-.kind h3 { font-family: var(--serif); font-weight: 500; font-size: 22px; letter-spacing: -.01em; }
-.kind p { margin-top: 2px; font-size: 14px; color: var(--muted); }
-@media (max-width: 980px) { .kinds { grid-template-columns: repeat(3, 1fr); } .kind:nth-child(n+4) img { aspect-ratio: 16 / 10; } }
-@media (max-width: 620px) {
-  .kinds { grid-template-columns: 1fr 1fr; gap: 12px; }
-  .kind:first-child { grid-column: span 2; }
-  .kind:first-child img { aspect-ratio: 16 / 9; }
-  .kind img, .kind:nth-child(n+4) img { aspect-ratio: 1; }
+/* Scenen: pizzan delas i sex bitar och fakta syns i mellanrummen. */
+.slice { position: relative; height: 190svh; }
+.slice-in { position: sticky; top: 0; height: 100svh; display: grid; place-items: center; overflow: hidden; }
+.slice h2 { position: absolute; left: var(--m); top: 48px; z-index: 3; font-weight: 800; font-size: var(--step-head); line-height: .95; letter-spacing: -.04em; max-width: 9ch; }
+.pie-wrap { position: relative; width: min(64vh, 42vw); aspect-ratio: 1; }
+.pie { position: absolute; inset: 0; }
+.pie .w { position: absolute; inset: 0; background: url("/demo/pizzeria-roma/img/hd/pizza-veg.webp") center / 100% 100% no-repeat; will-change: transform; }
+.facts { position: absolute; inset: 0; list-style: none; z-index: 2; }
+.facts li { position: absolute; left: 50%; top: 50%; width: 15ch; text-align: center; font-weight: 700; font-size: var(--step-lead); line-height: 1.1; }
+.facts li span { display: block; margin-top: 4px; font-weight: 400; font-size: var(--step-body); color: var(--muted); }
+.facts li b { color: var(--accent); }
+.facts li[data-side="1"] { text-align: left; }
+.facts li[data-side="-1"] { text-align: right; }
+@media (max-width: 860px) {
+  .slice { height: auto; padding: 120px 0 64px; }
+  .slice-in { position: static; height: auto; display: block; overflow: visible; }
+  .slice h2 { position: static; padding: 0 var(--m) 32px; max-width: none; }
+  .pie-wrap { width: auto; aspect-ratio: auto; }
+  .pie { position: relative; inset: auto; margin: 0 auto; width: 78vw; aspect-ratio: 1; }
+  .facts { position: static; display: grid; grid-template-columns: 1fr 1fr; gap: 22px 16px; padding: 40px var(--m) 0; }
+  .facts li { position: static; width: auto; translate: none; text-align: left; transform: none !important; opacity: 1 !important; }
+  .facts li[data-side] { text-align: left; }
 }
 
-/* Pizzaremsa: ett smakprov, inte menyn */
-.strip { display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 6px; scrollbar-width: none; }
-.strip::-webkit-scrollbar { display: none; }
-.strip a { flex: 0 0 auto; width: 220px; scroll-snap-align: start; }
-.strip a { transition: transform .4s var(--ease); }
-.strip img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius); background: #e9e1d4; box-shadow: var(--elev-1); transition: box-shadow .4s; }
-.strip a:hover { transform: translateY(-4px); }
-.strip a:hover img { box-shadow: var(--elev-3); }
-.strip b { display: block; margin-top: 12px; font-family: var(--serif); font-weight: 500; font-size: 18px; }
-.strip span { font-size: 14px; color: var(--muted); }
-@media (max-width: 620px) { .strip a { width: 168px; } }
-
-/* Rubriken glider upp rad för rad bakom en mask */
-.line { display: block; overflow: hidden; padding-bottom: .06em; margin-bottom: -.06em; }
-.line > span { display: inline-block; transform: translateY(105%); animation: rise 1.1s var(--ease) forwards; animation-delay: var(--d, 0s); }
-h1 .accent { font-style: italic; color: var(--accent); }
-@keyframes rise { to { transform: none; } }
-.hero-grid .lede, .hero-grid .ctas, .hero-grid .facts { opacity: 0; animation: fadeup .9s var(--ease) forwards; }
-.hero-grid .lede { animation-delay: .45s; } .hero-grid .ctas { animation-delay: .58s; } .hero-grid .facts { animation-delay: .7s; }
-@keyframes fadeup { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-
-/* Roterande stämpel över mosaiken */
-.mosaic-wrap { position: relative; }
-.stamp { position: absolute; left: -46px; bottom: -40px; z-index: 3; width: 128px; height: 128px; border-radius: 50%; background: var(--ink); color: #f1dfb8; display: grid; place-items: center; box-shadow: var(--elev-3); }
-.stamp svg { position: absolute; inset: 0; width: 100%; height: 100%; animation: spin 22s linear infinite; }
-.stamp text { font-family: var(--sans); font-size: 10.6px; font-weight: 600; letter-spacing: 3.1px; fill: currentColor; }
-.stamp b { font-family: var(--serif); font-style: italic; font-weight: 500; font-size: 30px; line-height: 1; color: #f1dfb8; }
-@keyframes spin { to { transform: rotate(360deg); } }
-@media (max-width: 900px) { .stamp { left: auto; right: 14px; bottom: -34px; width: 104px; height: 104px; } .stamp b { font-size: 24px; } .stamp text { font-size: 9px; letter-spacing: 2.4px; } }
-
-/* Rullande band */
-.marquee { margin-top: 72px; overflow: hidden; border-block: 1px solid var(--line); padding: 18px 0; user-select: none; }
-.marquee-track { display: flex; width: max-content; will-change: transform; }
-.marquee span { flex: none; display: inline-flex; align-items: center; gap: .55em; padding-right: .55em; font-family: var(--serif); font-weight: 400; font-size: clamp(2.4rem, 1.6rem + 3.6vw, 5rem); line-height: 1.1; letter-spacing: -.02em; white-space: nowrap; }
-.marquee i { font-style: italic; color: transparent; -webkit-text-stroke: 1.2px var(--ink); }
-.marquee .sep { width: .32em; height: .32em; border-radius: 50%; background: var(--accent); }
-
-/* Scenen: välj storlek, pizzan växer */
-.stage { margin-top: 0; background: radial-gradient(120% 90% at 70% 40%, #2f2620 0%, var(--ink) 62%); color: #f3ead9; border-radius: 32px; overflow: hidden; position: relative; }
-.stage-grid { display: grid; grid-template-columns: .9fr 1.1fr; align-items: center; gap: 24px; padding: 64px 56px; min-height: 560px; }
-.stage h2 { color: #fbf3e4; }
-.stage h2 em { color: #e2b866; }
-.stage .sub { margin-top: 16px; max-width: 38ch; color: #c9bba6; font-size: 16.5px; }
-.seg { display: inline-flex; gap: 4px; margin-top: 30px; padding: 5px; border-radius: 999px; background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .1); }
-.seg button { min-height: 44px; padding: 0 20px; border-radius: 999px; font-weight: 600; font-size: 15px; color: #cbbca6; transition: background .3s, color .3s; }
-.seg button[aria-pressed="true"] { background: #f3ead9; color: var(--ink); }
-.picks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-.picks button { min-height: 38px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .16); font-size: 14px; color: #cbbca6; transition: border-color .3s, color .3s; }
-.picks button[aria-pressed="true"] { border-color: #e2b866; color: #fbf3e4; }
-.price-line { display: flex; align-items: baseline; gap: 14px; margin-top: 30px; }
-.price-line b { font-family: var(--serif); font-weight: 500; font-size: clamp(3rem, 2.2rem + 3vw, 4.6rem); line-height: 1; font-variant-numeric: tabular-nums; color: #fbf3e4; }
-.price-line span { color: #c9bba6; font-size: 15px; }
-.stage .btn { margin-top: 28px; background: #f3ead9; color: var(--ink); }
-.stage .btn:hover { background: #fff; }
-.stage .note { margin-top: 18px; font-size: 13.5px; color: #9d907e; }
-.plate { position: relative; display: grid; place-items: center; aspect-ratio: 1; }
-.plate::before { content: ""; position: absolute; inset: 8%; border-radius: 50%; border: 1px dashed rgba(226, 184, 102, .28); }
-.plate::after { content: ""; position: absolute; left: 14%; right: 14%; bottom: 14%; height: 12%; border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, .55), transparent); filter: blur(10px); transform: scale(var(--s, .82)); transition: transform .9s var(--ease); }
-.pizza { position: relative; z-index: 1; width: 92%; transform: scale(var(--s, .82)) rotate(var(--r, 0deg)); transition: transform .9s var(--ease); will-change: transform; }
-.pizza img { width: 100%; height: auto; filter: drop-shadow(0 30px 40px rgba(0, 0, 0, .45)); }
-.pizza img.swap { animation: swap .7s var(--ease); }
-@keyframes swap { from { opacity: 0; transform: rotate(-40deg) scale(.86); } to { opacity: 1; transform: none; } }
-.size-tag { position: absolute; right: 6%; top: 10%; z-index: 2; padding: 8px 14px; border-radius: 999px; background: rgba(243, 234, 217, .1); border: 1px solid rgba(243, 234, 217, .18); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); font-size: 13.5px; font-weight: 600; color: #f3ead9; }
-@media (max-width: 900px) {
-  .stage { border-radius: 24px; }
-  .stage-grid { grid-template-columns: 1fr; padding: 40px 22px 30px; min-height: 0; }
-  .plate { order: -1; max-width: 420px; width: 100%; margin: 0 auto -10px; }
-  .seg { display: flex; } .seg button { flex: 1; padding: 0 10px; }
-  .stage .btn { width: 100%; }
+/* Menyn: två kolumner, runda fotopunkter. */
+.menu { background: var(--paper); color: var(--paper-ink); padding: 96px var(--m) 112px; border-radius: 40px 40px 0 0; }
+.menu-in { max-width: 1240px; margin: 0 auto; }
+.cat { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 96px 0 40px; }
+.cat:first-child { padding-top: 0; }
+.cat h2 { font-weight: 800; font-size: var(--step-head); line-height: 1; letter-spacing: -.04em; }
+.cat span { font-size: var(--step-body); color: var(--paper-muted); }
+.items { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 36px 64px; }
+.items a { display: grid; grid-template-columns: 72px 1fr auto; gap: 4px 20px; align-items: start; }
+.items img { grid-row: 1 / span 2; width: 72px; height: 72px; border-radius: 50%; transition: transform .6s var(--ease); }
+.items a:hover img { transform: rotate(60deg) scale(1.1); }
+.items b { font-weight: 700; font-size: var(--step-lead); line-height: 1.15; align-self: end; }
+.items .price { font-weight: 500; font-variant-numeric: tabular-nums; align-self: end; white-space: nowrap; }
+.items .desc { grid-column: 2 / span 2; font-size: var(--step-body); color: var(--paper-muted); }
+.items .fam { color: #b33522; font-weight: 500; }
+.menu-end { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; margin-top: 64px; }
+.menu-end span { color: var(--paper-muted); max-width: 60ch; }
+@media (max-width: 760px) {
+  .menu { padding: 72px var(--m) 72px; border-radius: 28px 28px 0 0; }
+  .items { grid-template-columns: 1fr; gap: 26px; }
+  .items a { grid-template-columns: 56px 1fr auto; gap: 2px 14px; }
+  .items img { width: 56px; height: 56px; }
+  .cat { padding-top: 104px; }
+  .menu-end .btn { width: 100%; }
 }
 
-/* Kort som lutar mot muspekaren */
-@media (hover: hover) and (pointer: fine) {
-  .kind { transform-style: preserve-3d; }
-  .kind.tilt { transition: transform .12s linear, box-shadow .4s; }
+/* Storlekarna: tre ringar, pizzan växer till den valda. */
+.sizes { display: grid; grid-template-columns: 1.05fr .95fr; gap: 48px; align-items: center; padding: 120px var(--m); }
+.board { position: relative; aspect-ratio: 1; width: min(100%, 680px); justify-self: center; display: grid; place-items: center; }
+.board .rg { position: absolute; left: 50%; top: 50%; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; border: 2px solid #3a3a3a; transition: border-color .5s; }
+.board .rg.barn { width: 60%; } .board .rg.normal { width: 78%; } .board .rg.familj { width: 98%; }
+.board .rg.on { border-color: var(--accent); border-width: 3px; }
+.board .rg span { position: absolute; left: 50%; top: -14px; translate: -50% 0; padding: 0 10px; background: var(--bg); font-size: var(--step-small); font-weight: 600; color: var(--muted); }
+.board .rg.on span { color: var(--accent); }
+.board .pz { position: relative; width: 96%; transform: scale(var(--s, .78)) rotate(var(--rot, 0deg)); transition: transform .9s var(--ease); }
+.board .pz img { width: 100%; height: auto; }
+.size-text { display: flex; flex-direction: column; gap: 26px; }
+.sizes h2 { font-weight: 800; font-size: var(--step-head); line-height: .98; letter-spacing: -.04em; }
+.sizes p { max-width: 42ch; color: var(--muted); }
+.tabs { display: flex; gap: 8px; }
+.tabs button { min-height: 52px; padding: 0 24px; border-radius: 999px; background: var(--surface); font-size: var(--step-body); font-weight: 600; transition: background .3s, color .3s; }
+.tabs button:hover { background: #2a2a2a; }
+.tabs button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.picks { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.picks button { color: var(--muted); font-weight: 500; padding: 4px 0; transition: color .3s; }
+.picks button:hover, .picks button[aria-pressed="true"] { color: var(--ink); }
+.picks button[aria-pressed="true"]::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%; background: var(--accent); }
+.price-big { font-weight: 800; font-size: var(--step-head); line-height: 1; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.price-big small { margin-left: 12px; font-size: var(--step-body); font-weight: 400; color: var(--muted); letter-spacing: 0; }
+@media (max-width: 860px) {
+  .sizes { grid-template-columns: 1fr; padding: 72px var(--m); gap: 32px; }
+  .tabs button { flex: 1; padding: 0 10px; }
+  .size-text .btn { width: 100%; }
 }
 
-/* Hitta hit */
-.visit-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 20px; align-items: stretch; }
-.visit-photo { border-radius: var(--radius); overflow: hidden; min-height: 360px; box-shadow: var(--elev-2); }
-.visit-photo img { width: 100%; height: 100%; object-fit: cover; }
-.card { background: var(--card); border-radius: var(--radius); padding: 28px 26px; box-shadow: var(--elev-2); display: flex; flex-direction: column; gap: 18px; }
-.place b { display: block; font-family: var(--serif); font-weight: 500; font-size: 26px; letter-spacing: -.01em; }
-.place span { display: inline-flex; align-items: center; gap: 9px; margin-top: 6px; color: var(--muted); font-size: 15px; }
-.hours { display: grid; gap: 6px; font-size: 15px; }
-.hours div { display: flex; justify-content: space-between; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
-.hours div:last-child { border: 0; padding: 0; }
-.hours dt { color: var(--muted); } .hours dd { font-weight: 600; font-variant-numeric: tabular-nums; }
-.hours .is-today dt, .hours .is-today dd { color: var(--ink); font-weight: 700; }
-.card .note { font-size: 14px; color: var(--muted); }
-.card .ctas { margin-top: auto; }
-.map { margin-top: 20px; height: 260px; border-radius: var(--radius); overflow: hidden; }
-.map iframe { width: 100%; height: 100%; border: 0; filter: saturate(.8); }
-@media (max-width: 860px) { .visit-grid { grid-template-columns: 1fr; } .visit-photo { min-height: 240px; } }
+/* Hitta hit: lokalen i full bredd, kupongen ovanpå. */
+.visit { position: relative; min-height: 92svh; display: flex; align-items: flex-end; padding: 0 var(--m) 48px; overflow: hidden; }
+.visit > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; will-change: transform; }
+.coupon { position: relative; width: min(100%, 980px); display: grid; grid-template-columns: 44fr 56fr; background: var(--accent); color: var(--accent-ink); border-radius: 22px; }
+.coupon .notch { position: absolute; left: 44%; width: 28px; height: 28px; translate: -50% 0; border-radius: 50%; background: var(--bg); }
+.coupon .notch.top { top: -14px; } .coupon .notch.bottom { bottom: -14px; }
+.coupon .perf { position: absolute; left: 44%; top: 24px; bottom: 24px; translate: -50% 0; display: flex; flex-direction: column; justify-content: space-between; }
+.coupon .perf i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-ink); opacity: .55; }
+.coupon-l { display: flex; flex-direction: column; justify-content: space-between; gap: 24px; padding: 40px; }
+.coupon h2 { font-weight: 800; font-size: clamp(2rem, 1.4rem + 2vw, 3.2rem); line-height: .95; letter-spacing: -.04em; }
+.coupon-r { display: flex; flex-direction: column; gap: 10px; padding: 40px; }
+.cell { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 60px; padding: 12px 22px; border-radius: 999px; background: #fbd36e; }
+.cell b { font-weight: 700; }
+.cell.go { background: var(--accent-ink); color: var(--accent); font-weight: 700; justify-content: center; transition: background .3s, transform .3s var(--ease); }
+.cell.go:hover { background: #262626; }
+.cell.go:active { transform: scale(.98); }
+.week { display: grid; grid-template-columns: repeat(2, auto); justify-content: start; gap: 2px 32px; margin-top: 6px; padding: 0 22px; }
+.week dd { font-variant-numeric: tabular-nums; }
+.week .is-today { font-weight: 700; }
+@media (max-width: 860px) {
+  .visit { min-height: 0; padding: 52svh 12px 12px; }
+  .visit > img { height: 60svh; }
+  .coupon { grid-template-columns: 1fr; }
+  .coupon .notch.top { left: -14px; top: 44%; translate: 0 -50%; } .coupon .notch.bottom { left: auto; right: -14px; bottom: auto; top: 44%; translate: 0 -50%; }
+  .coupon .perf, .coupon .notch { display: none; }
+  .coupon-l, .coupon-r { padding: 30px 22px; }
+}
 
-.install { padding-top: 64px; }
-.install-inner { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 22px; padding: 18px 22px; border-radius: var(--radius); background: var(--card); box-shadow: var(--elev-1); }
-.install-inner img { width: 56px; height: 56px; border-radius: 14px; }
-.install-inner div { flex: 1; min-width: 200px; }
-.install-inner b { font-weight: 700; font-size: 17px; }
-.install-inner p { font-size: 14.5px; color: var(--muted); }
-
-footer { margin-top: 88px; border-top: 1px solid var(--line); }
-.foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px 30px; padding: 36px 0 calc(36px + env(safe-area-inset-bottom)); font-size: 14px; color: var(--muted); }
-.foot img { height: 56px; width: auto; }
-.foot nav { display: flex; flex-wrap: wrap; gap: 20px; font-weight: 600; color: var(--ink); }
-.foot b { color: var(--accent); }
-@media (max-width: 640px) { .foot { padding-bottom: calc(110px + env(safe-area-inset-bottom)); } }
+/* Sidfoten: ROMA, där O:et är pizzan. */
+footer { padding: 96px var(--m) calc(32px + env(safe-area-inset-bottom)); overflow: hidden; }
+.word { display: block; width: 100%; height: auto; overflow: visible; }
+.word text { font-family: var(--font); font-weight: 800; font-size: 400px; letter-spacing: -.04em; fill: var(--accent); }
+.word image { transform-box: fill-box; transform-origin: 50% 50%; }
+.foot { display: grid; grid-template-columns: 2fr 1fr auto; gap: 24px 40px; align-items: end; margin-top: 56px; color: var(--muted); }
+.foot nav { display: flex; flex-wrap: wrap; gap: 10px 26px; color: var(--ink); }
+.foot nav a:hover { color: var(--accent); }
+.foot b { color: var(--ink); font-weight: 700; }
+.install { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin-top: 28px; padding: 16px 18px; border-radius: 22px; background: var(--surface); }
+.install img { width: 44px; height: 44px; border-radius: 12px; }
+.install div { flex: 1; min-width: 200px; }
+.install b { display: block; font-weight: 700; }
+.install .btn { min-height: 44px; padding: 0 18px; }
+@media (max-width: 760px) { .foot { grid-template-columns: 1fr; padding-bottom: 84px; } }
 
 .order-bar { position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 70; display: none; transition: transform .35s var(--ease), opacity .35s; }
-.order-bar .btn { width: 100%; justify-content: space-between; min-height: 58px; padding: 0 8px 0 22px; box-shadow: var(--elev-3); background: rgba(29, 24, 20, .92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.order-bar .btn { width: 100%; justify-content: space-between; min-height: 58px; padding: 0 8px 0 22px; }
 .order-bar .btn > span:first-child { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.2; }
-.order-bar small { font-weight: 500; font-size: 12.5px; opacity: .85; }
-.order-bar .go { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: rgba(255, 255, 255, .18); }
+.order-bar small { font-size: var(--step-small); font-weight: 500; }
+.order-bar .go { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: rgba(15, 15, 15, .14); }
 .order-bar.hide { transform: translateY(140%); opacity: 0; }
-@media (max-width: 640px) { .order-bar { display: block; } }
-
-.reveal { opacity: 0; transform: translateY(18px); transition: opacity .8s ease, transform .8s var(--ease); transition-delay: var(--d, 0s); }
-.reveal.in { opacity: 1; transform: none; }
-.clip { clip-path: inset(12% 0 0 0 round var(--radius)); transition: clip-path 1.1s var(--ease); transition-delay: var(--d, 0s); }
-.clip.in { clip-path: inset(0 0 0 0 round var(--radius)); }
-img.fade { opacity: 0; transition: opacity .6s ease; }
-img.fade.loaded { opacity: 1; }
-@media (prefers-reduced-motion: reduce) {
-  html { scroll-behavior: auto; } .reveal, .clip { opacity: 1; transform: none; clip-path: none; transition: none; } img.fade { opacity: 1; }
-  .line > span, .hero-grid .lede, .hero-grid .ctas, .hero-grid .facts { animation: none; opacity: 1; transform: none; }
-  .stamp svg { animation: none; } .pizza, .plate::after { transition: none; } .pizza img.swap { animation: none; }
-}
+@media (max-width: 760px) { .order-bar { display: block; } }
 </style>
 </head>
 <body>
 
-<div class="demo-flag">Demo för <b>Pizzeria Roma</b>: så här kan er sajt se ut med beställning direkt via viaeats.</div>
+<div class="demo-flag">Demosajt: så här kan sajten se ut med beställning direkt via viaeats.</div>
 
-<nav class="top" aria-label="Huvudmeny">
-  <div class="wrap nav-inner">
-    <a class="nav-logo" href="/demo/pizzeria-roma" aria-label="Pizzeria Roma, till startsidan"><img src="/demo/pizzeria-roma/img/logo.svg" alt="Restaurang &amp; Pizzeria Roma" width="640" height="330"></a>
-    <div class="nav-links"><a href="#lagar">Det här lagar vi</a><a href="#hitta">Hitta hit</a></div>
-    <a class="btn small" href="/demo/pizzeria-roma/meny">Beställ</a>
-  </div>
-</nav>
-
-<header class="wrap hero-grid">
-  <div>
-    <h1 aria-label="Bästa pizzerian i Åstorp sedan 2003."><span class="line" aria-hidden="true"><span>Bästa pizzerian</span></span><span class="line" aria-hidden="true"><span style="--d:.1s">i Åstorp</span></span><span class="line" aria-hidden="true"><span class="accent" style="--d:.2s">sedan 2003.</span></span></h1>
-    <p class="lede">Pizza i alla storlekar, kebab, grill och sallader från Nya Torg. Beställ här och hämta när den är klar. Betala med Swish eller kort.</p>
-    <div class="ctas">
+<header class="hero">
+  <nav class="nav" aria-label="Huvudmeny">
+    <a href="/demo/pizzeria-roma" aria-label="Pizzeria Roma, till startsidan"><img class="logo" src="/demo/pizzeria-roma/img/logo-light.svg" alt="Restaurang &amp; Pizzeria Roma" width="640" height="330"></a>
+    <div class="nav-links"><a href="#menyn">Menyn</a><a href="#storlek">Storlekar</a><a href="#hitta">Hitta hit</a><a class="btn" href="/demo/pizzeria-roma/meny">Beställ</a></div>
+  </nav>
+  <div class="giant" data-giant aria-hidden="true"><img src="/demo/pizzeria-roma/img/hd/pizza-hero.webp" alt="" width="1400" height="1400"></div>
+  <div class="hero-text">
+    <h1 data-intro>Bästa pizzerian i Åstorp sedan 2003</h1>
+    <p data-intro>Pizza i tre storlekar, kebab och grill på Nya Torg. Beställ här och hämta när den är klar.</p>
+    <div class="hero-act" data-intro>
       <a class="btn" href="/demo/pizzeria-roma/meny">Beställ och hämta <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h12M11 5l5 5-5 5"/></svg></a>
-      <a class="link" href="#lagar">Se vad vi lagar</a>
+      <span class="status"><i class="dot" data-open-dot></i><span><b data-status>Öppet idag</b> · 4,4 av 792 på Google</span></span>
     </div>
-    <div class="facts">
-      <span><i class="dot" data-open-dot></i><b data-status>Öppet idag</b></span>
-      <span><span class="star" aria-hidden="true">★</span><b>4,4</b> av 792 omdömen på Google</span>
-    </div>
-  </div>
-  <div class="mosaic-wrap">
-  <div class="stamp" aria-hidden="true">
-    <svg viewBox="0 0 128 128"><defs><path id="ring" d="M64 64 m-47 0 a47 47 0 1 1 94 0 a47 47 0 1 1 -94 0"/></defs><text><textPath href="#ring">NYA TORG · ÅSTORP · SEDAN 2003 · </textPath></text></svg>
-    <b>Roma</b>
-  </div>
-  <div class="mosaic">
-    <figure class="clip" data-depth=".06"><img src="/demo/pizzeria-roma/img/photos/pizza-2-700.webp" srcset="/demo/pizzeria-roma/img/photos/pizza-2-700.webp 700w, /demo/pizzeria-roma/img/photos/pizza-2.webp 1400w" sizes="(max-width: 900px) 60vw, 360px" alt="Pizza med skinka, champinjoner och tomat"><figcaption>Pizza</figcaption></figure>
-    <figure class="clip" style="--d:.12s" data-depth="-.05"><img src="/demo/pizzeria-roma/img/photos/oxfile-700.webp" alt="Skivad grillad biff"><figcaption>Grill</figcaption></figure>
-    <figure class="clip" style="--d:.24s" data-depth=".1"><img src="/demo/pizzeria-roma/img/photos/sallad-700.webp" alt="Grön sallad"><figcaption>Sallader</figcaption></figure>
-  </div>
   </div>
 </header>
 
-<div class="wrap stats" aria-label="Pizzeria Roma i siffror">
-  <div class="stat reveal"><b data-count="23">23</b><span>år på Nya Torg</span></div>
-  <div class="stat reveal" style="--d:.1s"><b data-count="85">85</b><span>sorters pizza</span></div>
-  <div class="stat reveal" style="--d:.2s"><b data-count="4.4" data-decimals="1">4,4</b><span>av 792 omdömen på Google</span></div>
-</div>
-
-<div class="marquee" aria-hidden="true"><div class="marquee-track" data-marquee><span>Pizza <i class="sep"></i> <i>Kebab</i> <i class="sep"></i> Grill <i class="sep"></i> <i>Calzone</i> <i class="sep"></i> Sallader <i class="sep"></i> <i>Familjepizza</i> <i class="sep"></i></span></div></div>
-
 <main>
-  <section id="lagar">
-    <div class="wrap">
-      <div class="sec-head">
-        <h2 class="reveal">Det här <em>lagar vi</em></h2>
-        <p class="reveal">Allt från en klassisk Margherita till entrecote med bearnaise. Hela menyn finns när du beställer.</p>
-      </div>
-      <div class="kinds" data-kinds>
-        <a class="kind reveal" style="--d:0.00s" href="/demo/pizzeria-roma/meny"><img loading="lazy" src="/demo/pizzeria-roma/img/photos/pizza-4-700.webp" alt=""><div><h3>Pizza</h3><p data-kind="pizza">Över 80 sorter</p></div></a>
-        <a class="kind reveal" style="--d:0.08s" href="/demo/pizzeria-roma/meny"><img loading="lazy" src="/demo/pizzeria-roma/img/palmyra/kebabrulle.webp" alt=""><div><h3>Kebab och rullar</h3><p data-kind="Kebab och rullar">Sås ingår</p></div></a>
-        <a class="kind reveal" style="--d:0.16s" href="/demo/pizzeria-roma/meny"><img loading="lazy" src="/demo/pizzeria-roma/img/photos/grill-700.webp" alt=""><div><h3>Grill</h3><p data-kind="Grill">Entrecote och högrev</p></div></a>
-        <a class="kind reveal" style="--d:0.24s" href="/demo/pizzeria-roma/meny"><img loading="lazy" src="/demo/pizzeria-roma/img/photos/sallad-700.webp" alt=""><div><h3>Sallader</h3><p data-kind="Sallader">Med bröd</p></div></a>
-        <a class="kind reveal" style="--d:0.32s" href="/demo/pizzeria-roma/meny"><img loading="lazy" src="/demo/pizzeria-roma/img/palmyra/mozzarella-sticks.webp" alt=""><div><h3>Smårätter</h3><p data-kind="Smårätter">Nuggets, sticks, pommes</p></div></a>
-      </div>
+  <section class="slice" data-slice aria-labelledby="slice-h">
+    <div class="slice-in">
+    <h2 id="slice-h">Roma i sex bitar</h2>
+    <div class="pie-wrap">
+      <div class="pie" data-pie><div class="w"></div><div class="w"></div><div class="w"></div><div class="w"></div><div class="w"></div><div class="w"></div></div>
+      <ul class="facts" data-facts>
+        <li><b>2003</b><span>samma torg sedan dess</span></li>
+        <li><b>85</b> sorter<span>klassiker till kebabpizza</span></li>
+        <li><b>3</b> storlekar<span>barn, normal och familj</span></li>
+        <li>Kebab och grill<span>högrev, rullar, tallrikar</span></li>
+        <li>Sås ingår<span>mild, stark eller vitlök</span></li>
+        <li><b>4,4</b> på Google<span>av 792 omdömen</span></li>
+      </ul>
+    </div>
     </div>
   </section>
 
-  <section>
-    <div class="wrap">
-      <div class="sec-head">
-        <h2 class="reveal">Några av <em>favoriterna</em></h2>
-        <a class="link reveal" href="/demo/pizzeria-roma/meny">Hela menyn</a>
-      </div>
-      <div class="strip" data-strip></div>
+  <section class="menu" id="menyn" aria-label="Menyn">
+    <div class="menu-in">
+      <div class="cat"><h2 data-reveal>Pizza</h2><span data-reveal>Fyra av 85 sorter</span></div>
+      <ul class="items">
+        <li><a href="/demo/pizzeria-roma/meny" data-product="Vesuvio"><img src="/demo/pizzeria-roma/img/round/vesuvio.webp" alt="" loading="lazy" width="240" height="240"><b>Vesuvio</b><span class="price">109 kr</span><span class="desc">Tomatsås, ost och skinka. <span class="fam">Familj 275 kr</span></span></a></li>
+        <li><a href="/demo/pizzeria-roma/meny" data-product="Capricciosa"><img src="/demo/pizzeria-roma/img/round/mamma-mia.webp" alt="" loading="lazy" width="240" height="240"><b>Capricciosa</b><span class="price">119 kr</span><span class="desc">Skinka och champinjoner. <span class="fam">Familj 285 kr</span></span></a></li>
+        <li><a href="/demo/pizzeria-roma/meny" data-product="Kebabpizza"><img src="/demo/pizzeria-roma/img/round/kebabpizza.webp" alt="" loading="lazy" width="240" height="240"><b>Kebabpizza</b><span class="price">125 kr</span><span class="desc">Kebabkött, lök, champinjoner, feferoni och valfri sås. <span class="fam">Familj 310 kr</span></span></a></li>
+        <li><a href="/demo/pizzeria-roma/meny" data-product="Venedig"><img src="/demo/pizzeria-roma/img/round/venedig.webp" alt="" loading="lazy" width="240" height="240"><b>Venedig</b><span class="price">135 kr</span><span class="desc">Skinka, oxfilé och bearnaisesås. <span class="fam">Familj 330 kr</span></span></a></li>
+      </ul>
+      <div class="cat"><h2 data-reveal>Kebab och grill</h2><span data-reveal>Sås ingår</span></div>
+      <ul class="items">
+        <li><a href="/demo/pizzeria-roma/meny" data-product="Kebabrulle"><img src="/demo/pizzeria-roma/img/round/kebabrulle.webp" alt="" loading="lazy" width="240" height="240"><b>Kebabrulle</b><span class="price">129 kr</span><span class="desc">Romansallad, gurka, tomat, lök och feferoni.</span></a></li>
+        <li><a href="/demo/pizzeria-roma/meny" data-product="Högrev - 200g"><img src="/demo/pizzeria-roma/img/round/ostburgare-200g-meny.webp" alt="" loading="lazy" width="240" height="240"><b>Högrev 200 g</b><span class="price">130 kr</span><span class="desc">Ost, sallad och BBQ-sås. Med klyftpotatis eller pommes.</span></a></li>
+      </ul>
+      <div class="menu-end"><span>Hela menyn med sallader, smårätter, såser och dryck finns i beställningen.</span><a class="btn dark" href="/demo/pizzeria-roma/meny">Hela menyn <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h12M11 5l5 5-5 5"/></svg></a></div>
     </div>
   </section>
 
-  <section>
-    <div class="wrap">
-      <div class="stage reveal" data-stage>
-        <div class="stage-grid">
-          <div>
-            <h2>Välj storlek, <em>vi bakar.</em></h2>
-            <p class="sub">Barnpizza, normal eller familj till hela bordet. Samma ugn, samma deg, sedan 2003.</p>
-            <div class="seg" role="group" aria-label="Storlek">
-              <button type="button" data-size="barn" aria-pressed="false">Barn</button>
-              <button type="button" data-size="normal" aria-pressed="true">Normal</button>
-              <button type="button" data-size="familj" aria-pressed="false">Familj</button>
-            </div>
-            <div class="picks" role="group" aria-label="Pizza">
-              <button type="button" data-pizza="vesuvio" aria-pressed="true">Vesuvio</button>
-              <button type="button" data-pizza="kebabpizza" aria-pressed="false">Kebabpizza</button>
-              <button type="button" data-pizza="margherita" aria-pressed="false">Margherita</button>
-            </div>
-            <div class="price-line" aria-live="polite"><b data-stage-price>109 kr</b><span data-stage-label>Vesuvio, normal</span></div>
-            <a class="btn" data-stage-link href="/demo/pizzeria-roma/meny">Beställ den här <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h12M11 5l5 5-5 5"/></svg></a>
-            <p class="note">Glutenfri botten finns för 30 kr extra.</p>
-          </div>
-          <div class="plate">
-            <span class="size-tag" data-size-tag>Normal</span>
-            <div class="pizza" data-pizza-el><img data-pizza-img src="/demo/pizzeria-roma/img/cutout/vesuvio.webp" alt="Vesuvio" width="856" height="680" loading="lazy"></div>
-          </div>
-        </div>
+  <section class="sizes" id="storlek" data-sizes aria-labelledby="size-h">
+    <div class="board" data-reveal>
+      <span class="rg familj"><span>Familj</span></span><span class="rg normal on"><span>Normal</span></span><span class="rg barn"><span>Barn</span></span>
+      <div class="pz" data-pz><img src="/demo/pizzeria-roma/img/hd/top-vesuvio.webp" alt="Vesuvio sedd ovanifrån" width="1000" height="1000" loading="lazy" data-pz-img></div>
+    </div>
+    <div class="size-text">
+      <h2 id="size-h" data-reveal>Tre storlekar, samma ugn</h2>
+      <p>Barnpizzan är 10 kr billigare än normal, familjepizzan räcker till hela bordet. Glutenfri botten finns för 30 kr extra.</p>
+      <div class="tabs" role="group" aria-label="Storlek">
+        <button type="button" data-size="barn" aria-pressed="false">Barn</button>
+        <button type="button" data-size="normal" aria-pressed="true">Normal</button>
+        <button type="button" data-size="familj" aria-pressed="false">Familj</button>
       </div>
+      <div class="picks" role="group" aria-label="Pizza">
+        <button type="button" data-pizza="Vesuvio" aria-pressed="true">Vesuvio</button>
+        <button type="button" data-pizza="Kebabpizza" aria-pressed="false">Kebabpizza</button>
+        <button type="button" data-pizza="Margherita" aria-pressed="false">Margherita</button>
+      </div>
+      <div class="price-big" aria-live="polite"><span data-size-price>109 kr</span><small data-size-label>Vesuvio, normal</small></div>
+      <div><a class="btn" data-size-link href="/demo/pizzeria-roma/meny">Beställ den här <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h12M11 5l5 5-5 5"/></svg></a></div>
     </div>
   </section>
 
-  <section id="hitta">
-    <div class="wrap">
-      <div class="sec-head"><h2 class="reveal">Mitt på <em>Nya Torg</em></h2><p class="reveal">Ät på plats, sitt på uteserveringen eller hämta med dig hem.</p></div>
-      <div class="visit-grid">
-        <div class="visit-photo clip"><img loading="lazy" src="/demo/pizzeria-roma/img/hero.webp" alt="Pizzeria Roma med uteservering på Nya Torg i Åstorp" width="1600" height="900"></div>
-        <div class="card reveal">
-          <div class="place"><b>Nya Torg 1C, Åstorp</b><span><i class="dot" data-open-dot></i><span data-status>Öppet idag</span></span></div>
-          <dl class="hours" data-hours>
-            <div data-day="1"><dt>Måndag</dt><dd>13:00–21:00</dd></div>
-            <div data-day="2"><dt>Tisdag</dt><dd>13:00–21:00</dd></div>
-            <div data-day="3"><dt>Onsdag</dt><dd>13:00–21:00</dd></div>
-            <div data-day="4"><dt>Torsdag</dt><dd>13:00–21:00</dd></div>
-            <div data-day="5"><dt>Fredag</dt><dd>11:00–21:00</dd></div>
-            <div data-day="6"><dt>Lördag</dt><dd>11:00–21:00</dd></div>
-            <div data-day="0"><dt>Söndag</dt><dd>11:00–21:00</dd></div>
-          </dl>
-          <p class="note">Frågor om allergener svarar vi gärna på i restaurangen.</p>
-          <div class="ctas">
-            <a class="btn" href="/demo/pizzeria-roma/meny">Beställ och hämta</a>
-            <a class="link" href="https://www.google.com/maps/dir/?api=1&amp;destination=56.13503,12.94467" target="_blank" rel="noopener">Vägbeskrivning</a>
-          </div>
-        </div>
+  <section class="visit" id="hitta" aria-labelledby="visit-h">
+    <img src="/demo/pizzeria-roma/img/hd/storefront.webp" alt="Pizzeria Roma med uteservering på Nya Torg i Åstorp" width="2400" height="1350" loading="lazy" data-visit-img>
+    <div class="coupon" data-reveal>
+      <span class="notch top" aria-hidden="true"></span><span class="notch bottom" aria-hidden="true"></span>
+      <span class="perf" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <div class="coupon-l">
+        <h2 id="visit-h">Hämta på Nya Torg</h2>
+        <p>Beställ här, betala med Swish eller kort och hämta i disken. Uteservering mitt på torget.</p>
       </div>
-      <div class="map reveal"><iframe title="Karta till Pizzeria Roma" loading="lazy" referrerpolicy="no-referrer" src="https://www.openstreetmap.org/export/embed.html?bbox=12.9387%2C56.1330%2C12.9507%2C56.1370&amp;layer=mapnik&amp;marker=56.13503%2C12.94467"></iframe></div>
+      <div class="coupon-r">
+        <div class="cell"><b>Nya Torg 1C</b><span>265 34 Åstorp</span></div>
+        <div class="cell"><b><i class="dot" data-open-dot></i> <span data-status-cap>Öppet idag</span></b><span>Avhämtning</span></div>
+        <a class="cell go" href="https://www.google.com/maps/dir/?api=1&amp;destination=56.13503,12.94467" target="_blank" rel="noopener">Vägbeskrivning</a>
+        <dl class="week" data-hours>
+          <div data-day="1"><dt class="sr">Måndag</dt><dd>Mån 13–21</dd></div>
+          <div data-day="5"><dt class="sr">Fredag</dt><dd>Fre 11–21</dd></div>
+          <div data-day="2"><dt class="sr">Tisdag</dt><dd>Tis 13–21</dd></div>
+          <div data-day="6"><dt class="sr">Lördag</dt><dd>Lör 11–21</dd></div>
+          <div data-day="3"><dt class="sr">Onsdag</dt><dd>Ons 13–21</dd></div>
+          <div data-day="0"><dt class="sr">Söndag</dt><dd>Sön 11–21</dd></div>
+          <div data-day="4"><dt class="sr">Torsdag</dt><dd>Tor 13–21</dd></div>
+        </dl>
+      </div>
     </div>
   </section>
-
-  <div class="install wrap" id="installera" hidden>
-    <div class="install-inner">
-      <img src="/demo/pizzeria-roma/img/icon-192.png" alt="" width="192" height="192">
-      <div><b>Roma på hemskärmen</b><p data-install-text>Öppnas som en egen app, nästa beställning är två tryck bort.</p></div>
-      <button class="btn small" type="button" data-install>Lägg till</button>
-    </div>
-  </div>
 </main>
 
 <footer>
-  <div class="wrap foot">
-    <img src="/demo/pizzeria-roma/img/logo.svg" alt="Restaurang &amp; Pizzeria Roma" width="640" height="330" loading="lazy">
-    <nav aria-label="Sidfot"><a href="/demo/pizzeria-roma/meny">Beställ</a><a href="#lagar">Det här lagar vi</a><a href="#hitta">Hitta hit</a></nav>
-    <span>Nya Torg 1C, 265 34 Åstorp · Beställning via <a href="https://www.viaeats.se" target="_blank" rel="noopener"><b>viaeats</b></a></span>
+  <svg class="word" viewBox="0 0 1400 360" role="img" aria-label="Roma" data-word><text data-l x="150" y="320" text-anchor="middle">R</text><image data-o href="/demo/pizzeria-roma/img/hd/pizza-hero.webp" x="330" y="30" width="290" height="290"/><text data-l x="855" y="320" text-anchor="middle">M</text><text data-l x="1245" y="320" text-anchor="middle">A</text></svg>
+  <div class="foot">
+    <nav aria-label="Sidfot"><a href="/demo/pizzeria-roma/meny">Beställ</a><a href="#menyn">Menyn</a><a href="#storlek">Storlekar</a><a href="#hitta">Hitta hit</a></nav>
+    <p>Beställning och betalning via <a href="https://www.viaeats.se" target="_blank" rel="noopener"><b>viaeats</b></a></p>
+    <a class="btn" href="/demo/pizzeria-roma/meny">Beställ</a>
+  </div>
+  <div class="install" id="installera" hidden>
+    <img src="/demo/pizzeria-roma/img/icon-192.png" alt="" width="192" height="192">
+    <div><b>Roma på hemskärmen</b><span data-install-text>Öppnas som en egen app, nästa beställning är två tryck bort.</span></div>
+    <button class="btn" type="button" data-install>Lägg till</button>
   </div>
 </footer>
 
-<div class="order-bar" data-order-bar>
+<div class="order-bar hide" data-order-bar>
   <a class="btn" href="/demo/pizzeria-roma/meny">
     <span>Beställ och hämta<small data-status-short>Öppet idag</small></span>
     <span class="go" aria-hidden="true"><svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h12M11 5l5 5-5 5"/></svg></span>
   </a>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" defer></script>
+<script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js" defer></script>
 <script>
+// Pizzans sex bitar: varje bit är samma bild med en kilformad clip-path. Faktan ligger i mellanrummen.
+(function () {
+  var pie = document.querySelector('[data-pie]');
+  if (!pie) return;
+  var wedges = pie.querySelectorAll('.w'), facts = document.querySelectorAll('[data-facts] li');
+  wedges.forEach(function (w, i) {
+    var a0 = 30 + i * 60, pts = ['50% 50%'];
+    for (var k = 0; k <= 6; k++) { var a = (a0 + k * 10) * Math.PI / 180; pts.push((50 + 75 * Math.cos(a)).toFixed(2) + '% ' + (50 + 75 * Math.sin(a)).toFixed(2) + '%'); }
+    w.style.clipPath = 'polygon(' + pts.join(',') + ')';
+    w.dataset.angle = a0 + 30;
+  });
+  // Faktan sitter på skarvarna mellan bitarna, utanför pizzan tills den delas.
+  facts.forEach(function (li, i) { var a = (30 + i * 60) * Math.PI / 180, x = Math.cos(a); li.dataset.x = x; li.dataset.y = Math.sin(a); li.dataset.side = x > .9 ? 1 : x < -.9 ? -1 : 0; });
+})();
+
+// Data och beteende som inte kräver animationsbiblioteken.
 (function () {
   var SLUG = 'pizzeria-roma-astorp', BASE = '/demo/pizzeria-roma';
   var API = location.pathname.indexOf('/demo/') === 0 ? '' : 'https://api.viaeats.se';
   var DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  // Ett smakprov – resten finns i beställningen.
-  var FAVS = ['Kebabpizza', 'Capricciosa', 'Hawaii', 'Vesuvio', 'Venedig', 'Kebabrulle', 'Grekisk Sallad', 'Calzone (inbakad)'];
-  var live = {};
-
-  var io = 'IntersectionObserver' in window ? new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }); }, { rootMargin: '0px 0px -6% 0px' }) : null;
-  document.querySelectorAll('.reveal, .clip').forEach(function (el) { io ? io.observe(el) : el.classList.add('in'); });
-  // Bilder tonas in när de laddat i stället för att poppa in.
-  document.querySelectorAll('main img, .mosaic img').forEach(function (img) {
-    img.classList.add('fade');
-    if (img.complete) img.classList.add('loaded'); else img.addEventListener('load', function () { img.classList.add('loaded'); }, { once: true });
-  });
-  // Siffrorna räknar upp en gång när de syns.
+  var SHORT = ['Sön', 'Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör'];
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var counter = 'IntersectionObserver' in window && !reduce ? new IntersectionObserver(function (es) {
-    es.forEach(function (e) {
-      if (!e.isIntersecting) return;
-      counter.unobserve(e.target);
-      var el = e.target, end = Number(el.getAttribute('data-count')), dec = Number(el.getAttribute('data-decimals') || 0), t0 = performance.now();
-      (function tick(t) {
-        var k = Math.min(1, (t - t0) / 1400), v = end * (1 - Math.pow(1 - k, 3));
-        el.textContent = v.toFixed(dec).replace('.', ',');
-        if (k < 1) requestAnimationFrame(tick);
-      })(t0);
-    });
-  }, { threshold: .6 }) : null;
-  if (counter) document.querySelectorAll('[data-count]').forEach(function (el) { counter.observe(el); });
-  // Bandet rullar jämnt och får fart av scrollen. Mosaiken rör sig i olika djup.
-  var track = document.querySelector('[data-marquee]');
-  if (track) track.innerHTML += track.innerHTML;
-  var depthEls = [].slice.call(document.querySelectorAll('[data-depth]'));
-  var pizzaEl = document.querySelector('[data-pizza-el]');
-  var x = 0, lastY = window.scrollY, boost = 0;
-  if (!reduce) (function frame() {
-    var y = window.scrollY, dy = y - lastY; lastY = y;
-    boost = boost * .92 + Math.min(40, Math.abs(dy)) * .08;
-    if (track) { var half = track.scrollWidth / 2; x = (x + .45 + boost * .35) % half; track.style.transform = 'translate3d(' + -x + 'px,0,0)'; }
-    if (window.innerWidth > 900) depthEls.forEach(function (el) { el.style.transform = 'translate3d(0,' + (y * Number(el.getAttribute('data-depth'))).toFixed(1) + 'px,0)'; });
-    if (pizzaEl) { var r = pizzaEl.getBoundingClientRect(); pizzaEl.style.setProperty('--r', ((r.top + r.height / 2 - innerHeight / 2) * -.06).toFixed(2) + 'deg'); }
-    requestAnimationFrame(frame);
-  })();
+  var live = {};
+  function link(name) { var p = live[name]; return BASE + '/meny' + (p && p.id ? '?product=' + encodeURIComponent(p.id) : ''); }
 
-  // Korten lutar svagt mot muspekaren.
-  if (!reduce && window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
-    document.querySelectorAll('.kind').forEach(function (card) {
-      card.addEventListener('pointermove', function (e) {
-        var b = card.getBoundingClientRect(), px = (e.clientX - b.left) / b.width - .5, py = (e.clientY - b.top) / b.height - .5;
-        card.classList.add('tilt');
-        card.style.transform = 'perspective(800px) rotateY(' + (px * 7).toFixed(2) + 'deg) rotateX(' + (-py * 7).toFixed(2) + 'deg) translateY(-5px)';
-      });
-      card.addEventListener('pointerleave', function () { card.classList.remove('tilt'); card.style.transform = ''; });
-    });
-  }
-
-  // Storleksscenen: pizzan växer, priset följer menyn.
-  var stage = document.querySelector('[data-stage]');
-  var PIZZAS = { vesuvio: { name: 'Vesuvio', normal: 109, familj: 275 }, kebabpizza: { name: 'Kebabpizza', normal: 125, familj: 310 }, margherita: { name: 'Margherita', normal: 109, familj: 275 } };
-  var SCALE = { barn: .6, normal: .78, familj: 1 }, LABEL = { barn: 'barn', normal: 'normal', familj: 'familj' };
-  var pick = { pizza: 'vesuvio', size: 'normal' }, shown = 109, priceRun = 0;
+  // Storlekarna: pizzan växer till den valda ringen. Priserna följer menyn.
+  var PIZZAS = { Vesuvio: { normal: 109, familj: 275 }, Kebabpizza: { normal: 125, familj: 310 }, Margherita: { normal: 109, familj: 275 } };
+  var SCALE = { barn: .6, normal: .78, familj: .98 };
+  var pick = { pizza: 'Vesuvio', size: 'normal' }, run = 0, spin = 0;
+  var sizes = document.querySelector('[data-sizes]');
   function priceOf() { var p = PIZZAS[pick.pizza]; return pick.size === 'familj' ? p.familj : pick.size === 'barn' ? p.normal - 10 : p.normal; }
-  function renderStage(swap) {
-    if (!stage) return;
-    stage.querySelectorAll('[data-size]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-size') === pick.size)); });
-    stage.querySelectorAll('[data-pizza]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-pizza') === pick.pizza)); });
-    stage.style.setProperty('--s', SCALE[pick.size]);
-    stage.querySelector('[data-size-tag]').textContent = pick.size === 'familj' ? 'Familj · hela bordet' : pick.size === 'barn' ? 'Barnpizza' : 'Normal';
-    stage.querySelector('[data-stage-label]').textContent = PIZZAS[pick.pizza].name + ', ' + LABEL[pick.size];
-    stage.querySelector('[data-stage-link]').href = link(PIZZAS[pick.pizza].name);
-    var img = stage.querySelector('[data-pizza-img]');
-    if (swap) { img.src = BASE + '/img/cutout/' + pick.pizza + '.webp'; img.alt = PIZZAS[pick.pizza].name; img.classList.remove('swap'); void img.offsetWidth; img.classList.add('swap'); }
-    var out = stage.querySelector('[data-stage-price]'), from = parseInt(out.textContent, 10) || shown, to = priceOf(), t0 = performance.now(), run = ++priceRun;
-    shown = to;
-    if (reduce) { out.textContent = to + ' kr'; return; }
-    (function tick(t) { if (run !== priceRun) return; var k = Math.min(1, (t - t0) / 600), v = Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3))); out.textContent = v + ' kr'; if (k < 1) requestAnimationFrame(tick); })(t0);
+  function renderSize(turn) {
+    if (!sizes) return;
+    sizes.querySelectorAll('[data-size]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-size') === pick.size)); });
+    sizes.querySelectorAll('[data-pizza]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-pizza') === pick.pizza)); });
+    sizes.querySelectorAll('.rg').forEach(function (r) { r.classList.toggle('on', r.classList.contains(pick.size)); });
+    var pz = sizes.querySelector('[data-pz]'), pzImg = sizes.querySelector('[data-pz-img]'), file = BASE + '/img/hd/top-' + pick.pizza.toLowerCase() + '.webp';
+    if (pzImg.getAttribute('src') !== file) { pzImg.setAttribute('src', file); pzImg.alt = pick.pizza + ' sedd ovanifrån'; }
+    if (turn) spin += 90;
+    pz.style.setProperty('--s', SCALE[pick.size] / .98);
+    pz.style.setProperty('--rot', spin + 'deg');
+    sizes.querySelector('[data-size-label]').textContent = pick.pizza + ', ' + pick.size;
+    sizes.querySelector('[data-size-link]').href = link(pick.pizza);
+    var out = sizes.querySelector('[data-size-price]'), from = parseInt(out.textContent, 10) || 0, to = priceOf(), t0 = performance.now(), me = ++run;
+    if (reduce || !from) { out.textContent = to + ' kr'; return; }
+    (function tick(t) { if (me !== run) return; var k = Math.min(1, (t - t0) / 600), v = Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3))); out.textContent = v + ' kr'; if (k < 1) requestAnimationFrame(tick); })(t0);
   }
-  if (stage) {
-    stage.addEventListener('click', function (e) {
+  if (sizes) {
+    sizes.addEventListener('click', function (e) {
       var s = e.target.closest('[data-size]'), p = e.target.closest('[data-pizza]');
-      if (s) { pick.size = s.getAttribute('data-size'); renderStage(false); }
-      if (p && p.getAttribute('data-pizza') !== pick.pizza) { pick.pizza = p.getAttribute('data-pizza'); renderStage(true); }
+      if (s && s.getAttribute('data-size') !== pick.size) { pick.size = s.getAttribute('data-size'); renderSize(true); }
+      if (p && p.getAttribute('data-pizza') !== pick.pizza) { pick.pizza = p.getAttribute('data-pizza'); renderSize(true); }
     });
-    renderStage(false);
-  }
-
-  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-  function link(name) { var id = live[name]; return BASE + '/meny' + (id ? '?product=' + encodeURIComponent(id) : ''); }
-
-  function renderStrip(data) {
-    var all = data.categories.reduce(function (a, c) { return a.concat(c.items); }, []);
-    document.querySelector('[data-strip]').innerHTML = FAVS.map(function (n) {
-      var p = all.filter(function (i) { return i.name === n; })[0];
-      if (!p) return '';
-      return '<a href="' + link(p.name) + '"><img class="fade" onload="this.classList.add(\'loaded\')" loading="lazy" src="' + esc(p.img) + '" alt=""><b>' + esc(p.name.replace(/\s*\(.*\)/, '')) + '</b><span>' + p.price + ' kr' + (p.family ? ' · familj ' + p.family + ' kr' : '') + '</span></a>';
-    }).join('');
-    var pizzas = data.categories.filter(function (c) { return c.pizza; }).reduce(function (a, c) { return a.concat(c.items); }, []);
-    var from = function (items) { return Math.min.apply(null, items.map(function (i) { return i.price; })); };
-    document.querySelectorAll('[data-kind]').forEach(function (el) {
-      var key = el.getAttribute('data-kind');
-      if (key === 'pizza') { el.textContent = pizzas.length + ' sorter, från ' + from(pizzas) + ' kr'; return; }
-      var c = data.categories.filter(function (x) { return x.name === key; })[0];
-      if (!el.dataset.base) el.dataset.base = el.textContent;
-      if (c) el.textContent = el.dataset.base + ', från ' + from(c.items) + ' kr';
-    });
+    renderSize(false);
   }
 
   function stockholmNow() {
@@ -533,40 +419,43 @@ img.fade.loaded { opacity: 1; }
     return { day: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(get('weekday')), minutes: Number(get('hour')) * 60 + Number(get('minute')) };
   }
   function toMin(t) { var p = String(t || '').split(':'); return Number(p[0]) * 60 + Number(p[1] || 0); }
+  function hh(t) { var p = String(t).split(':'); return p[1] === '00' ? String(Number(p[0])) : t; }
   function renderOpen(r) {
     var hours = r.openingHours || {}, now = stockholmNow(), today = hours[DAYS[now.day]];
     var bySchedule = today && !today.closed && now.minutes >= toMin(today.open) && now.minutes < toMin(today.close);
     var open = r.isOpen === undefined ? bySchedule : Boolean(r.isOpen) && bySchedule;
-    var status = open ? 'Öppet nu till ' + today.close : today && !today.closed && now.minutes < toMin(today.open) ? 'Öppnar ' + today.open + ' idag' : 'Stängt just nu';
+    var status = open ? 'Öppet till ' + today.close : today && !today.closed && now.minutes < toMin(today.open) ? 'Öppnar ' + today.open : 'Stängt just nu';
     var short = open ? 'Öppet till ' + today.close : today && !today.closed && now.minutes < toMin(today.open) ? 'Öppnar ' + today.open + ', förbeställ nu' : 'Stängt just nu';
-    document.querySelectorAll('[data-status]').forEach(function (el) { el.textContent = status; });
+    document.querySelectorAll('[data-status], [data-status-cap]').forEach(function (el) { el.textContent = status; });
     document.querySelectorAll('[data-status-short]').forEach(function (el) { el.textContent = short; });
     document.querySelectorAll('[data-open-dot]').forEach(function (el) { el.classList.toggle('closed', !open); });
     document.querySelectorAll('[data-hours] [data-day]').forEach(function (row) {
       var d = Number(row.getAttribute('data-day')), h = hours[DAYS[d]];
-      row.querySelector('dd').textContent = h && !h.closed ? h.open + '–' + h.close : 'Stängt';
+      row.querySelector('dd').textContent = SHORT[d] + ' ' + (h && !h.closed ? hh(h.open) + '–' + hh(h.close) : 'stängt');
       row.classList.toggle('is-today', d === now.day);
     });
   }
-  renderOpen({ openingHours: { monday: { open: '13:00', close: '21:00' }, tuesday: { open: '13:00', close: '21:00' }, wednesday: { open: '13:00', close: '21:00' }, thursday: { open: '13:00', close: '21:00' }, friday: { open: '11:00', close: '21:00' }, saturday: { open: '11:00', close: '21:00' }, sunday: { open: '11:00', close: '21:00' } } });
-
-  var menuData = null;
-  fetch(BASE + '/menu-data.json').then(function (r) { return r.json(); }).then(function (d) {
-    menuData = d; renderStrip(d);
-    return fetch(API + '/api/restaurants/' + SLUG, { headers: { Accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : null; });
-  }).then(function (r) {
+  var wd = { open: '13:00', close: '21:00' }, we = { open: '11:00', close: '21:00' };
+  renderOpen({ openingHours: { monday: wd, tuesday: wd, wednesday: wd, thursday: wd, friday: we, saturday: we, sunday: we } });
+  fetch(API + '/api/restaurants/' + SLUG, { headers: { Accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : null; }).then(function (r) {
     if (!r) return;
     renderOpen(r);
-    (r.menu || []).forEach(function (c) { (c.items || []).forEach(function (p) { live[p.name] = p.id; }); });
-    if (menuData) renderStrip(menuData);
-    if (stage) stage.querySelector('[data-stage-link]').href = link(PIZZAS[pick.pizza].name);
+    (r.menu || []).forEach(function (c) { (c.items || c.products || []).forEach(function (p) { live[p.name] = p; }); });
+    document.querySelectorAll('[data-product]').forEach(function (a) {
+      var p = live[a.getAttribute('data-product')];
+      if (!p) return;
+      if (p.id) a.href = BASE + '/meny?product=' + encodeURIComponent(p.id);
+      var price = a.querySelector('.price');
+      if (price && typeof p.price === 'number') price.textContent = Math.round(p.price) + ' kr';
+    });
+    renderSize(false);
   }).catch(function () {});
 
   var bar = document.querySelector('[data-order-bar]');
-  if (bar && io) {
+  if (bar && 'IntersectionObserver' in window) {
     var hidden = new Set();
     var watch = new IntersectionObserver(function (es) { es.forEach(function (e) { e.isIntersecting ? hidden.add(e.target) : hidden.delete(e.target); }); bar.classList.toggle('hide', hidden.size > 0); });
-    [document.querySelector('.hero-grid .ctas'), document.querySelector('footer')].forEach(function (el) { if (el) watch.observe(el); });
+    [document.querySelector('.hero'), document.querySelector('.slice h2')].concat([].slice.call(document.querySelectorAll('.cat'))).concat([document.querySelector('.sizes'), document.querySelector('.visit'), document.querySelector('footer')]).forEach(function (el) { if (el) watch.observe(el); });
   }
 
   var box = document.getElementById('installera'), deferred = null;
@@ -584,6 +473,86 @@ img.fade.loaded { opacity: 1; }
     navigator.serviceWorker.register(BASE + '/sw.js', { scope: BASE }).catch(function () {});
   }
 })();
+
+// Rörelse. Saknas biblioteken eller vill besökaren ha reducerad rörelse står sidan stilla men komplett.
+window.addEventListener('DOMContentLoaded', function () {
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var gsap = window.gsap, ST = window.ScrollTrigger;
+  var facts = document.querySelectorAll('[data-facts] li');
+  var wide = window.matchMedia('(min-width: 861px)').matches;
+  // Utan rörelse står faktan runt den hela pizzan.
+  var pieEl = document.querySelector('.pie-wrap');
+  function R(k) { return (pieEl ? pieEl.offsetWidth : 600) * k; }
+  function KX(li, k) { return li.dataset.side !== '0' ? k - .26 : k; }
+  function KY(li) { return Math.abs(Number(li.dataset.x)) < .1 ? .62 : .74; }
+  function XP(li) { return li.dataset.side === '1' ? 0 : li.dataset.side === '-1' ? -100 : -50; }
+  function placeFacts(k) { facts.forEach(function (li) { li.style.transform = 'translate(' + (Number(li.dataset.x) * R(KX(li, k))).toFixed(1) + 'px,' + (Number(li.dataset.y) * R(KY(li))).toFixed(1) + 'px) translate(' + XP(li) + '%, -50%)'; }); }
+  if (wide) placeFacts(.82);
+  if (reduce || !gsap || !ST) return;
+  gsap.registerPlugin(ST);
+
+  if (window.Lenis) {
+    var lenis = new window.Lenis({ lerp: .1 });
+    lenis.on('scroll', ST.update);
+    gsap.ticker.add(function (t) { lenis.raf(t * 1000); });
+    gsap.ticker.lagSmoothing(0);
+    document.querySelectorAll('a[href^="#"]').forEach(function (a) {
+      a.addEventListener('click', function (e) { var t = document.querySelector(a.getAttribute('href')); if (!t) return; e.preventDefault(); lenis.scrollTo(t, { duration: 1.3 }); });
+    });
+  }
+
+  // Hero: pizzan rullar in från höger, rubriken reser sig.
+  gsap.from('[data-giant]', { xPercent: 40, rotation: -140, opacity: 0, duration: 2, ease: 'expo.out' });
+  gsap.from('[data-intro]', { y: 30, opacity: 0, duration: 1.2, stagger: .1, delay: .2, ease: 'expo.out' });
+  gsap.to('[data-giant] img', { rotation: 360, duration: 90, ease: 'none', repeat: -1 });
+  gsap.to('[data-giant]', { rotation: 70, yPercent: 18, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
+
+  // Signaturen: sektionen låses, pizzan delas i sex bitar och faktan glider in i mellanrummen.
+  var mm = gsap.matchMedia();
+  mm.add('(min-width: 861px)', function () {
+    var wedges = gsap.utils.toArray('[data-pie] .w');
+    var tl = gsap.timeline({ scrollTrigger: { trigger: '[data-slice]', start: 'top top', end: 'bottom bottom', scrub: 1 } });
+    tl.from('[data-pie]', { rotation: -60, scale: .86, duration: .35, ease: 'none' }, 0);
+    wedges.forEach(function (w) {
+      var a = Number(w.dataset.angle) * Math.PI / 180;
+      tl.to(w, { x: function () { return Math.cos(a) * w.offsetWidth * .06; }, y: function () { return Math.sin(a) * w.offsetWidth * .06; }, rotation: (Number(w.dataset.angle) % 2 ? 4 : -4), duration: .5, ease: 'power2.out' }, .3);
+    });
+    facts.forEach(function (li, i) {
+      var x = Number(li.dataset.x), y = Number(li.dataset.y);
+      li.style.transform = '';
+      gsap.set(li, { xPercent: XP(li), yPercent: -50 });
+      tl.fromTo(li, { x: function () { return x * R(KX(li, .9)); }, y: function () { return y * R(KY(li)); }, opacity: .7 }, { x: function () { return x * R(KX(li, .82)); }, y: function () { return y * R(KY(li)); }, opacity: 1, duration: .45, ease: 'power2.out' }, .4 + i * .04);
+    });
+    return function () { placeFacts(.82); };
+  });
+  mm.add('(max-width: 860px)', function () {
+    // På mobilen delas pizzan medan den passerar skärmen, utan att sektionen låses.
+    var tlm = gsap.timeline({ scrollTrigger: { trigger: '[data-pie]', start: 'top 85%', end: 'bottom 35%', scrub: 1 } });
+    tlm.from('[data-pie]', { rotation: -90, scale: .82, duration: .4, ease: 'none' }, 0);
+    gsap.utils.toArray('[data-pie] .w').forEach(function (w) {
+      var a = Number(w.dataset.angle) * Math.PI / 180;
+      tlm.to(w, { x: function () { return Math.cos(a) * w.offsetWidth * .07; }, y: function () { return Math.sin(a) * w.offsetWidth * .07; }, rotation: (Number(w.dataset.angle) % 2 ? 4 : -4), duration: .6, ease: 'power2.out' }, .35);
+    });
+    ST.batch('[data-facts] li', { start: 'top 92%', once: true, onEnter: function (els) { gsap.from(els, { y: 20, opacity: 0, duration: .9, stagger: .07, ease: 'expo.out' }); } });
+  });
+
+  // Menyns runda bilder vrider sig in, listan tonas in rad för rad.
+  ST.batch('.items li', { start: 'top 90%', once: true, onEnter: function (els) {
+    gsap.from(els, { y: 24, opacity: 0, duration: 1, stagger: .07, ease: 'expo.out' });
+    gsap.from(els.map(function (li) { return li.querySelector('img'); }), { rotation: -180, scale: .5, duration: 1.3, stagger: .07, ease: 'expo.out' });
+  } });
+
+  // Lokalen glider långsamt bakom kupongen.
+  gsap.fromTo('[data-visit-img]', { yPercent: -6, scale: 1.12 }, { yPercent: 6, scale: 1.12, ease: 'none', scrollTrigger: { trigger: '.visit', start: 'top bottom', end: 'bottom top', scrub: true } });
+
+  ST.batch('[data-reveal]', { start: 'top 90%', once: true, onEnter: function (els) { gsap.from(els, { y: 26, opacity: 0, duration: 1, stagger: .08, ease: 'expo.out' }); } });
+
+  // ROMA: bokstäverna reser sig och pizzan rullar in som O.
+  gsap.from('[data-word] [data-l]', { y: 80, opacity: .2, stagger: .06, ease: 'none', scrollTrigger: { trigger: '[data-word]', start: 'top bottom', end: 'bottom 85%', scrub: true } });
+  gsap.from('[data-o]', { x: 700, rotation: 360, ease: 'none', scrollTrigger: { trigger: '[data-word]', start: 'top bottom', end: 'bottom 85%', scrub: true } });
+
+  window.addEventListener('load', function () { ST.refresh(); });
+});
 </script>
 </body>
 </html>
