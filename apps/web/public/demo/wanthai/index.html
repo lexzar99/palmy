@@ -5,51 +5,45 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <title>Wanthai Foodtruck · Thaimat från kocken Wan</title>
-<meta name="description" content="Pad thai, currys och wok från Wanthais foodtruck. Beställ i förväg, betala med Swish eller kort och hämta vid vagnen.">
-<meta name="theme-color" content="#ffffff">
+<meta name="description" content="Pad thai, currys och wok från Wanthais foodtruck. Välj hetta från mild till mycket stark, beställ i förväg och hämta vid vagnen.">
+<meta name="theme-color" content="#f2f2f0">
 <link rel="manifest" href="/demo/wanthai/manifest.webmanifest">
 <link rel="icon" href="/demo/wanthai/img/icon-192.png">
 <link rel="apple-touch-icon" href="/demo/wanthai/img/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Wanthai">
 <meta property="og:title" content="Wanthai Foodtruck">
-<meta property="og:description" content="Thaimat från kocken Wan. Beställ i förväg och hämta vid vagnen.">
-<meta property="og:image" content="/demo/wanthai/img/specimens/kra-pao-plate.webp">
-<link rel="preconnect" href="https://api.fontshare.com">
-<link rel="preconnect" href="https://cdn.fontshare.com" crossorigin>
-<link href="https://api.fontshare.com/v2/css?f[]=chillax@400,500,600&display=swap" rel="stylesheet">
+<meta property="og:description" content="Thaimat från kocken Wan. Välj hettan, beställ i förväg och hämta vid vagnen.">
+<meta property="og:image" content="/demo/wanthai/img/hd/hero-krapao.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;700&family=Noto+Sans+Thai:wght@400;500&display=swap" rel="stylesheet">
 <link rel="preload" as="image" href="/demo/wanthai/img/specimens/kra-pao-plate.webp">
 <style>
-/* Wanthai som fältguide: varje rätt står ensam på en färgplatta, i samma skala och vinkel.
-   Vit grund, varm bläckfärg, loggans rosa bara på handlingen. Ett typsnitt (Chillax);
-   thailändsk skrift i Noto Sans Thai. Lenis ger mjuk scroll och GSAP rörelsen. Utan skript,
-   eller med reducerad rörelse, står allt stilla men syns. Sidan är medvetet kort. */
+/* Wanthai i tre hettor. Sidan är en rad affischer: varje kapitel är en hetta med egen färg från
+   golv till tak – basilika för mai pet, gurkmeja för pet, chili för pet maak – och färgen glider
+   över när man scrollar in i nästa. Hettans färgrutor är också navigeringen. Ett typsnitt (Jost),
+   thailändsk skrift i Noto Sans Thai, loggans rosa bara på handlingen.
+   Lenis och GSAP står för rörelsen; utan skript eller med reducerad rörelse syns allt ändå. */
 :root {
-  --bg: #ffffff;
-  --surface: #f4f4f2;
-  --ink: #1c1a17;
-  --muted: #625d55;
-  --accent: #a8466f;
-  --dark: #141311;
-  --dark-2: #1e1c19;
-  --f-pink: #f3dde6;
-  --f-grey: #e6e3dd;
-  --f-basil: #dbe5d0;
-  --f-blue: #dce6ee;
-  --basil: #2e4634;
-  --chili: #7d2219;
-  --font: "Chillax", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --paper: #f8f8f6;
+  --ink: #141210;
+  --pink: #b8507f;
+  --mild: #3e5a47;
+  --mild-ink: #ffffff;
+  --pet: #d8b46a;
+  --pet-ink: #141210;
+  --hot: #94382a;
+  --hot-ink: #ffffff;
+  --font: "Jost", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
   --thai: "Noto Sans Thai", "Thonburi", sans-serif;
-  --step-small: clamp(0.8125rem, 0.79rem + 0.1vw, 0.875rem);
+  --step-small: clamp(0.875rem, 0.85rem + 0.1vw, 0.9375rem);
   --step-body: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);
   --step-lead: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
-  --step-head: clamp(2rem, 1.3rem + 3.2vw, 4rem);
-  --step-display: clamp(3.4rem, 1.6rem + 7vw, 8.4rem);
-  --m: clamp(20px, 4vw, 56px);
-  --r: 22px;
+  --step-head: clamp(2.4rem, 1.4rem + 4vw, 5.2rem);
+  --step-display: clamp(3.2rem, 1.2rem + 7.6vw, 9.4rem);
+  --m: clamp(20px, 3vw, 44px);
+  --r: 12px;
   --ease: cubic-bezier(.22, .9, .36, 1);
   color-scheme: light;
 }
@@ -57,295 +51,269 @@
 html { -webkit-text-size-adjust: 100%; }
 html.lenis, html.lenis body { height: auto; }
 .lenis.lenis-smooth { scroll-behavior: auto !important; }
-body { font-family: var(--font); font-size: var(--step-body); line-height: 1.5; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; overflow-x: clip; }
+body { font-family: var(--font); font-size: var(--step-body); line-height: 1.5; background: var(--paper); color: var(--ink); -webkit-font-smoothing: antialiased; overflow-x: clip; }
 img { display: block; max-width: 100%; }
 a { color: inherit; text-decoration: none; }
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
-:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
+:focus-visible { outline: 3px solid var(--pink); outline-offset: 3px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .th { font-family: var(--thai); }
 
-.demo-flag { background: var(--dark); color: #e9e2d6; font-size: var(--step-small); text-align: center; padding: 8px max(16px, calc((100% - 72ch) / 2)); }
-.demo-flag b { font-weight: 600; color: var(--f-pink); }
+.demo-flag { background: var(--ink); color: #e6e6e4; font-size: var(--step-small); text-align: center; padding: 8px max(16px, calc((100% - 72ch) / 2)); }
 
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 56px; padding: 0 30px; border-radius: 999px; background: var(--accent); color: #fff; font-weight: 600; font-size: var(--step-body); transition: transform .3s var(--ease), background .3s; }
-.btn:hover { background: #923a5f; transform: translateY(-2px); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 56px; padding: 0 30px; border-radius: var(--r); background: var(--pink); color: #fff; font-weight: 500; font-size: var(--step-body); letter-spacing: .01em; transition: transform .3s var(--ease), background .3s; }
+.btn:hover { background: #9d3f6a; transform: translateY(-2px); }
 .btn:active { transform: scale(.97); }
 .btn svg { width: 17px; height: 17px; transition: transform .3s var(--ease); }
 .btn:hover svg { transform: translateX(3px); }
-.btn.ink { background: var(--ink); }
-.btn.ink:hover { background: #34302a; }
-.btn.paper { background: #fff; color: var(--ink); }
-.btn.paper:hover { background: var(--surface); }
-.dot { flex: none; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #3e8c5c; }
-.dot.closed { background: #b5aca0; }
+.dot { flex: none; display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #4caf6a; }
+.dot.closed { background: #9b958b; }
 
-/* Hero: föremålet på sin sockel */
-.hero { position: relative; min-height: calc(100svh - 38px); display: grid; grid-template-rows: auto 1fr auto; padding: 32px var(--m) 36px; }
-.hero-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
-.mark { display: flex; align-items: center; gap: clamp(10px, 1.4vw, 18px); }
-.mark img { width: clamp(52px, 6vw, 84px); height: auto; }
-h1 { font-weight: 600; font-size: var(--step-display); line-height: .95; letter-spacing: -.03em; }
-.hero-top p { max-width: 34ch; text-align: right; font-size: var(--step-lead); line-height: 1.3; padding-top: .6em; }
-.stage { position: relative; display: grid; place-items: center; padding: 24px 0 48px; }
-.plinth { position: relative; width: min(520px, 44svh, 80vw); aspect-ratio: 1; border-radius: 48px; background: var(--surface); }
-.plinth figure { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0; }
-.plinth figure.on { opacity: 1; }
-.plinth figure[hidden] { display: none; }
-.plinth img { width: 84%; height: 84%; object-fit: contain; }
-.plinth figcaption { position: absolute; left: 0; right: 0; bottom: -34px; text-align: center; font-size: var(--step-small); color: var(--muted); }
-.hero-act { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 14px 28px; }
-.today { display: flex; align-items: center; gap: 12px; font-size: var(--step-body); }
-.today b { font-weight: 600; }
-@media (max-width: 760px) {
-  .hero { padding-top: 22px; min-height: calc(100svh - 58px); }
-  .hero-top { flex-direction: column; gap: 10px; }
-  .hero-top p { text-align: left; max-width: none; padding-top: 0; font-size: 1.05rem; }
-  .plinth { width: 78vw; border-radius: 36px; }
-  .hero-act { flex-direction: column; align-items: stretch; text-align: center; }
-  .today { justify-content: center; text-align: left; }
+/* Öppningen: hettan stiger. Tallriken ovanifrån i mitten, WANTHAI bakom, ingredienser runt.
+   Vid scroll står scenen kvar, tallriken snurrar, ingredienserna slungas ut och tre hettaringar
+   växer fram bakom den. Scenen tonar sedan över i första kapitlets färg. */
+.intro { position: relative; background: #f2f2f0; color: var(--ink); }
+.intro-in { position: relative; height: calc(100svh - 38px); min-height: 600px; overflow: hidden; display: grid; place-items: center; isolation: isolate; }
+.topbar { position: absolute; left: var(--m); right: var(--m); top: 22px; z-index: 6; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.topbar .mark { display: flex; align-items: center; gap: 12px; font-weight: 500; font-size: var(--step-lead); }
+.topbar .mark img { width: 50px; height: auto; }
+.heatnav { display: flex; gap: 8px; }
+.heatnav a { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: var(--r); font-weight: 500; transition: transform .3s var(--ease); }
+.heatnav a:hover { transform: translateY(-2px); }
+.heatnav .th { font-size: .85em; opacity: .85; }
+.bigword { position: absolute; left: 50%; top: 50%; z-index: 0; width: 112vw; height: auto; translate: -50% -50%; overflow: visible; pointer-events: none; }
+.bigword text { font-family: var(--font); font-weight: 700; font-size: 340px; letter-spacing: -.04em; fill: #e7e4dd; }
+.ring { position: absolute; left: var(--cx); top: var(--cy); z-index: 1; width: var(--d); aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; transform: scale(var(--s, 1)); }
+.ring.r-hot { background: var(--hot); --s: 1.34; } .ring.r-pet { background: var(--pet); --s: 1.21; } .ring.r-mild { background: var(--mild); --s: 1.08; }
+.dish-hero { position: absolute; left: var(--cx); top: var(--cy); z-index: 3; width: var(--d); aspect-ratio: 1; translate: -50% -50%; }
+.dish-hero img { width: 100%; height: 100%; }
+.intro { --d: min(56vh, 38vw); --cx: 67%; --cy: 54%; }
+.sw-mild { background: var(--mild); color: var(--mild-ink); }
+.sw-pet { background: var(--pet); color: var(--pet-ink); }
+.sw-hot { background: var(--hot); color: var(--hot-ink); }
+.sw-truck { background: var(--ink); color: #fff; }
+.ing { position: absolute; z-index: 4; left: var(--cx); top: var(--cy); pointer-events: none; }
+.ing img { width: 100%; height: auto; }
+.ing.lime { width: calc(var(--d) * .3); margin: calc(var(--d) * -.62) 0 0 calc(var(--d) * .3); }
+.ing.chili { z-index: 2; width: calc(var(--d) * .2); margin: calc(var(--d) * -.1) 0 0 calc(var(--d) * -.78); rotate: -48deg; }
+.ing.chili2 { z-index: 2; width: calc(var(--d) * .18); margin: calc(var(--d) * .1) 0 0 calc(var(--d) * .48); rotate: 128deg; }
+.intro-text { position: absolute; left: var(--m); top: 50%; translate: 0 -42%; z-index: 6; display: flex; flex-direction: column; align-items: flex-start; gap: 28px; width: min(40vw, 620px); }
+.intro h1 { font-weight: 700; font-size: clamp(2.4rem, 1rem + 3.6vw, 5.2rem); line-height: .92; letter-spacing: -.03em; text-transform: uppercase; }
+.intro h1 .ln { display: block; overflow: hidden; white-space: nowrap; }
+.intro h1 .ln > span { display: inline-block; }
+.intro-side { display: flex; flex-direction: column; align-items: flex-start; gap: 22px; max-width: 36ch; }
+.intro-side p { font-size: var(--step-lead); line-height: 1.35; color: #3b3732; }
+.intro .today { display: inline-flex; white-space: nowrap; align-items: center; gap: 12px; padding: 10px 16px 10px 14px; border-radius: var(--r); background: #e7e5df; font-size: var(--step-body); color: #3b3732; }
+.intro .today b { color: var(--ink); font-weight: 500; }
+
+@media (max-width: 860px) {
+  .intro { --d: min(60vw, 32svh); --cx: 50%; --cy: 33%; }
+  .heatnav { display: none; }
+  .bigword { top: 34%; width: 150vw; }
+  .intro-text { top: auto; bottom: 24px; translate: none; right: var(--m); width: auto; gap: 18px; }
+  .intro h1 { font-size: 10.4vw; }
+  .intro-side { max-width: none; width: 100%; }
+  .intro-side p { font-size: var(--step-body); }
+  .intro .today { white-space: normal; }
+  .intro-side { gap: 14px; }
+  .intro-side .btn { width: 100%; }
 }
 
-/* Menyn: tallriken åker ner längs listan */
-.menu { background: var(--dark); color: #f4f4f2; padding: clamp(80px, 9vw, 128px) var(--m) 0; position: relative; }
-.menu h2 { display: flex; justify-content: center; align-items: center; gap: clamp(18px, 3vw, 48px); font-weight: 600; font-size: var(--step-head); line-height: 1; letter-spacing: -.02em; }
-.menu h2 .gap { width: clamp(150px, 22vw, 320px); flex: none; }
-.rider { position: absolute; left: 50%; top: 0; bottom: 0; width: clamp(150px, 22vw, 320px); translate: -50% 0; pointer-events: none; z-index: 2; }
-.rider-plate { position: sticky; top: calc(50svh - clamp(75px, 11vw, 160px)); width: 100%; margin-top: clamp(40px, 6vw, 80px); }
-.rider-plate img { width: 100%; height: auto; }
-.rows { position: relative; list-style: none; margin-top: clamp(48px, 6vw, 80px); }
-.rows a { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 24px; min-height: 84px; padding: 16px clamp(16px, 2vw, 28px); border-radius: 14px; transition: background .4s, color .4s; }
-.rows li:nth-child(even) a { background: var(--dark-2); }
-.rows .left { display: grid; gap: 2px; }
-.rows b { font-weight: 500; font-size: var(--step-lead); line-height: 1.15; }
-.rows b .th { font-weight: 400; font-size: .7em; color: #e7a9c4; margin-left: .3em; }
-.rows .note { font-size: var(--step-body); color: #b3ada4; max-width: 44ch; }
-.rows .price { font-variant-numeric: tabular-nums; font-size: var(--step-body); }
-.rows .chili-note { color: #e9907f; }
-.rows a.now { background: var(--accent); color: #fff; }
-.rows a.now .note, .rows a.now b .th { color: #fbe7ef; }
-.rows a.now .chili-note { color: #fff; }
-.rows a:hover:not(.now) { background: #2a2723; }
-@media (min-width: 900px) {
-  .rows a { grid-template-columns: 1fr clamp(150px, 22vw, 320px) 1fr; }
-  .rows .price { grid-column: 3; justify-self: end; }
-}
-.menu-end { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px; padding: 48px 0 clamp(72px, 8vw, 112px); }
-.menu-end span { color: #b3ada4; max-width: 60ch; }
-@media (max-width: 899px) {
-  .rider { display: none; }
-  .menu h2 .gap { width: 34vw; height: 34vw; background: url("/demo/wanthai/img/specimens/kra-pao-plate.webp") center / contain no-repeat; }
-  .rows a { min-height: 0; padding: 16px; }
-  .menu-end .btn { width: 100%; }
+/* Kapitlen: en hetta per fält. Färgen sitter på body medan man läser, se skriptet. */
+.chapter { position: relative; min-height: 86svh; padding: clamp(72px, 9vw, 120px) var(--m); display: grid; grid-template-columns: repeat(12, 1fr); gap: 0 20px; align-items: center; overflow: hidden; }
+.chapter.mild { background: var(--mild); color: var(--mild-ink); }
+.chapter.pet { background: var(--pet); color: var(--pet-ink); }
+.chapter.hot { background: var(--hot); color: var(--hot-ink); }
+.chapter-text { grid-column: 1 / span 6; position: relative; z-index: 2; }
+.chapter h2 .ch { display: inline-block; }
+.chapter h2 { font-weight: 700; font-size: var(--step-head); line-height: .9; letter-spacing: -.03em; text-transform: uppercase; }
+.chapter .thai-name { margin-top: 14px; font-family: var(--thai); font-size: var(--step-lead); }
+.chapter .about { margin-top: 26px; max-width: 40ch; font-size: var(--step-lead); line-height: 1.35; }
+.dishes { list-style: none; margin-top: 36px; display: grid; gap: 4px; max-width: 560px; }
+.dishes a { display: flex; justify-content: space-between; align-items: baseline; gap: 18px; padding: 14px 0; font-size: var(--step-lead); font-weight: 500; transition: padding .35s var(--ease); }
+.dishes a:hover { padding-left: 12px; }
+.dishes a .price { font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dishes a .th { font-weight: 400; font-size: .72em; margin-left: 10px; opacity: .85; }
+.chapter-dish { grid-column: 7 / span 6; position: relative; justify-self: center; width: min(100%, 680px); }
+.chapter-dish img { width: 100%; height: auto; }
+.chapter-dish .word { position: absolute; right: 0; bottom: -6%; font-family: var(--thai); font-size: var(--step-head); line-height: 1; opacity: .9; }
+@media (max-width: 860px) {
+  .chapter { grid-template-columns: 1fr; min-height: 0; padding: 72px var(--m) 64px; }
+  .chapter-text, .chapter-dish { grid-column: 1; }
+  .chapter-dish { order: -1; width: 92%; margin-bottom: 20px; }
+  .chapter-dish .word { bottom: -2%; }
 }
 
-/* Vid sidan om: specimen-plattor i en rad */
-.sides { padding: clamp(80px, 9vw, 128px) var(--m) 0; }
-.sides-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 12px 40px; }
-h2.plain { font-weight: 600; font-size: var(--step-head); line-height: 1; letter-spacing: -.02em; }
-.sides-head p { max-width: 38ch; color: var(--muted); }
-.tiles { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 10px; margin-top: 40px; }
-.tile figure { aspect-ratio: 4 / 5; border-radius: var(--r); display: grid; place-items: center; overflow: hidden; }
-.tile:nth-child(4n+1) figure { background: var(--f-pink); }
-.tile:nth-child(4n+2) figure { background: var(--f-basil); }
-.tile:nth-child(4n+3) figure { background: var(--f-grey); }
-.tile:nth-child(4n+4) figure { background: var(--f-blue); }
-.tile img { width: 82%; height: 70%; object-fit: contain; transition: transform .6s var(--ease); }
-.tile img.can { mix-blend-mode: multiply; height: 62%; }
-.tile:hover img { transform: scale(1.06) rotate(-3deg); }
-.tile b { display: block; margin-top: 10px; font-weight: 500; font-size: var(--step-body); line-height: 1.2; }
-.tile span { font-size: var(--step-body); color: var(--muted); }
-@media (max-width: 1100px) { .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-@media (max-width: 640px) {
-  .tiles { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: var(--m); gap: 10px; margin-inline: calc(var(--m) * -1); padding-inline: var(--m); scrollbar-width: none; }
-  .tiles::-webkit-scrollbar { display: none; }
-  .tile { flex: 0 0 42vw; scroll-snap-align: start; }
-}
+/* Hettamätaren: tre chilis som fylls kapitel för kapitel. */
+.meter { position: fixed; right: 18px; top: 50%; translate: 0 -50%; z-index: 60; display: flex; flex-direction: column; gap: 8px; padding: 10px 8px; border-radius: 999px; background: var(--ink); opacity: 0; pointer-events: none; transition: opacity .4s; }
+.meter.on { opacity: 1; }
+.meter i { width: 14px; height: 14px; border-radius: 50%; background: #3b3632; transition: background .4s; }
+.meter[data-level="1"] i:nth-child(3), .meter[data-level="2"] i:nth-child(n+2), .meter[data-level="3"] i { background: #e2553f; }
+.meter[data-level="1"] i:nth-child(3) { background: #7fb07f; }
+@media (max-width: 860px) { .meter { display: none; } }
 
-/* Hetta: två rätter, två fält */
-.duo { display: grid; grid-template-columns: 1fr 1fr; margin-top: clamp(80px, 9vw, 128px); }
-.panel { position: relative; height: min(84svh, 760px); overflow: hidden; color: #fff; }
-.panel.mild { background: var(--basil); }
-.panel.hot { background: var(--chili); }
-.panel .obj { position: absolute; left: 50%; top: -24%; width: 128%; translate: -50% 0; will-change: transform; }
-.panel .obj img { width: 100%; height: auto; }
-.panel h2 { position: absolute; left: var(--m); top: 32px; z-index: 2; font-weight: 600; font-size: var(--step-lead); line-height: 1.1; letter-spacing: -.01em; }
-.panel .row { position: absolute; left: var(--m); right: var(--m); bottom: 32px; z-index: 2; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 16px; }
-.panel .row b { display: block; font-weight: 600; font-size: var(--step-body); }
-.panel .row span { font-size: var(--step-body); opacity: .9; }
-.panel .row .acts { display: flex; gap: 8px; }
-.panel .btn { min-height: 48px; padding: 0 22px; }
-.panel .word { position: absolute; right: var(--m); top: 28px; z-index: 3; font-family: var(--thai); font-size: var(--step-lead); line-height: 1.1; }
-@media (max-width: 760px) {
-  .duo { grid-template-columns: 1fr; }
-  .panel { height: 78svh; }
-  .panel .obj { width: 150%; top: -18%; left: 58%; }
-  .panel .row { flex-direction: column; align-items: stretch; }
-  .panel .row .acts .btn { flex: 1; }
-}
+/* Vagnen idag: adressen som stora rader. */
+.truck { background: var(--ink); color: var(--paper); padding: clamp(72px, 9vw, 120px) var(--m) 64px; display: grid; grid-template-columns: 1.4fr 1fr; gap: 24px 48px; align-items: end; }
+.truck h2 { grid-column: 1 / -1; }
+.truck-side { display: flex; flex-direction: column; gap: 28px; }
+@media (max-width: 860px) { .truck { grid-template-columns: 1fr; } }
+.truck h2 { font-weight: 700; font-size: var(--step-lead); text-transform: uppercase; letter-spacing: .02em; color: #bdb6ab; }
+.rows { margin-top: 28px; }
+.rows .place { font-size: clamp(2.4rem, 1.2rem + 4.6vw, 5.2rem); line-height: 1; font-weight: 500; letter-spacing: -.02em; }
+.rows .line2 { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 40px; margin-top: 28px; font-size: var(--step-lead); }
+.rows .go { display: flex; align-items: center; gap: .4em; font-weight: 500; }
+.rows .go i { display: grid; place-items: center; width: 2.2em; height: 2.2em; border-radius: 50%; background: var(--pink); color: #fff; transition: transform .35s var(--ease), background .3s; }
+.rows .go i svg { width: .42em; height: .42em; }
+.rows .go:hover i { transform: rotate(-45deg); background: #9d3f6a; }
+.rows .status { display: flex; align-items: center; gap: .3em; }
+.rows .status .dot { width: 14px; height: 14px; }
+.week { display: grid; grid-template-columns: repeat(2, auto); justify-content: start; gap: 6px 32px; color: #bdb6ab; }
+.week .is-today { color: var(--paper); font-weight: 500; }
+.directions { display: inline-block; align-self: flex-start; font-weight: 500; color: var(--paper); border-bottom: 2px solid var(--pink); padding-bottom: 2px; }
 
-/* Vagnen idag: bildremsa, rubrik och en rad i tre fält */
-.visit { background: var(--f-pink); padding: 48px 0 clamp(64px, 7vw, 96px); overflow: hidden; }
-.strip { display: flex; gap: 8px; width: max-content; will-change: transform; }
-.strip span { flex: none; height: 150px; border-radius: 16px; display: grid; place-items: center; background: #fff; }
-.strip span:nth-child(3n+1) { aspect-ratio: 3 / 4; } .strip span:nth-child(3n+2) { aspect-ratio: 1; } .strip span:nth-child(3n) { aspect-ratio: 3 / 2; }
-.strip img { width: 80%; height: 80%; object-fit: contain; }
-.visit-in { padding: 72px var(--m) 0; }
-.visit h2 { font-weight: 600; font-size: var(--step-head); line-height: 1; letter-spacing: -.02em; }
-.visit-head { display: flex; flex-wrap: wrap; align-items: end; gap: 16px clamp(32px, 6vw, 96px); }
-.bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 40px; }
-.cell { min-height: 96px; border-radius: var(--r); background: #fff; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 14px 18px; font-size: var(--step-lead); line-height: 1.2; }
-.cell small { margin-top: 4px; font-size: var(--step-small); color: var(--muted); }
-.cell.go { background: var(--ink); color: #fff; font-weight: 600; transition: background .3s, transform .3s var(--ease); }
-.cell.go:hover { background: #34302a; }
-.cell.go:active { transform: scale(.98); }
-.week { display: grid; grid-template-columns: repeat(4, auto); gap: 4px 22px; font-size: var(--step-body); color: #4f4a43; }
-.week .is-today { font-weight: 600; color: var(--ink); }
-@media (max-width: 760px) {
-  .strip span { height: 110px; }
-  .visit-in { padding-top: 48px; }
-  .bar { grid-template-columns: 1fr; }
-  .week { grid-template-columns: repeat(2, auto); }
-  .cell { min-height: 64px; }
-}
+/* Sidfoten: namnet på thailändska, i loggans rosa. */
+footer { background: var(--pink); color: #fff; padding: 64px var(--m) calc(32px + env(safe-area-inset-bottom)); overflow: hidden; }
+.big-thai { display: block; width: 100%; height: auto; overflow: visible; }
+.big-thai text { font-family: var(--thai); font-weight: 500; font-size: 300px; fill: #fff; }
+.foot { display: grid; grid-template-columns: 2fr 1fr auto; gap: 24px 40px; align-items: end; margin-top: 24px; }
+.foot nav { display: flex; flex-wrap: wrap; gap: 10px 26px; font-weight: 500; }
+.foot p { max-width: 52ch; }
+.foot .btn { background: var(--ink); }
+.foot .btn:hover { background: #2c2824; }
+.install { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin-top: 28px; padding: 16px 18px; border-radius: var(--r); background: rgba(20, 18, 16, .18); }
+.install img { width: 44px; height: 44px; border-radius: 10px; }
+.install div { flex: 1; min-width: 200px; }
+.install b { display: block; font-weight: 500; }
+.install .btn { min-height: 44px; padding: 0 18px; }
+@media (max-width: 760px) { .foot { grid-template-columns: 1fr; padding-bottom: 84px; } }
 
-/* Sidfoten: namnet byggt av block */
-footer { padding: clamp(56px, 6vw, 88px) var(--m) calc(32px + env(safe-area-inset-bottom)); background: var(--bg); }
-.blocks { display: block; width: 100%; height: auto; max-height: 34svh; overflow: visible; }
-.blocks text { font-family: var(--font); font-weight: 600; font-size: 190px; fill: var(--bg); }
-.foot { display: grid; grid-template-columns: 2fr 1fr auto; gap: 24px 40px; align-items: end; margin-top: 56px; font-size: var(--step-body); color: var(--muted); }
-.foot nav { display: flex; flex-wrap: wrap; gap: 10px 26px; color: var(--ink); }
-.foot nav a:hover { color: var(--accent); }
-.foot .about { margin-top: 14px; max-width: 52ch; }
-.foot .th { color: var(--accent); }
-.foot b { color: var(--ink); font-weight: 600; }
-.install { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin-top: 28px; padding: 16px 18px; border-radius: var(--r); background: var(--surface); }
-.install img { width: 44px; height: 44px; border-radius: 12px; }
-.install div { flex: 1; min-width: 200px; font-size: var(--step-small); }
-.install b { display: block; font-size: var(--step-body); font-weight: 600; }
-.install .btn { min-height: 44px; padding: 0 18px; font-size: .95rem; }
-@media (max-width: 760px) {
-  .foot { grid-template-columns: 1fr; padding-bottom: 84px; }
-}
-
-.order-bar { position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 70; display: none; transition: transform .35s var(--ease), opacity .35s; }
+.order-bar { position: fixed; right: 24px; bottom: calc(24px + env(safe-area-inset-bottom)); z-index: 70; width: min(360px, calc(100% - 48px)); transition: transform .45s var(--ease), opacity .45s; }
 .order-bar .btn { width: 100%; justify-content: space-between; min-height: 58px; padding: 0 8px 0 22px; }
 .order-bar .btn > span:first-child { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.2; }
-.order-bar small { font-size: var(--step-small); font-weight: 500; opacity: .9; }
+.order-bar small { font-size: var(--step-small); opacity: .9; }
 .order-bar .go { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: rgba(255, 255, 255, .2); }
 .order-bar.hide { transform: translateY(140%); opacity: 0; }
-@media (max-width: 760px) { .order-bar { display: block; } }
+@media (max-width: 760px) { .order-bar { left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); width: auto; } }
 </style>
 </head>
 <body>
 
 <div class="demo-flag">Demosajt: så här kan sajten se ut när kunderna beställer direkt via viaeats, utan WEIQ-appen.</div>
 
-<header class="hero">
-  <div class="hero-top">
-    <div class="mark"><img src="/demo/wanthai/img/logo-ink.png" alt="" width="916" height="848"><h1>Wanthai<span class="sr">, thaimat från foodtruck</span></h1></div>
-    <p data-intro>Kocken Wans thaimat från foodtrucken. Beställ här, betala med Swish eller kort och hämta när maten är klar.</p>
-  </div>
-  <div class="stage">
-    <div class="plinth" data-plinth>
-      <figure class="on"><img src="/demo/wanthai/img/specimens/kra-pao-plate.webp" alt="Pad kra pao med stekt ägg och jasminris" width="1000" height="1000"><figcaption>Pad Kra Pao</figcaption></figure>
-      <figure hidden><img src="/demo/wanthai/img/specimens/himmaphan.webp" alt="Pad himmaphan med cashewnötter" width="1100" height="976" loading="lazy"><figcaption>Pad Himmaphan</figcaption></figure>
-      <figure hidden><img src="/demo/wanthai/img/specimens/gron-curry.webp" alt="Grön curry med thaibasilika" width="1100" height="910" loading="lazy"><figcaption>Grön curry</figcaption></figure>
-      <figure hidden><img src="/demo/wanthai/img/specimens/laab.webp" alt="Laab med mynta och gurka" width="1100" height="744" loading="lazy"><figcaption>Laab</figcaption></figure>
-      <figure hidden><img src="/demo/wanthai/img/specimens/pad-thai.webp" alt="Pad thai med räkor och lime" width="1100" height="931" loading="lazy"><figcaption>Pad Thai</figcaption></figure>
+<header class="intro" data-intro-scene>
+  <div class="intro-in">
+    <div class="topbar">
+      <a class="mark" href="/demo/wanthai" aria-label="Wanthai, till startsidan"><img src="/demo/wanthai/img/logo-ink.png" alt="" width="916" height="848">Wanthai</a>
+      <nav class="heatnav" aria-label="Hetta och vagnen">
+        <a class="sw-mild" href="#mild">Mild <span class="th">ไม่เผ็ด</span></a>
+        <a class="sw-pet" href="#pet">Medel <span class="th">เผ็ด</span></a>
+        <a class="sw-hot" href="#stark">Stark <span class="th">เผ็ดมาก</span></a>
+        <a class="sw-truck" href="#vagnen">Vagnen</a>
+      </nav>
     </div>
-  </div>
-  <div class="hero-act" data-intro>
-    <a class="btn" href="/demo/wanthai/meny">Beställ för avhämtning <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h12M11 5l5 5-5 5"/></svg></a>
-    <a class="today" href="#vagnen"><i class="dot" data-open-dot></i><span>Idag <b data-place>Sundstorget, Höganäs</b>, <span data-status>11:30–19:00</span></span></a>
+    <svg class="bigword" viewBox="0 0 1600 300" aria-hidden="true" data-bigword><text x="800" y="262" text-anchor="middle">WANTHAI</text></svg>
+    <span class="ring r-hot" aria-hidden="true" data-ring></span>
+    <span class="ring r-pet" aria-hidden="true" data-ring></span>
+    <span class="ring r-mild" aria-hidden="true" data-ring></span>
+    <div class="dish-hero" data-plate><img src="/demo/wanthai/img/specimens/kra-pao-plate.webp" alt="Pad kra pao med stekt ägg och jasminris, sedd ovanifrån" width="1000" height="1000"></div>
+    <span class="ing lime" data-ing aria-hidden="true"><img src="/demo/wanthai/img/ingr/lime.webp" alt=""></span>
+    <span class="ing chili" data-ing aria-hidden="true"><img src="/demo/wanthai/img/ingr/chili.webp" alt=""></span>
+    <span class="ing chili2" data-ing aria-hidden="true"><img src="/demo/wanthai/img/ingr/chili-2.webp" alt=""></span>
+    <div class="intro-text">
+      <h1 aria-label="Thaimat från Wans wok"><span class="ln" aria-hidden="true"><span data-rise>Thaimat från</span></span><span class="ln" aria-hidden="true"><span data-rise>Wans wok</span></span></h1>
+      <div class="intro-side" data-fade>
+        <p>Kocken Wans foodtruck. Välj hetta från mild till mycket stark, beställ här och hämta vid vagnen.</p>
+        <a class="today" href="#vagnen"><i class="dot" data-open-dot></i><span>Idag <b data-place>Sundstorget, Höganäs</b> · <span data-status>11:30–19:00</span></span></a>
+        <a class="btn hero-btn" href="/demo/wanthai/meny" data-hero-btn>Beställ för avhämtning <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h12M11 5l5 5-5 5"/></svg></a>
+      </div>
+    </div>
   </div>
 </header>
 
 <main>
-  <section class="menu" id="menyn" data-menu>
-    <h2><span>Wans</span><span class="gap" aria-hidden="true"></span><span>meny</span></h2>
-    <div class="rider" aria-hidden="true"><div class="rider-plate"><img src="/demo/wanthai/img/specimens/kra-pao-plate.webp" alt="" width="1000" height="1000" data-rider></div></div>
-    <ul class="rows">
-      <li><a href="/demo/wanthai/meny" data-product="Pad Thai"><span class="left"><b>Pad Thai</b><span class="note">Risnudlar, ägg, böngroddar och tamarind. Kan lagas helt mild.</span></span><span class="price" data-price>112 kr</span></a></li>
-      <li><a href="/demo/wanthai/meny" data-product="Pad Kra Pao – thaibasilika"><span class="left"><b>Pad Kra Pao<span class="th">กะเพรา</span></b><span class="note">Stekt ägg, thaibasilika, vitlök och långböna. <span class="chili-note">Alltid med chili.</span></span></span><span class="price" data-price>112 kr</span></a></li>
-      <li><a href="/demo/wanthai/meny" data-product="Pad Himmaphan – cashewnötter"><span class="left"><b>Pad Himmaphan</b><span class="note">Cashewnötter, paprika och chilipasta, med ris eller äggnudlar.</span></span><span class="price" data-price>113 kr</span></a></li>
-      <li><a href="/demo/wanthai/meny" data-product="Pad Mama – äggnudlar"><span class="left"><b>Pad Mama</b><span class="note">Äggnudlar, vitlök, ägg, broccoli och salladslök.</span></span><span class="price" data-price>109 kr</span></a></li>
-      <li><a href="/demo/wanthai/meny" data-product="Gaeng Keaw Wan – grön curry"><span class="left"><b>Grön curry<span class="th">แกงเขียวหวาน</span></b><span class="note">Kokosmjölk, bambuskott och thailändska örter. <span class="chili-note">Alltid med chili.</span></span></span><span class="price" data-price>109 kr</span></a></li>
-      <li><a href="/demo/wanthai/meny" data-product="Panaeng – thaicurry"><span class="left"><b>Panaeng</b><span class="note">Limeblad, kokos och panaengkrydda. <span class="chili-note">Alltid med chili.</span></span></span><span class="price" data-price>109 kr</span></a></li>
-      <li><a href="/demo/wanthai/meny" data-product="Gaeng Daeng – röd curry"><span class="left"><b>Röd curry</b><span class="note">Kokosmjölk, limeblad, basilika och bambuskott. <span class="chili-note">Alltid med chili.</span></span></span><span class="price" data-price>109 kr</span></a></li>
-      <li><a href="/demo/wanthai/meny" data-product="Laab – het fläskfärssallad"><span class="left"><b>Laab<span class="th">ลาบ</span></b><span class="note">Fläsk- eller vegofärs med mynta, lime och rödlök. <span class="chili-note">Alltid med chili.</span></span></span><span class="price" data-price>112 kr</span></a></li>
-    </ul>
-    <div class="menu-end"><span>Fjorton varmrätter, smårätter och dryck. Kyckling, fläsk eller vego utan extra kostnad.</span><a class="btn" href="/demo/wanthai/meny">Hela menyn <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h12M11 5l5 5-5 5"/></svg></a></div>
+  <section class="chapter mild" id="mild" data-chapter="1" data-color="#3e5a47" aria-labelledby="ch1">
+    <div class="chapter-text">
+      <h2 id="ch1" data-reveal>Mai pet</h2>
+      <p class="thai-name" data-reveal>ไม่เผ็ด · inte stark</p>
+      <p class="about" data-reveal>Wokrätterna kan lagas helt utan chili. Välj kyckling, fläsk eller vego, biff eller räkor för 13 kr.</p>
+      <ul class="dishes">
+        <li data-reveal><a href="/demo/wanthai/meny" data-product="Pad Thai"><span>Pad Thai<span class="th">ผัดไทย</span></span><span class="price" data-price>112 kr</span></a></li>
+        <li data-reveal><a href="/demo/wanthai/meny" data-product="Pad Himmaphan – cashewnötter"><span>Pad Himmaphan</span><span class="price" data-price>113 kr</span></a></li>
+        <li data-reveal><a href="/demo/wanthai/meny" data-product="Pad Mama – äggnudlar"><span>Pad Mama</span><span class="price" data-price>109 kr</span></a></li>
+      </ul>
+    </div>
+    <div class="chapter-dish"><img src="/demo/wanthai/img/specimens/pad-thai.webp" alt="Pad thai med räkor, böngroddar och lime" width="1100" height="931" loading="lazy" data-dish></div>
   </section>
 
-  <section class="sides" aria-labelledby="sides-h">
-    <div class="sides-head"><h2 class="plain" id="sides-h" data-reveal>Vid sidan om</h2><p data-reveal>Läggs till direkt i rätten när du beställer.</p></div>
-    <div class="tiles">
-      <div class="tile" data-reveal><figure><img src="/demo/wanthai/img/specimens/crispy-chicken.webp" alt="" loading="lazy"></figure><b>Crispy chicken</b><span>52 kr</span></div>
-      <div class="tile" data-reveal><figure><img src="/demo/wanthai/img/specimens/rakchips.webp" alt="" loading="lazy"></figure><b>Räkchips</b><span>23 kr</span></div>
-      <div class="tile" data-reveal><figure><img src="/demo/wanthai/img/specimens/jasminris.webp" alt="" loading="lazy"></figure><b>Extra jasminris</b><span>16 kr</span></div>
-      <div class="tile" data-reveal><figure><img src="/demo/wanthai/img/specimens/sweet-chili.webp" alt="" loading="lazy"></figure><b>Sweet chili-dipp</b><span>5 kr</span></div>
-      <div class="tile" data-reveal><figure><img src="/demo/wanthai/img/specimens/mangoraja.webp" alt="" loading="lazy"></figure><b>Mangoraja</b><span>5 kr</span></div>
-      <div class="tile" data-reveal><figure><img src="/demo/wanthai/img/specimens/vitloksdipp.webp" alt="" loading="lazy"></figure><b>Vitlöksdipp</b><span>5 kr</span></div>
-      <div class="tile" data-reveal><figure><img class="can" src="/demo/wanthai/img/drinks/krating.webp" alt="" loading="lazy"></figure><b>Krating Daeng</b><span>23 kr</span></div>
-      <div class="tile" data-reveal><figure><img class="can" src="/demo/wanthai/img/drinks/cola.webp" alt="" loading="lazy"></figure><b>Coca-Cola</b><span>18 kr</span></div>
+  <section class="chapter pet" id="pet" data-chapter="2" data-color="#d8b46a" aria-labelledby="ch2">
+    <div class="chapter-text">
+      <h2 id="ch2" data-reveal>Pet</h2>
+      <p class="thai-name" data-reveal>เผ็ด · medelstark</p>
+      <p class="about" data-reveal>Currys på kokosmjölk, alltid lagade med chili. Med jasminris eller äggnudlar.</p>
+      <ul class="dishes">
+        <li data-reveal><a href="/demo/wanthai/meny" data-product="Gaeng Keaw Wan – grön curry"><span>Grön curry<span class="th">แกงเขียวหวาน</span></span><span class="price" data-price>109 kr</span></a></li>
+        <li data-reveal><a href="/demo/wanthai/meny" data-product="Panaeng – thaicurry"><span>Panaeng<span class="th">พะแนง</span></span><span class="price" data-price>109 kr</span></a></li>
+        <li data-reveal><a href="/demo/wanthai/meny" data-product="Gaeng Daeng – röd curry"><span>Röd curry</span><span class="price" data-price>109 kr</span></a></li>
+      </ul>
     </div>
+    <div class="chapter-dish"><img src="/demo/wanthai/img/specimens/gron-curry.webp" alt="Grön curry med thaibasilika" width="1100" height="910" loading="lazy" data-dish></div>
   </section>
 
-  <section class="duo" aria-label="Mild eller stark">
-    <div class="panel mild">
-      <h2 data-reveal>Mild eller stark</h2>
-      <span class="word" aria-hidden="true">ไม่เผ็ด</span>
-      <div class="obj" data-drift><img src="/demo/wanthai/img/specimens/pad-thai.webp" alt="Pad thai" width="1100" height="931" loading="lazy"></div>
-      <div class="row"><div><b>Pad Thai</b><span>Kan lagas helt utan chili.</span></div><div class="acts"><a class="btn paper" href="/demo/wanthai/meny" data-product="Pad Thai">Beställ</a></div></div>
+  <section class="chapter hot" id="stark" data-chapter="3" data-color="#94382a" aria-labelledby="ch3">
+    <div class="chapter-text">
+      <h2 id="ch3" data-reveal>Pet maak</h2>
+      <p class="thai-name" data-reveal>เผ็ดมาก · mycket stark</p>
+      <p class="about" data-reveal>Som i södra Thailand, där Wan hade restaurang vid malaysiska gränsen. Beställ pet maak och ha vatten nära.</p>
+      <ul class="dishes">
+        <li data-reveal><a href="/demo/wanthai/meny" data-product="Pad Kra Pao – thaibasilika"><span>Pad Kra Pao<span class="th">กะเพรา</span></span><span class="price" data-price>112 kr</span></a></li>
+        <li data-reveal><a href="/demo/wanthai/meny" data-product="Laab – het fläskfärssallad"><span>Laab<span class="th">ลาบ</span></span><span class="price" data-price>112 kr</span></a></li>
+      </ul>
     </div>
-    <div class="panel hot">
-      <span class="word" aria-hidden="true">เผ็ดมาก</span>
-      <div class="obj" data-drift><img src="/demo/wanthai/img/specimens/gron-curry.webp" alt="Grön curry" width="1100" height="910" loading="lazy"></div>
-      <div class="row"><div><b>Grön curry</b><span>Alltid med chili, medel eller mycket stark.</span></div><div class="acts"><a class="btn paper" href="/demo/wanthai/meny" data-product="Gaeng Keaw Wan – grön curry">Beställ</a></div></div>
-    </div>
+    <div class="chapter-dish"><img src="/demo/wanthai/img/specimens/laab.webp" alt="Laab med mynta och gurka" width="1100" height="744" loading="lazy" data-dish></div>
   </section>
 
-  <section class="visit" id="vagnen" aria-labelledby="visit-h">
-    <div class="strip" data-strip aria-hidden="true">
-      <span><img src="/demo/wanthai/img/specimens/laab.webp" alt=""></span><span><img src="/demo/wanthai/img/specimens/himmaphan.webp" alt=""></span><span><img src="/demo/wanthai/img/specimens/nam-mun-hoy.webp" alt=""></span><span><img src="/demo/wanthai/img/specimens/panaeng.webp" alt=""></span><span><img src="/demo/wanthai/img/specimens/pad-mama.webp" alt=""></span><span><img src="/demo/wanthai/img/specimens/rod-curry.webp" alt=""></span><span><img src="/demo/wanthai/img/specimens/gul-curry.webp" alt=""></span><span><img src="/demo/wanthai/img/specimens/kra-pao-plate.webp" alt=""></span><span><img src="/demo/wanthai/img/specimens/crispy-chicken.webp" alt=""></span><span><img src="/demo/wanthai/img/specimens/pad-thai.webp" alt=""></span>
-    </div>
-    <div class="visit-in">
-      <div class="visit-head"><h2 id="visit-h" data-reveal>Här står vagnen idag</h2>
-      <dl class="week" data-hours>
-        <div data-day="1"><dt class="sr">Måndag</dt><dd>Mån 11:30–19:00</dd></div>
-        <div data-day="2"><dt class="sr">Tisdag</dt><dd>Tis 11:30–19:00</dd></div>
-        <div data-day="3"><dt class="sr">Onsdag</dt><dd>Ons 11:30–19:00</dd></div>
-        <div data-day="4"><dt class="sr">Torsdag</dt><dd>Tor 11:30–19:00</dd></div>
-        <div data-day="5"><dt class="sr">Fredag</dt><dd>Fre 11:30–19:00</dd></div>
-        <div data-day="6"><dt class="sr">Lördag</dt><dd>Lör 11:30–19:00</dd></div>
-        <div data-day="0"><dt class="sr">Söndag</dt><dd>Sön 11:30–19:00</dd></div>
-      </dl></div>
-      <div class="bar">
-        <div class="cell" data-reveal><span data-place>Sundstorget, Höganäs</span><small>Vagnen flyttar, platsen följer med här</small></div>
-        <div class="cell" data-reveal><span><i class="dot" data-open-dot></i> <span data-status data-cap>Öppet 11:30–19:00</span></span><small>Endast avhämtning</small></div>
-        <a class="cell go" data-reveal data-directions href="https://www.google.com/maps/dir/?api=1&amp;destination=56.20136,12.55048" target="_blank" rel="noopener">Vägbeskrivning</a>
+  <section class="truck" id="vagnen" aria-labelledby="truck-h">
+    <h2 id="truck-h" data-reveal>Här står vagnen idag</h2>
+    <div class="rows">
+      <p class="place" data-reveal><span data-place-line>Sundstorget</span>,<br><span data-city-line>Höganäs</span></p>
+      <div class="line2" data-reveal>
+        <span class="status"><i class="dot" data-open-dot></i> <span data-status data-cap>Öppet 11:30–19:00</span></span>
+        <a class="go" href="/demo/wanthai/meny">Beställ<i aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h12M11 5l5 5-5 5"/></svg></i></a>
       </div>
+    </div>
+    <div class="truck-side">
+    <dl class="week" data-hours>
+      <div data-day="1"><dt class="sr">Måndag</dt><dd>Mån 11:30–19:00</dd></div>
+      <div data-day="2"><dt class="sr">Tisdag</dt><dd>Tis 11:30–19:00</dd></div>
+      <div data-day="3"><dt class="sr">Onsdag</dt><dd>Ons 11:30–19:00</dd></div>
+      <div data-day="4"><dt class="sr">Torsdag</dt><dd>Tor 11:30–19:00</dd></div>
+      <div data-day="5"><dt class="sr">Fredag</dt><dd>Fre 11:30–19:00</dd></div>
+      <div data-day="6"><dt class="sr">Lördag</dt><dd>Lör 11:30–19:00</dd></div>
+      <div data-day="0"><dt class="sr">Söndag</dt><dd>Sön 11:30–19:00</dd></div>
+    </dl>
+    <a class="directions" data-directions href="https://www.google.com/maps/dir/?api=1&amp;destination=56.20136,12.55048" target="_blank" rel="noopener">Vägbeskrivning till vagnen</a>
     </div>
   </section>
 </main>
 
 <footer>
-  <svg class="blocks" viewBox="0 0 1400 340" role="img" aria-label="Wanthai" data-blocks><g data-block><rect x="0.0" y="0" width="193.1" height="340" rx="18" fill="var(--ink)"/><text x="96.6" y="314" text-anchor="middle">W</text></g><g data-block><rect x="201.1" y="102" width="193.1" height="238" rx="18" fill="var(--accent)"/><text x="297.7" y="314" text-anchor="middle">a</text></g><g data-block><rect x="402.3" y="54" width="193.1" height="286" rx="18" fill="var(--basil)"/><text x="498.9" y="314" text-anchor="middle">n</text></g><g data-block><rect x="603.4" y="129" width="193.1" height="211" rx="18" fill="var(--chili)"/><text x="700.0" y="314" text-anchor="middle">t</text></g><g data-block><rect x="804.6" y="27" width="193.1" height="313" rx="18" fill="var(--ink)"/><text x="901.2" y="314" text-anchor="middle">h</text></g><g data-block><rect x="1005.7" y="88" width="193.1" height="252" rx="18" fill="var(--accent)"/><text x="1102.3" y="314" text-anchor="middle">a</text></g><g data-block><rect x="1206.9" y="41" width="193.1" height="299" rx="18" fill="var(--basil)"/><text x="1303.5" y="314" text-anchor="middle">i</text></g></svg>
+  <svg class="big-thai" viewBox="0 0 1200 330" aria-hidden="true" data-big><text x="0" y="250">วันไทย</text></svg>
   <div class="foot">
     <div>
-      <nav aria-label="Sidfot"><a href="/demo/wanthai/meny">Beställ</a><a href="#menyn">Menyn</a><a href="#vagnen">Hitta vagnen</a></nav>
-      <p class="about">Wan har lagat thaimat på Koh Chang, i södra Thailand och i Phetchabun. Nu i en vagn i Skåne. <span class="th">วันไทย</span></p>
+      <nav aria-label="Sidfot"><a href="/demo/wanthai/meny">Beställ</a><a href="#mild">Mild</a><a href="#pet">Medel</a><a href="#stark">Stark</a><a href="#vagnen">Vagnen</a></nav>
+      <p style="margin-top:14px">Wan har lagat thaimat på Koh Chang, i södra Thailand och i Phetchabun. Nu i en vagn i Skåne.</p>
     </div>
     <p>Beställning och betalning via <a href="https://www.viaeats.se" target="_blank" rel="noopener"><b>viaeats</b></a></p>
-    <a class="btn ink" href="/demo/wanthai/meny">Beställ</a>
+    <a class="btn" href="/demo/wanthai/meny">Beställ</a>
   </div>
   <div class="install" id="installera" hidden>
     <img src="/demo/wanthai/img/icon-192.png" alt="" width="192" height="192">
     <div><b>Wanthai på hemskärmen</b><span data-install-text>Öppnas som en egen app, utan App Store eller Google Play.</span></div>
-    <button class="btn ink" type="button" data-install>Lägg till</button>
+    <button class="btn" type="button" data-install>Lägg till</button>
   </div>
 </footer>
+
+<div class="meter" data-meter aria-hidden="true"><i></i><i></i><i></i></div>
 
 <div class="order-bar hide" data-order-bar>
   <a class="btn" href="/demo/wanthai/meny">
@@ -379,9 +347,13 @@ footer { padding: clamp(56px, 6vw, 88px) var(--m) calc(32px + env(safe-area-inse
     if (open) { status = 'öppet till ' + today.close; short = 'Öppet till ' + today.close; }
     else if (today && !today.closed && now.minutes < toMin(today.open)) { status = 'öppnar ' + today.open; short = 'Öppnar ' + today.open + ', förbeställ nu'; }
     else { status = 'stängt just nu'; short = 'Stängt just nu'; }
+    var street = (r.address || '').split(',')[0].trim(), city = r.city || '';
     var place = r.address || '';
-    if (place && r.city && place.indexOf(r.city) === -1) place += ', ' + r.city;
+    if (place && city && place.indexOf(city) === -1) place += ', ' + city;
     document.querySelectorAll('[data-place]').forEach(function (el) { if (place) el.textContent = place; });
+    var pl = document.querySelector('[data-place-line]'), cl = document.querySelector('[data-city-line]');
+    if (pl && street) pl.textContent = street;
+    if (cl && city) cl.textContent = city;
     document.querySelectorAll('[data-status]').forEach(function (el) { el.textContent = el.hasAttribute('data-cap') ? status.charAt(0).toUpperCase() + status.slice(1) : status; });
     document.querySelectorAll('[data-status-short]').forEach(function (el) { el.textContent = short; });
     document.querySelectorAll('[data-open-dot]').forEach(function (el) { el.classList.toggle('closed', !open); });
@@ -413,7 +385,7 @@ footer { padding: clamp(56px, 6vw, 88px) var(--m) calc(32px + env(safe-area-inse
   if (bar && 'IntersectionObserver' in window) {
     var hidden = new Set();
     var watch = new IntersectionObserver(function (es) { es.forEach(function (e) { e.isIntersecting ? hidden.add(e.target) : hidden.delete(e.target); }); bar.classList.toggle('hide', hidden.size > 0); });
-    [document.querySelector('.hero'), document.querySelector('.sides-head'), document.querySelector('.duo'), document.querySelector('.visit'), document.querySelector('footer')].forEach(function (el) { if (el) watch.observe(el); });
+    [document.querySelector('[data-hero-btn]'), document.querySelector('.truck .rows'), document.querySelector('footer')].forEach(function (el) { if (el) watch.observe(el); });
   }
 
   var box = document.getElementById('installera'), deferred = null;
@@ -436,8 +408,7 @@ footer { padding: clamp(56px, 6vw, 88px) var(--m) calc(32px + env(safe-area-inse
 window.addEventListener('DOMContentLoaded', function () {
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var gsap = window.gsap, ST = window.ScrollTrigger;
-  var strip = document.querySelector('[data-strip]');
-  if (strip) strip.innerHTML += strip.innerHTML;
+  var meter = document.querySelector('[data-meter]');
   if (reduce || !gsap || !ST) return;
   gsap.registerPlugin(ST);
 
@@ -447,52 +418,47 @@ window.addEventListener('DOMContentLoaded', function () {
     gsap.ticker.add(function (t) { lenis.raf(t * 1000); });
     gsap.ticker.lagSmoothing(0);
     document.querySelectorAll('a[href^="#"]').forEach(function (a) {
-      a.addEventListener('click', function (e) { var t = document.querySelector(a.getAttribute('href')); if (!t) return; e.preventDefault(); lenis.scrollTo(t, { duration: 1.3 }); });
+      a.addEventListener('click', function (e) { var t = document.querySelector(a.getAttribute('href')); if (!t) return; e.preventDefault(); lenis.scrollTo(t, { duration: 1.4 }); });
     });
   }
 
-  // Signaturen: rätterna avlöser varandra på sockeln i en långsam övertoning.
-  var figs = gsap.utils.toArray('[data-plinth] figure');
-  figs.forEach(function (f) { f.hidden = false; });
-  gsap.set(figs, { opacity: 0 }); gsap.set(figs[0], { opacity: 1 });
-  var cycle = gsap.timeline({ repeat: -1, delay: 3.6 });
-  figs.forEach(function (f, i) {
-    var next = figs[(i + 1) % figs.length];
-    cycle.to(f, { opacity: 0, scale: .96, duration: 1.6, ease: 'power2.inOut' }, i ? '+=4.2' : 0)
-      .fromTo(next, { opacity: 0, scale: 1.04, rotation: -8 }, { opacity: 1, scale: 1, rotation: 0, duration: 1.6, ease: 'power2.inOut', immediateRender: false }, '<');
+  // Entré: tallriken snurrar in, ingredienserna landar, hettaringarna växer fram en i taget
+  // bakom tallriken (stark, medel, mild) och rubriken reser sig.
+  var scene = document.querySelector('[data-intro-scene]');
+  var ings = gsap.utils.toArray('[data-ing]'), rings = gsap.utils.toArray('[data-ring]');
+  var load = gsap.timeline({ defaults: { ease: 'expo.out' } });
+  load.from('[data-plate] img', { scale: .6, rotation: -200, opacity: 0, duration: 2 }, 0)
+    .from('[data-bigword]', { yPercent: 24, opacity: 0, duration: 1.8 }, .1)
+    .fromTo(rings[0], { scale: 0 }, { scale: 1.34, duration: 1.6 }, .5)
+    .fromTo(rings[1], { scale: 0 }, { scale: 1.21, duration: 1.6 }, .65)
+    .fromTo(rings[2], { scale: 0 }, { scale: 1.08, duration: 1.6 }, .8)
+    .from(ings.map(function (el) { return el.firstElementChild; }), { x: function (i) { return [220, -260, 240][i] || 0; }, y: function (i) { return [-200, 60, 200][i] || 0; }, rotation: 140, opacity: 0, duration: 1.6, stagger: .08 }, .45)
+    .from('[data-rise]', { yPercent: 110, duration: 1.3, stagger: .1 }, .25)
+    .from('[data-fade] > *, .topbar > *', { y: 18, opacity: 0, duration: 1, stagger: .08 }, .5);
+
+  // Mild scroll: tallriken vrider sig lite och allt glider sakta i olika djup när hjälten lämnar.
+  var calm = { trigger: scene, start: 'top top', end: 'bottom top', scrub: .5 };
+  gsap.to('[data-plate]', { rotation: 45, yPercent: 14, ease: 'none', scrollTrigger: calm });
+  gsap.to(rings, { yPercent: 10, ease: 'none', scrollTrigger: calm });
+  gsap.to('[data-bigword]', { xPercent: -6, ease: 'none', scrollTrigger: calm });
+  ings.forEach(function (el, i) { gsap.to(el, { yPercent: [-60, -30, -90][i] || -40, rotation: i % 2 ? 20 : -20, ease: 'none', scrollTrigger: calm }); });
+
+  // Signaturen: färgen per kapitel. Varje fält är egen färg; när nästa hetta kommer in glider
+  // den föregående över i den, och hettamätaren fylls.
+  var chapters = gsap.utils.toArray('[data-chapter]');
+  chapters.forEach(function (ch, i) {
+    ST.create({ trigger: ch, start: 'top 55%', end: 'bottom 45%', onToggle: function (self) { if (self.isActive && meter) { meter.setAttribute('data-level', ch.getAttribute('data-chapter')); } } });
+    // Rätten vrider sig in en gång när kapitlet kommer.
+    var dish = ch.querySelector('[data-dish]');
+    gsap.from(dish, { rotation: -40, scale: .88, opacity: 0, duration: 1.4, ease: 'expo.out', scrollTrigger: { trigger: ch, start: 'top 70%' } });
   });
-  cycle.to({}, { duration: 4.2 });
-  document.addEventListener('visibilitychange', function () { document.hidden ? cycle.pause() : cycle.resume(); });
+  if (meter) ST.create({ trigger: '#mild', start: 'top 60%', endTrigger: '#stark', end: 'bottom 40%', onToggle: function (self) { meter.classList.toggle('on', self.isActive); } });
 
-  // Entré för första skärmen.
-  gsap.from('.mark', { y: 24, opacity: 0, duration: 1.1, ease: 'expo.out' });
-  gsap.from('[data-intro]', { y: 20, opacity: 0, duration: 1, stagger: .09, delay: .15, ease: 'expo.out' });
-  gsap.from('[data-plinth]', { scale: .9, opacity: 0, duration: 1.4, delay: .1, ease: 'expo.out' });
+  // Kapitlets delar tonas in i tur och ordning: rubrik, text, rätterna.
+  ST.batch('[data-reveal]', { start: 'top 90%', once: true, onEnter: function (els) { gsap.from(els, { y: 28, opacity: 0, duration: 1, stagger: .08, ease: 'expo.out' }); } });
 
-  // Tallriken roterar medan den åker ner längs listan; raden den passerar markeras.
-  gsap.to('[data-rider]', { rotation: 240, ease: 'none', scrollTrigger: { trigger: '[data-menu]', start: 'top bottom', end: 'bottom top', scrub: true } });
-  gsap.utils.toArray('.rows a').forEach(function (row) {
-    ST.create({ trigger: row, start: 'top 55%', end: 'bottom 55%', onToggle: function (self) { row.classList.toggle('now', self.isActive); } });
-  });
-  gsap.from('.menu h2 > span:not(.gap)', { yPercent: 60, opacity: 0, duration: 1.1, stagger: .12, ease: 'expo.out', scrollTrigger: { trigger: '.menu h2', start: 'top 85%' } });
-  ST.batch('.rows li', { start: 'top 92%', once: true, onEnter: function (els) { gsap.from(els, { y: 26, opacity: 0, duration: .9, stagger: .07, ease: 'power3.out' }); } });
-
-  // Fälten: föremålen glider sakta i bild.
-  gsap.utils.toArray('[data-drift]').forEach(function (el, i) {
-    gsap.fromTo(el, { yPercent: -8, rotation: i ? 6 : -6 }, { yPercent: 8, rotation: i ? -6 : 6, ease: 'none', scrollTrigger: { trigger: el.parentElement, start: 'top bottom', end: 'bottom top', scrub: true } });
-  });
-
-  // Remsan driver åt vänster, snabbare när man scrollar.
-  if (strip) {
-    var loop = gsap.to(strip, { xPercent: -50, duration: 42, ease: 'none', repeat: -1 });
-    ST.create({ onUpdate: function (self) { gsap.to(loop, { timeScale: 1 + Math.min(4, Math.abs(self.getVelocity()) / 500), duration: .2, overwrite: true }); gsap.to(loop, { timeScale: 1, duration: 1.2, delay: .2 }); } });
-  }
-
-  // Delar av varje sektion tonas in i tur och ordning.
-  ST.batch('[data-reveal]', { start: 'top 90%', once: true, onEnter: function (els) { gsap.from(els, { y: 24, opacity: 0, duration: 1, stagger: .08, ease: 'expo.out' }); } });
-
-  // Sidfotens block reser sig.
-  gsap.from('[data-blocks] [data-block]', { y: 40, stagger: .05, ease: 'none', scrollTrigger: { trigger: '[data-blocks]', start: 'top bottom', end: 'bottom 85%', scrub: true } });
+  // Sidfotens thailändska namn glider in i sidled.
+  gsap.from('[data-big]', { xPercent: 25, ease: 'none', scrollTrigger: { trigger: 'footer', start: 'top bottom', end: 'bottom bottom', scrub: true } });
 
   window.addEventListener('load', function () { ST.refresh(); });
 });

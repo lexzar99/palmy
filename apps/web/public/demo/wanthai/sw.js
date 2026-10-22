@@ -1,11 +1,11 @@
 // Wanthai – enkel offline-cache för sajtskalet. Beställningen (iframe från viaeats) cachas aldrig.
-const CACHE = 'wanthai-v5';
+const CACHE = 'wanthai-v6';
 const ASSETS = [
   '/demo/wanthai',
   '/demo/wanthai/meny',
   '/demo/wanthai/manifest.webmanifest',
   '/demo/wanthai/img/logo-ink.png',
-  '/demo/wanthai/img/specimens/kra-pao-plate.webp',
+  '/demo/wanthai/img/hd/hero-krapao.webp',
   '/demo/wanthai/img/icon-192.png',
 ];
 self.addEventListener('install', (e) => {
