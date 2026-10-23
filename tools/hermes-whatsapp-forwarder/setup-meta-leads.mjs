@@ -31,7 +31,8 @@ function ask(question, { hidden = false } = {}) {
     rl.question(question, (answer) => {
       rl.close();
       if (hidden) process.stdout.write('\n');
-      resolve(answer.trim());
+      // Inklistrade tokens far ofta med mellanslag eller radbrytningar.
+      resolve(hidden ? answer.replace(/\s+/g, '') : answer.trim());
     });
   });
 }
@@ -39,10 +40,16 @@ function ask(question, { hidden = false } = {}) {
 async function graph(pathname, params, token) {
   const url = new URL(`${GRAPH}/${pathname}`);
   for (const [key, value] of Object.entries(params || {})) url.searchParams.set(key, value);
-  const response = await fetch(url, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    signal: AbortSignal.timeout(20_000),
-  });
+  let response;
+  try {
+    response = await fetch(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch (error) {
+    const cause = error?.cause?.code || error?.cause?.message || error?.message || 'okänt fel';
+    throw new Error(`kunde inte nå Meta (${String(cause).replace(/EAA[A-Za-z0-9]+/g, '[token]').slice(0, 120)}). Kontrollera att hela token klistrades in.`);
+  }
   const body = await response.json().catch(() => ({}));
   if (!response.ok || body.error) {
     const error = body.error || {};
@@ -67,6 +74,8 @@ appId = String(selfInfo.app_id || appId);
 const inputInfo = selfInfo;
 if (!inputInfo.is_valid) fail('Meta säger att token inte är giltig. Generera en ny i Graph API Explorer.');
 const DAY_S = 86_400;
+const expiresText = inputInfo.expires_at === 0 ? 'går aldrig ut' : `går ut ${new Date(inputInfo.expires_at * 1000).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm' })}`;
+console.log(`Token: ${inputInfo.type || 'okänd typ'}, ${expiresText}, app ${inputInfo.application || inputInfo.app_id || '?'}`);
 
 let pageId = argValue('--page-id');
 let pageToken;
@@ -81,8 +90,7 @@ if (inputInfo.type === 'PAGE') {
   let userToken = inputToken;
   const longLived = inputInfo.expires_at === 0 || inputInfo.expires_at - Date.now() / 1000 > 7 * DAY_S;
   if (!longLived && !appSecret) {
-    appSecret = await ask('Token är kortlivad. Förläng den i Access Token Tool, eller ange app-hemligheten (visas inte): ', { hidden: true });
-    if (!appSecret) fail('Förläng token med "Extend Access Token" i Access Token Tool och kör igen.');
+    fail('Token är kortlivad (gäller bara någon timme). Klicka "Extend Access Token" i Access Token Tool, kopiera den nya token och kör skriptet igen. Med META_APP_SECRET satt byts den i stället automatiskt.');
   }
   if (!longLived) {
     // Kortlivad anvandartoken -> 60 dagar. En sidtoken hamtad med den gar inte ut.
