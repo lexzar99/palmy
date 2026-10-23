@@ -13,6 +13,15 @@ const DEFAULT_OUTAGE_REPEAT_MS = 60 * 60_000;
 // flyttas forst efter lyckad sandning, sa ett dygns avbrott hade blivit ett
 // dygns WhatsApp-skrall pa en gang.
 const DEFAULT_MAX_ALERT_AGE_MS = 45 * 60_000;
+// En notis per ny order och inget mer: "NY ORDER 359 kr Palmyra Pizzeria".
+// Varje statusbyte (accepterad, pa vag, levererad ...) blev ett eget
+// WhatsApp-plingande. HERMES_ORDER_ALERT_TYPES slapper igenom fler typer.
+const DEFAULT_ORDER_ALERT_TYPES = ['order:new'];
+// Restaurangvakten: en order som ingen accepterat efter sa har lang tid ger
+// ett larm med restaurangens nummer. 0 stanger av vakten.
+const DEFAULT_PENDING_ORDER_ALERT_MIN = 4;
+const PENDING_ORDER_FORGET_MS = 3 * 60 * 60_000;
+const ORDER_SETTLED_TYPES = new Set(['order:accepted', 'order:rejected', 'order:cancelled', 'order:delivering', 'order:delivered', 'order:delivery_failed']);
 
 class HttpError extends Error {
   constructor(status, stage = 'api') {
@@ -89,6 +98,9 @@ function readState() {
       consecutiveFailures: Number.isFinite(state.consecutiveFailures) ? state.consecutiveFailures : 0,
       outageAlertSentAt: typeof state.outageAlertSentAt === 'string' ? state.outageAlertSentAt : null,
       authAlertSentAt: typeof state.authAlertSentAt === 'string' ? state.authAlertSentAt : null,
+      pendingOrders: state.pendingOrders && typeof state.pendingOrders === 'object' ? state.pendingOrders : {},
+      orderDays: state.orderDays && typeof state.orderDays === 'object' ? state.orderDays : {},
+      countedOrders: state.countedOrders && typeof state.countedOrders === 'object' ? state.countedOrders : {},
     };
   } catch {
     return {
@@ -97,6 +109,9 @@ function readState() {
       consecutiveFailures: 0,
       outageAlertSentAt: null,
       authAlertSentAt: null,
+      pendingOrders: {},
+      orderDays: {},
+      countedOrders: {},
     };
   }
 }
@@ -113,6 +128,28 @@ function alertText(alert) {
       .join('\n\n');
   }
   return 'En Hermes-alert saknar visningsbar sammanfattning.';
+}
+
+function isOrderEvent(alert) {
+  return /^(order|courier):/.test(String(alert?.type || ''));
+}
+
+function formatKr(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  return new Intl.NumberFormat('sv-SE', { maximumFractionDigits: 2 }).format(amount);
+}
+
+// null = tystad med avsikt. Ovriga notiser (support, larm) gar igenom som forut.
+function deliverableText(alert, orderAlertTypes = DEFAULT_ORDER_ALERT_TYPES) {
+  if (!isOrderEvent(alert)) return alertText(alert);
+  if (!orderAlertTypes.includes(alert.type)) return null;
+  if (alert.type === 'order:new') {
+    const amount = formatKr(alert.totalKr);
+    const restaurant = String(alert.restaurant || alert.restaurantName || '').trim();
+    if (amount && restaurant) return redactText(`NY ORDER ${amount} kr ${restaurant}`);
+  }
+  return alertText(alert);
 }
 
 function safeAlertPayload(alert) {
@@ -177,6 +214,98 @@ function alertAgeMs(alert, now = Date.now()) {
   return Number.isFinite(created) ? Math.max(0, now - created) : 0;
 }
 
+const stockholmDay = (value) => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' })
+  .format(Number.isFinite(Date.parse(value)) ? Date.parse(value) : Date.now());
+
+// Orderbok per dag ur orderhandelserna. vakt.mjs laser den for morgonbrief och
+// rekord nar Falkens admin-session saknas. Avvisade och avbrutna ordrar dras av.
+function recordOrderDay(state, alert, orderId) {
+  state.orderDays = state.orderDays || {};
+  state.countedOrders = state.countedOrders || {};
+  if (alert.type === 'order:new' && !state.countedOrders[orderId]) {
+    const day = stockholmDay(alert.createdAt);
+    const total = Number(alert.totalKr) || 0;
+    const entry = state.orderDays[day] || { orders: 0, sales: 0 };
+    entry.orders += 1;
+    entry.sales = Math.round((entry.sales + total) * 100) / 100;
+    state.orderDays[day] = entry;
+    state.countedOrders[orderId] = { day, total };
+  } else if ((alert.type === 'order:rejected' || alert.type === 'order:cancelled') && state.countedOrders[orderId]) {
+    const { day, total } = state.countedOrders[orderId];
+    const entry = state.orderDays[day];
+    if (entry) {
+      entry.orders = Math.max(0, entry.orders - 1);
+      entry.sales = Math.max(0, Math.round((entry.sales - total) * 100) / 100);
+    }
+    state.countedOrders[orderId] = { day, total: 0, removed: true };
+  }
+  const oldest = stockholmDay(new Date(Date.now() - 3 * 86_400_000).toISOString());
+  for (const [id, counted] of Object.entries(state.countedOrders)) if (counted.day < oldest) delete state.countedOrders[id];
+  const oldestDay = stockholmDay(new Date(Date.now() - 400 * 86_400_000).toISOString());
+  for (const day of Object.keys(state.orderDays)) if (day < oldestDay) delete state.orderDays[day];
+}
+
+function trackOrder(state, alert) {
+  const orderId = typeof alert.orderId === 'string' ? alert.orderId : null;
+  if (!orderId) return;
+  recordOrderDay(state, alert, orderId);
+  state.pendingOrders = state.pendingOrders || {};
+  if (alert.type === 'order:new' && alert.status === 'PENDING') {
+    state.pendingOrders[orderId] = {
+      orderNumber: alert.orderNumber || null,
+      restaurant: alert.restaurant || null,
+      totalKr: alert.totalKr ?? null,
+      createdAt: alert.createdAt || new Date().toISOString(),
+      alarmed: false,
+    };
+  } else if (ORDER_SETTLED_TYPES.has(alert.type)) {
+    delete state.pendingOrders[orderId];
+  }
+}
+
+async function lookupOrder(config, orderNumber) {
+  const url = new URL('/api/hermes/orders/lookup', config.apiBase);
+  url.searchParams.set('orderNumber', orderNumber);
+  const data = await getJson(url.toString(), { Authorization: `Bearer ${config.token}` }, config.maxAttempts);
+  return (data.orders || []).find((order) => order.orderNumber === orderNumber) || null;
+}
+
+async function checkPendingOrders(config, state, now = Date.now()) {
+  if (!config.pendingOrderAlertMs) return;
+  for (const [orderId, order] of Object.entries(state.pendingOrders || {})) {
+    const age = now - Date.parse(order.createdAt);
+    if (!Number.isFinite(age) || age > PENDING_ORDER_FORGET_MS) {
+      delete state.pendingOrders[orderId];
+      continue;
+    }
+    if (order.alarmed || age < config.pendingOrderAlertMs) continue;
+
+    // Ett accepterat-event kan ha missats (API:t seedar tyst efter omstart).
+    // Fraga darfor om orderns status innan nagon larmas i onodan.
+    let current = null;
+    if (order.orderNumber) current = await lookupOrder(config, order.orderNumber).catch(() => null);
+    if (current && current.status !== 'PENDING') {
+      delete state.pendingOrders[orderId];
+      continue;
+    }
+    const amount = formatKr(order.totalKr);
+    const minutes = Math.floor(age / 60_000);
+    const phone = String(current?.restaurantPhone || '').trim();
+    await postJson(config.bridgeSendUrl, {
+      chatId: config.chatId,
+      message: [
+        'INGEN HAR TAGIT ORDERN',
+        `${amount ? `${amount} kr hos ` : 'Order hos '}${order.restaurant || 'okänd restaurang'} har väntat ${minutes} min${order.orderNumber ? ` (${order.orderNumber})` : ''}.`,
+        phone ? `Ring restaurangen: ${phone}` : 'Ring restaurangen.',
+      ].join('\n'),
+      payload: { type: 'order:pending_too_long', severity: 'warning', orderNumber: order.orderNumber || null },
+    }, {}, config.maxAttempts, 'bridge');
+    order.alarmed = true;
+    writeState(state);
+    console.log(`[hermes-poll] restaurangvakt larmade om ${order.orderNumber || orderId}`);
+  }
+}
+
 async function ackAlert(config, alert) {
   if (!alert.id) return;
   await postJson(
@@ -213,7 +342,15 @@ async function pollOnce(config, state) {
       continue;
     }
 
-    const message = alertText(alert);
+    trackOrder(state, alert);
+    const message = deliverableText(alert, config.orderAlertTypes);
+    if (message === null) {
+      // Kvitteras: pollaren har hanterat den genom att tysta den, och doctor
+      // ska inte rapportera den som olevererad.
+      await ackAlert(config, alert);
+      advance(alert);
+      continue;
+    }
     if (!message.trim()) {
       advance(alert);
       continue;
@@ -231,6 +368,8 @@ async function pollOnce(config, state) {
     console.log(`[hermes-poll] sent alert ${alert.id || state.since}`);
   }
 
+  await checkPendingOrders(config, state);
+
   if (stale) {
     const minutes = Math.round(config.maxAlertAgeMs / 60_000);
     console.warn(`[hermes-poll] hoppade over ${stale} alerts aldre an ${minutes} min (senast ${latestStale || 'okant'})`);
@@ -243,8 +382,13 @@ async function pollOnce(config, state) {
     });
   }
 
-  if (data.nextSince && (!data.alerts || data.alerts.length === 0)) {
-    state.since = data.nextSince;
+  // Fran minins lokala fix: API:t svarar nextSince = since nar inget finns,
+  // sa markoren flyttas till nu i stallet for att sta still.
+  if (!data.alerts || data.alerts.length === 0) {
+    const returnedSince = data.nextSince && Date.parse(data.nextSince) > Date.parse(state.since)
+      ? data.nextSince
+      : new Date().toISOString();
+    state.since = returnedSince;
     writeState(state);
   }
 }
@@ -301,6 +445,11 @@ function recordSuccess(state) {
   writeState(state);
 }
 
+function orderAlertTypes(value) {
+  const types = String(value || '').split(',').map((type) => type.trim()).filter(Boolean);
+  return types.length ? types : DEFAULT_ORDER_ALERT_TYPES;
+}
+
 async function main() {
   loadEnvFile(envFile);
   const config = {
@@ -313,6 +462,8 @@ async function main() {
     outageAlertAfterMs: numberSetting(process.env.HERMES_API_OUTAGE_ALERT_AFTER_MS, DEFAULT_OUTAGE_ALERT_AFTER_MS, 60_000),
     outageRepeatMs: numberSetting(process.env.HERMES_API_OUTAGE_REPEAT_MS, DEFAULT_OUTAGE_REPEAT_MS, 60_000),
     maxAlertAgeMs: numberSetting(process.env.HERMES_MAX_ALERT_AGE_MS, DEFAULT_MAX_ALERT_AGE_MS, 60_000),
+    orderAlertTypes: orderAlertTypes(process.env.HERMES_ORDER_ALERT_TYPES),
+    pendingOrderAlertMs: numberSetting(process.env.HERMES_PENDING_ORDER_ALERT_MIN, DEFAULT_PENDING_ORDER_ALERT_MIN, 0) * 60_000,
   };
   if (!config.token) throw new Error('HERMES_API_TOKEN saknas');
   if (!config.chatId) throw new Error('HERMES_WHATSAPP_CHAT_ID saknas');
@@ -347,6 +498,8 @@ module.exports = {
   HttpError,
   alertAgeMs,
   alertText,
+  checkPendingOrders,
+  deliverableText,
   isAuthFailure,
   pollOnce,
   safeAlertPayload,

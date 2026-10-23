@@ -1,0 +1,10 @@
+# Var 5:e minut. Stang av: sudo systemctl disable --now viaeats-pull.timer
+[Unit]
+Description=Hamta viaeats fran GitHub var 5:e minut
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

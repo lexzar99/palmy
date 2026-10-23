@@ -1,0 +1,14 @@
+# Hermes-vakten: sajtvakt, oppettidsvakt och rekordnotis. Kors av hermes-vakt.timer.
+[Unit]
+Description=ViaEats Hermes-vakt (sajt, oppettider, rekord)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=hermes
+WorkingDirectory=/opt/viaeats
+ExecStart=/usr/bin/node /opt/viaeats/tools/hermes-agent/vakt.mjs tick
+TimeoutStartSec=120
+NoNewPrivileges=true
+PrivateTmp=true

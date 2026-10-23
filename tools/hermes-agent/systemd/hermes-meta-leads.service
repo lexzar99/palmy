@@ -1,0 +1,26 @@
+# Skickar nya leads fran Metas snabbformular som "NY LEAD" till WhatsApp-bryggan.
+# Installera pa Linux-minin:
+#   sudo cp tools/hermes-agent/systemd/hermes-meta-leads.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now hermes-meta-leads.service
+# Stang av:   sudo systemctl disable --now hermes-meta-leads.service
+# Byt User och sokvagar om repot inte ligger i /opt/viaeats.
+[Unit]
+Description=ViaEats lead-bevakning (Meta -> WhatsApp)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hermes
+WorkingDirectory=/opt/viaeats
+ExecStart=/usr/bin/node /opt/viaeats/tools/hermes-whatsapp-forwarder/poll-meta-leads.js
+Restart=always
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

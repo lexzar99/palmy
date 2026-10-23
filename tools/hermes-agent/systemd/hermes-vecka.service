@@ -1,0 +1,15 @@
+# Veckobrevet till WhatsApp. Kors av hermes-vecka.timer.
+# (Den dagliga morgonrapporten skickas av Hermes eget cron-jobb.)
+[Unit]
+Description=ViaEats veckobrev
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=hermes
+WorkingDirectory=/opt/viaeats
+ExecStart=/usr/bin/node /opt/viaeats/tools/hermes-agent/vakt.mjs vecka
+TimeoutStartSec=120
+NoNewPrivileges=true
+PrivateTmp=true

@@ -1,0 +1,11 @@
+# Mandagar 08:00 svensk tid. Persistent=true: var minin avstangd kommer brevet nar den startar.
+# Stang av: sudo systemctl disable --now hermes-vecka.timer
+[Unit]
+Description=Veckobrev mandagar 08:00
+
+[Timer]
+OnCalendar=Mon *-*-* 08:00:00 Europe/Stockholm
+Persistent=true
+
+[Install]
+WantedBy=timers.target

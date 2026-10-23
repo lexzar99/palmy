@@ -1,0 +1,11 @@
+# Var 2:a minut. Stang av: sudo systemctl disable --now hermes-vakt.timer
+[Unit]
+Description=Kor Hermes-vakten varannan minut
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+AccuracySec=15s
+
+[Install]
+WantedBy=timers.target

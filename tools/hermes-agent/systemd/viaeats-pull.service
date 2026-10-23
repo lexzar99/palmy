@@ -1,0 +1,11 @@
+# Hamtar senaste main fran GitHub till ~/viaeats-jour och ~/viaeats-drift.
+[Unit]
+Description=ViaEats: hamta senaste main fran GitHub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=hermes
+ExecStart=/usr/local/bin/viaeats-pull
+TimeoutStartSec=300

@@ -1,0 +1,38 @@
+# Sammanfogas in i ~/.hermes/config.yaml pa minin. Skriv inte over resten av filen.
+# Varfor varje rad finns: tools/hermes-agent/README.md, avsnittet "Sakerhet".
+
+approvals:
+  # smart: ofarliga kommandon gar direkt, farliga fragar anvandaren pa WhatsApp.
+  mode: smart
+  # deny galler aven i yolo-lage och med approvals av. Agenten ska inte kunna
+  # stanga av sina egna sparrar eller pusha forbi grinden.
+  deny:
+    - "git push*"
+    - "* git push*"
+    - "hermes config set*"
+    - "hermes config unset*"
+    - "hermes config edit*"
+    - "hermes hooks revoke*"
+    - "hermes pairing*"
+    - "*viaeats-jour/.ssh*"
+
+hooks:
+  pre_tool_call:
+    # Root-agd, sa agenten inte kan skriva om den. fail_closed: kraschar vakten
+    # kors kommandot inte.
+    - matcher: "terminal"
+      command: "/usr/local/lib/viaeats-jour/guard-terminal.py"
+      timeout: 10
+      fail_closed: true
+
+whatsapp:
+  # Okanda nummer far inget svar alls (standard ar en parningskod).
+  unauthorized_dm_behavior: ignore
+
+# command_allowlist: "delete in root path" tas bort, sa raderingar fragar igen.
+
+# ~/.hermes/.env:
+#   WHATSAPP_ALLOWED_USERS=<bara anvandarens nummer, landskod utan +>
+#   Ingen WHATSAPP_ALLOW_ALL_USERS eller GATEWAY_ALLOW_ALL_USERS.
+# ~/.hermes/shell-hooks-allowlist.json (gatewayen fragar aldrig sjalv):
+#   {"approvals":[{"event":"pre_tool_call","command":"/usr/local/lib/viaeats-jour/guard-terminal.py"}]}

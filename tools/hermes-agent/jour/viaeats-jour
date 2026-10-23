@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Det Hermes anropar. Sjalva grinden kor som anvandaren viaeats-jour, som ager
+# deploy-nyckeln. Installeras som /usr/local/bin/viaeats-jour (root, 755).
+#
+#   viaeats-jour sync                     # grinden hamtar senaste main
+#   viaeats-jour request "Kort titel"     # i arbetskopian: begar godkannande for commitarna
+#   viaeats-jour approve <id> <kod>       # efter anvandarens "GODKANN <id> <kod>"
+#   viaeats-jour deny <id>                # efter "NEJ <id>"
+#   viaeats-jour status [--all]
+set -euo pipefail
+GATE=${VIAEATS_JOUR_GATE:-/usr/local/lib/viaeats-jour/viaeats-jour.py}
+run_gate() {
+  if [[ -n "${VIAEATS_JOUR_NO_SUDO:-}" ]]; then "$GATE" "$@"; else sudo -n -u viaeats-jour "$GATE" "$@"; fi
+}
+
+if [[ "${1:-}" == "request" ]]; then
+  shift
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "Kör request i jour-arbetskopian." >&2; exit 2; }
+  if [[ -n "$(git status --porcelain)" ]]; then
+    echo "Arbetskopian har ocommittade ändringar. Committa allt som ska med (bara det committade visas och pushas)." >&2
+    exit 2
+  fi
+  git fetch -q origin main
+  if [[ -z "$(git rev-list origin/main..HEAD)" ]]; then
+    echo "Inga commits ovanpå origin/main." >&2
+    exit 2
+  fi
+  git bundle create - origin/main..HEAD 2>/dev/null | run_gate request "$@"
+else
+  run_gate "$@"
+fi
