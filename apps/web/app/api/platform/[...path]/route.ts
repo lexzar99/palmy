@@ -152,9 +152,15 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
     // from inside a third-party iframe. In that case the client sends the
     // short-lived proof returned by /api/kiosk/session. The API validates the
     // signature and restaurant binding before allowing checkout.
+    //
+    // Cookien ligger kvar i 24 timmar på viaeats.se efter ett embedbesök
+    // (demosajterna, Palmyras iframe). Den får bara följa med när anropet
+    // kommer från embedden, annars behandlar API:t en vanlig kassa på
+    // viaeats.se som privat partner-embed: rabattkoder nekas och ordern
+    // bokförs på fel kanal.
     const kioskProof =
       request.headers.get("x-viaeats-kiosk-access") ||
-      request.cookies.get(KIOSK_ACCESS_COOKIE)?.value;
+      (isEmbeddedRequest ? request.cookies.get(KIOSK_ACCESS_COOKIE)?.value : undefined);
     if (kioskProof) headers.set("x-viaeats-kiosk-access", kioskProof);
     // Denna proxy används bara av webb-kunden, så markera klienttypen. Backend
     // använder den för plattforms-låsta rabattkoder (t.ex. app-only-koder som

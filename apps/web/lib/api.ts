@@ -24,10 +24,23 @@ if (typeof window !== "undefined" && axios.defaults.timeout === 0) {
   axios.defaults.timeout = 25000;
 }
 
+// Partnerembedden är tre ytor: iframen hos partnern, /embed/<slug> i eget
+// fönster och kassan/spårningen med ?embed=1 (dit en hostad betalning
+// återvänder). Bara där hör kioskbeviset hemma. Skickas det från vanliga
+// viaeats.se tolkar API:t kassan som privat embed, och då nekas t.ex.
+// VIAEATS30 med "gäller bara på viaeats.se eller i appen" – på viaeats.se.
+export function isEmbedContext(): boolean {
+  if (typeof window === "undefined") return false;
+  if (window.parent !== window) return true;
+  if (window.location.pathname.startsWith("/embed/")) return true;
+  return new URLSearchParams(window.location.search).get("embed") === "1";
+}
+
 // Embedded partner pages can be treated as a third-party iframe by the
 // browser, which means the HttpOnly kiosk cookie may not be sent. Attach the
 // short-lived, restaurant-scoped proof to same-origin platform calls as a
-// fallback. Never attach it to direct API_URL calls or unrelated routes.
+// fallback. Never attach it to direct API_URL calls, unrelated routes or
+// outside the embed context.
 if (typeof window !== "undefined") {
   axios.interceptors.request.use((config) => {
     const offerChannel = palmyraOfferChannel();
@@ -39,19 +52,17 @@ if (typeof window !== "undefined") {
       config.data = { ...config.data, offerChannel };
     }
     const url = typeof config.url === "string" ? config.url : "";
-    if (url.startsWith("/api/platform/")) {
+    if (url.startsWith("/api/platform/") && isEmbedContext()) {
       const proof = getKioskAccessProof();
       if (proof) {
         config.headers = config.headers || {};
         config.headers["x-viaeats-kiosk-access"] = proof;
       }
-      // Proxyn måste veta att svaret landar i en cross-site iframe innan den
-      // sätter orderns HttpOnly-cookie: en Lax-cookie skickas aldrig tillbaka
-      // därifrån, så order-status och avbryt skulle svara 404 för alltid.
-      if (window.parent !== window) {
-        config.headers = config.headers || {};
-        config.headers[EMBED_CONTEXT_HEADER] = "1";
-      }
+      // Proxyn måste veta att anropet hör till embedden innan den sätter
+      // orderns HttpOnly-cookie (en Lax-cookie skickas aldrig tillbaka från
+      // en cross-site iframe) och innan den skickar kioskcookien vidare.
+      config.headers = config.headers || {};
+      config.headers[EMBED_CONTEXT_HEADER] = "1";
     }
     return config;
   });
