@@ -103,11 +103,11 @@ install_unit() {
   sed -e "s#^User=hermes#User=$HERMES_USER#" -e "s#/opt/viaeats#$REPO_DIR#g" -e "s#/usr/bin/node#$NODE_BIN#g" \
     "$REPO_DIR/tools/hermes-agent/systemd/$1" | sudo tee "/etc/systemd/system/$1" >/dev/null
 }
-for unit in hermes-vakt.service hermes-vakt.timer hermes-vecka.service hermes-vecka.timer hermes-meta-leads.service viaeats-pull.service viaeats-pull.timer; do
+for unit in hermes-poll.service hermes-login.service hermes-login.timer hermes-vakt.service hermes-vakt.timer hermes-vecka.service hermes-vecka.timer hermes-meta-leads.service viaeats-pull.service viaeats-pull.timer; do
   install_unit "$unit"
 done
 sudo systemctl daemon-reload
-sudo systemctl enable --now hermes-vakt.timer hermes-vecka.timer viaeats-pull.timer
+sudo systemctl enable --now hermes-poll.service hermes-login.timer hermes-vakt.timer hermes-vecka.timer viaeats-pull.timer
 if [[ -f "$HERMES_HOME_DIR/.viaeats/hermes/meta-leads.env" ]]; then
   sudo systemctl enable hermes-meta-leads.service
   sudo systemctl restart hermes-meta-leads.service

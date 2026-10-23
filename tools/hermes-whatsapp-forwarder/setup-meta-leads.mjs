@@ -5,8 +5,10 @@
 //
 //   node tools/hermes-whatsapp-forwarder/setup-meta-leads.mjs [--page-id <id>] [--out <fil>]
 //
-// Token och app-hemlighet matas in dolt och skrivs aldrig ut. App-hemligheten
-// anvands bara for bytet och sparas inte.
+// Token matas in dolt och skrivs aldrig ut. App-hemligheten behovs bara om
+// token ar kortlivad. En token som forlangts i Metas Access Token Tool
+// ("Extend Access Token") racker utan hemlighet. Inget av dem sparas utom
+// sidtoken.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -54,17 +56,17 @@ function fail(message) {
   process.exit(1);
 }
 
-const appId = process.env.META_APP_ID || await ask('App-ID (Meta-appens inställningar → Grundläggande): ');
-const appSecret = process.env.META_APP_SECRET || await ask('App-hemlighet (visas inte): ', { hidden: true });
-const inputToken = await ask('Token från Graph API Explorer (visas inte): ', { hidden: true });
-if (!/^\d+$/.test(appId)) fail('App-ID ska vara siffror.');
-if (!appSecret || !inputToken) fail('App-hemlighet och token behövs.');
-const appToken = `${appId}|${appSecret}`;
-
-const debug = async (token) => (await graph('debug_token', { input_token: token }, appToken)).data || {};
-const inputInfo = await debug(inputToken).catch((error) => fail(error.message));
+const inputToken = await ask('Token (förlängd användartoken eller sidtoken, visas inte): ', { hidden: true });
+if (!inputToken) fail('Ingen token.');
+let appSecret = process.env.META_APP_SECRET || '';
+let appId = process.env.META_APP_ID || '';
+// En token kan granska sig sjalv. App-token behovs bara for bytet nedan.
+const debug = async (token) => (await graph('debug_token', { input_token: token }, appSecret && appId ? `${appId}|${appSecret}` : token)).data || {};
+const selfInfo = await debug(inputToken).catch((error) => fail(error.message));
+appId = String(selfInfo.app_id || appId);
+const inputInfo = selfInfo;
 if (!inputInfo.is_valid) fail('Meta säger att token inte är giltig. Generera en ny i Graph API Explorer.');
-if (String(inputInfo.app_id) !== appId) fail('Token är skapad för en annan app än App-ID:t. Välj rätt app i Graph API Explorer.');
+const DAY_S = 86_400;
 
 let pageId = argValue('--page-id');
 let pageToken;
@@ -77,7 +79,12 @@ if (inputInfo.type === 'PAGE') {
   pageToken = inputToken;
 } else {
   let userToken = inputToken;
-  if (inputInfo.expires_at !== 0) {
+  const longLived = inputInfo.expires_at === 0 || inputInfo.expires_at - Date.now() / 1000 > 7 * DAY_S;
+  if (!longLived && !appSecret) {
+    appSecret = await ask('Token är kortlivad. Förläng den i Access Token Tool, eller ange app-hemligheten (visas inte): ', { hidden: true });
+    if (!appSecret) fail('Förläng token med "Extend Access Token" i Access Token Tool och kör igen.');
+  }
+  if (!longLived) {
     // Kortlivad anvandartoken -> 60 dagar. En sidtoken hamtad med den gar inte ut.
     const exchanged = await graph('oauth/access_token', {
       grant_type: 'fb_exchange_token',
