@@ -71,6 +71,8 @@ logs.zip
 _archive/
 _imports/
 assets/
+# Studiodemornas byggda JS och CSS (export-demo.mjs) ska med, annars är sajterna tomma i produktion
+!apps/web/public/demo/*/assets/
 builds/
 .codex-logs/
 
