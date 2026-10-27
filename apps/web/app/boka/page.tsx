@@ -20,6 +20,7 @@ const PREFILL: Record<string, { restaurant: string; city: string }> = {
   balkan: { restaurant: "Balkan Grill & Burek", city: "Burlöv" },
   cucco: { restaurant: "Osteria Cucco", city: "Lund" },
   wanthai: { restaurant: "Wanthai Foodtruck", city: "Höganäs" },
+  roma: { restaurant: "Pizzeria Roma", city: "Åstorp" },
 };
 
 export default async function BokaPage({ searchParams }: { searchParams: Promise<{ r?: string | string[] }> }) {
