@@ -61,6 +61,7 @@ MENU = {
   ("Barn Capricciosa", 99, "Tomatsås, fior di latte, prosciutto cotto och champinjoner"),
  ],
 }
+GEN = json.loads((HERE / "gen.json").read_text())["products"] if (HERE / "gen.json").exists() else {}
 PHOTOS = {"Pepperoni": "pizza.webp"}   # deras eget foto av pepperonipizzan med ricotta, honung och basilika
 
 def copy(src, dst):
@@ -82,6 +83,11 @@ for cat, items in MENU.items():
         y += [f"      - name: {q(name)}", f"        description: {q(desc)}", f"        price: {price}"]
         data["productOrder"].append(name)
         if name in PHOTOS: data["images"]["products"][name] = copy(SITE / PHOTOS[name], f"dishes/{PHOTOS[name]}")
+        # Genererade studiofoton (gen.json) går före: svart tallrik på svart sten mot Kuben-gul vägg
+        g = GEN.get(name)
+        if g and (IMG / f"gen/{g}.webp").exists(): data["images"]["products"][name] = f"{BASE}/gen/{g}.webp"
+    first = next((data["images"]["products"][n] for n, _, _ in items if n in data["images"]["products"]), None)
+    if first: data["images"]["categories"][cat] = first
 (HERE / "menu.yaml").write_text("\n".join(y) + "\n")
 (HERE / "data.json").write_text(json.dumps(data, ensure_ascii=False, indent=1))
 
