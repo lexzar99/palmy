@@ -1,0 +1,682 @@
+# Freds Pizzeria (Fared Restaurang), Vattugatan 12, Hässleholm: meny för massimport.
+# Källa: foodora (foodora.se/restaurant/rd9y), avläst 2026-10-27. Ordinarie priser, inte foodoras 30 %-kampanj.
+# Tillvalen följer Palmyras uppsättning: få val blir bildrutor (images.json), extra pålägg är en lista.
+# ANTAGET: Familj +110 kr och priserna för extra pålägg (Palmyras), eftersom foodora inte visar tillval när restaurangen är stängd.
+extraGroups:
+  - name: "Storlek"
+    type: radio
+    required: true
+    options:
+      - { name: "Normal", price: 0 }
+      - { name: "Familj", price: 110 }
+  - name: "Välj sås (ingår)"
+    type: radio
+    required: true
+    options:
+      - { name: "Mild sås", price: 0 }
+      - { name: "Stark sås", price: 0 }
+      - { name: "Blandad sås", price: 0 }
+      - { name: "Vitlökssås", price: 0 }
+      - { name: "Bearnaisesås", price: 0 }
+      - { name: "Ingen sås", price: 0 }
+  - name: "Sås i burk"
+    type: checkbox
+    required: false
+    max: 7
+    options:
+      - { name: "Bearnaisesås i burk", price: 15 }
+      - { name: "Currysås i burk", price: 15 }
+      - { name: "Mild kebabsås i burk", price: 15 }
+      - { name: "Stark kebabsås i burk", price: 15 }
+      - { name: "Blandad kebabsås i burk", price: 20 }
+      - { name: "Tacosås i burk", price: 20 }
+      - { name: "Vitlökssås i burk", price: 15 }
+  - name: "Lägg till tillbehör"
+    type: checkbox
+    required: false
+    max: 10
+    options:
+      - { name: "Pommes frites mellan", price: 40 }
+      - { name: "Pommes frites stor", price: 50 }
+      - { name: "Vitlöksbröd", price: 50 }
+      - { name: "Lökringar 4 st", price: 50 }
+      - { name: "Mozzarellasticks 5 st", price: 50 }
+      - { name: "Chili Cheese 5 st", price: 50 }
+      - { name: "Extra pizzasallad 20 cl", price: 10 }
+  - name: "Lägg till dryck"
+    type: checkbox
+    required: false
+    max: 10
+    options:
+      - { name: "Coca-Cola 33 cl", price: 20 }
+      - { name: "Coca-Cola Zero 33 cl", price: 20 }
+      - { name: "Fanta Orange 33 cl", price: 20 }
+      - { name: "Sprite 33 cl", price: 20 }
+      - { name: "Coca-Cola 50 cl", price: 30 }
+      - { name: "Coca-Cola Zero 50 cl", price: 30 }
+      - { name: "Fanta Orange 50 cl", price: 30 }
+      - { name: "Coca-Cola 2 liter", price: 50 }
+      - { name: "Fanta Orange 2 liter", price: 50 }
+  - name: "Extra pålägg"
+    type: checkbox
+    required: false
+    max: 10
+    options:
+      - { name: "Ananas", price: 15 }
+      - { name: "Bacon", price: 15 }
+      - { name: "Banan", price: 15 }
+      - { name: "Champinjoner", price: 15 }
+      - { name: "Fetaost", price: 15 }
+      - { name: "Färska tomater", price: 15 }
+      - { name: "Gorgonzolaost", price: 15 }
+      - { name: "Jalapeño", price: 15 }
+      - { name: "Kebabkött", price: 25 }
+      - { name: "Kronärtskocka", price: 15 }
+      - { name: "Kyckling", price: 25 }
+      - { name: "Köttfärs", price: 15 }
+      - { name: "Lök", price: 15 }
+      - { name: "Musslor", price: 15 }
+      - { name: "Oliver", price: 15 }
+      - { name: "Ost", price: 15 }
+      - { name: "Oxfilé", price: 25 }
+      - { name: "Paprika", price: 15 }
+      - { name: "Räkor", price: 25 }
+      - { name: "Salami", price: 15 }
+      - { name: "Skinka", price: 15 }
+      - { name: "Tonfisk", price: 15 }
+      - { name: "Ägg", price: 15 }
+      - { name: "Feferoni", price: 15 }
+
+categories:
+  - name: "Pizzor klass 1"
+    products:
+      - name: "Margherita"
+        description: "Tomatsås, mozzarella."
+        price: 105
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Al Funghi"
+        description: "Tomatsås, ost, champinjoner."
+        price: 105
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Vesuvio"
+        description: "Tomatsås, ost och skinka."
+        price: 105
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Bolognese"
+        description: "Tomatsås, ost, köttfärs och lök."
+        price: 105
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Al Tonno"
+        description: "Tonfisk, lök."
+        price: 105
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+  - name: "Pizzor klass 2"
+    products:
+      - name: "Monaco"
+        description: "Tomatsås, ost, champinjoner och räkor."
+        price: 110
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Hawaii"
+        description: "Tomatsås, ost, skinka, ananas."
+        price: 110
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Frutti"
+        description: "Tomatsås, ost, ananas, banan och curry."
+        price: 110
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Capricciosa"
+        description: "Tomatsås, skinka, champinjoner."
+        price: 110
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Siciliana"
+        description: "Tomatsås, ost, skinka och köttfärs."
+        price: 110
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Pescatore"
+        description: "Tomatsås, ost, tonfisk och räkor."
+        price: 110
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Banana"
+        description: "Tomatsås, ost, skinka, banan, curry."
+        price: 110
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Pepperoni"
+        description: "Tomatsås, ost, pepperoni."
+        price: 110
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Gorgonzola"
+        description: "Tomatsås, ost, skinka, gorgonzolaost."
+        price: 110
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Tropicana"
+        description: "Tomatsås, ost, skinka, färsk svamp, ananas."
+        price: 110
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+  - name: "Pizzor klass 3"
+    products:
+      - name: "Mama Mia"
+        description: "Tomatsås, ost, köttfärssås, paprika, lök."
+        price: 110
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Afrikana"
+        description: "Tomatsås, ost, skinka, ananas, banan, curry."
+        price: 110
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Semana"
+        description: "Tomatsås, ost, skinka, ananas, räkor."
+        price: 110
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Deniso"
+        description: "Tomatsås, ost, skinka, bacon, räkor."
+        price: 110
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Annelie"
+        description: "Tomatsås, ost, skinka, köttfärs, ananas."
+        price: 110
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Caramba"
+        description: "Tomatsås, ost, köttfärs, champinjoner, lök, bearnaisesås."
+        price: 110
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Havet"
+        description: "Tomatsås, ost, tonfisk, räkor, musslor."
+        price: 110
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Sipan"
+        description: "Tomatsås, ost, skinka, köttfärs, champinjoner, kebabsås."
+        price: 110
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+  - name: "Pizzor klass 4"
+    products:
+      - name: "Salami"
+        description: "Tomatsås, ost, salami, paprika, lök."
+        price: 115
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "La More"
+        description: "Tomatsås, ost, skinka, bacon, ägg."
+        price: 115
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Hawaii Special"
+        description: "Tomatsås, ost, skinka, champinjoner, ananas, räkor."
+        price: 115
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Quattro Stagioni"
+        description: "Tomatsås, ost, skinka, champinjoner, räkor, musslor."
+        price: 115
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Sjömanspizza"
+        description: "Tomatsås, ost, köttfärs, räkor, paprika, pressad vitlök, bearnaisesås."
+        price: 115
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Vegetariana"
+        description: "Tomatsås, ost, champinjoner, lök, ananas, paprika, oliver, kronärtskocka, majs."
+        price: 115
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Laguna Special"
+        description: "Tomatsås, ost, skinka, räkor, champinjoner, paprika, lök."
+        price: 115
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+  - name: "Inbakade pizzor"
+    products:
+      - name: "Calzone"
+        description: "Tomatsås, ost, skinka (inbakad)."
+        price: 100
+        extras: [Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Calzone Special"
+        description: "Tomatsås, ost, skinka, räkor, ananas, champinjoner (inbakad)."
+        price: 120
+        extras: [Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Ciao Ciao"
+        description: "Tomatsås, ost, köttfärs, champinjoner, lök, pressad vitlök (inbakad)."
+        price: 120
+        extras: [Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Kebab Special"
+        description: "Tomatsås, ost, kebab, champinjoner, sallad, lök, tomat, gurka, sås (inbakad)."
+        price: 120
+        extras: [Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+  - name: "Oxfilépizzor"
+    products:
+      - name: "Exotica"
+        description: "Tomatsås, ost, oxfilé, banan, jordnötter, bearnaisesås."
+        price: 120
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Sverige Special"
+        description: "Tomatsås, ost, oxfilé, färsk svamp, paprika, fetaost."
+        price: 120
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Amore"
+        description: "Tomatsås, ost, oxfilé, färsk svamp, lök, bearnaisesås."
+        price: 120
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Freds Special"
+        description: "Tomatsås, ost, skinka, färsk svamp, oxfilé, lök, bearnaisesås."
+        price: 120
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Cleopatra"
+        description: "Tomatsås, ost, oxfilé, färsk svamp, paprika, fetaost, gorgonzola."
+        price: 120
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Indiana"
+        description: "Tomatsås, ost, oxfilé, champinjoner, sparris, gorgonzola."
+        price: 120
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Andersson"
+        description: "Tomatsås, ost, oxfilé, champinjoner, räkor, bearnaisesås."
+        price: 120
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Kicki"
+        description: "Tomatsås, ost, oxfilé, köttfärs, ananas, kebabsås."
+        price: 120
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Dilan"
+        description: "Tomatsås, ost, oxfilé, champinjoner, lök, paprika, bearnaisesås."
+        price: 120
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Garda Special"
+        description: "Tomatsås, ost, oxfilé, ananas, räkor, bearnaisesås."
+        price: 120
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "John Blund"
+        description: "Tomatsås, ost, oxfilé, bacon, ägg, lök, bearnaisesås."
+        price: 120
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Oxfilé Special"
+        description: "Tomatsås, ost, oxfilé, champinjoner, bearnaisesås."
+        price: 120
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+  - name: "Mexican pizzor"
+    products:
+      - name: "Mexicana"
+        description: "Tomatsås, ost, oxfilé, paprika, färsk svamp, jalapeño, lök, bearnaisesås, vitlök."
+        price: 120
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Azteka"
+        description: "Skinka, jalapeño, tacosås, mixkrydda, sås."
+        price: 120
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Acapulco"
+        description: "Oxfilé, färsk svamp, jalapeño, lök, färsk vitlök, tacosås."
+        price: 120
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Mia Special"
+        description: "Jalapeño, pressad vitlök, tacosås, oxfilé och jordnötter."
+        price: 120
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Oscar"
+        description: "Salladsost, salami, köttfärs, paprika, lök, pressad vitlök och stark krydda."
+        price: 120
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+  - name: "Plankpizza"
+    products:
+      - name: "Oxplanka"
+        description: "Oxfilé, potatismos, champinjoner, färska tomater, lök och bearnaisesås."
+        price: 130
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+  - name: "Italiensk pizza"
+    products:
+      - name: "Milano"
+        description: "Mozzarella, kyckling, champinjoner, pesto, ruccola och soltorkade tomater."
+        price: 130
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Bianco"
+        description: "Mozzarella, oxfilé, bacon, soltorkade tomater, lök och ruccola."
+        price: 130
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Italiano"
+        description: "Mozzarella, räkor, färsk vitlök och ruccola."
+        price: 130
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Fyra Ostar"
+        description: "Mozzarella, salladsost, gorgonzola, pizzaost och ruccola."
+        price: 130
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+  - name: "Kycklingpizza"
+    products:
+      - name: "Kycklingpizza"
+        description: "Kyckling, mild sås."
+        price: 110
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Diego"
+        description: "Kyckling, lök, pommes och sås."
+        price: 125
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Mexico"
+        description: "Kyckling, banan, jordnötter och curry."
+        price: 115
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "La Mare"
+        description: "Kyckling, ananas, banan och curry."
+        price: 115
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Amigo"
+        description: "Kyckling, lök, färska tomater och paprika (stark)."
+        price: 115
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Tropicana Kyckling"
+        description: "Kyckling, ananas, bacon och curry."
+        price: 115
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Kyckling Special"
+        description: "Kyckling, lök, isbergssallad, färsk tomat, gurka och mild sås."
+        price: 115
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Torino"
+        description: "Kyckling, färsk svamp, lök, tacosås och färsk vitlök."
+        price: 115
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Naya Special"
+        description: "Shawarma, oliver, paprika och mild sås."
+        price: 115
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Dana Pizza"
+        description: "Shawarma, oliver, paprika, gurka, tomat, sallad och mild sås."
+        price: 115
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+  - name: "Nötkebabpizza"
+    products:
+      - name: "Nötkebabpizza"
+        description: "Kebab, feferoni och sås."
+        price: 110
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Domino"
+        description: "Kebab, bacon, lök, champinjoner, feferoni och bearnaisesås."
+        price: 120
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Nötspecial"
+        description: "Kebab, sallad, champinjoner, tomat, gurka, feferoni och mild sås."
+        price: 120
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Babylon Special"
+        description: "Kebab, lök, skinka, sallad, tomat, gurka, feferoni och vitlökssås."
+        price: 120
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Sibyll"
+        description: "Kebabkött, sallad och pommes."
+        price: 120
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "San Remo"
+        description: "Skinka, färsk svamp, kebabkött, lök och valfri sås."
+        price: 120
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "La Bella"
+        description: "Skinka, kebabkött, jalapeño och tabascosås."
+        price: 120
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+  - name: "Amerikanska pizzor"
+    products:
+      - name: "Hawaii Amerikansk"
+        description: "Skinka, färsk svamp, ananas och färsk tomat."
+        price: 130
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Las Vegas"
+        description: "Skinka, oxfilé, jalapeño, lök och bearnaisesås."
+        price: 130
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Dallas"
+        description: "Färsk svamp, kebabkött, färsk tomat, lök och valfri sås."
+        price: 130
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Florida"
+        description: "Oxfilé, färsk svamp, paprika och bearnaisesås."
+        price: 130
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "New York"
+        description: "Skinka, räkor, salami, bacon, lök, paprika och stark sås."
+        price: 130
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Mad Greek"
+        description: "Kyckling, paprika, färska tomater, lök, oliver, salladsost och mild sås."
+        price: 130
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Kalifornien"
+        description: "Skinka, champinjoner, lök, nötkebab, feferoni och mild sås."
+        price: 130
+        extras: [Storlek, Extra pålägg, "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+  - name: "Nötkebab"
+    products:
+      - name: "Kebabtallrik"
+        description: "Kebabkött (nötkött), feferoni, isbergssallad, gurka, färska tomater, rödlök."
+        price: 110
+        extras: ["Välj sås (ingår)", "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Mixtallrik"
+        description: "Kebabkött, kyckling, pommes, isbergssallad, tomat, gurka, lök, feferoni."
+        price: 110
+        extras: ["Välj sås (ingår)", "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Kebabrulle"
+        description: "Kebabkött (nötkött), feferoni, isbergssallad, gurka, färska tomater och rödlök."
+        price: 95
+        extras: ["Välj sås (ingår)", "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Kebab i pitabröd"
+        description: "Kebabkött (nötkött), feferoni, isbergssallad, gurka, färska tomater och rödlök."
+        price: 95
+        extras: ["Välj sås (ingår)", "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Mix Kebabrulle"
+        description: "Kebabkött och kyckling."
+        price: 100
+        extras: ["Välj sås (ingår)", "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Grekisk Kebabtallrik"
+        description: "Kebabkött, salladsost och pommes."
+        price: 115
+        extras: ["Välj sås (ingår)", "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+  - name: "Kyckling"
+    products:
+      - name: "Kycklingtallrik"
+        description: "Kyckling, feferoni, isbergssallad, gurka, färska tomater och rödlök."
+        price: 110
+        extras: ["Välj sås (ingår)", "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Kyckling Nuggets"
+        description: "Kycklingbitar, pommes och mild sås."
+        price: 85
+        extras: ["Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Kycklingrulle"
+        description: "Kyckling, feferoni, isbergssallad, gurka, färska tomater och rödlök."
+        price: 95
+        extras: ["Välj sås (ingår)", "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Kyckling i pitabröd"
+        description: "Kyckling, feferoni, isbergssallad, gurka, färska tomater och rödlök."
+        price: 95
+        extras: ["Välj sås (ingår)", "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+  - name: "Falafel"
+    products:
+      - name: "Falafeltallrik"
+        description: "Falafel, pommes, isbergssallad, tomat, gurka, lök och mild sås."
+        price: 110
+        extras: ["Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Falafelrulle"
+        description: "Falafel, bröd, isbergssallad, tomat, gurka, lök och mild sås."
+        price: 70
+        extras: ["Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Falafel i bröd"
+        description: "Falafel, isbergssallad, tomat, gurka, lök och mild sås."
+        price: 85
+        extras: ["Sås i burk", Lägg till tillbehör, Lägg till dryck]
+  - name: "À la carte"
+    products:
+      - name: "Kycklingschnitzel"
+        description: "Med pommes, grönsaker och bearnaisesås."
+        price: 110
+        extras: ["Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Rödspätta"
+        description: "Med pommes, grönsaker och remouladsås."
+        price: 110
+        extras: ["Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Kycklingfilé"
+        description: "Med pommes, grönsaker och valfri sås."
+        price: 110
+        extras: ["Välj sås (ingår)", "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Kycklingspett"
+        description: "3 st kycklingspett med pommes, sallad, lök, tomat, gurka och sås."
+        price: 110
+        extras: ["Välj sås (ingår)", "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Crispy Chicken"
+        description: "Med pommes, grönsaker och valfri sås."
+        price: 110
+        extras: ["Välj sås (ingår)", "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+  - name: "Hamburgare"
+    products:
+      - name: "Hamburgare 90 g"
+        description: "Bröd, sallad, tomat, lök, ketchup och dressing."
+        price: 65
+        extras: ["Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Hamburgertallrik 90 g"
+        description: "Bröd, sallad, tomat, lök, ketchup, dressing och pommes."
+        price: 85
+        extras: ["Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Hamburgare 150 g"
+        description: "Bröd, sallad, tomat, lök, ketchup och dressing."
+        price: 75
+        extras: ["Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Hamburgertallrik 150 g"
+        description: "Bröd, sallad, tomat, lök, ketchup, dressing och pommes."
+        price: 95
+        extras: ["Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Hamburgare 200 g"
+        description: "Bröd, sallad, tomat, lök, ketchup och dressing."
+        price: 85
+        extras: ["Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Burgaretallrik 200 g"
+        description: "Bröd, sallad, tomat, lök, ketchup, dressing och pommes."
+        price: 105
+        extras: ["Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Kycklingburgertallrik 90 g"
+        description: "Bröd, sallad, tomat, lök, ketchup, dressing och pommes."
+        price: 85
+        extras: ["Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Halloumiburgare 90 g"
+        description: "Bröd, sallad, tomat, lök, ketchup och dressing."
+        price: 65
+        extras: ["Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Halloumiburgertallrik 90 g"
+        description: "Bröd, sallad, tomat, lök, ketchup, dressing och pommes."
+        price: 85
+        extras: ["Sås i burk", Lägg till tillbehör, Lägg till dryck]
+  - name: "Sallader"
+    products:
+      - name: "Grekisk sallad"
+        description: "Salladsost, oliver, lök, feferoni, isbergssallad, tomat, gurka och färskt hembakat bröd."
+        price: 110
+        extras: ["Välj sås (ingår)", "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Kycklingsallad"
+        description: "Kyckling, ananas, lök, isbergssallad, tomat, gurka och färskt hembakat bröd."
+        price: 110
+        extras: ["Välj sås (ingår)", "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Räksallad"
+        description: "Räkor, ost, citron, ägg, isbergssallad, tomat, gurka och färskt hembakat bröd."
+        price: 110
+        extras: ["Välj sås (ingår)", "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Tonfisksallad"
+        description: "Tonfisk, lök, citron, isbergssallad, tomat, gurka och färskt hembakat bröd."
+        price: 110
+        extras: ["Välj sås (ingår)", "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Kebabsallad"
+        description: "Kebabkött, lök, feferoni, isbergssallad, tomat, gurka och färskt hembakat bröd."
+        price: 110
+        extras: ["Välj sås (ingår)", "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Västkustsallad"
+        description: "Räkor, musslor, tonfisk, citron, isbergssallad, tomat, gurka och färskt hembakat bröd."
+        price: 110
+        extras: ["Välj sås (ingår)", "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+      - name: "Skinksallad"
+        description: "Skinka, ost, ananas, isbergssallad, tomat, gurka och färskt hembakat bröd."
+        price: 110
+        extras: ["Välj sås (ingår)", "Sås i burk", Lägg till tillbehör, Lägg till dryck]
+  - name: "Tillbehör"
+    products:
+      - name: "Extra pizzasallad 20 cl"
+        description: "Vitkålssallad med vinägrett."
+        price: 10
+      - name: "Pommes frites mellan"
+        description: ""
+        price: 40
+      - name: "Pommes frites stor"
+        description: ""
+        price: 50
+      - name: "Vitlöksbröd"
+        description: ""
+        price: 50
+      - name: "Lökringar 4 st"
+        description: ""
+        price: 50
+      - name: "Chili Cheese 5 st"
+        description: ""
+        price: 50
+      - name: "Mozzarellasticks 5 st"
+        description: ""
+        price: 50
+      - name: "Crispers chips"
+        description: ""
+        price: 65
+  - name: "Såser"
+    products:
+      - name: "Bearnaisesås 10 cl"
+        description: ""
+        price: 15
+      - name: "Currysås 10 cl"
+        description: ""
+        price: 15
+      - name: "Kebabsås mild 10 cl"
+        description: ""
+        price: 15
+      - name: "Kebabsås stark 10 cl"
+        description: ""
+        price: 15
+      - name: "Kebabsås blandad 10 cl"
+        description: ""
+        price: 20
+      - name: "Tacosås 10 cl"
+        description: ""
+        price: 20
+      - name: "Vitlökssås 10 cl"
+        description: ""
+        price: 15
+      - name: "Bearnaisesås 20 cl"
+        description: ""
+        price: 25
+      - name: "Kebabsås mild 20 cl"
+        description: ""
+        price: 25
+      - name: "Kebabsås stark 20 cl"
+        description: ""
+        price: 25
+      - name: "Kebabsås blandad 20 cl"
+        description: ""
+        price: 35
+      - name: "Vitlökssås 20 cl"
+        description: ""
+        price: 25
+  - name: Drycker
+    products:
+      - { name: "Coca-Cola 33 cl", description: "", price: 20 }
+      - { name: "Coca-Cola Zero 33 cl", description: "", price: 20 }
+      - { name: "Fanta Orange 33 cl", description: "", price: 20 }
+      - { name: "Fanta Exotic 33 cl", description: "", price: 20 }
+      - { name: "Sprite 33 cl", description: "", price: 20 }
+      - { name: "Sprite Zero 33 cl", description: "", price: 20 }
+      - { name: "Pepsi 33 cl", description: "", price: 20 }
+      - { name: "Pepsi Max 33 cl", description: "", price: 20 }
+      - { name: "Bonaqua Naturell 33 cl", description: "", price: 20 }
+      - { name: "Bonaqua Citron Lime 33 cl", description: "", price: 20 }
+      - { name: "Powerking 33 cl", description: "", price: 20 }
+      - { name: "MER Apelsin 33 cl", description: "", price: 20 }
+      - { name: "MER Päron 33 cl", description: "", price: 20 }
+      - { name: "Coca-Cola 50 cl", description: "", price: 30 }
+      - { name: "Coca-Cola Zero 50 cl", description: "", price: 30 }
+      - { name: "Fanta Orange 50 cl", description: "", price: 30 }
+      - { name: "Fanta Exotic 50 cl", description: "", price: 30 }
+      - { name: "Bonaqua Naturell 50 cl", description: "", price: 30 }
+      - { name: "Bonaqua Citron Lime 50 cl", description: "", price: 30 }
+      - { name: "MER Päron 50 cl", description: "", price: 30 }
+      - { name: "MER Apelsin 50 cl", description: "", price: 30 }
+      - { name: "MER Hallon Svartvinbär 50 cl", description: "", price: 30 }
+      - { name: "Monster Ultra White 50 cl", description: "", price: 40 }
+      - { name: "Monster Original 50 cl", description: "", price: 40 }
+      - { name: "Monster Mango Loco 50 cl", description: "", price: 40 }
+      - { name: "Monster Absolutely Zero 50 cl", description: "", price: 40 }
+      - { name: "Coca-Cola 2 liter", description: "", price: 50 }
+      - { name: "Fanta Orange 2 liter", description: "", price: 50 }
+      - { name: "Fanta Exotic 2 liter", description: "", price: 50 }
+      - { name: "Sprite Zero 2 liter", description: "", price: 50 }
+      - { name: "MER Päron 20 cl", description: "", price: 15 }
+      - { name: "MER Jordgubb 20 cl", description: "", price: 15 }
+      - { name: "Vimto 33 cl", description: "", price: 20 }
+      - { name: "Powerking Watermelon 25 cl", description: "", price: 20 }

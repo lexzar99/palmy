@@ -1,0 +1,391 @@
+# Pizza Kebab House, Skolgatan 1d, Ängelholm: meny för massimport. GENERERAD av build.py ur Lumit (stores/60, avläst 2026-10-27).
+# Priser i kronor exakt som i Lumit. Storleksgrupperna (alla heter "Storlek") och gruppordningen per rätt sätts av apply-menu.mjs ur data.json.
+extraGroups:
+  - name: "Välj sås (ingår)"
+    type: radio
+    required: true
+    options:
+      - { name: "Kebabsås mild", price: 0 }
+      - { name: "Kebabsås stark", price: 0 }
+      - { name: "Kebabsås mellan", price: 0 }
+      - { name: "Vitlökssås", price: 0 }
+      - { name: "Bearnaisesås", price: 0 }
+      - { name: "Utan sås", price: 0 }
+  - name: "Pommes eller stekt potatis"
+    type: radio
+    required: true
+    options:
+      - { name: "Pommes", price: 0 }
+      - { name: "Stekt potatis", price: 0 }
+  - name: "Extra kött och protein"
+    type: checkbox
+    required: false
+    max: 15
+    options:
+      - { name: "Skinka", price: 15 }
+      - { name: "Räkor", price: 15 }
+      - { name: "Köttfärs", price: 15 }
+      - { name: "Musslor", price: 15 }
+      - { name: "Kebab", price: 15 }
+      - { name: "Salami", price: 15 }
+      - { name: "Bacon", price: 15 }
+      - { name: "Fläskkarré", price: 15 }
+      - { name: "Kyckling", price: 15 }
+      - { name: "Oxfilé", price: 15 }
+      - { name: "Parmaskinka", price: 15 }
+      - { name: "Korv", price: 15 }
+      - { name: "Pepperonikorv", price: 15 }
+      - { name: "Tonfisk", price: 15 }
+      - { name: "Krabba", price: 15 }
+  - name: "Extra sås och kryddor"
+    type: checkbox
+    required: false
+    max: 14
+    options:
+      - { name: "Curry", price: 10 }
+      - { name: "Chili", price: 10 }
+      - { name: "Dressing", price: 10 }
+      - { name: "Remouladsås", price: 10 }
+      - { name: "Kebabsås stark", price: 10 }
+      - { name: "Kebabsås mild", price: 10 }
+      - { name: "Kebabsås mellan", price: 10 }
+      - { name: "Vitlökssås", price: 10 }
+      - { name: "Bearnaisesås", price: 10 }
+      - { name: "Kebabsås mild (burk)", price: 10 }
+      - { name: "Kebabsås stark (i burk)", price: 10 }
+      - { name: "Kebabsås blandad mild + stark (i burk)", price: 10 }
+      - { name: "Bearnaisesås (i burk)", price: 10 }
+      - { name: "Vitlökssås (i burk)", price: 10 }
+  - name: "Extra grönsaker"
+    type: checkbox
+    required: false
+    max: 20
+    options:
+      - { name: "Champinjoner", price: 10 }
+      - { name: "Paprika", price: 10 }
+      - { name: "Ananas", price: 10 }
+      - { name: "Banan", price: 10 }
+      - { name: "Rödlök", price: 10 }
+      - { name: "Feferoni", price: 10 }
+      - { name: "Jalapeno", price: 10 }
+      - { name: "Oliver", price: 10 }
+      - { name: "Kronärtskocka", price: 10 }
+      - { name: "Färsk vitlök", price: 10 }
+      - { name: "Lök", price: 10 }
+      - { name: "Sallad", price: 10 }
+      - { name: "Ruccola", price: 10 }
+      - { name: "Isbergssallad", price: 10 }
+      - { name: "Soltorkade tomater", price: 10 }
+      - { name: "Gurka", price: 10 }
+      - { name: "Tomat", price: 10 }
+      - { name: "Stekta champinjoner", price: 10 }
+      - { name: "Majs", price: 10 }
+      - { name: "Svarta oliver", price: 10 }
+  - name: "Extra ost och övrigt"
+    type: checkbox
+    required: false
+    max: 8
+    options:
+      - { name: "Ost", price: 10 }
+      - { name: "Ägg", price: 10 }
+      - { name: "Pommes", price: 20 }
+      - { name: "Jordnötter", price: 10 }
+      - { name: "Fetaost", price: 10 }
+      - { name: "Mozzarella", price: 10 }
+      - { name: "Falafel", price: 15 }
+      - { name: "Stekt potatis", price: 15 }
+
+categories:
+  - name: "Pizzor klass 1"
+    products:
+      - name: "Margherita"
+        description: "Tomatsås, Ost"
+        price: 110
+      - name: "Vesuvio"
+        description: "Tomatsås, Ost, Skinka"
+        price: 110
+      - name: "Al Funghi"
+        description: "Tomatsås, Ost, Champinjoner, Paprika"
+        price: 110
+  - name: "Pizzor klass 2"
+    products:
+      - name: "Alms Special"
+        description: "Glass, Chokladsås"
+        price: 120
+      - name: "Capricciosa"
+        description: "Tomatsås, Ost, Skinka, Champinjoner"
+        price: 120
+      - name: "Hawaii"
+        description: "Tomatsås, Ost, Skinka, Ananas"
+        price: 120
+      - name: "Calzone (inbakad)"
+        description: "Tomatsås, Ost, Skinka"
+        price: 120
+      - name: "Calzone Special (inbakad)"
+        description: "Tomatsås, Ost, Champinjoner, Skinka, Ananas"
+        price: 120
+      - name: "Tutti Frutti"
+        description: "Tomatsås, Ost, Skinka, Banan, Ananas, Curry"
+        price: 120
+      - name: "Capri"
+        description: "Tomatsås, Ost, Skinka, Champinjoner, Ananas"
+        price: 120
+      - name: "Vegetarisk Pizza"
+        description: "Tomatsås, Ost, Champinjoner, Oliver, Paprika, Rödlök, Kronärtskocka, Feferoni"
+        price: 115
+      - name: "Venezia"
+        description: "Tomatsås, Ost, Skinka, Räkor, Champinjoner"
+        price: 120
+  - name: "Pizzor klass 3"
+    products:
+      - name: "Salami Pizza"
+        description: "Tomatsås, Ost, Salami, Lök, Oliver"
+        price: 125
+      - name: "Köttfärspizza"
+        description: "Tomatsås, Ost, Köttfärs, Rödlök, Paprika, Feferoni"
+        price: 125
+      - name: "Mexico"
+        description: "Tomatsås, Ost, Köttfärs, Rödlök, Jalapeno, Curry"
+        price: 125
+      - name: "Mamma"
+        description: "Tomatsås, Ost, Köttfärs, Champinjoner"
+        price: 125
+      - name: "Julians Special"
+        description: "Tomatsås, Ost, Salami, Vitost"
+        price: 125
+      - name: "Tonfiskpizza"
+        description: "Tomatsås, Ost, Tonfisk, Lök, Paprika"
+        price: 125
+  - name: "Pizzor klass 4"
+    products:
+      - name: "Mafioso"
+        description: "Tomatsås, Ost, Skinka, Champinjoner, Färska tomater, Paprika, Färsk vitlök, Chili"
+        price: 135
+      - name: "Inbakad Pizza"
+        description: "Tomatsås, Ost, Skinka, Kebab, Pommes, Valfri sås"
+        price: 125
+      - name: "Veserio Special"
+        description: "Tomatsås, Ost, Skinka, Ananas, Räkor, Jalapeno"
+        price: 135
+      - name: "Quattro"
+        description: "Tomatsås, Ost, Skinka, Räkor, Musslor, Champinjoner, Kronärtskocka"
+        price: 135
+      - name: "Kebabpizza"
+        description: "Tomatsås, Ost, Kebab, Rödlök, Färska tomater, Feferoni, Valfri sås"
+        price: 135
+      - name: "Husets Special"
+        description: "Tomatsås, Ost, Salami, Bacon, Lök, Ägg"
+        price: 135
+      - name: "Kebab Special"
+        description: "Tomatsås, Ost, Kebab, Pommes, Sallad, Valfri sås"
+        price: 135
+      - name: "Viktoria"
+        description: "Tomatsås, Ost, Skinka, Ananas, Räkor, Jalapeno, Fläskkarré, Bearnaisesås"
+        price: 135
+      - name: "Caruso"
+        description: "Tomatsås, Ost, Skinka, Kebab, Salami, Ananas, Chili"
+        price: 135
+  - name: "Pizzor klass 5"
+    products:
+      - name: "Ängelholm Special"
+        description: "Tomatsås, Ost, Kebab, Skinka, Färsk sallad, Valfri sås"
+        price: 140
+      - name: "Hido Special"
+        description: "Champinjoner, Kebab, Jalapeno, Skinka, Bearnaisesås"
+        price: 140
+      - name: "Kycklingpizza"
+        description: "Tomatsås, Ost, Kyckling, Ananas, Banan, Jordnötter, Curry"
+        price: 140
+      - name: "Chicko Special"
+        description: "Tomatsås, Ost, Kyckling, Champinjoner, Paprika, Curry, Sallad"
+        price: 140
+      - name: "Calcutta"
+        description: "Tomatsås, Ost, Kyckling, Rödlök, Paprika, Feferoni, Fetaost"
+        price: 140
+      - name: "Oxfilépizza"
+        description: "Tomatsås, Ost, Oxfilé, Champinjoner, Rödlök, Mozzarella"
+        price: 140
+      - name: "Paris"
+        description: "Tomatsås, Ost, Oxfilé, Färska tomater, Paprika, Bearnaisesås"
+        price: 140
+      - name: "Acapulco"
+        description: "Tomatsås, Ost, Oxfilé, Paprika, Rödlök, Feferoni, Färsk vitlök, Chili"
+        price: 140
+      - name: "Ciao Ciao"
+        description: "Tomatsås, Ost, Oxfilé, Lök, Färska tomater, Bearnaisesås"
+        price: 140
+      - name: "Milano"
+        description: "Tomatsås, Ost, Champinjoner, Parmaskinka, Oliver, Bearnaisesås, Ruccola"
+        price: 140
+      - name: "Viking Pizza"
+        description: "Kebab, Lök, Färska tomater, Isbergssallad, Valfri sås"
+        price: 140
+      - name: "Båtpizza"
+        description: "Tomatsås, Ost, Kebab, Skinka, Champinjoner, Lök"
+        price: 140
+      - name: "Benji"
+        description: "Tomatsås, Ost, Skinka, Köttfärs, Bacon"
+        price: 130
+      - name: "Mozzarella"
+        description: "Korv, Paprika, Feferoni, Mozzarella"
+        price: 140
+      - name: "Mozzarella Special"
+        description: "Tomatsås, Ost, Korv, Pommes, Lök, Oliver"
+        price: 140
+      - name: "Italiano"
+        description: "Tomatsås, Fetaost, Pepperonikorv, Soltorkade tomater, Mozzarella"
+        price: 140
+  - name: "Tallrikar"
+    products:
+      - name: "Kebabtallrik"
+        description: "Kebab, Pommes, Sallad, Valfri sås"
+        price: 120
+      - name: "Mixtallrik"
+        description: "Kebab, Kyckling, Pommes, Sallad, Valfri sås"
+        price: 120
+      - name: "Kycklingtallrik"
+        description: "Kyckling, Pommes, Sallad, Valfri sås"
+        price: 120
+      - name: "Falafeltallrik"
+        description: "Falafel, Sallad, Pommes, Valfri sås"
+        price: 110
+      - name: "Kyckling Nuggets Tallrik"
+        description: "Nuggets, Sallad, Pommes, Valfri sås"
+        price: 120
+  - name: "Rullar"
+    products:
+      - name: "Kebabrulle"
+        description: "Kebab, Sallad, Lök, Färska tomater, Valfri sås"
+        price: 115
+      - name: "Kycklingrulle"
+        description: "Kyckling, Sallad, Gurka, Tomat, Lök, Valfri sås"
+        price: 115
+      - name: "Vegetarisk Rulle"
+        description: "Sallad, Lök, Färska tomater, Gurka"
+        price: 115
+      - name: "Kycklingkebabrulle"
+        description: "Sallad, Lök, Färska tomater, Gurka, Valfri sås"
+        price: 115
+      - name: "Falafelrulle"
+        description: "Sallad, Lök, Färska tomater, Valfri sås"
+        price: 115
+      - name: "Park Rulle"
+        description: "Ost"
+        price: 115
+  - name: "Pitabröd"
+    products:
+      - name: "Kebab i Pitabröd"
+        description: "Kebab, Sallad, Lök, Färska tomater, Gurka, Valfri sås"
+        price: 105
+      - name: "Kyckling i Pitabröd"
+        description: "Kyckling, Sallad, Valfri sås"
+        price: 105
+      - name: "Kyckling och Kebab i Pitabröd"
+        description: "Kyckling, Kebab, Sallad, Valfri sås"
+        price: 105
+      - name: "Falafel i Pitabröd"
+        description: "Falafel, Sallad, Valfri sås"
+        price: 105
+  - name: "Hamburgare"
+    products:
+      - name: "Hamburgare med Pommes, 90 g"
+        description: "Pommes, Sallad, Dressing"
+        price: 105
+      - name: "Hamburgare med Pommes, 150 g"
+        description: "Pommes, Sallad, Dressing"
+        price: 115
+      - name: "Ägg Burgare, 90 g"
+        description: "Ost, Ägg, Sallad, Dressing"
+        price: 75
+      - name: "Ägg Burgare, 150 g"
+        description: "Ost, Ägg, Sallad, Dressing"
+        price: 80
+      - name: "Bacon Burgare, 150 g"
+        description: "Ost, Bacon, Sallad, Dressing"
+        price: 90
+      - name: "Bacon Burgare, 90 g"
+        description: "Ost, Bacon, Sallad, Dressing"
+        price: 75
+      - name: "Halloumiburgare, 150 g"
+        description: "Halloumi, Sallad, Dressing"
+        price: 80
+  - name: "Sallader"
+    products:
+      - name: "Ost- & Skinksallad"
+        description: "Skinka, Ost, Sallad, Ananas, Valfri sås"
+        price: 115
+      - name: "Kebabsallad"
+        description: "Kebab, Sallad, Lök, Färska tomater, Valfri sås"
+        price: 115
+      - name: "Mix Sallad"
+        description: "Kebab, Kyckling, Sallad, Ananas, Valfri sås"
+        price: 115
+      - name: "Kycklingsallad"
+        description: "Kyckling, Sallad, Ananas, Stekta champinjoner, Majs, Valfri sås"
+        price: 115
+      - name: "Räksallad"
+        description: "Räkor, Ananas, Paprika, Majs, Valfri sås"
+        price: 115
+      - name: "Vegetarisk Sallad"
+        description: "Fetaost, Sallad, Svarta oliver, Paprika, Valfri sås"
+        price: 115
+      - name: "Tonfisksallad"
+        description: "Tonfisk, Sallad, Majs, Paprika, Valfri sås"
+        price: 115
+      - name: "Havets Sallad"
+        description: "Räkor, Krabba, Tonfisk, Majs, Musslor, Valfri sås"
+        price: 115
+  - name: "Tillbehör"
+    products:
+      - name: "Pommes"
+        price: 50
+      - name: "Nybakat Bröd"
+        price: 30
+      - name: "Pizzasallad"
+        price: 10
+  - name: "Såser"
+    products:
+      - name: "Kebabsås mild (i burk)"
+        price: 10
+      - name: "Kebabsås stark (i burk)"
+        price: 10
+      - name: "Bearnaisesås (i burk)"
+        price: 10
+      - name: "Kebabsås mellan (i burk)"
+        price: 10
+      - name: "Vitlökssås (i burk)"
+        price: 10
+  - name: "Drycker"
+    products:
+      - name: "Ramlösa 33 cl"
+        price: 15
+      - name: "Ramlösa Citron 33 cl"
+        price: 15
+      - name: "Coca-Cola 33 cl"
+        price: 15
+      - name: "Coca-Cola Zero 33 cl"
+        price: 15
+      - name: "Fanta Exotic 33 cl"
+        price: 15
+      - name: "Fanta Strawberry 33 cl"
+        price: 15
+      - name: "Fanta Orange 33 cl"
+        price: 15
+      - name: "Fanta Lemon 33 cl"
+        price: 15
+      - name: "7up 33cl"
+        price: 15
+      - name: "Pepsi 33 cl"
+        price: 15
+      - name: "Zingo 33 cl"
+        price: 15
+      - name: "Coca-Cola Zero 1,5 liter"
+        price: 35
+      - name: "Coca-Cola 1,5 liter"
+        price: 35
+      - name: "Fanta Orange 1,5 liter"
+        price: 35
+      - name: "Sprite 1,5 liter"
+        price: 35
+      - name: "Fanta Exotic 1,5 liter"
+        price: 35

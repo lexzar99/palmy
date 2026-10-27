@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Pizza Kebab House · Skolgatan 1d, Ängelholm · Öppet till 04 i helgerna</title>
+  <meta name="description" content="Pizza, kebab, rullar och burgare på Skolgatan 1d i Ängelholm. Färska råvaror, och öppet till 04 på fredagar och lördagar." />
+  <meta name="theme-color" content="#0C2017" />
+  <meta property="og:title" content="Pizza Kebab House" />
+  <meta property="og:description" content="Pizza och kebab på Skolgatan i Ängelholm. Öppet till 04 i helgerna." />
+  <meta property="og:image" content="/demo/pkh/img/facade.webp" />
+  <link rel="manifest" href="/demo/pkh/manifest.webmanifest" />
+  <link rel="icon" href="/demo/pkh/img/icon-192.png" />
+  <link rel="apple-touch-icon" href="/demo/pkh/img/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script type="module" crossorigin src="/demo/pkh/assets/main-aS7IdINZ.js"></script>
+  <link rel="stylesheet" crossorigin href="/demo/pkh/assets/main-dTtUYGWM.css">
+</head>
+<body>
+  <header class="top" data-top>
+    <a class="logo" href="/demo/pkh" aria-label="Pizza Kebab House, till början">Pizza Kebab House<span>Ängelholm</span></a>
+    <nav class="nav" aria-label="Sidan"><a href="#favoriter">Favoriter</a><a href="#natt">Öppettider</a><a href="#hitta">Hitta hit</a></nav>
+    <a class="btn btn-red btn-sm" href="/demo/pkh/meny">Beställ</a>
+  </header>
+
+  <main>
+    <!-- Signaturen: kartongen öppnas när man skrollar och pizzan stiger upp -->
+    <section class="boxhero" data-boxhero>
+      <div class="boxhero__sticky">
+        <canvas class="boxgl" data-boxgl aria-hidden="true"></canvas>
+        <div class="boxhero__head">
+          <p class="kicker" data-open-short>Skolgatan 1d · Ängelholm</p>
+          <h1 class="boxhero__title"><span class="line"><span>Pizza &amp; kebab</span></span><span class="line"><span>på Skolgatan.</span></span></h1>
+        </div>
+
+        <div class="scene" aria-hidden="true">
+          <div class="box" data-box>
+            <div class="box__bottom"><span class="box__pshadow" data-pshadow></span><img class="box__pizza" data-pizza src="/demo/pkh/img/pizza-top.webp" alt="" width="825" height="648" /></div>
+            <div class="box__side s-front"></div><div class="box__side s-back"></div><div class="box__side s-left"></div><div class="box__side s-right"></div>
+            <div class="box__lid" data-lid>
+              <div class="lid__out">
+                <span class="lid__ring"><span class="lid__name">Pizza<br />Kebab<br />House</span></span>
+                <span class="lid__stamp">Öppet till 04</span>
+                <span class="lid__city">Skolgatan 1d · Ängelholm</span>
+              </div>
+              <div class="lid__in"></div>
+            </div>
+          </div>
+          <div class="steam" data-steam><i></i><i></i><i></i></div>
+          <div class="box__shadow"></div>
+        </div>
+
+        <div class="boxhero__foot" data-foot>
+          <p class="boxhero__now">Varm och klar på Skolgatan.</p>
+          <p class="boxhero__lede">Färska råvaror, generösa portioner och smak som får dig att komma tillbaka. Öppet till 04 i helgerna.</p>
+          <a class="btn btn-red btn-lg" href="/demo/pkh/meny" data-order>Beställ nu</a>
+        </div>
+        <p class="boxhero__hint" data-hint><span>Skrolla för att öppna</span><i aria-hidden="true"></i></p>
+      </div>
+    </section>
+
+    <!-- Favoriter som stor typografi med runda bilder -->
+    <section id="favoriter" class="favs">
+      <header class="favs__head reveal">
+        <p class="kicker">Husets favoriter</p>
+        <h2 class="h2">Hitta den du älskar.<br /><span class="red">Eller testa något nytt.</span></h2>
+      </header>
+      <ul class="favs__list">
+        <li class="fav reveal"><a href="/demo/pkh/meny"><img data-spin src="/demo/pkh/img/round-kebabpizza.webp" alt="" width="240" height="240" /><span class="fav__name">Kebabpizza</span><span class="fav__tag">Pizza</span></a></li>
+        <li class="fav reveal"><a href="/demo/pkh/meny"><img data-spin src="/demo/pkh/img/round-vesuvio.webp" alt="" width="240" height="240" /><span class="fav__name">Vesuvio</span><span class="fav__tag">Klassiker</span></a></li>
+        <li class="fav reveal"><a href="/demo/pkh/meny"><img data-spin src="/demo/pkh/img/round-rulle.webp" alt="" width="240" height="240" /><span class="fav__name">Kebabrulle</span><span class="fav__tag">Rulle</span></a></li>
+        <li class="fav reveal"><a href="/demo/pkh/meny"><img data-spin src="/demo/pkh/img/round-burger.webp" alt="" width="240" height="240" /><span class="fav__name">Hamburgare</span><span class="fav__tag">Burgare</span></a></li>
+      </ul>
+      <a class="btn btn-ghost reveal" href="/demo/pkh/meny" data-order>Hela menyn, över 40 pizzor</a>
+    </section>
+
+    <!-- Natt -->
+    <section id="natt" class="night">
+      <div class="night__big reveal">
+        <p class="kicker"><span class="dot" data-open-dot></span><span data-open-text>Öppet varje dag</span></p>
+        <h2 class="night__title">Öppet<br />till <span class="red">04.</span></h2>
+        <p class="night__sub">Fredag och lördag. Sent på kvällen, när suget kommer, har vi ugnen på.</p>
+      </div>
+      <dl class="hours reveal" data-week></dl>
+    </section>
+
+    <!-- Hitta hit -->
+    <section id="hitta" class="find">
+      <figure class="find__img reveal"><img src="/demo/pkh/img/facade.webp" alt="Pizza Kebab House på Skolgatan en kväll" loading="lazy" width="1229" height="972" /></figure>
+      <div class="find__info">
+        <p class="kicker reveal">Hitta hit</p>
+        <h2 class="h2 reveal">Skolgatan 1d</h2>
+        <p class="find__sub reveal">262 35 Ängelholm · 0431-834 11</p>
+        <div class="find__actions reveal">
+          <a class="btn btn-red" href="/demo/pkh/meny" data-order>Beställ nu</a>
+          <a class="link" href="https://www.google.com/maps/search/?api=1&query=Skolgatan+1d+%C3%84ngelholm" target="_blank" rel="noopener">Vägbeskrivning <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p class="logo logo--big">Pizza Kebab House<span>Skolgatan 1d · Ängelholm</span></p>
+    <a class="powered" href="https://www.viaeats.se" target="_blank" rel="noopener">Beställning och betalning <span>powered by</span> <strong>viaeats</strong></a>
+  </footer>
+
+  <a class="order-bar" href="/demo/pkh/meny" data-order-bar><span>Öppet till 04 i helgen</span><strong>Beställ</strong></a>
+
+</body>
+</html>

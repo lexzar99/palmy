@@ -1,0 +1,897 @@
+{
+ "_kommentar": "GENERERAD av build.py. Läses av docs/restaurants/apply-menu.mjs.",
+ "sizePrefix": "storlek-pkh",
+ "sizeGroups": [
+  {
+   "key": "size:150",
+   "description": "storlek-pkh-150",
+   "default": "Normal",
+   "extras": [
+    [
+     "Normal",
+     0,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-normal.webp"
+    ],
+    [
+     "Glutenfri botten",
+     30,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-glutenfri.webp"
+    ],
+    [
+     "Dubbel botten",
+     15,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-dubbel.webp"
+    ],
+    [
+     "Barnpizza",
+     -10,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-barn.webp"
+    ],
+    [
+     "Familjepizza",
+     150,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-familj.webp"
+    ],
+    [
+     "Panpizza",
+     15,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-pan.webp"
+    ]
+   ]
+  },
+  {
+   "key": "size:155",
+   "description": "storlek-pkh-155",
+   "default": "Normal",
+   "extras": [
+    [
+     "Normal",
+     0,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-normal.webp"
+    ],
+    [
+     "Glutenfri botten",
+     30,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-glutenfri.webp"
+    ],
+    [
+     "Dubbel botten",
+     15,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-dubbel.webp"
+    ],
+    [
+     "Barnpizza",
+     -10,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-barn.webp"
+    ],
+    [
+     "Familjepizza",
+     155,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-familj.webp"
+    ],
+    [
+     "Panpizza",
+     15,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-pan.webp"
+    ]
+   ]
+  },
+  {
+   "key": "size:165",
+   "description": "storlek-pkh-165",
+   "default": "Normal",
+   "extras": [
+    [
+     "Normal",
+     0,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-normal.webp"
+    ],
+    [
+     "Glutenfri botten",
+     30,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-glutenfri.webp"
+    ],
+    [
+     "Dubbel botten",
+     15,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-dubbel.webp"
+    ],
+    [
+     "Barnpizza",
+     -10,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-barn.webp"
+    ],
+    [
+     "Familjepizza",
+     165,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-familj.webp"
+    ],
+    [
+     "Panpizza",
+     15,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-pan.webp"
+    ]
+   ]
+  },
+  {
+   "key": "size:170",
+   "description": "storlek-pkh-170",
+   "default": "Normal",
+   "extras": [
+    [
+     "Normal",
+     0,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-normal.webp"
+    ],
+    [
+     "Glutenfri botten",
+     30,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-glutenfri.webp"
+    ],
+    [
+     "Dubbel botten",
+     15,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-dubbel.webp"
+    ],
+    [
+     "Barnpizza",
+     -10,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-barn.webp"
+    ],
+    [
+     "Familjepizza",
+     170,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-familj.webp"
+    ],
+    [
+     "Panpizza",
+     15,
+     "/demo/pizza-kebab-house-angelholm/img/gen/tile-storlek-pan.webp"
+    ]
+   ]
+  }
+ ],
+ "productGroups": {
+  "Margherita": [
+   "size:150",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Vesuvio": [
+   "size:150",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Al Funghi": [
+   "size:150",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Alms Special": [
+   "size:150",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Capricciosa": [
+   "size:150",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Hawaii": [
+   "size:150",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Calzone (inbakad)": [
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Calzone Special (inbakad)": [
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Tutti Frutti": [
+   "size:150",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Capri": [
+   "size:150",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Vegetarisk Pizza": [
+   "size:150",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Venezia": [
+   "size:150",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Salami Pizza": [
+   "size:155",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Köttfärspizza": [
+   "size:155",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Mexico": [
+   "size:155",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Mamma": [
+   "size:155",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Julians Special": [
+   "size:155",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Tonfiskpizza": [
+   "size:155",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Mafioso": [
+   "size:165",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Inbakad Pizza": [
+   "size:165",
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Veserio Special": [
+   "size:165",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Quattro": [
+   "size:165",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Kebabpizza": [
+   "size:165",
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Husets Special": [
+   "size:165",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Kebab Special": [
+   "size:165",
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Viktoria": [
+   "size:165",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Caruso": [
+   "size:165",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Ängelholm Special": [
+   "size:170",
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Hido Special": [
+   "size:170",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Kycklingpizza": [
+   "size:170",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Chicko Special": [
+   "size:170",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Calcutta": [
+   "size:170",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Oxfilépizza": [
+   "size:170",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Paris": [
+   "size:170",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Acapulco": [
+   "size:170",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Ciao Ciao": [
+   "size:170",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Milano": [
+   "size:170",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Viking Pizza": [
+   "size:170",
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Båtpizza": [
+   "size:170",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Benji": [
+   "size:170",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Mozzarella": [
+   "size:170",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Mozzarella Special": [
+   "size:170",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Italiano": [
+   "size:170",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Kebabtallrik": [
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Mixtallrik": [
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Kycklingtallrik": [
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Falafeltallrik": [
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Kyckling Nuggets Tallrik": [
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Kebabrulle": [
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Kycklingrulle": [
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Vegetarisk Rulle": [
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Kycklingkebabrulle": [
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Falafelrulle": [
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Park Rulle": [
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Kebab i Pitabröd": [
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Kyckling i Pitabröd": [
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Kyckling och Kebab i Pitabröd": [
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Falafel i Pitabröd": [
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Hamburgare med Pommes, 90 g": [
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra sås och kryddor",
+   "Extra ost och övrigt"
+  ],
+  "Hamburgare med Pommes, 150 g": [
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra sås och kryddor",
+   "Extra ost och övrigt"
+  ],
+  "Ägg Burgare, 90 g": [
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra sås och kryddor",
+   "Extra ost och övrigt"
+  ],
+  "Ägg Burgare, 150 g": [
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra sås och kryddor",
+   "Extra ost och övrigt"
+  ],
+  "Bacon Burgare, 150 g": [
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra sås och kryddor",
+   "Extra ost och övrigt"
+  ],
+  "Bacon Burgare, 90 g": [
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra sås och kryddor",
+   "Extra ost och övrigt"
+  ],
+  "Halloumiburgare, 150 g": [
+   "Extra kött och protein",
+   "Extra grönsaker",
+   "Extra sås och kryddor",
+   "Extra ost och övrigt"
+  ],
+  "Ost- & Skinksallad": [
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Kebabsallad": [
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Mix Sallad": [
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Kycklingsallad": [
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Räksallad": [
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Vegetarisk Sallad": [
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Tonfisksallad": [
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ],
+  "Havets Sallad": [
+   "Välj sås (ingår)",
+   "Extra kött och protein",
+   "Extra sås och kryddor",
+   "Extra grönsaker",
+   "Extra ost och övrigt"
+  ]
+ },
+ "categoryOrder": [
+  "Pizzor klass 1",
+  "Pizzor klass 2",
+  "Pizzor klass 3",
+  "Pizzor klass 4",
+  "Pizzor klass 5",
+  "Tallrikar",
+  "Rullar",
+  "Pitabröd",
+  "Hamburgare",
+  "Sallader",
+  "Tillbehör",
+  "Såser",
+  "Drycker"
+ ],
+ "productOrder": [
+  "Margherita",
+  "Vesuvio",
+  "Al Funghi",
+  "Alms Special",
+  "Capricciosa",
+  "Hawaii",
+  "Calzone (inbakad)",
+  "Calzone Special (inbakad)",
+  "Tutti Frutti",
+  "Capri",
+  "Vegetarisk Pizza",
+  "Venezia",
+  "Salami Pizza",
+  "Köttfärspizza",
+  "Mexico",
+  "Mamma",
+  "Julians Special",
+  "Tonfiskpizza",
+  "Mafioso",
+  "Inbakad Pizza",
+  "Veserio Special",
+  "Quattro",
+  "Kebabpizza",
+  "Husets Special",
+  "Kebab Special",
+  "Viktoria",
+  "Caruso",
+  "Ängelholm Special",
+  "Hido Special",
+  "Kycklingpizza",
+  "Chicko Special",
+  "Calcutta",
+  "Oxfilépizza",
+  "Paris",
+  "Acapulco",
+  "Ciao Ciao",
+  "Milano",
+  "Viking Pizza",
+  "Båtpizza",
+  "Benji",
+  "Mozzarella",
+  "Mozzarella Special",
+  "Italiano",
+  "Kebabtallrik",
+  "Mixtallrik",
+  "Kycklingtallrik",
+  "Falafeltallrik",
+  "Kyckling Nuggets Tallrik",
+  "Kebabrulle",
+  "Kycklingrulle",
+  "Vegetarisk Rulle",
+  "Kycklingkebabrulle",
+  "Falafelrulle",
+  "Park Rulle",
+  "Kebab i Pitabröd",
+  "Kyckling i Pitabröd",
+  "Kyckling och Kebab i Pitabröd",
+  "Falafel i Pitabröd",
+  "Hamburgare med Pommes, 90 g",
+  "Hamburgare med Pommes, 150 g",
+  "Ägg Burgare, 90 g",
+  "Ägg Burgare, 150 g",
+  "Bacon Burgare, 150 g",
+  "Bacon Burgare, 90 g",
+  "Halloumiburgare, 150 g",
+  "Ost- & Skinksallad",
+  "Kebabsallad",
+  "Mix Sallad",
+  "Kycklingsallad",
+  "Räksallad",
+  "Vegetarisk Sallad",
+  "Tonfisksallad",
+  "Havets Sallad",
+  "Pommes",
+  "Nybakat Bröd",
+  "Pizzasallad",
+  "Kebabsås mild (i burk)",
+  "Kebabsås stark (i burk)",
+  "Bearnaisesås (i burk)",
+  "Kebabsås mellan (i burk)",
+  "Vitlökssås (i burk)",
+  "Ramlösa 33 cl",
+  "Ramlösa Citron 33 cl",
+  "Coca-Cola 33 cl",
+  "Coca-Cola Zero 33 cl",
+  "Fanta Exotic 33 cl",
+  "Fanta Strawberry 33 cl",
+  "Fanta Orange 33 cl",
+  "Fanta Lemon 33 cl",
+  "7up 33cl",
+  "Pepsi 33 cl",
+  "Zingo 33 cl",
+  "Coca-Cola Zero 1,5 liter",
+  "Coca-Cola 1,5 liter",
+  "Fanta Orange 1,5 liter",
+  "Sprite 1,5 liter",
+  "Fanta Exotic 1,5 liter"
+ ],
+ "images": {
+  "logo": "/demo/pizza-kebab-house-angelholm/img/logo-square.png",
+  "hero": "/demo/pizza-kebab-house-angelholm/img/hero.webp",
+  "categories": {
+   "Pizzor klass 1": "/demo/pizza-kebab-house-angelholm/img/gen/margherita.webp",
+   "Pizzor klass 2": "/demo/pizza-kebab-house-angelholm/img/gen/alms-special.webp",
+   "Pizzor klass 3": "/demo/pizza-kebab-house-angelholm/img/gen/salami-pizza.webp",
+   "Pizzor klass 4": "/demo/pizza-kebab-house-angelholm/img/gen/mafioso.webp",
+   "Pizzor klass 5": "/demo/pizza-kebab-house-angelholm/img/gen/angelholm-special.webp",
+   "Tallrikar": "/demo/pizza-kebab-house-angelholm/img/gen/kebabtallrik.webp",
+   "Rullar": "/demo/pizza-kebab-house-angelholm/img/gen/kebabrulle.webp",
+   "Pitabröd": "/demo/pizza-kebab-house-angelholm/img/gen/kebab-i-pitabrod.webp",
+   "Hamburgare": "/demo/pizza-kebab-house-angelholm/img/gen/hamburgare-med-pommes.webp",
+   "Sallader": "/demo/pizza-kebab-house-angelholm/img/gen/ost-skinksallad.webp",
+   "Tillbehör": "/demo/pizza-kebab-house-angelholm/img/gen/pommes.webp",
+   "Såser": "/demo/pizza-kebab-house-angelholm/img/gen/kebabsas-mild-i-burk.webp",
+   "Drycker": "/demo/pizza-kebab-house-angelholm/img/drinks/coca-cola-33.webp"
+  },
+  "products": {
+   "Margherita": "/demo/pizza-kebab-house-angelholm/img/gen/margherita.webp",
+   "Vesuvio": "/demo/pizza-kebab-house-angelholm/img/gen/vesuvio.webp",
+   "Al Funghi": "/demo/pizza-kebab-house-angelholm/img/gen/al-funghi.webp",
+   "Alms Special": "/demo/pizza-kebab-house-angelholm/img/gen/alms-special.webp",
+   "Capricciosa": "/demo/pizza-kebab-house-angelholm/img/gen/capricciosa.webp",
+   "Hawaii": "/demo/pizza-kebab-house-angelholm/img/gen/hawaii.webp",
+   "Calzone (inbakad)": "/demo/pizza-kebab-house-angelholm/img/gen/calzone-inbakad.webp",
+   "Calzone Special (inbakad)": "/demo/pizza-kebab-house-angelholm/img/gen/calzone-special-inbakad.webp",
+   "Tutti Frutti": "/demo/pizza-kebab-house-angelholm/img/gen/tutti-frutti.webp",
+   "Capri": "/demo/pizza-kebab-house-angelholm/img/gen/capri.webp",
+   "Vegetarisk Pizza": "/demo/pizza-kebab-house-angelholm/img/gen/vegetarisk-pizza.webp",
+   "Venezia": "/demo/pizza-kebab-house-angelholm/img/gen/venezia.webp",
+   "Salami Pizza": "/demo/pizza-kebab-house-angelholm/img/gen/salami-pizza.webp",
+   "Köttfärspizza": "/demo/pizza-kebab-house-angelholm/img/gen/kottfarspizza.webp",
+   "Mexico": "/demo/pizza-kebab-house-angelholm/img/gen/mexico.webp",
+   "Mamma": "/demo/pizza-kebab-house-angelholm/img/gen/mamma.webp",
+   "Julians Special": "/demo/pizza-kebab-house-angelholm/img/gen/julians-special.webp",
+   "Tonfiskpizza": "/demo/pizza-kebab-house-angelholm/img/gen/tonfiskpizza.webp",
+   "Mafioso": "/demo/pizza-kebab-house-angelholm/img/gen/mafioso.webp",
+   "Inbakad Pizza": "/demo/pizza-kebab-house-angelholm/img/gen/inbakad-pizza.webp",
+   "Veserio Special": "/demo/pizza-kebab-house-angelholm/img/gen/veserio-special.webp",
+   "Quattro": "/demo/pizza-kebab-house-angelholm/img/gen/quattro.webp",
+   "Kebabpizza": "/demo/pizza-kebab-house-angelholm/img/gen/kebabpizza.webp",
+   "Husets Special": "/demo/pizza-kebab-house-angelholm/img/gen/husets-special.webp",
+   "Kebab Special": "/demo/pizza-kebab-house-angelholm/img/gen/kebab-special.webp",
+   "Viktoria": "/demo/pizza-kebab-house-angelholm/img/gen/viktoria.webp",
+   "Caruso": "/demo/pizza-kebab-house-angelholm/img/gen/caruso.webp",
+   "Ängelholm Special": "/demo/pizza-kebab-house-angelholm/img/gen/angelholm-special.webp",
+   "Hido Special": "/demo/pizza-kebab-house-angelholm/img/gen/hido-special.webp",
+   "Kycklingpizza": "/demo/pizza-kebab-house-angelholm/img/gen/kycklingpizza.webp",
+   "Chicko Special": "/demo/pizza-kebab-house-angelholm/img/gen/chicko-special.webp",
+   "Calcutta": "/demo/pizza-kebab-house-angelholm/img/gen/calcutta.webp",
+   "Oxfilépizza": "/demo/pizza-kebab-house-angelholm/img/gen/oxfile-pizza.webp",
+   "Paris": "/demo/pizza-kebab-house-angelholm/img/gen/paris.webp",
+   "Acapulco": "/demo/pizza-kebab-house-angelholm/img/gen/acapulco.webp",
+   "Ciao Ciao": "/demo/pizza-kebab-house-angelholm/img/gen/ciao-ciao.webp",
+   "Milano": "/demo/pizza-kebab-house-angelholm/img/gen/milano.webp",
+   "Viking Pizza": "/demo/pizza-kebab-house-angelholm/img/gen/viking-pizza.webp",
+   "Båtpizza": "/demo/pizza-kebab-house-angelholm/img/gen/batpizza.webp",
+   "Benji": "/demo/pizza-kebab-house-angelholm/img/gen/benji.webp",
+   "Mozzarella": "/demo/pizza-kebab-house-angelholm/img/gen/mozzarella.webp",
+   "Mozzarella Special": "/demo/pizza-kebab-house-angelholm/img/gen/mozzarella-special.webp",
+   "Italiano": "/demo/pizza-kebab-house-angelholm/img/gen/italiano.webp",
+   "Kebabtallrik": "/demo/pizza-kebab-house-angelholm/img/gen/kebabtallrik.webp",
+   "Mixtallrik": "/demo/pizza-kebab-house-angelholm/img/gen/mixtallrik.webp",
+   "Kycklingtallrik": "/demo/pizza-kebab-house-angelholm/img/gen/kycklingtallrik.webp",
+   "Falafeltallrik": "/demo/pizza-kebab-house-angelholm/img/gen/falafeltallrik.webp",
+   "Kyckling Nuggets Tallrik": "/demo/pizza-kebab-house-angelholm/img/gen/kyckling-nuggets-tallrik.webp",
+   "Kebabrulle": "/demo/pizza-kebab-house-angelholm/img/gen/kebabrulle.webp",
+   "Kycklingrulle": "/demo/pizza-kebab-house-angelholm/img/gen/kycklingrulle.webp",
+   "Vegetarisk Rulle": "/demo/pizza-kebab-house-angelholm/img/gen/vegetarisk-rulle.webp",
+   "Kycklingkebabrulle": "/demo/pizza-kebab-house-angelholm/img/gen/kycklingkebabrulle.webp",
+   "Falafelrulle": "/demo/pizza-kebab-house-angelholm/img/gen/falafelrulle.webp",
+   "Park Rulle": "/demo/pizza-kebab-house-angelholm/img/gen/park-rulle.webp",
+   "Kebab i Pitabröd": "/demo/pizza-kebab-house-angelholm/img/gen/kebab-i-pitabrod.webp",
+   "Kyckling i Pitabröd": "/demo/pizza-kebab-house-angelholm/img/gen/kyckling-i-pitabrod.webp",
+   "Kyckling och Kebab i Pitabröd": "/demo/pizza-kebab-house-angelholm/img/gen/kyckling-och-kebab-i-pitabrod.webp",
+   "Falafel i Pitabröd": "/demo/pizza-kebab-house-angelholm/img/gen/falafel-i-pitabrod.webp",
+   "Hamburgare med Pommes, 90 g": "/demo/pizza-kebab-house-angelholm/img/gen/hamburgare-med-pommes.webp",
+   "Hamburgare med Pommes, 150 g": "/demo/pizza-kebab-house-angelholm/img/gen/hamburgare-med-pommes.webp",
+   "Ägg Burgare, 90 g": "/demo/pizza-kebab-house-angelholm/img/gen/agg-burgare.webp",
+   "Ägg Burgare, 150 g": "/demo/pizza-kebab-house-angelholm/img/gen/agg-burgare.webp",
+   "Bacon Burgare, 150 g": "/demo/pizza-kebab-house-angelholm/img/gen/bacon-burgare.webp",
+   "Bacon Burgare, 90 g": "/demo/pizza-kebab-house-angelholm/img/gen/bacon-burgare.webp",
+   "Halloumiburgare, 150 g": "/demo/pizza-kebab-house-angelholm/img/gen/halloumiburgare.webp",
+   "Ost- & Skinksallad": "/demo/pizza-kebab-house-angelholm/img/gen/ost-skinksallad.webp",
+   "Kebabsallad": "/demo/pizza-kebab-house-angelholm/img/gen/kebabsallad.webp",
+   "Mix Sallad": "/demo/pizza-kebab-house-angelholm/img/gen/mix-sallad.webp",
+   "Kycklingsallad": "/demo/pizza-kebab-house-angelholm/img/gen/kycklingsallad.webp",
+   "Räksallad": "/demo/pizza-kebab-house-angelholm/img/gen/raksallad.webp",
+   "Vegetarisk Sallad": "/demo/pizza-kebab-house-angelholm/img/gen/vegetarisk-sallad.webp",
+   "Tonfisksallad": "/demo/pizza-kebab-house-angelholm/img/gen/tonfisksallad.webp",
+   "Havets Sallad": "/demo/pizza-kebab-house-angelholm/img/gen/havets-sallad.webp",
+   "Pommes": "/demo/pizza-kebab-house-angelholm/img/gen/pommes.webp",
+   "Nybakat Bröd": "/demo/pizza-kebab-house-angelholm/img/gen/nybakat-brod.webp",
+   "Pizzasallad": "/demo/pizza-kebab-house-angelholm/img/gen/pizzasallad.webp",
+   "Kebabsås mild (i burk)": "/demo/pizza-kebab-house-angelholm/img/gen/kebabsas-mild-i-burk.webp",
+   "Kebabsås stark (i burk)": "/demo/pizza-kebab-house-angelholm/img/gen/kebabsas-stark-i-burk.webp",
+   "Bearnaisesås (i burk)": "/demo/pizza-kebab-house-angelholm/img/gen/bearnaisesas-i-burk.webp",
+   "Kebabsås mellan (i burk)": "/demo/pizza-kebab-house-angelholm/img/gen/kebabsas-mellan-i-burk.webp",
+   "Vitlökssås (i burk)": "/demo/pizza-kebab-house-angelholm/img/gen/vitlokssas-i-burk.webp",
+   "Coca-Cola 33 cl": "/demo/pizza-kebab-house-angelholm/img/drinks/coca-cola-33.webp",
+   "Coca-Cola Zero 33 cl": "/demo/pizza-kebab-house-angelholm/img/drinks/cola-zero-33.webp",
+   "Fanta Orange 33 cl": "/demo/pizza-kebab-house-angelholm/img/drinks/fanta-orange-33.webp",
+   "Pepsi 33 cl": "/demo/pizza-kebab-house-angelholm/img/drinks/pepsi-33.webp"
+  },
+  "extras": {
+   "Välj sås (ingår)": {
+    "Kebabsås mild": "/demo/pizza-kebab-house-angelholm/img/gen/tile-sas-kebab-mild.webp",
+    "Kebabsås stark": "/demo/pizza-kebab-house-angelholm/img/gen/tile-sas-kebab-stark.webp",
+    "Kebabsås mellan": "/demo/pizza-kebab-house-angelholm/img/gen/tile-sas-kebab-mellan.webp",
+    "Vitlökssås": "/demo/pizza-kebab-house-angelholm/img/gen/tile-sas-vitlok.webp",
+    "Bearnaisesås": "/demo/pizza-kebab-house-angelholm/img/gen/tile-sas-bearnaise.webp",
+    "Utan sås": "/demo/pizza-kebab-house-angelholm/img/gen/tile-sas-ingen.webp"
+   },
+   "Pommes eller stekt potatis": {
+    "Pommes": "/demo/pizza-kebab-house-angelholm/img/gen/tile-pommes.webp",
+    "Stekt potatis": "/demo/pizza-kebab-house-angelholm/img/gen/tile-stekt-potatis.webp"
+   }
+  }
+ }
+}

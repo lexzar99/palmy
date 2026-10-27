@@ -1,0 +1,66 @@
+{
+ "_kommentar": "GENERERAD av build.py. Läses av docs/restaurants/apply-menu.mjs.",
+ "sizeGroups": [],
+ "productGroups": {},
+ "categoryOrder": [
+  "Pizza",
+  "Burgare",
+  "Grill",
+  "Barnmeny"
+ ],
+ "productOrder": [
+  "Margherita",
+  "Vesuvio",
+  "Capricciosa",
+  "Fungi",
+  "Pepperoni",
+  "Ananas",
+  "Bussola",
+  "Kebab",
+  "Carlzone",
+  "Nduja",
+  "Pesto",
+  "G.O.A.T",
+  "Pera",
+  "Morsan",
+  "Scampi",
+  "T.B.M",
+  "Manzo",
+  "Gamberetti",
+  "Maggan",
+  "Burrata e Parma",
+  "Burrata e Tryffelsalami",
+  "Cheeseburgare",
+  "Kuben",
+  "Kaptenen",
+  "Tryffeln",
+  "Chilicheeseburgare",
+  "Pepperjack Reaper",
+  "Honey Sriracha",
+  "Falafel- eller halloumiburgare",
+  "Pommestallrik",
+  "Kebabtallriken",
+  "Kebabrullen",
+  "Kebab Bowl",
+  "Vegobowl",
+  "Veganrullen",
+  "Vegotallriken",
+  "Barnburgare",
+  "Barn Margherita",
+  "Barn Vesuvio",
+  "Barn Ananas",
+  "Barn Capricciosa"
+ ],
+ "images": {
+  "logo": "/demo/kuben-umea/img/logo-square.png",
+  "hero": "/demo/kuben-umea/img/hero-vast.webp",
+  "categories": {
+   "Pizza": "/demo/kuben-umea/img/dishes/pizza.webp",
+   "Burgare": "/demo/kuben-umea/img/dishes/smash.webp"
+  },
+  "products": {
+   "Pepperoni": "/demo/kuben-umea/img/dishes/pizza.webp"
+  },
+  "extras": {}
+ }
+}

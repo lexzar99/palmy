@@ -1,0 +1,163 @@
+# Pattaya Bar & Restaurang, Tallkrogsplan 93: meny för massimport. GENERERAD av build.py ur pattayabar.se/Meny.html (2026-10-27).
+# Barens drycker är inte med (alkohol säljs inte för avhämtning). Menyns 5 % rabatt vid avhämtning är inte inlagd.
+extraGroups:
+  - name: "Gör den vegansk"
+    type: checkbox
+    required: false
+    max: 1
+    options:
+      - { name: "Vegansk", price: 0 }
+
+categories:
+  - name: "Smått"
+    products:
+      - name: "Salat"
+        description: "1. Gurk- och tomatsallad med chili, vitlök och färsk koriander (mycket stark)"
+        price: 70
+      - name: "Pa Peiya"
+        description: "2. Hemgjorda vegetariska vårrullar. Serveras med sweet chili"
+        price: 70
+      - name: "Tom Ka Gai"
+        description: "3. Kycklingsoppa i kokosmjölk med citrongräs, galanga, limeblad och färsk koriander (mild)"
+        price: 89
+      - name: "Tom Yam Goong"
+        description: "4. Scampisoppa med citrongräs, galanga, limeblad och färsk koriander (mycket stark)"
+        price: 99
+      - name: "Koong Tord"
+        description: "5. Friterade scampi. Serveras med vitlöksaioli och sweet chili"
+        price: 99
+      - name: "Koong Yang"
+        description: "6. Grillade scampi och grönsaker. Serveras med vitlöksaioli och yamsås"
+        price: 99
+      - name: "Friterade kycklingdumplings"
+        description: "7. Serveras med dumplingsoja"
+        price: 70
+      - name: "Yang Natmok"
+        description: "8. Stekt biffsallad med lime, koriander, mynta, rödlök och chili (stark)"
+        price: 99
+      - name: "Som Tam"
+        description: "9. Papayasallad med scampi, lime och jordnötter (mycket stark)"
+        price: 99
+  - name: "Fågel"
+    products:
+      - name: "Gaeng Khew Wan Gai"
+        description: "20. Kyckling i kokosmjölk med grön curry och bambuskott (stark)"
+        price: 160
+      - name: "Gaeng Ped Gai"
+        description: "21. Kyckling i kokosmjölk med röd curry, grönsaker och thaibasilika (lite stark)"
+        price: 160
+      - name: "Pad Medd Mamoeng"
+        description: "22. Wokad kyckling med cashewnötter och grönsaker (lite stark)"
+        price: 160
+      - name: "Pad Thai Gai"
+        description: "23. Stekta risnudlar med kyckling, ägg och grönsaker. Serveras med chiliflingor och hackade jordnötter (mild)"
+        price: 152
+      - name: "Pad Nam Prik Pow"
+        description: "24. Wokad kyckling med chilipasta, sötbasilika och grönsaker (lite stark)"
+        price: 160
+      - name: "Khao Pad Gai"
+        description: "25. Stekt ris med kyckling, ägg och grönsaker. Serveras med prik nam pla (mild)"
+        price: 152
+      - name: "Paneng Ped Heng"
+        description: "26. Wokad anka med panengcurry, grönsaker och ananas (lite stark)"
+        price: 179
+  - name: "Kött"
+    products:
+      - name: "Pad Nam Mam Hoy"
+        description: "30. Wokad biff med grönsaker och ostronsås (mild)"
+        price: 170
+      - name: "Pad Kratiem Prik Thai"
+        description: "31. Wokad biff med grönsaker, vitlök och svartpeppar (lite stark)"
+        price: 170
+      - name: "Pad Ba Mee"
+        description: "32. Stekta äggnudlar med biff, grönsaker och ostronsås (mild)"
+        price: 170
+      - name: "Gaeng Phaneng"
+        description: "33. Strimlad biff i kokosmjölk med phanengcurry och grönsaker (lite stark)"
+        price: 170
+      - name: "Pad Krapaw Nua"
+        description: "34. Wokad biff med grönsaker, färsk basilika och thaibönor (mycket stark)"
+        price: 179
+      - name: "Yam Nua"
+        description: "35. Biffsallad med koriander, mynta, lime, selleri, chili, rödlök och tomat (mycket stark)"
+        price: 179
+  - name: "Från havet"
+    products:
+      - name: "Pad Thai Goong"
+        description: "40. Stekta risnudlar med scampi, ägg och grönsaker. Serveras med chiliflingor och hackade jordnötter (mild)"
+        price: 179
+      - name: "Gaeng Ped Koong"
+        description: "41. Scampi i kokosmjölk med röd curry och grönsaker (lite stark)"
+        price: 189
+      - name: "Yam Taley"
+        description: "42. Skaldjurssallad med koriander, mynta, lime, selleri, chili, rödlök och tomat (mycket stark)"
+        price: 197
+      - name: "Pad Kratiam Koong"
+        description: "43. Wokad scampi med grönsaker, vitlök och svartpeppar"
+        price: 197
+      - name: "Pad Krapaw Taley"
+        description: "44. Wokad skaldjursmix (bläckfisk, scampi, blåmusslor) med thaibasilika och färska grönsaker (mycket stark)"
+        price: 197
+      - name: "Chu Chi Pla"
+        description: "45. Torskryggfilé med phanengcurry, kokosmjölk, limeblad och paprika (lite stark)"
+        price: 197
+  - name: "BBQ"
+    products:
+      - name: "Tofu Satay"
+        description: "50. Grillade tofuspett med jordnötssås (mild)"
+        price: 179
+      - name: "Gai Satay"
+        description: "51. Grillade kycklingspett med jordnötssås (mild)"
+        price: 170
+      - name: "Nua Yang"
+        description: "52. Grillade biffspett med grönsaker. Serveras med vitlöksaioli och yamsås (lite stark)"
+        price: 215
+      - name: "Talay Yang"
+        description: "53. Grillade havets läckerheter (bläckfisk, scampi, vitfisk, blåmusslor). Serveras med vitlöksaioli och yamsås (lite stark)"
+        price: 225
+  - name: "Vegetariskt"
+    products:
+      - name: "Pad Pak King"
+        description: "60. Wokade grönsaker med tofu, vitlök och färsk ingefära (mild)"
+        price: 160
+        extras: ["Gör den vegansk"]
+      - name: "Gaeng Keow Wan Pak"
+        description: "61. Tofu i kokosmjölk med grön curry och paprika (stark)"
+        price: 157
+        extras: ["Gör den vegansk"]
+      - name: "Yam Tofu"
+        description: "62. Sauterad tofu och grönsaker med chili, lime och färsk koriander (mycket stark)"
+        price: 170
+        extras: ["Gör den vegansk"]
+      - name: "Pad Thai Pak"
+        description: "63. Stekta risnudlar med grönsaker och ägg. Serveras med chiliflingor och hackade jordnötter (mild)"
+        price: 143
+        extras: ["Gör den vegansk"]
+  - name: "Thai starka rätter"
+    products:
+      - name: "Lab Gai"
+        description: "70. Thailändsk ljummen kycklingsallad med rödlök, selleri, citrongräs, galanga, koriander och mynta (mycket stark)"
+        price: 179
+      - name: "Yam Wonsen"
+        description: "71. Glasnudlar med hackad kyckling, scampi, selleri, lime och chili (mycket stark)"
+        price: 197
+      - name: "Tom Yam Talay"
+        description: "72. Skaldjurssoppa med citrongräs, galanga, limeblad och färsk koriander (mycket stark)"
+        price: 197
+      - name: "Pad Krapaw Nua med ägg"
+        description: "73. Hackad biff med thaibasilika, vitlök och chili, toppad med stekt ägg (mycket stark)"
+        price: 197
+  - name: "Barnmeny"
+    products:
+      - name: "Gai Tord"
+        description: "80. Friterade kycklingbitar. Serveras med vitlöksaioli och sweet chili"
+        price: 95
+      - name: "Gai Satay (barn)"
+        description: "81. Grillade kycklingspett med jordnötssås (mild)"
+        price: 99
+      - name: "Khao Pad Gai (barn)"
+        description: "82. Stekt ris med kyckling och grönsaker (mild)"
+        price: 99
+      - name: "Pad Thai Gai (barn)"
+        description: "83. Stekta risnudlar med kyckling, ägg och grönsaker. Serveras med hackade jordnötter (mild)"
+        price: 99

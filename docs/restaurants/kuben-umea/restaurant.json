@@ -1,0 +1,164 @@
+[
+  {
+    "_kommentar": "Källa: kubenumea.se och Google, 2026-10-27. Koordinater från viaeats adressökning. Endast avhämtning. Publiceras direkt när den läggs upp på riktigt.",
+    "_hero": "/demo/kuben-umea/img/hero-kuben-vast-pa-stan.webp",
+    "name": "Kuben Väst på Stan",
+    "slug": "kuben-vast-pa-stan",
+    "cuisine": "Pizza · Smashburgare · Grill",
+    "address": "Kungsgatan 22",
+    "city": "Umeå",
+    "latitude": 63.8279857,
+    "longitude": 20.2509455,
+    "etaMinutes": 15,
+    "vatPercent": 6,
+    "rating": 0,
+    "ratingCount": 0,
+    "pickupOnly": true,
+    "draft": true,
+    "openingHours": {
+      "monday": {
+        "open": "11:00",
+        "close": "20:00",
+        "closed": true
+      },
+      "tuesday": {
+        "open": "11:00",
+        "close": "20:00",
+        "closed": false
+      },
+      "wednesday": {
+        "open": "11:00",
+        "close": "20:00",
+        "closed": false
+      },
+      "thursday": {
+        "open": "11:00",
+        "close": "20:00",
+        "closed": false
+      },
+      "friday": {
+        "open": "11:00",
+        "close": "20:30",
+        "closed": false
+      },
+      "saturday": {
+        "open": "12:00",
+        "close": "20:30",
+        "closed": false
+      },
+      "sunday": {
+        "open": "12:00",
+        "close": "20:30",
+        "closed": false
+      }
+    }
+  },
+  {
+    "_kommentar": "Källa: kubenumea.se och Google, 2026-10-27. Koordinater från viaeats adressökning. Endast avhämtning. Publiceras direkt när den läggs upp på riktigt.",
+    "_hero": "/demo/kuben-umea/img/hero-kuben-mariedal.webp",
+    "name": "Kuben Mariedal",
+    "slug": "kuben-mariedal",
+    "cuisine": "Pizza · Smashburgare · Grill",
+    "address": "Björnvägen 7",
+    "city": "Umeå",
+    "latitude": 63.8482428,
+    "longitude": 20.3052024,
+    "etaMinutes": 15,
+    "vatPercent": 6,
+    "rating": 0,
+    "ratingCount": 0,
+    "pickupOnly": true,
+    "draft": true,
+    "openingHours": {
+      "monday": {
+        "open": "11:00",
+        "close": "20:00",
+        "closed": true
+      },
+      "tuesday": {
+        "open": "11:00",
+        "close": "20:00",
+        "closed": false
+      },
+      "wednesday": {
+        "open": "11:00",
+        "close": "20:00",
+        "closed": false
+      },
+      "thursday": {
+        "open": "11:00",
+        "close": "20:00",
+        "closed": false
+      },
+      "friday": {
+        "open": "11:00",
+        "close": "20:30",
+        "closed": false
+      },
+      "saturday": {
+        "open": "12:00",
+        "close": "20:30",
+        "closed": false
+      },
+      "sunday": {
+        "open": "12:00",
+        "close": "20:30",
+        "closed": false
+      }
+    }
+  },
+  {
+    "_kommentar": "Källa: kubenumea.se och Google, 2026-10-27. Koordinater från viaeats adressökning. Endast avhämtning. Publiceras direkt när den läggs upp på riktigt.",
+    "_hero": "/demo/kuben-umea/img/hero-kuben-tomtebo.webp",
+    "name": "Kuben Tomtebo",
+    "slug": "kuben-tomtebo",
+    "cuisine": "Pizza · Smashburgare · Grill",
+    "address": "Kålhagsvägen 16",
+    "city": "Umeå",
+    "latitude": 63.8078408,
+    "longitude": 20.3636381,
+    "etaMinutes": 15,
+    "vatPercent": 6,
+    "rating": 0,
+    "ratingCount": 0,
+    "pickupOnly": true,
+    "draft": true,
+    "openingHours": {
+      "monday": {
+        "open": "11:00",
+        "close": "20:00",
+        "closed": true
+      },
+      "tuesday": {
+        "open": "16:00",
+        "close": "20:00",
+        "closed": false
+      },
+      "wednesday": {
+        "open": "16:00",
+        "close": "20:00",
+        "closed": false
+      },
+      "thursday": {
+        "open": "16:00",
+        "close": "20:00",
+        "closed": false
+      },
+      "friday": {
+        "open": "16:00",
+        "close": "20:30",
+        "closed": false
+      },
+      "saturday": {
+        "open": "12:00",
+        "close": "20:30",
+        "closed": false
+      },
+      "sunday": {
+        "open": "12:00",
+        "close": "20:30",
+        "closed": false
+      }
+    }
+  }
+]

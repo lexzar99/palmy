@@ -1,0 +1,133 @@
+# Kuben (Umeå): meny för massimport, samma för alla tre ställen. GENERERAD av build.py ur yabie.online/kuben (2026-10-27).
+categories:
+  - name: "Pizza"
+    products:
+      - name: "Margherita"
+        description: "San Marzano-tomater, fior di latte, toppad med basilika och grana padano"
+        price: 134
+      - name: "Vesuvio"
+        description: "Tomatsås, fior di latte, prosciutto cotto"
+        price: 134
+      - name: "Capricciosa"
+        description: "Tomatsås, fior di latte, prosciutto cotto, champinjoner"
+        price: 134
+      - name: "Fungi"
+        description: "San Marzano-tomater, fior di latte, champinjoner, toppad med basilika och grana padano"
+        price: 134
+      - name: "Pepperoni"
+        description: "San Marzano-tomater, fior di latte, pepperonikorv, toppad med honung, ricotta och basilika"
+        price: 138
+      - name: "Ananas"
+        description: "Tomatsås, fior di latte, prosciutto cotto och ananas"
+        price: 138
+      - name: "Bussola"
+        description: "Tomatsås, fior di latte, prosciutto cotto, toppad med handskalade räkor"
+        price: 138
+      - name: "Kebab"
+        description: "Tomatsås, fior di latte, kebab, rödlök, feferoni, toppad med tomatmix och vitlökssås"
+        price: 159
+      - name: "Carlzone"
+        description: "Tomatsås, fior di latte, prosciutto cotto, champinjoner, toppad med parmaskinka, västerbottensost, ruccola och olivolja"
+        price: 159
+      - name: "Nduja"
+        description: "Tomatsås, fior di latte, salami, nduja, rödlök, chili, toppad med ruccola och olivolja"
+        price: 148
+      - name: "Pesto"
+        description: "Pesto, fior di latte, toppad med ruccola, parmaskinka, tomatmix och västerbottensost (vit pizza)"
+        price: 159
+      - name: "G.O.A.T"
+        description: "Vispad crème fraîche, chèvre, rödbetor, valnötter, honung, ruccola och fikonmarmelad"
+        price: 159
+      - name: "Pera"
+        description: "Vispad crème fraîche, fior di latte, päron, chèvre, toppad med valnötter och honung"
+        price: 159
+      - name: "Morsan"
+        description: "Tomatsås, fior di latte, kalamataoliver, toppad med parmaskinka, soltorkade tomater och västerbottensost"
+        price: 159
+      - name: "Scampi"
+        description: "Tomatsås, fior di latte, scampi, chèvre, vitlök, chili, toppad med ruccola"
+        price: 159
+      - name: "T.B.M"
+        description: "Tomatsås, fior di latte, vitlök, toppad med ruccola, buffelmozzarella, tomater, basilika och västerbottensost"
+        price: 159
+      - name: "Manzo"
+        description: "Tomatsås, fior di latte, oxfilé, rödlök, champinjoner, vitlök, toppad med ruccola, chili, bearnaise och tomater"
+        price: 169
+      - name: "Gamberetti"
+        description: "Tomatsås, fior di latte, vitlök, toppad med handskalade räkor"
+        price: 149
+      - name: "Maggan"
+        description: "Tomatsås, toppad med buffelmozzarella, burrata, olivolja och basilika"
+        price: 159
+      - name: "Burrata e Parma"
+        description: "Tomatsås, fior di latte, toppad med parmaskinka, soltorkade tomater och burrata"
+        price: 169
+      - name: "Burrata e Tryffelsalami"
+        description: "Tomatsås, fior di latte, toppad med tryffelsalami, pinjenötter och burrata"
+        price: 169
+  - name: "Burgare"
+    products:
+      - name: "Cheeseburgare"
+        description: "110 g svenskt nötkött, briochebröd, majonnäs, ketchup, cheddarost, isad silverlök och dillpicklad gurka"
+        price: 139
+      - name: "Kuben"
+        description: "110 g svenskt kött, briochebröd, originaldressing, sallad och rödlök"
+        price: 139
+      - name: "Kaptenen"
+        description: "110 g svenskt nötkött, briochebröd, smashed onion, cheddarost, chipotlemajo, sallad, tomat och bacon"
+        price: 139
+      - name: "Tryffeln"
+        description: "110 g svenskt nötkött, briochebröd, cheddarost, tryffelmajonnäs, isbergssallad, tomat, rostad lök och picklad rödlök"
+        price: 139
+      - name: "Chilicheeseburgare"
+        description: "110 g svenskt nötkött, briochebröd, majo, sallad, smashad chilicheese, jalapeñomajo och färska jalapeños (stark)"
+        price: 139
+      - name: "Pepperjack Reaper"
+        description: "110 g svenskt nötkött, briochebröd, jalapeñomajo, sallad, pepperjackost, cheddarost och skivad paprika"
+        price: 139
+      - name: "Honey Sriracha"
+        description: "110 g svenskt nötkött, briochebröd, rödlök, cheddarost, pepperjackost, honung och srirachamajo"
+        price: 139
+      - name: "Falafel- eller halloumiburgare"
+        description: "Välj halloumi eller falafel, briochebröd, majo, sallad, tomat, picklad rödlök och srirachamajo"
+        price: 139
+      - name: "Pommestallrik"
+        description: "Med chipotlemajo"
+        price: 65
+  - name: "Grill"
+    products:
+      - name: "Kebabtallriken"
+        description: "Spettgrillad kalvbringa, isbergssallad, rödkålssallad, tomat, pommes och sauce blanche"
+        price: 139
+      - name: "Kebabrullen"
+        description: "Kebab i bröd med mixad sallad och sauce blanche"
+        price: 139
+      - name: "Kebab Bowl"
+        description: "Spettgrillad döner, isbergssallad, rödkålssallad, silverlök, rostad lök, picklad gurka, feferoni, sauce blanche och srirachamajo"
+        price: 139
+      - name: "Vegobowl"
+        description: "Halloumi, falafel, isbergssallad, rödkålssallad, isad silverlök, rostad lök, feferoni, picklad gurka, sauce blanche och srirachamajo"
+        price: 139
+      - name: "Veganrullen"
+        description: "Falafel i stenugnsbakat tunt lavashbröd, mixad sallad, picklad gurka, harissa och hemmagjord tahini"
+        price: 139
+      - name: "Vegotallriken"
+        description: "Halloumi, falafel, rödkålssallad, isbergssallad, tomat, pommes och sauce blanche"
+        price: 139
+  - name: "Barnmeny"
+    products:
+      - name: "Barnburgare"
+        description: "80 g svenskt nötkött, briochebröd, ketchup och cheddarost"
+        price: 99
+      - name: "Barn Margherita"
+        description: "Tomatsås och fior di latte (mozzarella)"
+        price: 99
+      - name: "Barn Vesuvio"
+        description: "Tomatsås, fior di latte och prosciutto cotto (kokt skinka)"
+        price: 99
+      - name: "Barn Ananas"
+        description: "Tomatsås, fior di latte, prosciutto cotto och ananas"
+        price: 99
+      - name: "Barn Capricciosa"
+        description: "Tomatsås, fior di latte, prosciutto cotto och champinjoner"
+        price: 99

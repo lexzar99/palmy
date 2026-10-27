@@ -1,0 +1,53 @@
+{
+  "_kommentar": "Body till POST /api/restaurants. Källa: pizzakebabhouse.se (Lumit) och Google, 2026-10-27. Koordinater från viaeats adressökning. Telefon och e-post läggs inte in. pickupOnly eftersom viaeats inte kör bud. Publiceras direkt när den läggs upp på riktigt (draft=false).",
+  "name": "Pizza Kebab House",
+  "slug": "pizza-kebab-house-angelholm",
+  "cuisine": "Pizza · Kebab · Burgare",
+  "address": "Skolgatan 1d",
+  "city": "Ängelholm",
+  "latitude": 56.2462817,
+  "longitude": 12.8647643,
+  "etaMinutes": 20,
+  "vatPercent": 6,
+  "rating": 0,
+  "ratingCount": 0,
+  "pickupOnly": true,
+  "draft": true,
+  "openingHours": {
+    "monday": {
+      "open": "11:00",
+      "close": "22:00",
+      "closed": false
+    },
+    "tuesday": {
+      "open": "11:00",
+      "close": "22:00",
+      "closed": false
+    },
+    "wednesday": {
+      "open": "11:00",
+      "close": "22:00",
+      "closed": false
+    },
+    "thursday": {
+      "open": "11:00",
+      "close": "22:00",
+      "closed": false
+    },
+    "friday": {
+      "open": "11:00",
+      "close": "04:00",
+      "closed": false
+    },
+    "saturday": {
+      "open": "12:00",
+      "close": "04:00",
+      "closed": false
+    },
+    "sunday": {
+      "open": "11:00",
+      "close": "22:00",
+      "closed": false
+    }
+  }
+}

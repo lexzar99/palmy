@@ -1,0 +1,42 @@
+{
+  "name": "Pattaya Bar & Restaurang",
+  "short_name": "Pattaya",
+  "description": "Thaimat och bar i Tallkrogen.",
+  "lang": "sv",
+  "id": "/demo/pattaya",
+  "start_url": "/demo/pattaya",
+  "scope": "/demo/pattaya",
+  "display": "standalone",
+  "background_color": "#0E1440",
+  "theme_color": "#0E1440",
+  "icons": [
+    {
+      "src": "/demo/pattaya/img/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/demo/pattaya/img/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/demo/pattaya/img/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Beställ",
+      "url": "/demo/pattaya/meny",
+      "icons": [
+        {
+          "src": "/demo/pattaya/img/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}

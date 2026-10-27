@@ -1,0 +1,26 @@
+{
+  "_kommentar": "Body till POST /api/restaurants (SUPER_ADMIN). Källa: foodora (2026-10-27). Företagsnamn Fared Restaurang. Telefon, e-post och organisationsnummer läggs medvetet INTE in. rating/ratingCount = 0, så foodoras betyg följer inte med. Koordinaterna är UNGEFÄRLIGA (Vattugatan, Hässleholm), kontrollera i admin. Öppettiderna är förenklade från foodoras veckoschema (nattöppet efter 00 helger är inte med). pickupOnly=true eftersom viaeats inte kör bud. Ska publiceras (draft=false) när den läggs upp på riktigt, inte som utkast.",
+  "name": "Freds Pizzeria",
+  "slug": "freds-pizzeria-hassleholm",
+  "description": "Pizzeria i Hässleholm: tunna klassiska pizzor, oxfilé- och kebabpizzor, kebab, burgare och sallader.",
+  "cuisine": "Pizza · Kebab · Burgare",
+  "address": "Vattugatan 12",
+  "city": "Hässleholm",
+  "latitude": 56.1592,
+  "longitude": 13.7663,
+  "etaMinutes": 20,
+  "vatPercent": 6,
+  "rating": 0,
+  "ratingCount": 0,
+  "pickupOnly": true,
+  "draft": true,
+  "openingHours": {
+    "monday":    { "open": "10:15", "close": "23:55", "closed": false },
+    "tuesday":   { "open": "10:15", "close": "23:59", "closed": false },
+    "wednesday": { "open": "10:15", "close": "23:59", "closed": false },
+    "thursday":  { "open": "10:15", "close": "23:59", "closed": false },
+    "friday":    { "open": "10:00", "close": "23:59", "closed": false },
+    "saturday":  { "open": "10:30", "close": "23:55", "closed": false },
+    "sunday":    { "open": "11:00", "close": "23:59", "closed": false }
+  }
+}

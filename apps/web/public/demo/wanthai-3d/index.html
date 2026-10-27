@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Wanthai Foodtruck · Wok från den rosa vagnen</title>
+  <meta name="description" content="Kocken Wan lagar thaimat på beställning i den rosa vagnen. Beställ i mobilen och hämta vid luckan utan kö." />
+  <meta name="theme-color" content="#13212B" />
+  <meta property="og:title" content="Wanthai Foodtruck" />
+  <meta property="og:description" content="Wok från den rosa vagnen. Beställ i mobilen, hämta utan kö." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://example.com/" />
+  <meta property="og:image" content="https://example.com/img/hero.jpg" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2313212B'/%3E%3Cpath d='M12 30h40c0 11-9 18-20 18S12 41 12 30z' fill='%23F2A7B8'/%3E%3Cpath d='M50 33l9-6' stroke='%23F2A7B8' stroke-width='4' stroke-linecap='round'/%3E%3Cpath d='M26 22c0-4 4-4 4-8M34 22c0-4 4-4 4-8' stroke='%23E2462E' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <link rel="manifest" href="/demo/wanthai-3d/manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="/demo/wanthai-3d/img/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Wanthai" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="preload" as="image" href="/demo/wanthai-3d/img/hero-2400.jpg" media="(min-width: 700px)" />
+  <link rel="preload" as="image" href="/demo/wanthai-3d/img/hero-portrait.jpg" media="(max-width: 699px)" />
+  <script type="module" crossorigin src="/demo/wanthai-3d/assets/main-EMkN6lQz.js"></script>
+  <link rel="stylesheet" crossorigin href="/demo/wanthai-3d/assets/main-DlRQZtA3.css">
+</head>
+<body>
+  <header class="top" data-top>
+    <a class="brand" href="/demo/wanthai-3d" aria-label="Wanthai Foodtruck, till början">
+      <img src="/demo/wanthai-3d/img/logo-cream.png" alt="" width="44" height="41" />
+      <span>Wanthai</span>
+    </a>
+    <nav class="nav" aria-label="Sidan">
+      <a href="#tallriken">Tallriken</a>
+      <a href="#ratterna">Rätterna</a>
+      <a href="#vagnen">Vagnen</a>
+    </nav>
+    <a class="btn btn-accent btn-sm" href="/demo/wanthai-3d/meny" data-cta-short>Beställ</a>
+  </header>
+
+  <main>
+    <!-- Hero: den genererade bilden i helskärm -->
+    <section class="hero" data-hero>
+      <picture class="hero__img" data-hero-img>
+        <source media="(max-width: 699px)" srcset="/demo/wanthai-3d/img/hero-portrait.jpg" />
+        <img src="/demo/wanthai-3d/img/hero-2400.jpg" alt="Pad Kra Pao med stekt ägg på en blåvit tallrik, framför en flammande wokpanna" fetchpriority="high" width="2400" height="1357" />
+      </picture>
+      <canvas class="hero__sparks" data-sparks aria-hidden="true"></canvas>
+      <div class="hero__copy">
+        <p class="status"><span class="dot" data-open-dot></span><span data-status-short>Öppet till 19:00</span></p>
+        <h1>Wok från den rosa vagnen.</h1>
+        <p class="lede">Kocken Wan lagar thaimat på beställning, i stora lågor, mitt framför dig.</p>
+        <div class="actions">
+          <a class="btn btn-accent" href="/demo/wanthai-3d/meny" data-cta data-hide-bar>Beställ för avhämtning</a>
+          <a class="place" href="#vagnen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="10" r="2.5" fill="currentColor"/></svg><span data-place-short>Sundstorget, Höganäs</span></a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Äkta 3D-tallrik -->
+    <section id="tallriken" class="plate" data-plate-section>
+      <div class="plate__copy">
+        <p class="kicker">Pad Kra Pao · 112 kr</p>
+        <h2>Ta en närmare titt.</h2>
+        <p>Thaibasilika, chili och vitlök i het wok, jasminris och ett stekt ägg med krispig kant. Lagad först när din order kommer in.</p>
+      </div>
+      <div class="plate__stage" data-plate-stage>
+        <img class="plate__poster" src="/demo/wanthai-3d/img/dish/kra-pao-plate.webp" alt="" aria-hidden="true" />
+        <canvas class="plate__canvas" data-plate-canvas aria-label="3D-modell av Pad Kra Pao. Dra för att snurra." role="img"></canvas>
+        <p class="plate__hint" aria-hidden="true">Dra för att snurra</p>
+        <button type="button" class="hotspot is-hidden" data-hotspot="basilika"><span>Thaibasilika, wokad i sista sekunden</span></button>
+        <button type="button" class="hotspot is-hidden" data-hotspot="agg"><span>Stekt ägg med krispig kant</span></button>
+        <button type="button" class="hotspot is-hidden" data-hotspot="ris"><span>Jasminris från Thailand</span></button>
+        <button type="button" class="hotspot is-hidden" data-hotspot="fars"><span>Kyckling, fläsk, biff, räkor eller vego</span></button>
+      </div>
+    </section>
+
+    <!-- Rätterna: svepbar rad -->
+    <section id="ratterna" class="dishes">
+      <div class="dishes__head">
+        <h2>Rätterna.</h2>
+        <p>Wok, curry och sallad. Välj protein, ris eller nudlar och hur starkt.</p>
+        <div class="rail-nav">
+          <button type="button" data-rail-prev aria-label="Föregående rätter">‹</button>
+          <button type="button" data-rail-next aria-label="Nästa rätter">›</button>
+        </div>
+      </div>
+      <ul class="rail" data-rail></ul>
+    </section>
+
+    <!-- Vagnen -->
+    <section id="vagnen" class="truck">
+      <div class="truck__media">
+        <img src="/demo/wanthai-3d/img/world.jpg" alt="Wanthais rosa foodtruck på ett torg i skymningen" loading="lazy" width="1920" height="1086" />
+        <h2>Himmel på taket.<br />Wok i luckan.</h2>
+      </div>
+      <div class="truck__grid">
+        <dl class="facts">
+          <div>
+            <dt>Står idag</dt>
+            <dd data-place>Sundstorget, Höganäs</dd>
+            <a class="link" href="https://www.google.com/maps/search/?api=1&query=Sundstorget+H%C3%B6gan%C3%A4s" target="_blank" rel="noopener" data-directions>Vägbeskrivning</a>
+          </div>
+          <div>
+            <dt><span class="dot" data-open-dot></span><span data-status>Öppet till 19:00</span></dt>
+            <dd class="hours" data-hours>
+              <span data-day="1"></span><span data-day="2"></span><span data-day="3"></span><span data-day="4"></span>
+              <span data-day="5"></span><span data-day="6"></span><span data-day="0"></span>
+            </dd>
+          </div>
+        </dl>
+        <div class="photos">
+          <figure class="ph ph-wan"><img src="/demo/wanthai-3d/img/real/wan.webp" alt="Kocken Wan framför vagnen" loading="lazy" width="875" height="772" /></figure>
+          <figure class="ph ph-lada"><img src="/demo/wanthai-3d/img/real/lada.webp" alt="Två matlådor med wok och jasminris" loading="lazy" width="448" height="716" /></figure>
+          <figure class="ph ph-luckan"><img src="/demo/wanthai-3d/img/real/luckan.webp" alt="Wan och en kollega i luckan" loading="lazy" width="563" height="316" /></figure>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer__cta">
+      <img src="/demo/wanthai-3d/img/logo-cream.png" alt="" width="96" height="89" />
+      <h2>Wan står vid wokpannan.</h2>
+      <p data-foot-line>Beställ nu och hämta om cirka 15 minuter.</p>
+      <a class="btn btn-accent btn-lg" href="/demo/wanthai-3d/meny" data-cta data-hide-bar>Beställ för avhämtning</a>
+      <div class="install" id="installera" hidden>
+        <p data-install-text>Lägg Wanthai på hemskärmen, så beställer du med ett tryck.</p>
+        <button type="button" class="btn btn-line btn-sm" data-install>Installera</button>
+      </div>
+    </div>
+    <p class="footer__meta">Wanthai Foodtruck · Thaimat för avhämtning · Följ vagnen på Facebook · Beställning via <a href="https://www.viaeats.se" target="_blank" rel="noopener">viaeats</a></p>
+  </footer>
+
+  <a class="order-bar" href="/demo/wanthai-3d/meny" data-order-bar>
+    <span><span class="dot" data-open-dot></span><span data-status-short>Öppet till 19:00</span></span>
+    <strong data-cta-short>Beställ</strong>
+  </a>
+
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Kuben · Pizza, smashburgare och grill i Umeå</title>
+  <meta name="description" content="Napolitansk pizza, smashburgare och grill. Tre Kuben i Umeå: Väst på Stan, Mariedal och Tomtebo." />
+  <meta name="theme-color" content="#0B0A08" />
+  <meta property="og:title" content="Kuben" />
+  <meta property="og:description" content="Rejäl mat, rakt av. Tre Kuben i Umeå." />
+  <meta property="og:image" content="/demo/kuben/img/poster.jpg" />
+  <link rel="manifest" href="/demo/kuben/manifest.webmanifest" />
+  <link rel="icon" href="/demo/kuben/img/icon-192.png" />
+  <link rel="apple-touch-icon" href="/demo/kuben/img/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script type="module" crossorigin src="/demo/kuben/assets/main-CmFGIwGd.js"></script>
+  <link rel="stylesheet" crossorigin href="/demo/kuben/assets/main-ahtqEBop.css">
+</head>
+<body>
+  <header class="top" data-top>
+    <a class="logo" href="/demo/kuben" aria-label="Kuben, till början"><img src="/demo/kuben/img/logo-white.png" alt="" width="225" height="225" /></a>
+    <nav class="nav" aria-label="Sidan"><a href="#sidor">Maten</a><a href="#stallen">Tre Kuben</a></nav>
+    <a class="btn btn-yellow btn-sm" href="#stallen">Beställ</a>
+  </header>
+
+  <main>
+    <!-- Hero: deras egen film i en kvadratisk ram -->
+    <section class="hero">
+      <div class="hero__text">
+        <p class="kicker">Umeå · sedan 2022</p>
+        <h1 class="hero__title"><span class="line"><span>Rejäl mat,</span></span><span class="line"><span class="y">rakt av.</span></span></h1>
+        <p class="hero__lede">Napolitansk pizza, smashburgare och grillat. Inga krångliga menyer, bara mat som levererar varje gång.</p>
+        <div class="hero__actions">
+          <a class="btn btn-yellow" href="#stallen" data-order>Välj din Kuben</a>
+          <p class="hero__note">Väst på Stan · Mariedal · Tomtebo</p>
+        </div>
+      </div>
+      <figure class="hero__frame" data-frame>
+        <video class="hero__film" data-film autoplay muted loop playsinline preload="auto" poster="/demo/kuben/img/poster.jpg" aria-hidden="true" tabindex="-1"></video>
+        <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+      </figure>
+    </section>
+
+    <!-- Signaturen: kuben vrider sig när man skrollar och visar en sida i taget -->
+    <section id="sidor" class="sides" data-sides>
+      <div class="sides__sticky">
+        <div class="sides__copy">
+          <p class="kicker">Välj din sida</p>
+          <ol class="sides__list" data-side-list>
+            <li class="is-on"><h2>Pizza</h2><p>Napolitansk deg, San Marzano och fior di latte. Klassiker och egna favoriter.</p></li>
+            <li><h2>Smash</h2><p>Svenskt nötkött som smashas på plattan, i briochebröd. Vår specialitet.</p></li>
+            <li><h2>Grill</h2><p>Spettgrillat, bowls och vego. Lika rejält, lika gott.</p></li>
+          </ol>
+        </div>
+        <div class="cube-wrap" aria-hidden="true">
+          <div class="cube" data-cube>
+            <div class="face f1"><img src="/demo/kuben/img/pizza.webp" alt="" width="714" height="1071" /><span>Pizza</span></div>
+            <div class="face f2"><img src="/demo/kuben/img/smash.webp" alt="" width="1400" height="2099" /><span>Smash</span></div>
+            <div class="face f3 face--word"><span class="big">Grill</span><span class="small">Kebab · bowls · vego</span></div>
+            <div class="face f4"><img src="/demo/kuben/img/logo-white.png" alt="" width="225" height="225" class="face__logo" /></div>
+            <div class="face f5"></div>
+            <div class="face f6"></div>
+          </div>
+          <div class="cube-shadow"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tre ställen -->
+    <section id="stallen" class="spots">
+      <header class="spots__head reveal">
+        <h2 class="h2">Tre Kuben.<br /><span class="y">Samma attityd.</span></h2>
+      </header>
+      <ul class="spots__grid" data-spots></ul>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <img src="/demo/kuben/img/logo-white.png" alt="" width="225" height="225" />
+    <p>Kuben · Pizza, burgare och grill i Umeå</p>
+    <p class="footer__social"><a href="https://instagram.com/kubenumea" target="_blank" rel="noopener">Instagram</a> · <a href="https://www.tiktok.com/@kubenumea" target="_blank" rel="noopener">TikTok</a></p>
+    <a class="powered" href="https://www.viaeats.se" target="_blank" rel="noopener">Beställning och betalning <span>powered by</span> <strong>viaeats</strong></a>
+  </footer>
+
+  <a class="order-bar" href="#stallen" data-order-bar><span>Tre ställen i Umeå</span><strong>Beställ</strong></a>
+
+</body>
+</html>

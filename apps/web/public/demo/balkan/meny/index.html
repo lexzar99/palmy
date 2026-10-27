@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex" />
+  <title>Beställ från Balkan Grill & Burek</title>
+  <meta name="theme-color" content="#0E0B0A" />
+  <style>*{box-sizing:border-box}html,body{background:#0e0b0a;width:100%;height:100%;margin:0;overflow:hidden}body{color:#f3eae2;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,system-ui,sans-serif}[data-viaeats-menu]{padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);background:#f7f6f4;position:fixed;inset:0}.menu-loading{color:#6c5f55;place-items:center;min-height:220px;margin:0;font-size:14px;font-weight:600;display:grid}.menu-error{text-align:center;color:#8f241a;max-width:520px;margin:24px auto;padding:20px;line-height:1.6}.menu-error a{color:#c8202a;font-weight:700}</style>
+</head>
+<body>
+  <main data-viaeats-menu="balkan-grill-burek" data-viaeats-fullscreen="1" data-viaeats-back="/demo/balkan" aria-busy="true">
+    <p class="menu-loading">Laddar menyn</p>
+  </main>
+  <script>
+    // Lokalt (localhost eller Macens IP i nätverket): embedden och API:t går mot den lokala viaeats-demon.
+    // Serveras sidan av viaeats själv (/demo/…) används samma server, annars web-localdb på 3004. API:t ligger på 4002.
+    (function () {
+      var h = location.hostname;
+      if (h === "localhost" || h === "127.0.0.1" || /^192\.168\./.test(h)) {
+        window.VIAEATS_SITE = /^\/demo\//.test(location.pathname) ? location.origin : "http://" + h + ":3004";
+        window.VIAEATS_API = "http://" + h + ":4002";
+      }
+    })();
+    function showMenuFallback() {
+      var host = document.querySelector('[data-viaeats-menu]');
+      if (!host || host.querySelector('iframe')) return;
+      host.removeAttribute('aria-busy');
+      host.innerHTML = '<p class="menu-error">Menyn kunde inte laddas just nu. <a href="https://www.viaeats.se/restaurants/balkan-grill-burek">Öppna beställningen på viaeats</a>.<br><a href="/demo/balkan">Tillbaka</a></p>';
+    }
+    window.addEventListener('DOMContentLoaded', function () { window.setTimeout(showMenuFallback, 8000); });
+    var s = document.createElement('script');
+    s.src = (window.VIAEATS_SITE || 'https://www.viaeats.se') + '/embed.js?v=20261027';
+    s.defer = true; s.onerror = showMenuFallback;
+    document.head.appendChild(s);
+  </script>
+</body>
+</html>

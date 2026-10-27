@@ -1,0 +1,26 @@
+{
+  "_kommentar": "Body till POST /api/restaurants (SUPER_ADMIN). Skapas som UTKAST (draft=true). rating/ratingCount = 0 så att inga påhittade omdömen visas (Google-betyget 5,0 hör inte hit). Adress från deras sajt. Koordinaterna är UNGEFÄRLIGA (Burlöv Center), kontrollera i admin. Öppettiderna är ANTAGNA: bara lunchbuffén är känd (vardagar 11–15, helger 11:30–15:30). pickupOnly=true eftersom viaeats inte kör bud. Bekräfta tider och leverans med restaurangen.",
+  "name": "Balkan Grill & Burek",
+  "slug": "balkan-grill-burek",
+  "description": "Äkta smaker från Balkan i Burlöv Center: cevapi, pljeskavica, burek och grillmix från grillen, med lepinja, ajvar och hemlagad kajmak.",
+  "cuisine": "Balkan · Grill · Burek",
+  "address": "Kronetorpsvägen 2, Burlöv Center",
+  "city": "Arlöv",
+  "latitude": 55.6377,
+  "longitude": 13.0805,
+  "etaMinutes": 20,
+  "vatPercent": 6,
+  "rating": 0,
+  "ratingCount": 0,
+  "pickupOnly": true,
+  "draft": true,
+  "openingHours": {
+    "monday":    { "open": "11:00", "close": "20:00", "closed": false },
+    "tuesday":   { "open": "11:00", "close": "20:00", "closed": false },
+    "wednesday": { "open": "11:00", "close": "20:00", "closed": false },
+    "thursday":  { "open": "11:00", "close": "20:00", "closed": false },
+    "friday":    { "open": "11:00", "close": "20:00", "closed": false },
+    "saturday":  { "open": "11:30", "close": "20:00", "closed": false },
+    "sunday":    { "open": "11:30", "close": "20:00", "closed": false }
+  }
+}

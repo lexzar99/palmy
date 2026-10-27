@@ -1,0 +1,53 @@
+{
+  "_kommentar": "Body till POST /api/restaurants. Källa: pattayabar.se och Google, 2026-10-27. Koordinater från viaeats adressökning. Telefon och e-post läggs inte in. Endast avhämtning. Publiceras direkt när den läggs upp på riktigt (draft=false).",
+  "name": "Pattaya Bar & Restaurang",
+  "slug": "pattaya-bar-tallkrogen",
+  "cuisine": "Thai · Bar",
+  "address": "Tallkrogsplan 93",
+  "city": "Stockholm",
+  "latitude": 59.2719046,
+  "longitude": 18.0840287,
+  "etaMinutes": 20,
+  "vatPercent": 6,
+  "rating": 0,
+  "ratingCount": 0,
+  "pickupOnly": true,
+  "draft": true,
+  "openingHours": {
+    "monday": {
+      "open": "16:00",
+      "close": "22:00",
+      "closed": false
+    },
+    "tuesday": {
+      "open": "16:00",
+      "close": "22:00",
+      "closed": false
+    },
+    "wednesday": {
+      "open": "16:00",
+      "close": "22:00",
+      "closed": false
+    },
+    "thursday": {
+      "open": "16:00",
+      "close": "22:00",
+      "closed": false
+    },
+    "friday": {
+      "open": "15:00",
+      "close": "23:00",
+      "closed": false
+    },
+    "saturday": {
+      "open": "12:00",
+      "close": "23:00",
+      "closed": false
+    },
+    "sunday": {
+      "open": "12:00",
+      "close": "22:00",
+      "closed": false
+    }
+  }
+}

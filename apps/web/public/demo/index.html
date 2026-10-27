@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>viaeats demos</title>
+  <meta name="description" content="Restaurangsajter som viaeats har byggt, med beställning direkt på sajten." />
+  <meta name="theme-color" content="#0A2340" />
+  <link rel="icon" href="/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root { --navy: #0a2340; --navy-2: #12325a; --orange: #f04f1a; --paper: #f4f5f7; --ink: #0a2340; --muted: #5d6b7c; --line: rgba(10, 35, 64, 0.1); }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--paper); color: var(--ink); font: 400 16px/1.55 Inter, system-ui, sans-serif; -webkit-text-size-adjust: 100%; }
+    a { color: inherit; text-decoration: none; }
+    img { display: block; max-width: 100%; }
+    .wrap { width: min(1180px, 100% - 32px); margin: 0 auto; }
+
+    header { background: var(--navy); color: #fff; padding: 28px 0 90px; }
+    .brand { font: 800 30px/1 "Baloo 2", system-ui, sans-serif; letter-spacing: -0.01em; }
+    .brand span { color: var(--orange); }
+    h1 { font: 800 clamp(40px, 6vw, 72px)/1 "Baloo 2", system-ui, sans-serif; letter-spacing: -0.02em; margin: 64px 0 14px; max-width: 14ch; }
+    .lede { color: rgba(255, 255, 255, 0.72); max-width: 36em; margin: 0; font-size: 17px; }
+
+    main { margin-top: -54px; padding-bottom: 80px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; list-style: none; padding: 0; margin: 0; }
+    .card { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 1px 0 var(--line), 0 18px 40px -26px rgba(10, 35, 64, 0.35); display: flex; flex-direction: column; transition: transform 0.35s cubic-bezier(.22,1,.36,1), box-shadow 0.35s; }
+    .card:hover { transform: translateY(-3px); box-shadow: 0 1px 0 var(--line), 0 26px 50px -24px rgba(10, 35, 64, 0.45); }
+    .card__img { position: relative; aspect-ratio: 16 / 10; overflow: hidden; background: #dde1e7; }
+    .card__img img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.8s cubic-bezier(.22,1,.36,1); }
+    .card:hover .card__img img { transform: scale(1.04); }
+    .status { position: absolute; left: 14px; top: 14px; display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border-radius: 8px; background: rgba(255, 255, 255, 0.94); font-size: 12.5px; font-weight: 600; color: var(--ink); }
+    .status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #1f9d55; }
+    .status--local::before { background: #d99a1e; }
+    .card__body { padding: 20px 22px 22px; display: grid; gap: 4px; flex: 1; }
+    .card h2 { font: 800 26px/1.1 "Baloo 2", system-ui, sans-serif; margin: 0; }
+    .meta { color: var(--muted); font-size: 14.5px; margin: 0; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; align-items: center; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 18px; border-radius: 10px; font-weight: 600; font-size: 15px; }
+    .btn-main { background: var(--navy); color: #fff; }
+    .btn-main:hover { background: var(--navy-2); }
+    .btn-ghost { box-shadow: inset 0 0 0 1.5px var(--line); }
+    .btn-ghost:hover { box-shadow: inset 0 0 0 1.5px var(--orange); color: var(--orange); }
+    .old { font-size: 13.5px; color: var(--muted); margin-left: auto; text-decoration: underline; text-underline-offset: 3px; }
+    .old:hover { color: var(--orange); }
+    footer { color: var(--muted); font-size: 14px; padding: 0 0 40px; }
+
+    @media (max-width: 760px) {
+      header { padding-bottom: 78px; }
+      h1 { margin-top: 44px; }
+      .grid { grid-template-columns: 1fr; gap: 16px; }
+      .old { margin-left: 0; flex-basis: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <a class="brand" href="/">via<span>eats</span></a>
+      <h1>Restaurangsajter med beställning inbyggd</h1>
+      <p class="lede">Välj en restaurang för att visa sajten. Knappen Menyn öppnar beställningen direkt, som den ser ut för kunden.</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <ul class="grid">
+      <li class="card">
+        <a class="card__img" href="/demo/kuben"><img src="/demo/_oversikt/kuben.webp" alt="" width="900" height="562" /><span class="status status--local">Menyn bara lokalt än</span></a>
+        <div class="card__body">
+          <h2>Kuben</h2>
+          <p class="meta">Pizza, smashburgare och grill · tre ställen i Umeå · avhämtning</p>
+          <div class="actions">
+            <a class="btn btn-main" href="/demo/kuben">Visa sajten</a>
+            <a class="btn btn-ghost" href="/demo/kuben/meny?stalle=kuben-vast-pa-stan">Menyn</a>
+          </div>
+        </div>
+      </li>
+      <li class="card">
+        <a class="card__img" href="/demo/pattaya"><img src="/demo/_oversikt/pattaya.webp" alt="" width="959" height="600" /><span class="status status--local">Menyn bara lokalt än</span></a>
+        <div class="card__body">
+          <h2>Pattaya Bar &amp; Restaurang</h2>
+          <p class="meta">Thai och bar · Tallkrogen, Stockholm · avhämtning</p>
+          <div class="actions">
+            <a class="btn btn-main" href="/demo/pattaya">Visa sajten</a>
+            <a class="btn btn-ghost" href="/demo/pattaya/meny">Menyn</a>
+          </div>
+        </div>
+      </li>
+      <li class="card">
+        <a class="card__img" href="/demo/pkh"><img src="/demo/_oversikt/pkh.webp" alt="" width="960" height="600" /><span class="status status--local">Menyn bara lokalt än</span></a>
+        <div class="card__body">
+          <h2>Pizza Kebab House</h2>
+          <p class="meta">Pizza och kebab · Skolgatan, Ängelholm · avhämtning</p>
+          <div class="actions">
+            <a class="btn btn-main" href="/demo/pkh">Visa sajten</a>
+            <a class="btn btn-ghost" href="/demo/pkh/meny">Menyn</a>
+          </div>
+        </div>
+      </li>
+      <li class="card">
+        <a class="card__img" href="/demo/wanthai-3d"><img src="/demo/_oversikt/wanthai.webp" alt="" width="960" height="600" /><span class="status">Live i viaeats</span></a>
+        <div class="card__body">
+          <h2>Wanthai Foodtruck</h2>
+          <p class="meta">Thaimat från vagnen · Sundstorget, Höganäs · avhämtning</p>
+          <div class="actions">
+            <a class="btn btn-main" href="/demo/wanthai-3d">Visa sajten</a>
+            <a class="btn btn-ghost" href="/demo/wanthai-3d/meny">Menyn</a>
+            <a class="old" href="/demo/wanthai">Första versionen</a>
+          </div>
+        </div>
+      </li>
+      <li class="card">
+        <a class="card__img" href="/demo/freds"><img src="/demo/_oversikt/freds.webp" alt="" width="960" height="600" /><span class="status status--local">Menyn bara lokalt än</span></a>
+        <div class="card__body">
+          <h2>Freds Pizzeria</h2>
+          <p class="meta">Pizza, kebab och burgare · Hässleholm · hemkörning och avhämtning</p>
+          <div class="actions">
+            <a class="btn btn-main" href="/demo/freds">Visa sajten</a>
+            <a class="btn btn-ghost" href="/demo/freds/meny">Menyn</a>
+          </div>
+        </div>
+      </li>
+      <li class="card">
+        <a class="card__img" href="/demo/balkan"><img src="/demo/_oversikt/balkan.webp" alt="" width="960" height="600" /><span class="status status--local">Menyn bara lokalt än</span></a>
+        <div class="card__body">
+          <h2>Balkan Grill &amp; Burek</h2>
+          <p class="meta">Grill och burek · Burlöv Center, Arlöv · avhämtning</p>
+          <div class="actions">
+            <a class="btn btn-main" href="/demo/balkan">Visa sajten</a>
+            <a class="btn btn-ghost" href="/demo/balkan/meny">Menyn</a>
+          </div>
+        </div>
+      </li>
+      <li class="card">
+        <a class="card__img" href="/demo/pizzeria-roma"><img src="/demo/_oversikt/roma.webp" alt="" width="960" height="600" /><span class="status">Live i viaeats</span></a>
+        <div class="card__body">
+          <h2>Pizzeria Roma</h2>
+          <p class="meta">Pizzeria · Nya Torg, Åstorp · avhämtning</p>
+          <div class="actions">
+            <a class="btn btn-main" href="/demo/pizzeria-roma">Visa sajten</a>
+            <a class="btn btn-ghost" href="/demo/pizzeria-roma/meny">Menyn</a>
+          </div>
+        </div>
+      </li>
+      <li class="card">
+        <a class="card__img" href="/demo/osteria-cucco"><img src="/demo/_oversikt/cucco.webp" alt="" width="960" height="600" /><span class="status status--local">Menyn bara lokalt än</span></a>
+        <div class="card__body">
+          <h2>Osteria Cucco</h2>
+          <p class="meta">Napolitansk pizza, pasta och gelato · Lund · avhämtning</p>
+          <div class="actions">
+            <a class="btn btn-main" href="/demo/osteria-cucco">Visa sajten</a>
+            <a class="btn btn-ghost" href="/demo/osteria-cucco/meny">Menyn</a>
+          </div>
+        </div>
+      </li>
+    </ul>
+  </main>
+  <footer class="wrap">Sajterna och beställningen är byggda av viaeats.</footer>
+</body>
+</html>

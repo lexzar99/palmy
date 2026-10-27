@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Freds Pizzeria · Pizza, kebab och burgare i Hässleholm · Hemkörning och avhämtning</title>
+  <meta name="description" content="Över 80 pizzor, kebab, falafel och burgare från Vattugatan 12 i Hässleholm. Färska råvaror och smak som får dig att komma tillbaka. Hemkörning och avhämtning." />
+  <meta name="theme-color" content="#0C0C0D" />
+  <meta property="og:title" content="Freds Pizzeria" />
+  <meta property="og:description" content="Kvarterspizzerian på Vattugatan i Hässleholm. Hemkörning och avhämtning." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="/demo/freds/img/poster.jpg" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23E3262E'/%3E%3Cpath d='M20 50V14h26v9H30v6h14v9H30v12z' fill='%23fff'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet" />
+  <script type="module" crossorigin src="/demo/freds/assets/main-CI5sbY3a.js"></script>
+  <link rel="stylesheet" crossorigin href="/demo/freds/assets/main-C6P-Yr6L.css">
+</head>
+<body>
+  <header class="top" data-top>
+    <a class="logo" href="/demo/freds" aria-label="Freds Pizzeria, till början"><span class="logo__mark">Freds</span><span class="logo__sub">Pizzeria</span></a>
+    <nav class="nav" aria-label="Sidan">
+      <a href="#pizzor">Pizzorna</a>
+      <a href="#hem">Hemkörning</a>
+      <a href="#oppet">Öppettider</a>
+    </nav>
+    <a class="btn btn-red btn-sm" href="/demo/freds/meny">Beställ</a>
+  </header>
+
+  <main>
+    <!-- 1. Hero: filmen loopar på alla skärmar -->
+    <section class="hero" data-hero>
+      <div class="hero__media" data-hero-media>
+        <video class="hero__film" data-film autoplay muted loop playsinline preload="auto" aria-hidden="true" tabindex="-1"></video>
+      </div>
+      <div class="hero__shade" aria-hidden="true"></div>
+      <div class="hero__content" data-hero-content>
+        <p class="kicker"><span class="dot"></span>Hemkörning och avhämtning i Hässleholm</p>
+        <h1 class="hero__word" aria-label="Freds Pizzeria">
+          <span class="hero__mark"><span class="line"><span>Freds</span></span></span>
+          <span class="hero__sub"><span class="line"><span>Pizzeria · Vattugatan 12</span></span></span>
+        </h1>
+        <div class="hero__row">
+          <p class="hero__lede">Lagat på färska råvaror, med smak som får dig att komma tillbaka. Beställ i mobilen, så kör vi hem eller har det klart när du kommer.</p>
+          <a class="btn btn-red btn-lg" href="/demo/freds/meny" data-order>Beställ <span aria-hidden="true">→</span></a>
+        </div>
+      </div>
+      <a class="hero__scroll" href="#manifest" aria-label="Skrolla vidare"><span></span></a>
+    </section>
+
+    <!-- 2. Orden tänds medan man skrollar -->
+    <section id="manifest" class="manifest">
+      <p class="manifest__text" data-words>Mer än <em>80 pizzor.</em> Garanterat att du hittar den du älskar, eller varför inte testa något nytt? Färska råvaror och otrolig smak, hela vägen hem till dig.</p>
+    </section>
+
+    <!-- 3. Favoriterna som stor typografi. Bilden följer muspekaren på dator -->
+    <section id="pizzor" class="board">
+      <header class="board__head">
+        <p class="kicker reveal">Husets favoriter</p>
+        <p class="board__price reveal">Normal pizza från <strong>105 kr</strong></p>
+      </header>
+      <ol class="board__list" data-board></ol>
+      <a class="board__all reveal" href="/demo/freds/meny" data-order>
+        <span class="board__count"><span data-count>80</span></span>
+        <span class="board__all-text">pizzor i menyn<em>Se alla och beställ →</em></span>
+      </a>
+      <img class="board__peek" data-peek alt="" aria-hidden="true" />
+    </section>
+
+    <!-- 4. Rullande band, styrt av skrollen -->
+    <section class="bands" aria-label="Pizza, kebab, falafel, burgare och sallader">
+      <div class="band" data-band="-1" aria-hidden="true"><span>Pizza</span><i></i><span>Kebab</span><i></i><span>Falafel</span><i></i><span>Burgare</span><i></i><span>Sallad</span><i></i><span>Pizza</span><i></i><span>Kebab</span><i></i><span>Falafel</span><i></i><span>Burgare</span><i></i><span>Sallad</span><i></i></div>
+      <div class="band band--outline" data-band="1" aria-hidden="true"><span>Oxfilé</span><i></i><span>Inbakad</span><i></i><span>Amerikansk</span><i></i><span>Kyckling</span><i></i><span>Plankpizza</span><i></i><span>Oxfilé</span><i></i><span>Inbakad</span><i></i><span>Amerikansk</span><i></i><span>Kyckling</span><i></i><span>Plankpizza</span><i></i></div>
+    </section>
+
+    <!-- Mer än pizza: en remsa med bilder -->
+    <section class="more">
+      <header class="more__head">
+        <h2 class="more__big reveal">Inte sugen på pizza?</h2>
+        <p class="reveal">Kebab, falafel, burgare och sallader. Samma färska råvaror, samma smak.</p>
+      </header>
+      <ul class="more__strip" data-more></ul>
+      <a class="link-arrow more__link reveal" href="/demo/freds/meny">Se allt i menyn <span aria-hidden="true">→</span></a>
+    </section>
+
+    <!-- 5. Hemkörning eller avhämtning -->
+    <section id="hem" class="home">
+      <h2 class="home__big"><span data-drift="-0.18">Hem till dig.</span><span data-drift="0.14">Eller hämta själv.</span></h2>
+      <div class="home__ways">
+        <article class="way reveal">
+          <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M6 30h22l6-12h6M14 30a6 6 0 1 0 0 .1M36 30a6 6 0 1 0 0 .1M28 30l-4-10h-8" /></svg>
+          <h3>Hemkörning</h3>
+          <p>Vi kör ut i Hässleholm. Beställ och betala i mobilen, sen är det bara att luta sig tillbaka.</p>
+        </article>
+        <article class="way reveal">
+          <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M10 18h28l-3 22H13zM18 18v-4a6 6 0 0 1 12 0v4" /></svg>
+          <h3>Avhämtning</h3>
+          <p>Beställ i förväg och hämta på Vattugatan 12 när det passar dig.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- 6. Öppet -->
+    <section id="oppet" class="hours">
+      <div class="hours__now reveal">
+        <p class="hours__state" data-open-state><span class="dot"></span><span data-open-text>Öppet varje dag</span></p>
+        <p class="hours__big" data-today>10–24</p>
+        <p class="hours__sub" data-hours-sub>Öppet varje dag i veckan, lunch som kväll.</p>
+      </div>
+      <dl class="hours__week reveal" data-week></dl>
+    </section>
+
+    <!-- 7. Sista uppmaningen: bilden öppnar sig som en cirkel -->
+    <section class="final" data-final>
+      <picture class="final__img" data-clip>
+        <source media="(max-width: 700px)" srcset="/demo/freds/img/slice-mobile.jpg" />
+        <img src="/demo/freds/img/slice.jpg" alt="En bit Margherita lyfts med lång oststräng" loading="lazy" />
+      </picture>
+      <div class="final__text">
+        <h2 class="final__big">Sugen?</h2>
+        <a class="btn btn-red btn-xl" href="/demo/freds/meny" data-order>Beställ från Freds <span aria-hidden="true">→</span></a>
+        <p class="final__addr">Vattugatan 12, Hässleholm · <a href="https://www.google.com/maps/search/?api=1&query=Vattugatan+12+H%C3%A4ssleholm" target="_blank" rel="noopener">Vägbeskrivning</a></p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span class="logo logo--big" aria-hidden="true"><span class="logo__mark">Freds</span><span class="logo__sub">Pizzeria</span></span>
+    <p>Freds Pizzeria · Vattugatan 12, Hässleholm<br />Hemkörning och avhämtning</p>
+    <a class="powered" href="https://www.viaeats.se" target="_blank" rel="noopener">Beställning och betalning <span>powered by</span> <strong>viaeats</strong></a>
+  </footer>
+
+  <a class="order-bar" href="/demo/freds/meny" data-order-bar><span>Hemkörning eller avhämtning</span><strong>Beställ</strong></a>
+
+</body>
+</html>

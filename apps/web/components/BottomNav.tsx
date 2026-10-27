@@ -73,7 +73,7 @@ const BottomNav = () => {
     { href: "/profile", label: t("nav.account"), icon: User },
   ];
 
-  if (pathname === "/for-restauranger" || pathname === "/tipsa" || pathname?.startsWith("/tipsa/")) return null;
+  if (pathname === "/for-restauranger" || pathname === "/tipsa" || pathname?.startsWith("/tipsa/") || pathname === "/boka") return null;
 
   return (
     <nav

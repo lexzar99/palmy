@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Pattaya Bar &amp; Restaurang · Thaimat och bar i Tallkrogen</title>
+  <meta name="description" content="Thaimat och bar på Tallkrogsplan 93 i Tallkrogen. Ät på plats, ta en drink i baren eller beställ för avhämtning med 5 % rabatt." />
+  <meta name="theme-color" content="#0E1440" />
+  <meta property="og:title" content="Pattaya Bar &amp; Restaurang" />
+  <meta property="og:description" content="Thaimat och bar i Tallkrogen." />
+  <meta property="og:image" content="/demo/pattaya/img/bar.webp" />
+  <link rel="manifest" href="/demo/pattaya/manifest.webmanifest" />
+  <link rel="icon" href="/demo/pattaya/img/icon-192.png" />
+  <link rel="apple-touch-icon" href="/demo/pattaya/img/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script type="module" crossorigin src="/demo/pattaya/assets/main-Dl_Y2TC6.js"></script>
+  <link rel="stylesheet" crossorigin href="/demo/pattaya/assets/main-swrsm7a8.css">
+</head>
+<body>
+  <header class="top" data-top>
+    <a class="logo" href="/demo/pattaya" aria-label="Pattaya Bar och Restaurang, till början"><img src="/demo/pattaya/img/elephants.png" alt="" width="1238" height="775" /><span>Pattaya</span></a>
+    <nav class="nav" aria-label="Sidan"><a href="#koket">Köket</a><a href="#baren">Baren</a><a href="#hitta">Hitta hit</a></nav>
+    <a class="btn btn-red btn-sm" href="/demo/pattaya/meny">Beställ</a>
+  </header>
+
+  <main>
+    <!-- Signaturen: elefanterna blir ett fönster som växer tills man står inne i baren -->
+    <section class="portal" data-portal>
+      <div class="portal__sticky">
+        <div class="portal__photo" data-portal-photo aria-hidden="true"></div>
+        <canvas class="portal__gl" data-portal-gl aria-hidden="true"></canvas>
+        <img class="portal__eleph" data-portal-eleph src="/demo/pattaya/img/elephants.png" alt="" width="1238" height="775" />
+        <div class="portal__intro" data-portal-intro>
+          <p class="kicker"><span class="dot" data-open-dot></span><span data-open-short>Thaikök &amp; bar · Tallkrogen</span></p>
+          <h1 class="portal__name"><span class="line"><span>Pattaya</span></span></h1>
+          <p class="portal__hint">Skrolla för att gå in</p>
+        </div>
+        <div class="portal__inside" data-portal-inside>
+          <h2 class="portal__title">Välkommen in.</h2>
+          <p>Thaimat lagad på riktigt och drinkar med orkidé, mitt på Tallkrogsplan.</p>
+          <div class="portal__actions">
+            <a class="btn btn-red" href="/demo/pattaya/meny" data-order>Beställ avhämtning</a>
+            <span class="portal__note"><strong>5 %</strong> rabatt när du hämtar</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Värmeskalan: styrkan kommer från deras egen meny -->
+    <section id="koket" class="heat" data-heat>
+      <div class="heat__photo">
+        <img data-heat-img src="/demo/pattaya/img/food-scampi.webp" alt="" width="707" height="943" />
+        <div class="heat__glow" data-heat-glow></div>
+      </div>
+      <div class="heat__panel">
+        <p class="kicker">Från köket</p>
+        <h2 class="h2">Hur stark vill<br />du ha den?</h2>
+        <div class="heat__scale" role="tablist" aria-label="Styrka" data-heat-scale></div>
+        <p class="heat__level" data-heat-level>Mild</p>
+        <ul class="heat__dishes" data-heat-dishes></ul>
+        <a class="link" href="/demo/pattaya/meny">Se hela menyn <span aria-hidden="true">→</span></a>
+      </div>
+    </section>
+
+    <!-- Baren -->
+    <section id="baren" class="bar">
+      <header class="bar__head reveal">
+        <h2 class="h2">Baren är öppen.</h2>
+        <p>Fatöl från 59 kr, vin och drinkar med orkidé. Kom för maten, stanna för en drink till.</p>
+      </header>
+      <ul class="bar__row" data-drift-row>
+        <li class="drink"><img src="/demo/pattaya/img/drink-green.webp" alt="Drink med orkidé" loading="lazy" width="1186" height="2208" /></li>
+        <li class="drink"><img src="/demo/pattaya/img/drink-purple.webp" alt="Drink i lila ljus" loading="lazy" width="1186" height="2208" /></li>
+        <li class="drink"><img src="/demo/pattaya/img/drink-martini.webp" alt="Grön drink med parasoll" loading="lazy" width="1186" height="1810" /></li>
+        <li class="drink"><img src="/demo/pattaya/img/drink-blue.webp" alt="Drink i blått ljus" loading="lazy" width="1186" height="2208" /></li>
+        <li class="drink"><img src="/demo/pattaya/img/drink-duo.webp" alt="Två drinkar med parasoller" loading="lazy" width="1186" height="2208" /></li>
+      </ul>
+    </section>
+
+    <!-- Hitta hit -->
+    <section id="hitta" class="find">
+      <div class="find__info">
+        <p class="kicker reveal"><span class="dot" data-open-dot></span><span data-open-text>Öppet varje dag</span></p>
+        <h2 class="h2 reveal">Tallkrogsplan 93</h2>
+        <p class="find__sub reveal">Enskede · nära Tallkrogens tunnelbana · 08-39 32 37</p>
+        <div class="find__actions reveal">
+          <a class="btn btn-red" href="/demo/pattaya/meny" data-order>Beställ avhämtning</a>
+          <a class="link" href="https://www.google.com/maps/search/?api=1&query=Tallkrogsplan+93+Enskede" target="_blank" rel="noopener">Vägbeskrivning <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+      <dl class="hours reveal" data-week></dl>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <img src="/demo/pattaya/img/elephants.png" alt="" width="1238" height="775" />
+    <p><strong>Pattaya Bar &amp; Restaurang</strong> · Tallkrogsplan 93, Enskede</p>
+    <a class="powered" href="https://www.viaeats.se" target="_blank" rel="noopener">Beställning och betalning <span>powered by</span> <strong>viaeats</strong></a>
+  </footer>
+
+  <a class="order-bar" href="/demo/pattaya/meny" data-order-bar><span>5 % rabatt vid avhämtning</span><strong>Beställ</strong></a>
+
+</body>
+</html>

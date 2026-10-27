@@ -1,4 +1,5 @@
 "use client";
+import { BookedMeetings } from "@/modules/partner-meetings/BookedMeetings";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -138,6 +139,8 @@ export function DashboardPage() {
           </small>
         </Link>
       </div>
+      {/* Bokningar från viaeats.se/boka. Högt upp — ett nytt möte är något att agera på direkt. */}
+      <BookedMeetings compact />
       <div className={styles.grid}>
         <section className={styles.panel}>
           <div className={styles.panelHead}>

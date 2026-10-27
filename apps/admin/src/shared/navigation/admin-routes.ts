@@ -7,6 +7,7 @@ import {
   BellRing,
   Bike,
   Building2,
+  CalendarClock,
   CircleDollarSign,
   ClipboardList,
   Code2,
@@ -62,6 +63,7 @@ const route = (
 ): AdminRouteDefinition => ({ ...definition, requiredRole: "SUPER_ADMIN" });
 
 export const ADMIN_ROUTES: AdminRouteDefinition[] = [
+  route({ id: "partner-meetings", href: "/partner-meetings", label: "Bokade möten", shortLabel: "Möten", icon: CalendarClock, section: "partners", keywords: "boka möte genomgång demo terminal video på plats" }),
   route({ id: "partner-applications", href: "/partner-applications", label: "Partneranmälningar", icon: UserPlus, section: "partners", keywords: "tipsa säljare installation anmälan rekrytering" }),
   route({ id: "dashboard", href: "/dashboard", label: "Översikt", shortLabel: "Översikt", icon: LayoutDashboard, section: "live", keywords: "dashboard start hem drift sla" }),
   route({ id: "orders", href: "/orders", label: "Ordrar", shortLabel: "Ordrar", icon: ClipboardList, section: "live", keywords: "live aktiva nya order kö" }),

@@ -1,0 +1,27 @@
+.panel{border:1px solid var(--border-subtle);background:var(--bg-panel);color:var(--text-primary,inherit);border-radius:20px;padding:24px}
+.panel>header{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:20px}
+.panel h2{font-size:21px;font-weight:650;letter-spacing:-.6px}
+.panel header small{font-size:9px;letter-spacing:1.5px;color:#b9754b}
+.panel header p{font-size:12px;opacity:.6;margin-top:5px}
+.panel header>a{display:flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap}
+.list{display:flex;flex-direction:column;gap:10px}
+.item{display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:16px;align-items:start;border:1px solid #8883;border-radius:14px;padding:14px 16px;min-width:0}
+.fresh{border-color:#F04F1A;box-shadow:inset 3px 0 0 #F04F1A}
+.past{opacity:.55}
+.when{font-size:13px;font-weight:650;font-variant-numeric:tabular-nums}
+.when span{display:block;font-size:11px;font-weight:500;opacity:.65;margin-top:4px}
+.who{min-width:0}
+.who strong{font-size:14px}
+.who .meta{font-size:12px;opacity:.7;margin-top:2px}
+.contacts{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px}
+.contacts a{font-size:12px;display:inline-flex;align-items:center;gap:6px;overflow-wrap:anywhere}
+.contacts svg{flex:none}
+.side{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.badge{font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:#F04F1A;color:#fff}
+.mode{font-size:11px;padding:3px 8px;border-radius:999px;border:1px solid #8885;white-space:nowrap}
+.cancel{font-size:12px;text-decoration:underline;opacity:.7}
+.cancel:hover{opacity:1}
+.empty{padding:16px 0;opacity:.6;font-size:13px}
+.panel button.retry{text-decoration:underline;font-size:13px}
+.divider{font-size:10px;letter-spacing:1.4px;opacity:.5;margin:10px 0 2px}
+@media(max-width:700px){.item{grid-template-columns:1fr}.side{flex-direction:row;align-items:center;justify-content:space-between}.panel{padding:20px}.panel>header{align-items:start}}

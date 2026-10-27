@@ -52,7 +52,8 @@
     "start": "node dist/index.js",
     "migrate:r2": "ts-node scripts/migrate-cloudinary-to-r2.ts",
     "send:launch-coupons": "ts-node --transpile-only -r dotenv/config scripts/send-launch-coupons.ts",
-    "test:order-attribution": "ts-node --transpile-only src/contracts/orderAttribution.test.ts"
+    "test:order-attribution": "ts-node --transpile-only src/contracts/orderAttribution.test.ts",
+    "test:partner-meetings": "ts-node --transpile-only src/contracts/partnerMeetings.test.ts"
   },
   "dependencies": {
     "@adyen/api-library": "^30.1.0",

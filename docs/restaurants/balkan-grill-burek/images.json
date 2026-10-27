@@ -1,0 +1,79 @@
+{
+  "_kommentar": "Bildkarta för apply.mjs. Sökvägar relativt apps/web/public/demo/balkan-grill-burek/img. Alla rätter är genererade studiofoton (Nano Banana 2, 2026-10-27) med samma vita tallrik, mörka ek, vinkel och ljus, med restaurangens egna foton som referens. Läsk, lättöl, Cockta och PEJA har ingen bild (varumärken). 'Lägg till dryck' visas som lista, inte rutor, eftersom den är lång.",
+  "restaurant": { "logo": "logo-square.webp", "hero": "hero.webp" },
+  "categories": {
+    "Grill": "dishes/cevapi.webp",
+    "Specialiteter": "dishes/skenderbeg.webp",
+    "Burek": "dishes/burek-kott.webp",
+    "Sallader": "dishes/shopska.webp",
+    "Barnmeny": "dishes/barn-cevapi.webp",
+    "Desserter": "dishes/baklava.webp",
+    "Tillbehör": "dishes/pommes-stor.webp",
+    "Dryck": "dishes/ayran.webp"
+  },
+  "products": {
+    "Cevapi": "dishes/cevapi.webp",
+    "Hemlagad Qofte Stark": "dishes/qofte.webp",
+    "Grillad Sudjuk": "dishes/sudjuk.webp",
+    "Klassisk Pljeskavica": "dishes/pljeskavica.webp",
+    "Pljeskavica fylld med ost": "dishes/pljeskavica-ost.webp",
+    "Grill Mix": "dishes/grillmix.webp",
+    "Balkansk Hamburgare": "dishes/hamburgare.webp",
+    "Kycklinghamburgare": "dishes/kycklinghamburgare.webp",
+    "Grillad kycklingfilé": "dishes/kycklingfile.webp",
+    "Rödspätta": "dishes/rodspatta.webp",
+    "Schnitzel": "dishes/schnitzel.webp",
+    "Vegetarisk schnitzel": "dishes/vego-schnitzel.webp",
+    "Traditionell Fli": "dishes/fli.webp",
+    "Skenderbeg": "dishes/skenderbeg.webp",
+    "Lax Deluxe": "dishes/lax-deluxe.webp",
+    "Ryggbiff Deluxe": "dishes/ryggbiff-deluxe.webp",
+    "Entrecôte (200 g)": "dishes/entrecote.webp",
+    "Balkan Sofra – 2 personer": "dishes/sofra.webp",
+    "Burek med kött": "dishes/burek-kott.webp",
+    "Burek med ost": "dishes/burek-ost.webp",
+    "Shopska sallad": "dishes/shopska.webp",
+    "Grekisk sallad": "dishes/grekisk-sallad.webp",
+    "Kycklingsallad": "dishes/kycklingsallad.webp",
+    "Chicken nuggets": "dishes/nuggets.webp",
+    "Barn cevapi": "dishes/barn-cevapi.webp",
+    "Miniburgare": "dishes/miniburgare.webp",
+    "Grillkorv": "dishes/grillkorv.webp",
+    "Trilece": "dishes/trilece.webp",
+    "Baklava": "dishes/baklava.webp",
+    "Tiramisu": "dishes/tiramisu.webp",
+    "Lotus": "dishes/lotus.webp",
+    "Shampita": "dishes/shampita.webp",
+    "Chokladbollar": "dishes/chokladbollar.webp",
+    "Pommes frites": "dishes/pommes-stor.webp",
+    "Ajvar": "dishes/ajvar.webp",
+    "Kajmak": "dishes/kajmak.webp",
+    "Tzatziki": "dishes/tzatziki.webp",
+    "Lepinja": "dishes/lepinja.webp",
+    "Ayran": "dishes/ayran.webp",
+    "Läsk": null,
+    "Cockta": null,
+    "Lättöl 2,2 %": null,
+    "Lättöl 2,1 %": null,
+    "PEJA 0,0 %": null,
+    "Bryggkaffe": "dishes/bryggkaffe.webp",
+    "Ceylonte": "dishes/ceylonte.webp"
+  },
+  "boxImageGroups": {
+    "Tillbehör": {
+      "allowQuantity": true,
+      "extras": {
+        "Ajvar": "tiles/ajvar.webp",
+        "Kajmak": "tiles/kajmak.webp",
+        "Tzatziki": "tiles/tzatziki.webp",
+        "Lepinja": "tiles/lepinja.webp",
+        "Pommes frites liten": "tiles/pommes-liten.webp",
+        "Pommes frites stor": "tiles/pommes-stor.webp"
+      }
+    },
+    "Pommes till burgaren": {
+      "allowQuantity": false,
+      "extras": { "Pommes frites": "tiles/pommes-liten.webp" }
+    }
+  }
+}

@@ -26,9 +26,12 @@ const optimizedImageHosts = Array.from(new Set([
 // Partnerdemos (statiska sajter i public/demo/<namn>) serveras på rena adresser:
 // /demo/<namn> och /demo/<namn>/meny. De gamla .html-adresserna skickas vidare dit.
 const partnerDemos = ["osteria-cucco", "wanthai", "pizzeria-roma"];
+// Studiosajterna byggs med Vite i ~/Website och exporteras hit med export-demo.mjs.
+// De har en mapp per sida (index.html och meny/index.html) i stället för meny.html.
+const studioDemos = ["wanthai-3d", "balkan", "freds", "pattaya", "kuben", "pkh"];
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["127.0.0.1", "localhost", "192.168.0.3"],
+  allowedDevOrigins: ["127.0.0.1", "localhost", "192.168.0.3", "192.168.1.114"],
   // Strip console.* in production builds. console.error stays so real
   // problems still surface. Lots of OAuth-debug / image-error logs were
   // leaking into prod and bloating the bundle.
@@ -54,7 +57,7 @@ const nextConfig: NextConfig = {
         headers: [{ key: "Content-Type", value: "text/plain" }],
       },
       // Demons service worker ligger i /demo/<namn>/ men ska även styra startsidan /demo/<namn>.
-      ...partnerDemos.map((demo) => ({
+      ...[...partnerDemos, ...studioDemos].map((demo) => ({
         source: `/demo/${demo}/sw.js`,
         headers: [{ key: "Service-Worker-Allowed", value: `/demo/${demo}` }],
       })),
@@ -80,9 +83,15 @@ const nextConfig: NextConfig = {
           source: "/pay/back",
           destination: "/cart",
         },
+        // Översikten över alla demos
+        { source: "/demo", destination: "/demo/index.html" },
         ...partnerDemos.flatMap((demo) => [
           { source: `/demo/${demo}`, destination: `/demo/${demo}/index.html` },
           { source: `/demo/${demo}/meny`, destination: `/demo/${demo}/meny.html` },
+        ]),
+        ...studioDemos.flatMap((demo) => [
+          { source: `/demo/${demo}`, destination: `/demo/${demo}/index.html` },
+          { source: `/demo/${demo}/meny`, destination: `/demo/${demo}/meny/index.html` },
         ]),
       ],
       fallback: [

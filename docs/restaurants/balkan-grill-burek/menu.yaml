@@ -1,0 +1,205 @@
+# Balkan Grill & Burek, Burlöv Center: meny för massimport (Admin → Meny → Massimport, eller POST /api/admin/menu/bulk-import).
+# Källa: restaurangens egen meny (~/Website/balkan-site/assets/references/meny.jpg), avläst 2026-10-27. Priser i KRONOR, exakt som på menyn.
+# Inget är tillagt som inte står på menyn. Där menyn saknar beskrivning är fältet tomt.
+# Tillval: få tillval blir bildrutor (BOX_IMAGE, se images.json → boxImageGroups). Långa listor (dryck) visas som lista.
+extraGroups:
+  - name: Tillbehör
+    type: checkbox
+    required: false
+    max: 10
+    options:
+      - { name: Ajvar, price: 19 }
+      - { name: Kajmak, price: 29 }
+      - { name: Tzatziki, price: 19 }
+      - { name: Lepinja, price: 19 }
+      - { name: Pommes frites liten, price: 39 }
+      - { name: Pommes frites stor, price: 59 }
+  # Menyn: "Pommes +20 kr" till hamburgarna.
+  - name: Pommes till burgaren
+    type: checkbox
+    required: false
+    max: 1
+    options:
+      - { name: Pommes frites, price: 20 }
+  # Shopska 39/59 och Grekisk 49/69: liten och stor, skillnaden är 20 kr på båda.
+  - name: Storlek
+    type: radio
+    required: true
+    options:
+      - { name: Liten, price: 0 }
+      - { name: Stor, price: 20 }
+  - name: Storlek pommes
+    type: radio
+    required: true
+    options:
+      - { name: Liten, price: 0 }
+      - { name: Stor, price: 20 }
+  - name: Lägg till dryck
+    type: checkbox
+    required: false
+    max: 10
+    options:
+      - { name: Ayran, price: 19 }
+      - { name: Läsk, price: 25 }
+      - { name: Cockta, price: 25 }
+      - { name: "Lättöl 2,2 %", price: 29 }
+      - { name: "Lättöl 2,1 %", price: 29 }
+      - { name: "PEJA 0,0 %", price: 29 }
+
+categories:
+  - name: Grill
+    description: "Från grillen. Serveras med lepinja, lök, ajvar och kajmak där inget annat står."
+    products:
+      - name: Cevapi
+        description: "Små grillade nötfärsrullar i lepinja (bröd) med lök, ajvar och kajmak."
+        price: 99
+        extras: [Tillbehör, Lägg till dryck]
+      - name: Hemlagad Qofte Stark
+        description: "Med lepinja, lök, ajvar och kajmak."
+        price: 119
+        extras: [Tillbehör, Lägg till dryck]
+      - name: Grillad Sudjuk
+        description: "Med lepinja, lök, ajvar och kajmak."
+        price: 99
+        extras: [Tillbehör, Lägg till dryck]
+      - name: Klassisk Pljeskavica
+        description: "Med lepinja, lök, ajvar och kajmak."
+        price: 109
+        extras: [Tillbehör, Lägg till dryck]
+      - name: Pljeskavica fylld med ost
+        description: "Med lepinja, lök, ajvar och kajmak."
+        price: 129
+        extras: [Tillbehör, Lägg till dryck]
+      - name: Grill Mix
+        description: "2 cevapi, 1 kycklingfilé, 2 sudjuk och 2 qofte."
+        price: 149
+        extras: [Tillbehör, Lägg till dryck]
+      - name: Balkansk Hamburgare
+        description: ""
+        price: 99
+        extras: [Pommes till burgaren, Tillbehör, Lägg till dryck]
+      - name: Kycklinghamburgare
+        description: ""
+        price: 99
+        extras: [Pommes till burgaren, Tillbehör, Lägg till dryck]
+      - name: Grillad kycklingfilé
+        description: "Med pommes och bearnaisesås."
+        price: 139
+        extras: [Tillbehör, Lägg till dryck]
+      - name: Rödspätta
+        description: "Med pommes och remouladsås."
+        price: 149
+        extras: [Tillbehör, Lägg till dryck]
+      - name: Schnitzel
+        description: "Med pommes och bearnaisesås."
+        price: 159
+        extras: [Tillbehör, Lägg till dryck]
+      - name: Vegetarisk schnitzel
+        description: "Med pommes och bearnaisesås."
+        price: 159
+        extras: [Tillbehör, Lägg till dryck]
+      - name: Traditionell Fli
+        description: ""
+        price: 89
+        extras: [Tillbehör, Lägg till dryck]
+
+  - name: Specialiteter
+    description: "Husets specialiteter."
+    products:
+      - name: Skenderbeg
+        description: "Kycklingfilé fylld med ost och rökt skinka (100 % halal), panerad, med hemlagad sås och potatis."
+        price: 169
+        extras: [Tillbehör, Lägg till dryck]
+      - name: Lax Deluxe
+        description: ""
+        price: 199
+        extras: [Tillbehör, Lägg till dryck]
+      - name: Ryggbiff Deluxe
+        description: ""
+        price: 189
+        extras: [Tillbehör, Lägg till dryck]
+      - name: "Entrecôte (200 g)"
+        description: ""
+        price: 199
+        extras: [Tillbehör, Lägg till dryck]
+      - name: "Balkan Sofra – 2 personer"
+        description: "4 cevapi, 2 sudjuk, 2 kycklingfilé, 1 pljeskavica, 1 burek, 1 entrecôte, lepinja och kajmak."
+        price: 499
+        extras: [Tillbehör, Lägg till dryck]
+
+  - name: Burek
+    description: "Handrullad deg med färsk fyllning, bakad i ugnen."
+    products:
+      - name: Burek med kött
+        description: ""
+        price: 49
+        extras: [Lägg till dryck]
+      - name: Burek med ost
+        description: ""
+        price: 49
+        extras: [Lägg till dryck]
+
+  - name: Sallader
+    products:
+      - name: Shopska sallad
+        description: "Tomat, gurka, lök och riven ost."
+        price: 39
+        extras: [Storlek, Lägg till dryck]
+      - name: Grekisk sallad
+        description: ""
+        price: 49
+        extras: [Storlek, Lägg till dryck]
+      - name: Kycklingsallad
+        description: ""
+        price: 109
+        extras: [Lägg till dryck]
+
+  - name: Barnmeny
+    products:
+      - name: Chicken nuggets
+        description: ""
+        price: 69
+        extras: [Lägg till dryck]
+      - name: Barn cevapi
+        description: ""
+        price: 69
+        extras: [Lägg till dryck]
+      - name: Miniburgare
+        description: ""
+        price: 69
+        extras: [Lägg till dryck]
+      - name: Grillkorv
+        description: ""
+        price: 69
+        extras: [Lägg till dryck]
+
+  - name: Desserter
+    products:
+      - { name: Trilece, description: "", price: 39 }
+      - { name: Baklava, description: "", price: 39 }
+      - { name: Tiramisu, description: "", price: 39 }
+      - { name: Lotus, description: "", price: 39 }
+      - { name: Shampita, description: "", price: 39 }
+      - { name: Chokladbollar, description: "", price: 29 }
+
+  - name: Tillbehör
+    products:
+      - name: Pommes frites
+        description: ""
+        price: 39
+        extras: [Storlek pommes]
+      - { name: Ajvar, description: "", price: 19 }
+      - { name: Kajmak, description: "", price: 29 }
+      - { name: Tzatziki, description: "", price: 19 }
+      - { name: Lepinja, description: "", price: 19 }
+
+  - name: Dryck
+    products:
+      - { name: Ayran, description: "", price: 19 }
+      - { name: Läsk, description: "", price: 25 }
+      - { name: Cockta, description: "", price: 25 }
+      - { name: "Lättöl 2,2 %", description: "", price: 29 }
+      - { name: "Lättöl 2,1 %", description: "", price: 29 }
+      - { name: "PEJA 0,0 %", description: "", price: 29 }
+      - { name: Bryggkaffe, description: "", price: 25 }
+      - { name: Ceylonte, description: "", price: 15 }
