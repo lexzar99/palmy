@@ -159,7 +159,9 @@ test("return recovery consumes the one-time session token and strips sensitive q
 });
 
 test("passive recovery verifies once and then safely cancels the stale provider request", () => {
-  assert.match(cart, /const maxAttempts = passive && opts\.provider !== "swish" \? 1/);
+  assert.match(cart, /const maxAttempts = passive \? 1 :/);
+  // En kvarlämnad order öppnar inte betalsteget av sig själv.
+  assert.match(cart, /const passiveRecovery = !returnParam;\n    if \(passiveRecovery\) \{/);
   assert.match(cart, /retur eller kvarlämnad recovery[\s\S]*?await handlePaymentCancelled\(orderId\)/);
   assert.match(cart, /const pollGeneration = \+\+paymentPollGenerationRef\.current/);
   assert.match(cart, /if \(!isCurrentPoll\(\)\) return/);

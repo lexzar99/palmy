@@ -2040,7 +2040,13 @@ export default function CartPage() {
     localStorage.setItem("pending_order_id", returnOrderId);
     setPendingOrderId(returnOrderId);
     if (recoveryProvider) writePendingPaymentProvider(localStorage, recoveryProvider);
-    if (recoveryProvider === "swish") {
+    // En kvarlämnad order utan retur (kunden lämnade Swish obetald och kom tillbaka
+    // till varukorgen) ska inte öppna betalsteget av sig själv. Den stäms av tyst i
+    // bakgrunden medan kassan visas som vanligt; bara en riktig provider-retur visar steget.
+    const passiveRecovery = !returnParam;
+    if (passiveRecovery) {
+      // ingen betalvy, se ovan
+    } else if (recoveryProvider === "swish") {
       setPaymentStepOpen(true);
       setSelectedCheckoutMethod("swish");
       // En app-retur betyder inte att requesten fortfarande kan betalas. Dölj
@@ -2293,7 +2299,9 @@ export default function CartPage() {
       }
     }
     if (!isCurrentPoll()) return;
-    const maxAttempts = passive && opts.provider !== "swish" ? 1 : (opts.pollAttempts ?? 8);
+    // Passiv recovery gör en enda tyst koll för alla providers (Swish väntar ändå sina 10 s
+    // före första GET). Är den fortfarande okänd avbryts den nedan, så kunden kan börja om.
+    const maxAttempts = passive ? 1 : (opts.pollAttempts ?? 8);
     const waitBeforePoll = async (baseDelayMs: number, withJitter: boolean) => {
       const jitterRatio = Math.max(0, Math.min(opts.pollJitterRatio ?? 0, 0.5));
       const jitter = withJitter ? baseDelayMs * jitterRatio * ((Math.random() * 2) - 1) : 0;
@@ -3772,8 +3780,10 @@ export default function CartPage() {
     || (!isTestFlow && activeDealBelowMinimum)
     || (!isTestFlow && checkoutBelowMinimum)
     || (!isTestFlow && !restaurantSettings.isOpen)
-    || (!isTestFlow && addressZoneStatus === "error")
-    || (!isTestFlow && addressZoneStatus === "checking");
+    // Zonkollen gäller bara leverans. Ett zonfel från en tidigare leveransadress
+    // (t.ex. innan pickupOnly låste ordern till avhämtning) får inte spärra en avhämtning.
+    || (!isTestFlow && orderType === "DELIVERY" && addressZoneStatus === "error")
+    || (!isTestFlow && orderType === "DELIVERY" && addressZoneStatus === "checking");
 
   const renderCheckoutMethods = (keyPrefix: string) => {
     const methods = paymentMethods.filter((method) => availablePaymentProviders.includes(method.provider));
@@ -3789,11 +3799,11 @@ export default function CartPage() {
             ? <Loader2 className="animate-spin" size={20} />
             : bogoMustPick
               ? t("cart.bogo.mustPick")
-              : addressZoneStatus === "checking"
+              : orderType === "DELIVERY" && addressZoneStatus === "checking"
                 ? <><Loader2 className="animate-spin" size={18} /> {t("cart.submit.checking")}</>
                 : checkoutBelowMinimum
                   ? t("cart.submit.short", { amount: formatSekAmount(Math.ceil(effectiveMinOrder - Math.max(0, subtotal - foodDiscountComponent))) })
-                  : addressZoneStatus === "error"
+                  : orderType === "DELIVERY" && addressZoneStatus === "error"
                     ? t("cart.submit.zoneError")
                     : t("cart.submit")}
         </button>
