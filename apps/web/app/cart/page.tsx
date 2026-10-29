@@ -33,7 +33,7 @@ import {
 import { API_URL } from "@/lib/api";
 import { palmyraCartPrice } from "@/lib/palmyraCartPrice";
 import { ensureKioskAccess } from "@/lib/kioskAccessClient";
-import { EMBED_PARENT_ORIGIN_PARAM, partnerOriginForRestaurant, readEmbedParentOrigin, trustedPartnerOrigin } from "@/lib/embedPartner";
+import { EMBED_PARENT_ORIGIN_PARAM, partnerOriginForRestaurant, readEmbedParentOrigin, rememberEmbedOrder, trustedPartnerOrigin } from "@/lib/embedPartner";
 import { checkDeliveryStreet, isDeliverableStreet } from "@/lib/deliveryAddress";
 import { useCartStore } from "@/store/cartStore";
 import { trackJourney } from "@/lib/journey";
@@ -73,6 +73,7 @@ import { LAST_CUSTOMER_ID_KEY } from "@/lib/platformSessionClient";
 import { formatCheckoutSek as formatSekAmount } from "@/lib/checkoutMoney";
 import {
   SWISH_POLLING_POLICY,
+  SWISH_RETURN_POLLING_POLICY,
   classifyAbandonResponse,
   classifyPaymentStatus,
   clearPendingPaymentMetadata,
@@ -107,6 +108,8 @@ type HostedPaymentContext = {
   pollBackoffBaseMs?: number;
   pollMaxDelayMs?: number;
   pollJitterRatio?: number;
+  /** Riktig retur från Swish-appen: generisk tät backoff i stället för Swish-callbackens. */
+  swishReturn?: boolean;
 };
 
 type CheckoutPaymentProvider = "mollie" | "swish" | "stripe" | "adyen";
@@ -605,6 +608,8 @@ export default function CartPage() {
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   // True när kunden återvänt från en betalprovider och vi verifierar status.
   const [verifyingPayment, setVerifyingPayment] = useState(false);
+  // Betald order på väg till spårningen (se goToOrderTracking).
+  const [openingTracking, setOpeningTracking] = useState(false);
   const [cancellingPayment, setCancellingPayment] = useState(false);
   // Betalsättet kunden just tryckt på, tills startCheckout är klar (direkt spinner på raden).
   const [startingMethod, setStartingMethod] = useState<CheckoutMethod | null>(null);
@@ -2086,12 +2091,18 @@ export default function CartPage() {
       }
       // En passivt återupptagen vanlig hosted checkout gör en snabb koll.
       // Swish måste däremot behålla samma callback-first-policy även på reload.
-      await finishHostedPayment(returnOrderId, hostedPaymentContext(recoveryProvider, {
+      const recoveryContext = hostedPaymentContext(recoveryProvider, {
         passive: !returnParam,
         embedded: returnEmbedded,
         restaurantSlug: returnRestaurantSlug,
         parentOrigin: returnParentOrigin,
-      }));
+      });
+      await finishHostedPayment(
+        returnOrderId,
+        recoveryProvider === "swish" && returnParam
+          ? { ...recoveryContext, ...SWISH_RETURN_POLLING_POLICY, swishReturn: true }
+          : recoveryContext,
+      );
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -2102,6 +2113,9 @@ export default function CartPage() {
   // som ägarbevis; telefonnumret sparas bara som kontaktdata i historiken.
   const goToOrderTracking = async (orderId: string, context: HostedPaymentContext = {}) => {
     paymentPollGenerationRef.current += 1;
+    // Varukorgen töms nedan innan spårningssidan hunnit laddas. Visa "bekräftad" under tiden
+    // i stället för den tomma varukorgen.
+    setOpeningTracking(true);
     paymentInFlightRef.current = false;
     const trackingEmbedded = context.embedded ?? embedMode;
     const trackingRestaurantSlug = context.restaurantSlug || embedRestaurantSlug || cartRestaurantSlug || "";
@@ -2136,6 +2150,7 @@ export default function CartPage() {
       total: total,
     });
     rememberActiveOrder(orderId, { phone });
+    if (trackingEmbedded && trackingRestaurantSlug) rememberEmbedOrder(trackingRestaurantSlug, orderId);
     clearCart();
     // Betald order förbrukar aktiva dealen — nolla kontraktets båda nycklar
     // (Swift: HomeView nollar efter betald order).
@@ -2375,7 +2390,7 @@ export default function CartPage() {
         /* nätverksfel: fortsätt polla */
       }
       if (attempt < maxAttempts - 1) {
-        const delayMs = opts.provider === "swish"
+        const delayMs = opts.provider === "swish" && !opts.swishReturn
           ? swishBackoffDelayMs(attempt, Math.random(), opts.pollJitterRatio)
           : opts.pollBackoffBaseMs
             ? Math.min(
@@ -2384,7 +2399,7 @@ export default function CartPage() {
               )
             : 2000;
         // Swish-helpern har redan applicerat jitter; generisk polling gör det här.
-        if (!await waitBeforePoll(delayMs, opts.provider !== "swish")) return;
+        if (!await waitBeforePoll(delayMs, opts.provider !== "swish" && !opts.swishReturn)) return;
       }
     }
     if (!isCurrentPoll()) return;
@@ -3007,9 +3022,26 @@ export default function CartPage() {
       // skickar vidare till kassan inuti webbläsaren. Partner-embedden
       // återvänder till partnerns egen domän, som appen aldrig gör anspråk på.
       const swishAppSwitchReturn = checkoutProvider === "swish" && !embedParentOrigin;
+      // Studiodemona (/demo/<namn>) bäddar in menyn på viaeats.se självt: ingen betrodd partner-
+      // origin, men föräldern har samma origin. Gå då tillbaka till demosidan, vars embed.js läser
+      // payment_return och visar kassan och spårningen inne i demot. /demo/* gör appen inte anspråk
+      // på, så Swish-returen stannar i webbläsaren.
+      const demoReturnPath = checkoutEmbedded && !embedParentOrigin
+        ? (() => {
+          try {
+            if (window.parent === window || window.parent.location.origin !== window.location.origin) return null;
+            const path = window.parent.location.pathname;
+            return /^\/demo\/[a-z0-9-]+(\/[a-z0-9-]+)?\/?$/.test(path) ? path : null;
+          } catch {
+            return null;
+          }
+        })()
+        : null;
       const returnUrl = embedParentOrigin
         ? `${embedParentOrigin}/meny.html?${returnParams.toString()}`
-        : `${window.location.origin}/${swishAppSwitchReturn ? "pay/back" : "cart"}?${returnParams.toString()}`;
+        : demoReturnPath
+          ? `${window.location.origin}${demoReturnPath}?${returnParams.toString()}`
+          : `${window.location.origin}/${swishAppSwitchReturn ? "pay/back" : "cart"}?${returnParams.toString()}`;
       trackJourney("PAYMENT_STARTED", {
         orderId,
         restaurantId: currentRestaurantId,
@@ -3139,6 +3171,16 @@ export default function CartPage() {
           <div className="ve-card mt-6 h-[200px]" />
           <div className="ve-card mt-6 h-[132px]" />
         </div>
+      </div>
+    );
+  }
+
+  if (openingTracking) {
+    return (
+      <div className="ve-root min-h-screen flex flex-col items-center justify-center gap-3 px-6 text-center">
+        <Loader2 className="animate-spin" size={26} style={{ color: "var(--ve-ink)" }} />
+        <p className="m-0 text-[17px] font-semibold" style={{ color: "var(--ve-ink)" }}>Betalningen är klar</p>
+        <p className="m-0 text-[14px]" style={{ color: "var(--ve-ink-2)" }}>Öppnar din order…</p>
       </div>
     );
   }

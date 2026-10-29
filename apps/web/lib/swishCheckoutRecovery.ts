@@ -26,6 +26,17 @@ export const SWISH_POLLING_POLICY = Object.freeze({
   pollJitterRatio: 0.2,
 });
 
+// Efter en riktig Swish-retur (payment_return) har kunden redan godkänt eller avbrutit i appen,
+// och statusanropet frågar Swish direkt. Kolla därför nästan genast och sedan tätt, i stället för
+// callback-väntan på 10 s + 20/40/80 s som annars fick spårningen att dröja i över en minut.
+export const SWISH_RETURN_POLLING_POLICY = Object.freeze({
+  pollAttempts: 14,
+  initialPollDelayMs: 800,
+  pollBackoffBaseMs: 1_500,
+  pollMaxDelayMs: 6_000,
+  pollJitterRatio: 0,
+});
+
 export function isHandheldPaymentDevice(input: {
   userAgent: string;
   platform?: string;

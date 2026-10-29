@@ -22,6 +22,7 @@ import {
   EMBED_PARENT_ORIGIN_PARAM,
   partnerOriginForRestaurant,
   readEmbedParentOrigin,
+  rememberEmbedOrder,
   trustedPartnerOrigin,
 } from "@/lib/embedPartner";
 import { orderTrackingCopy, orderTrackingProgress } from "@/lib/orderTrackingPresentation";
@@ -500,6 +501,7 @@ const OrderStatusPage = () => {
     rememberActiveOrder(String(order.id), {
       phone: typeof order.customerPhone === "string" ? order.customerPhone : null,
     });
+    rememberEmbedOrder(embedRestaurant, String(order.id));
     const parentOrigin = readEmbedParentOrigin() || partnerOriginForRestaurant(embedRestaurant);
     if (parentOrigin && window.parent !== window) {
       window.parent.postMessage(

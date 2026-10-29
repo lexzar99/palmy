@@ -72,3 +72,28 @@ export function partnerOriginForRestaurant(restaurantSlug: unknown): string | nu
   if (typeof restaurantSlug !== "string") return null;
   return PARTNER_ORIGIN_BY_RESTAURANT.get(restaurantSlug.trim().toLowerCase()) || null;
 }
+
+// Embedden har ingen orderhistorik, men kunden ska kunna lämna sidan och sedan hitta tillbaka till
+// sin pågående order. Senaste ordern per restaurang sparas därför här (bara id, inget ägarbevis:
+// åtkomsten sitter fortfarande i den HttpOnly order-sessionen) och visas som "Order" i EmbeddedNav.
+const EMBED_ORDER_PREFIX = "viaeats_embed_order_v1:";
+const EMBED_ORDER_TTL_MS = 12 * 60 * 60 * 1000;
+
+export function rememberEmbedOrder(restaurantSlug: string, orderId: string) {
+  if (typeof window === "undefined" || !restaurantSlug || !/^[A-Za-z0-9_-]{1,64}$/.test(orderId)) return;
+  try {
+    window.localStorage.setItem(EMBED_ORDER_PREFIX + restaurantSlug, JSON.stringify({ id: orderId, at: Date.now() }));
+  } catch { /* privat läge: fliken syns då bara på ordersidan */ }
+}
+
+export function readEmbedOrder(restaurantSlug: string): string | null {
+  if (typeof window === "undefined" || !restaurantSlug) return null;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(EMBED_ORDER_PREFIX + restaurantSlug) || "null");
+    if (!parsed || typeof parsed.id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(parsed.id)) return null;
+    if (typeof parsed.at !== "number" || Date.now() - parsed.at > EMBED_ORDER_TTL_MS) return null;
+    return parsed.id;
+  } catch {
+    return null;
+  }
+}

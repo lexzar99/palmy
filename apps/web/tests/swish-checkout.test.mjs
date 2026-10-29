@@ -276,3 +276,11 @@ test("paydebug diagnostics stay available in the payment step", () => {
   assert.match(cart, /paydebug/);
   assert.match(cart, /providers: \{availablePaymentProviders\.join/);
 });
+
+test("Swish-retur kollar tätt, demona får tillbaka kunden och spårningen visas utan tom varukorg", () => {
+  assert.match(cart, /recoveryProvider === "swish" && returnParam\s*\? \{ \.\.\.recoveryContext, \.\.\.SWISH_RETURN_POLLING_POLICY, swishReturn: true \}/);
+  assert.match(cart, /opts\.provider === "swish" && !opts\.swishReturn\s*\? swishBackoffDelayMs/);
+  assert.match(cart, /const demoReturnPath = checkoutEmbedded && !embedParentOrigin/);
+  assert.match(cart, /setOpeningTracking\(true\);[\s\S]*?clearCart\(\);/);
+  assert.match(cart, /if \(openingTracking\) \{[\s\S]*?if \(items\.length === 0\) \{/);
+});

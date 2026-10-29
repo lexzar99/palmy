@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { ArrowLeft, Menu, ReceiptText, ShoppingBag } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { useEffect, useState } from "react";
-import { readEmbedBackEnabled, requestEmbedBack } from "@/lib/embedPartner";
+import { readEmbedBackEnabled, readEmbedOrder, rememberEmbedOrder, requestEmbedBack } from "@/lib/embedPartner";
 
 /**
  * Kiosk-navigation. Den ersätter ViaEats globala navbar när kunden kommer
@@ -31,6 +31,13 @@ export default function EmbeddedNav() {
     || ((pathname === "/cart" || pathname.startsWith("/order/")) && embedQuery
       ? embedRestaurant
       : "");
+  const [savedOrderId, setSavedOrderId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!embedPage) return;
+    const current = pathname.match(/^\/order\/([^/?#]+)$/)?.[1];
+    if (current) rememberEmbedOrder(embedPage, decodeURIComponent(current));
+    setSavedOrderId(readEmbedOrder(embedPage));
+  }, [embedPage, pathname]);
   const itemCount = useCartStore((state) => state.items.reduce((sum, item) => sum + item.quantity, 0));
 
   if (!embedPage) return null;
@@ -39,13 +46,19 @@ export default function EmbeddedNav() {
   const menuHref = `/embed/${encodeURIComponent(embedPage)}`;
   const cartHref = `/cart${slugQuery}`;
   const trackingMatch = pathname.match(/^\/order\/([^/?#]+)$/);
-  const trackingHref = trackingMatch ? `${pathname}${embedSearch}` : null;
+  // Utanför ordersidan: kundens senast följda order hos restaurangen, så spårningen går att
+  // hitta igen efter att kunden lämnat sidan.
+  const trackingHref = trackingMatch
+    ? `${pathname}${embedSearch}`
+    : savedOrderId
+      ? `/order/${encodeURIComponent(savedOrderId)}${slugQuery}`
+      : null;
   const items = [
     { href: menuHref, label: "Meny", icon: Menu, active: pathname.startsWith("/embed/") },
     { href: cartHref, label: "Kundvagn", icon: ShoppingBag, active: pathname === "/cart" },
-    // En embed har aldrig orderhistorik. Tracking visas endast för den order
-    // kunden redan följer, så partnerflödet består av meny, varukorg och order.
-    ...(trackingHref ? [{ href: trackingHref, label: "Order", icon: ReceiptText, active: true }] : []),
+    // En embed har aldrig orderhistorik. Tracking visas bara för kundens senaste
+    // order hos restaurangen, så partnerflödet består av meny, varukorg och order.
+    ...(trackingHref ? [{ href: trackingHref, label: "Order", icon: ReceiptText, active: Boolean(trackingMatch) }] : []),
   ];
 
   return (
