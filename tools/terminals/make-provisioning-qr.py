@@ -26,8 +26,10 @@ import sys
 from typing import Optional
 
 DEFAULT_DOWNLOAD_URL = "https://api.viaeats.se/api/terminal-download/provision/sunmi.apk"
+# Partner-appen v2 (se.viaeats.partner). Kodens namespace (com.matgo.restaurant.nativeapp) är
+# oförändrat, därför skiljer sig paketnamnet och klassens paket åt.
 ADMIN_COMPONENT = (
-    "com.matgo.restaurant/"
+    "se.viaeats.partner/"
     "com.matgo.restaurant.nativeapp.dpc.PartnerDeviceAdminReceiver"
 )
 

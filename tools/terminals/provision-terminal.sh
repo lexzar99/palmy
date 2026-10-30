@@ -15,12 +15,12 @@
 #
 set -uo pipefail
 
-PACKAGE="com.matgo.restaurant"
+PACKAGE="se.viaeats.partner"
 # OBS: applicationId (com.matgo.restaurant) och klasspaketet
 # (com.matgo.restaurant.nativeapp) skiljer sig åt i det här projektet, så
 # komponenten måste skrivas ut med .nativeapp. — annars svarar dpm
 # "Unknown admin" trots att receivern finns i APK:n.
-ADMIN="${PACKAGE}/${PACKAGE}.nativeapp.dpc.PartnerDeviceAdminReceiver"
+ADMIN="${PACKAGE}/com.matgo.restaurant.nativeapp.dpc.PartnerDeviceAdminReceiver"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 APK_DEFAULT="$REPO_ROOT/mobile_apps/Delivera Android/partner/build/outputs/apk/sunmi/release/partner-sunmi-release.apk"
 APK="${VIAEATS_APK:-$APK_DEFAULT}"
