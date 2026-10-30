@@ -15,7 +15,7 @@ import {
   pushLiveActivityUpdate,
   sendApnsSilentWake,
 } from './liveActivityPush';
-import { computeDeliveryWindowMs } from './deliveryWindow';
+import { computeDeliveryWindowMs, departureEtaCustomerAt } from './deliveryWindow';
 import { getIO } from './socket';
 import { dispatchCustomerOrderStatus } from './customerOrderNotifier';
 import { bustCache } from './ttlCache';
@@ -33,9 +33,10 @@ const PICKUP_READY_WINDOW_MS = 10 * 60 * 1000;
  */
 export async function finalizeDueOrders(): Promise<void> {
   const now = Date.now();
-  const selfDeliveryCutoff = new Date(now - 15 * 60 * 1000);
+  // Kortaste möjliga fönster som förfilter; varje orders eget fönster prövas nedan.
+  const selfDeliveryCutoff = new Date(now - 5 * 60 * 1000);
   const pickupCutoff = new Date(now - PICKUP_READY_WINDOW_MS);
-  const due = await prisma.order.findMany({
+  const candidates = await prisma.order.findMany({
     where: {
       OR: [
         {
@@ -51,7 +52,14 @@ export async function finalizeDueOrders(): Promise<void> {
         },
       ],
     },
-    select: { id: true, type: true, restaurantId: true },
+    select: { id: true, type: true, restaurantId: true, deliveringAt: true, etaCustomerAt: true, etaReason: true },
+  });
+  // Egen hemkörning blir levererad när restaurangens tid till kund har gått
+  // (15–25 min efter avstånd, se deliveryWindow.ts), inte efter fasta 15 min.
+  const due = candidates.filter((order) => {
+    if (order.type === 'PICKUP' || !order.deliveringAt) return true;
+    const deliveringAt = new Date(order.deliveringAt);
+    return now - deliveringAt.getTime() >= computeDeliveryWindowMs(deliveringAt, order.id, departureEtaCustomerAt(order));
   });
 
   for (const order of due) {
@@ -61,7 +69,8 @@ export async function finalizeDueOrders(): Promise<void> {
           id: order.id,
           type: 'DELIVERY',
           status: 'DELIVERING',
-          deliveringAt: { lte: selfDeliveryCutoff },
+          // Samma PÅ VÄG-tillfälle som prövades ovan (skyddar mot en ny övergång under tiden).
+          deliveringAt: order.deliveringAt ?? undefined,
           restaurant: { selfDelivery: true },
         };
     const changed = await prisma.order.updateMany({ where, data: { status: 'DELIVERED' } });
@@ -125,6 +134,8 @@ export async function finalizeStaleLiveActivities(): Promise<void> {
       userId: true,
       customerPhone: true,
       deliveringAt: true,
+      etaCustomerAt: true,
+      etaReason: true,
       updatedAt: true,
       liveActivityToken: true,
     },
@@ -134,7 +145,7 @@ export async function finalizeStaleLiveActivities(): Promise<void> {
   for (const order of orders) {
     const deliveringAtDate = order.deliveringAt ? new Date(order.deliveringAt) : new Date(order.updatedAt);
     const elapsed = now - deliveringAtDate.getTime();
-    const windowMs = order.type === 'PICKUP' ? 0 : computeDeliveryWindowMs(deliveringAtDate, order.id);
+    const windowMs = order.type === 'PICKUP' ? 0 : computeDeliveryWindowMs(deliveringAtDate, order.id, departureEtaCustomerAt(order));
     const token = order.liveActivityToken!;
     const orderType = order.type;
 
@@ -241,6 +252,8 @@ async function pushHeartbeatToActiveLiveActivities(): Promise<void> {
       estimatedTime: true,
       preparingAt: true,
       deliveringAt: true,
+      etaCustomerAt: true,
+      etaReason: true,
       liveActivityToken: true,
     },
   });
@@ -258,7 +271,7 @@ async function pushHeartbeatToActiveLiveActivities(): Promise<void> {
         (new Date(order.preparingAt).getTime() + order.estimatedTime * 60_000) / 1000,
       );
     } else if (order.status === 'DELIVERING' && order.deliveringAt) {
-      const windowMs = computeDeliveryWindowMs(new Date(order.deliveringAt), order.id);
+      const windowMs = computeDeliveryWindowMs(new Date(order.deliveringAt), order.id, departureEtaCustomerAt(order));
       etaEndsAtSec = Math.floor(
         (new Date(order.deliveringAt).getTime() + windowMs) / 1000,
       );

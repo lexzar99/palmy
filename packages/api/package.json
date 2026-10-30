@@ -9,6 +9,8 @@
     "test:contracts": "ts-node --transpile-only src/contracts/backendContracts.test.ts && ts-node --transpile-only src/contracts/launchCampaignPagination.test.ts && ts-node --transpile-only src/contracts/swishTls.test.ts && ts-node --transpile-only src/contracts/swishContracts.test.ts && ts-node --transpile-only src/contracts/stripeContracts.test.ts && ts-node --transpile-only src/contracts/discountRestaurantScope.test.ts",
     "test:home-categories": "ts-node --transpile-only src/contracts/homeCategoryFeed.test.ts",
     "test:live-state": "ts-node src/contracts/liveState.test.ts && ts-node src/contracts/courierLivePosition.test.ts",
+    "test:delivery-window": "ts-node --transpile-only src/contracts/deliveryWindow.test.ts",
+    "test:order-eta-step": "ts-node --transpile-only src/contracts/orderEtaCustomerStep.test.ts",
     "test:order-status": "ts-node --transpile-only src/contracts/orderStatusMachine.test.ts",
     "test:dispatch": "ts-node --transpile-only src/contracts/courierDispatch.test.ts",
     "test:referrals": "ts-node --transpile-only src/contracts/referralContracts.test.ts",

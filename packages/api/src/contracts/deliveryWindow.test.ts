@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import { selfDeliveryMinutesForDistance, selfDeliveryMinutes, computeDeliveryWindowMs, distanceKm, departureEtaCustomerAt } from '../lib/deliveryWindow';
+assert.equal(selfDeliveryMinutesForDistance(0.8), 15);
+assert.equal(selfDeliveryMinutesForDistance(1.5), 15);
+assert.equal(selfDeliveryMinutesForDistance(3.75), 20);
+assert.equal(selfDeliveryMinutesForDistance(6), 25);
+assert.equal(selfDeliveryMinutesForDistance(12), 25);
+assert.equal(selfDeliveryMinutesForDistance(null), 20);
+// Lund C -> Lund Norra ~2 km
+const km = distanceKm(55.7047, 13.1910, 55.7230, 13.1990); assert.ok(km > 1.5 && km < 2.5, String(km));
+assert.equal(selfDeliveryMinutes({ deliveryLatitude: 55.7230, deliveryLongitude: 13.1990 }, { latitude: 55.7047, longitude: 13.1910 }), selfDeliveryMinutesForDistance(km));
+const d = new Date('2026-10-30T10:00:00Z');
+assert.equal(computeDeliveryWindowMs(d, 'x'), 15 * 60_000);
+assert.equal(computeDeliveryWindowMs(d, 'x', new Date('2026-10-30T10:22:00Z')), 22 * 60_000);
+assert.equal(computeDeliveryWindowMs(d, 'x', new Date('2026-10-30T09:50:00Z')), 15 * 60_000);
+const fresh = departureEtaCustomerAt({ etaCustomerAt: new Date('2026-10-30T10:20:00Z'), etaReason: 'Avstånd till kund', deliveringAt: d });
+assert.equal(fresh?.toISOString(), '2026-10-30T10:20:00.000Z');
+assert.equal(departureEtaCustomerAt({ etaCustomerAt: new Date('2026-10-30T10:45:00Z'), etaReason: 'Köket', deliveringAt: d }), null);
+assert.equal(departureEtaCustomerAt({ etaCustomerAt: new Date('2026-10-30T10:45:00Z'), etaReason: null, deliveringAt: d }), null);
+console.log('deliveryWindow ok');

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { selfDeliveryMinutes } from '../lib/deliveryWindow';
 import { randomBytes } from 'crypto';
 import { TEST_ORDER_KEEP_NOTE } from '../lib/testOrderDetection';
 import bcrypt from 'bcryptjs';
@@ -871,7 +872,7 @@ router.patch('/orders/:id/status', async (req, res) => {
 
     const existing = await prisma.order.findUnique({
       where: { id: req.params.id },
-      select: { id: true, orderNumber: true, status: true, paymentStatus: true, estimatedTime: true, restaurantId: true, userId: true, customerPhone: true, customerName: true, type: true, liveActivityToken: true, discountCode: true, stripePaymentIntentId: true, note: true, restaurant: { select: { selfDelivery: true } } },
+      select: { id: true, orderNumber: true, status: true, paymentStatus: true, estimatedTime: true, restaurantId: true, userId: true, customerPhone: true, customerName: true, type: true, liveActivityToken: true, discountCode: true, stripePaymentIntentId: true, note: true, deliveryLatitude: true, deliveryLongitude: true, restaurant: { select: { selfDelivery: true, latitude: true, longitude: true } } },
     });
 
     if (!existing) {
@@ -1085,6 +1086,20 @@ router.patch('/orders/:id/status', async (req, res) => {
                   etaCustomerAt: new Date(Date.now() + normalizedEstimatedTime * 60_000),
                   etaReason: 'Restaurangens tid till kund',
                 }
+              : {}),
+            // Terminalen v2 väljer ingen tid själv: vid egen hemkörning räknar
+            // servern fram 15–25 min ur avståndet. Samma tid styr kundens
+            // nedräkning och när ordern automatiskt blir levererad.
+            ...(isDeliveringTransition && normalizedEstimatedTime === undefined &&
+              existing.type === 'DELIVERY' && existing.restaurant?.selfDelivery
+              ? (() => {
+                  const minutes = selfDeliveryMinutes(existing, existing.restaurant);
+                  return {
+                    etaCustomerMin: minutes,
+                    etaCustomerAt: new Date(Date.now() + minutes * 60_000),
+                    etaReason: 'Avstånd till kund',
+                  };
+                })()
               : {}),
             // When admin explicitly clicks DELIVERED (not the auto DELIVERING→DELIVERED
             // path), clear deliveringAt. Otherwise orders.ts keeps returning

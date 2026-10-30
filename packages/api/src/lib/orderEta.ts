@@ -1,7 +1,7 @@
 import prisma from './prisma';
 import { getEffectiveEtaMinutes } from './restaurantEta';
 import { haversineKm } from '../utils/geo';
-import { computeDeliveryWindowMs } from './deliveryWindow';
+import { computeDeliveryWindowMs, departureEtaCustomerAt } from './deliveryWindow';
 import type { TravelLookup } from './travelMatrix';
 import { overlayCourierLivePosition } from './courierLivePosition';
 import { setOrderEta } from './liveState';
@@ -67,26 +67,20 @@ export function customerStepEtaEndsAt(
   // är restaurangens eget besked och vinner över alla schablonfönster. Äldre
   // etaCustomerAt från köksfasen (före deliveringAt) får däremot inte följa
   // med — den bär kök-nedräkningen och skulle visa t.ex. 38 min efter På väg.
-  if (
-    courierEnRoute &&
-    order?.etaCustomerAt &&
-    order?.deliveringAt &&
-    new Date(order.etaCustomerAt).getTime() >= new Date(order.deliveringAt).getTime()
-  ) {
-    return new Date(order.etaCustomerAt);
-  }
+  const departureEta = courierEnRoute ? departureEtaCustomerAt(order ?? {}) : null;
+  if (departureEta) return departureEta;
   // Self-delivery has a separate 15-minute transit clock which starts at the
   // actual DELIVERING transition.
   if (courierEnRoute && selfDelivery && order?.deliveringAt) {
     const deliveringAt = new Date(order.deliveringAt);
-    return new Date(deliveringAt.getTime() + computeDeliveryWindowMs(deliveringAt, String(order?.id || '')));
+    return new Date(deliveringAt.getTime() + computeDeliveryWindowMs(deliveringAt, String(order?.id || ''), departureEtaCustomerAt(order ?? {})));
   }
   if (courierEnRoute && order?.etaCustomerAt) {
     return new Date(order.etaCustomerAt);
   }
   if (courierEnRoute && order?.deliveringAt) {
     const deliveringAt = new Date(order.deliveringAt);
-    return new Date(deliveringAt.getTime() + computeDeliveryWindowMs(deliveringAt, String(order?.id || '')));
+    return new Date(deliveringAt.getTime() + computeDeliveryWindowMs(deliveringAt, String(order?.id || ''), departureEtaCustomerAt(order ?? {})));
   }
   if (order?.etaReadyAt) return new Date(order.etaReadyAt);
   if (order?.preparingAt && order?.estimatedTime) {

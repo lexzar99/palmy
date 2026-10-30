@@ -28,7 +28,7 @@ import { bustCache } from '../lib/ttlCache';
 import { getIdempotencyKey } from '../lib/idempotency';
 import { normalizeDeliveryZones, normalizeMoneyToOre, resolveDeliveryFee } from '../utils/deliveryZones';
 import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
-import { computeDeliveryWindowMs } from '../lib/deliveryWindow';
+import { computeDeliveryWindowMs, departureEtaCustomerAt } from '../lib/deliveryWindow';
 import { checkDeliveryStreet } from '../lib/deliveryAddress';
 import { discountPlatformAllowed } from '../lib/clientPlatform';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
@@ -2677,7 +2677,7 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      select: { id: true, userId: true, status: true, restaurantId: true, customerPhone: true, accessToken: true, createdAt: true, deliveringAt: true, restaurant: { select: { selfDelivery: true } } },
+      select: { id: true, userId: true, status: true, restaurantId: true, customerPhone: true, accessToken: true, createdAt: true, deliveringAt: true, etaCustomerAt: true, etaReason: true, restaurant: { select: { selfDelivery: true } } },
     });
     if (!order) return res.status(404).json({ error: 'Ordern hittades inte' });
     const phoneProof =
@@ -2740,7 +2740,7 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     const elapsed = order.deliveringAt
       ? Date.now() - new Date(order.deliveringAt).getTime()
       : 0;
-    if (elapsed < computeDeliveryWindowMs(order.deliveringAt || new Date(), orderId)) {
+    if (elapsed < computeDeliveryWindowMs(order.deliveringAt || new Date(), orderId, departureEtaCustomerAt(order))) {
       return res.json({ changed: false, status: order.status });
     }
 
