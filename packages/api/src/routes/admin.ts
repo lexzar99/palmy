@@ -7,6 +7,7 @@ import prisma from '../lib/prisma';
 import { authenticate, requireSuperAdmin, autoRoleGate, AuthRequest } from '../middleware/auth';
 import { audit } from '../lib/auditLog';
 import { getIO } from '../lib/socket';
+import { menuChangeNotifier } from '../lib/menuChangeNotifier';
 import { notifyDeviceChanged } from './terminal';
 import { eatsmartCatalog, getCatalogStats } from '../lib/eatsmartCatalog';
 import { slugify, uniqueMenuSlug } from '../lib/slug';
@@ -148,6 +149,8 @@ async function revalidateWebMenu(restaurantId: string | null) {
 // ADMIN/RESTAURANT_ADMIN/SUPER_ADMIN kan allt. Per-route `requireSuperAdmin`
 // gäller fortfarande för känsliga ops (refund och staff-management).
 router.use(autoRoleGate);
+// Terminalerna hämtar om menyn när den ändras här (i stället för att fråga hela tiden).
+router.use(menuChangeNotifier);
 
 const hasHermesApproval = (req: AuthRequest) => {
   const bodyApproval = String(req.body?.hermesApproval || req.body?.approval || '').trim().toUpperCase();
