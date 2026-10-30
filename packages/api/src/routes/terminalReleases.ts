@@ -64,6 +64,19 @@ const apkUpload = multer({
  * POST /api/admin/terminal-releases
  * Laddar upp en ny partner-APK och gör den till aktiv release.
  */
+/** Tar bort alla releaser av [flavor] utom [keepId], både APK:n i R2 och raden. */
+async function pruneOlderReleases(flavor: string, keepId: string): Promise<number> {
+  const older = await (prisma as any).terminalAppRelease.findMany({
+    where: { flavor, id: { not: keepId } },
+    select: { id: true, r2Key: true },
+  });
+  for (const release of older) {
+    await deleteFromR2(release.r2Key).catch(() => {});
+    await (prisma as any).terminalAppRelease.delete({ where: { id: release.id } });
+  }
+  return older.length;
+}
+
 router.post(
   '/terminal-releases',
   authenticate,
@@ -148,13 +161,22 @@ router.post(
         });
       });
 
+      // Bara den senaste releasen per flavor sparas: äldre APK:er tas bort ur R2 och databasen
+      // så att de inte belastar lagringen. Byggena finns kvar lokalt (builds/partner-v2/) om en
+      // äldre version någon gång behöver laddas upp igen. Ett fel här stoppar inte uppladdningen.
+      const removed = await pruneOlderReleases(flavor, release.id).catch((error) => {
+        console.warn('[terminal-releases] städning av äldre releaser misslyckades', error);
+        return 0;
+      });
+
       console.info('[terminal-releases] ny aktiv release', {
         flavor,
         versionCode: info.versionCode,
         versionName: info.versionName,
         by: req.admin?.email,
+        removedOlder: removed,
       });
-      return res.status(201).json({ release });
+      return res.status(201).json({ release, removedOlder: removed });
     } catch (e: any) {
       console.error('[terminal-releases] upload misslyckades', e);
       return res.status(500).json({ error: e?.message || 'Uppladdningen misslyckades' });
