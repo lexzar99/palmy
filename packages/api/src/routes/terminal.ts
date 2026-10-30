@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import crypto from 'crypto';
+import { TEST_ORDER_KEEP_NOTE } from '../lib/testOrderDetection';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma';
@@ -568,14 +569,31 @@ router.post('/test-order', authenticate, async (req: AuthRequest, res) => {
     });
     if (!product) return res.status(409).json({ error: 'Restaurangen saknar en aktiv produkt för testbeställningen' });
 
+    // Terminalen kan be om en testorder av en viss typ ({ type: 'DELIVERY' }); utan
+    // typ blir det avhämtning som tidigare, så äldre appar påverkas inte.
+    const requestedType = String((req.body || {}).type || '').toUpperCase();
+    const isDelivery = requestedType === 'DELIVERY';
+    // Terminal v2 vill kunna testa hela flödet (klar/hämtad/på väg/levererad), så dess
+    // testordrar raderas inte vid accept som v1:s gör. Markeringen ligger i noteringen.
+    const keepAfterAccept = (req.body || {}).keepAfterAccept === true;
+
     const now = new Date();
     const suffix = crypto.randomBytes(2).toString('hex').toUpperCase();
-    const orderNumber = `TEST-${now.getTime().toString(36).toUpperCase()}-${suffix}`;
+    // Fyrsiffrigt som riktiga ordrar (PREFIX-1042-AB); prefixet TEST- är det som identifierar testordrar.
+    const orderNumber = `TEST-${crypto.randomInt(1000, 10000)}-${suffix}`;
     const order = await prisma.order.create({
       data: {
         orderNumber,
         status: 'PENDING',
-        type: 'PICKUP',
+        type: isDelivery ? 'DELIVERY' : 'PICKUP',
+        ...(isDelivery
+          ? {
+              deliveryStreet: 'Testgatan 1',
+              deliveryCity: 'Lund',
+              deliveryZip: '22100',
+              deliveryNote: 'TESTLEVERANS – kör inte ut',
+            }
+          : {}),
         customerName: 'SERVERTEST',
         customerPhone: '0700000000',
         total: product.price,
@@ -589,7 +607,7 @@ router.post('/test-order', authenticate, async (req: AuthRequest, res) => {
         stripePaymentIntentId: 'TEST_PAYMENT',
         discountCode: 'testa',
         estimatedTime: 10,
-        note: 'SERVERGENERERAD TESTBESTÄLLNING',
+        note: keepAfterAccept ? TEST_ORDER_KEEP_NOTE : 'SERVERGENERERAD TESTBESTÄLLNING',
         allergens: '[]',
         items: {
           create: [{

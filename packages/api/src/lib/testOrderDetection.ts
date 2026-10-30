@@ -22,3 +22,6 @@ export function isTestOrder(order: {
   if (name === 'AUTOTEST') return true;
   return false;
 }
+
+/** Notering på en servertestorder som ska finnas kvar efter accept (terminal v2 testar hela flödet). */
+export const TEST_ORDER_KEEP_NOTE = 'SERVERGENERERAD TESTBESTÄLLNING · BEHÅLLS';

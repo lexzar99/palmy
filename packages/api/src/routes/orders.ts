@@ -1551,48 +1551,47 @@ router.post('/', async (req: Request, res: Response) => {
       throw new OrderValidationError('Kunde inte verifiera betalningen');
     }
 
-    // ── Unified Order Number Generation ──────────────────────────────
-    // Format: XX-NNNN-YY where XX = restaurant initials, NNNN = sequential, YY = random suffix
-    // This ensures uniqueness even if two restaurants share initials
+    // ── Ordernummer ──────────────────────────────────────────────────
+    // Två nummer: den interna unika nyckeln "PA-1003-K7Q2M" (för databasen) och restaurangens
+    // eget löpnummer "1003" (det personalen och kunden ser). Löpnumret räknas per restaurang, så
+    // Palmyra och Pattaya kan båda ha #1003 utan att krocka. Nyckelns sista del är restaurangens
+    // egen kod i stället för slumpbokstäver: samma löpnummer två gånger inom en restaurang blir då
+    // en identisk nyckel, som unik-indexet stoppar (P2002 → nästa nummer). Löpnumret delas alltså
+    // aldrig ut två gånger i samma restaurang.
     const generateOrderNumber = async (): Promise<string> => {
       const restaurantName = restaurant?.name || 'MG';
-      // Get first two consonants or first two chars from restaurant name
       const cleaned = restaurantName.replace(/[^a-zA-ZåäöÅÄÖ]/g, '').toUpperCase();
       let prefix = cleaned.slice(0, 2);
       if (prefix.length < 2) prefix = (prefix + 'X').slice(0, 2);
-      // Replace Swedish chars
       prefix = prefix.replace(/Å/g, 'A').replace(/Ä/g, 'A').replace(/Ö/g, 'O');
 
-      // Get the last order number with this prefix to find next sequential number
-      const lastOrderWithPrefix = await prisma.order.findFirst({
-        where: { orderNumber: { startsWith: `${prefix}-` } },
+      const restaurantKey = restaurant?.id
+        ? restaurant.id.replace(/[^a-zA-Z0-9]/g, '').slice(-5).toUpperCase()
+        : null;
+
+      // Senaste riktiga order i just den här restaurangen (testordrar har en egen serie).
+      const lastOwn = await prisma.order.findFirst({
+        where: restaurant?.id
+          ? { restaurantId: restaurant.id, NOT: { orderNumber: { startsWith: 'TEST-' } } }
+          : { orderNumber: { startsWith: `${prefix}-` } },
         orderBy: { createdAt: 'desc' },
         select: { orderNumber: true },
       });
 
       let nextNum = 1001;
-      if (lastOrderWithPrefix?.orderNumber) {
-        const match = lastOrderWithPrefix.orderNumber.match(/\d+/);
-        if (match) nextNum = parseInt(match[0]) + 1;
+      const lastDigits = lastOwn?.orderNumber?.match(/\d{4,}/);
+      if (lastDigits) nextNum = parseInt(lastDigits[0], 10) + 1;
+
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // utan I och O (förväxlas med 1 och 0)
+      for (let attempt = 0; attempt < 50; attempt++, nextNum++) {
+        const numStr = String(nextNum).padStart(4, '0');
+        const tail = restaurantKey
+          ?? chars[Math.floor(Math.random() * chars.length)] + chars[Math.floor(Math.random() * chars.length)];
+        const orderNumber = `${prefix}-${numStr}-${tail}`;
+        const exists = await prisma.order.findUnique({ where: { orderNumber }, select: { id: true } });
+        if (!exists) return orderNumber;
       }
-
-      // Pad to 4 digits minimum
-      const numStr = String(nextNum).padStart(4, '0');
-
-      // Random 2-letter suffix to prevent collisions
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // No I or O to avoid confusion with 1 and 0
-      const suffix = chars[Math.floor(Math.random() * chars.length)] + chars[Math.floor(Math.random() * chars.length)];
-
-      const orderNumber = `${prefix}-${numStr}-${suffix}`;
-
-      // Verify uniqueness
-      const exists = await prisma.order.findUnique({ where: { orderNumber } });
-      if (exists) {
-        // Extremely rare collision — retry with different suffix
-        return generateOrderNumber();
-      }
-
-      return orderNumber;
+      throw new Error('Kunde inte tilldela ett ledigt ordernummer');
     };
 
     // Collision-safe order-number assignment. `orderNumber` is @unique, so on a

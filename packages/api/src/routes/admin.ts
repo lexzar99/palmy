@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { randomBytes } from 'crypto';
+import { TEST_ORDER_KEEP_NOTE } from '../lib/testOrderDetection';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
@@ -867,7 +868,7 @@ router.patch('/orders/:id/status', async (req, res) => {
 
     const existing = await prisma.order.findUnique({
       where: { id: req.params.id },
-      select: { id: true, orderNumber: true, status: true, paymentStatus: true, estimatedTime: true, restaurantId: true, userId: true, customerPhone: true, customerName: true, type: true, liveActivityToken: true, discountCode: true, stripePaymentIntentId: true, restaurant: { select: { selfDelivery: true } } },
+      select: { id: true, orderNumber: true, status: true, paymentStatus: true, estimatedTime: true, restaurantId: true, userId: true, customerPhone: true, customerName: true, type: true, liveActivityToken: true, discountCode: true, stripePaymentIntentId: true, note: true, restaurant: { select: { selfDelivery: true } } },
     });
 
     if (!existing) {
@@ -913,7 +914,11 @@ router.patch('/orders/:id/status', async (req, res) => {
       existing.status === 'PENDING' &&
       (dbStatus === 'ACCEPTED' || dbStatus === 'PREPARING') &&
       existing.orderNumber.startsWith('TEST-') &&
-      isTestOrder(existing);
+      isTestOrder(existing) &&
+      existing.note !== TEST_ORDER_KEEP_NOTE;
+    // Serverns egna testordrar har aldrig dragit pengar (referensen TEST_PAYMENT finns inte hos
+    // någon PSP), så att neka eller avbryta dem får inte starta en återbetalning.
+    const skipRefundForTestOrder = existing.orderNumber.startsWith('TEST-') && isTestOrder(existing);
 
     if (
       existing.status !== dbStatus &&
@@ -934,7 +939,7 @@ router.patch('/orders/:id/status', async (req, res) => {
 
     let refundClaimedTerminalStatus = false;
     let requiredRefundStatus: string | undefined;
-    if (isRefundRequiredTerminalStatus(dbStatus)) {
+    if (isRefundRequiredTerminalStatus(dbStatus) && !skipRefundForTestOrder) {
       if (existing.paymentStatus === 'REFUNDING' && existing.status !== dbStatus) {
         res.status(409).json({
           error: 'En återbetalning behandlas redan. Vänta tills den har stämts av innan ordern avslutas.',

@@ -1,7 +1,7 @@
 import prisma from './prisma';
 import sharp from 'sharp';
 import path from 'path';
-import { customerNameWithOrderChannel, orderChannelFromAuditChanges } from './orderChannel';
+import { orderChannelFromAuditChanges } from './orderChannel';
 
 export type ThermalPaperWidth = '58mm' | '72mm' | '80mm';
 
@@ -232,7 +232,8 @@ export function buildAdminReceiptData(order: any) {
       paymentStatus: order.paymentStatus,
     },
     customer: {
-      name: customerNameWithOrderChannel(order.customerName, order.channel),
+      // Kanalmärkningen (– privat / – viaeats) är bara till för admin; kvittot visar kundens namn.
+      name: order.customerName,
       phone: order.customerPhone,
       email: order.customerEmail,
       street: order.deliveryStreet,
