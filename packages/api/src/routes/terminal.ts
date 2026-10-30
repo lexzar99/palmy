@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { isLegacyAppOnTakenOverDevice, isTakeoverByV2 } from '../lib/terminalTakeover';
 import crypto from 'crypto';
 import { TEST_ORDER_KEEP_NOTE } from '../lib/testOrderDetection';
 import bcrypt from 'bcryptjs';
@@ -156,6 +157,25 @@ const cleanScore = (value: unknown): number => {
   return Math.max(0, Math.min(100, n));
 };
 
+// ── v2 tar över plattan från v1 ─────────────────────────────────────────────
+//
+// v2 (versionCode ≥ 200) har ett nytt paketnamn och installeras bredvid v1, men
+// delar ANDROID_ID med v1 på Android 7 och därmed samma RestaurantDevice-rad.
+// När v2 har loggat in på en platta får v1 (versionCode < 200) aldrig komma
+// tillbaka: annars återställer v1 sin session via enhets-id och de två apparna
+// tar plattan från varandra. v1 får 403, som den visar som "utloggad", och en
+// socket-signal sparkar ut den direkt (dess åtkomst-token gäller annars 24 h).
+// Återgå till v1: ta bort plattan under Enheter i admin och koppla v1 igen.
+/** Signalen som får v1 att fråga om sin session (och då få 403) i stället för att vänta ett dygn. */
+function notifyLegacyAppReplaced(restaurantId: string, deviceId: string) {
+  try {
+    getIO().to(`admin-room:${restaurantId}`).emit('device:session-changed', { deviceId, action: 'replaced' });
+  } catch {
+    /* socket nere — v1 får 403 vid nästa sessionsförnyelse */
+  }
+  console.info('[terminal] v2 tog över plattan från v1', { restaurantId, device: deviceId.slice(0, 8) });
+}
+
 function clientMetadataUpdate(client?: TerminalClientInfo) {
   if (!client || typeof client !== 'object') return {};
   return {
@@ -226,6 +246,18 @@ router.post('/pair', async (req, res) => {
     if (!code || !deviceId) {
       return res.status(400).json({ error: 'code och deviceId krävs' });
     }
+
+    const knownDevice = await (prisma as any).restaurantDevice.findUnique({
+      where: { deviceId: String(deviceId) },
+      select: { appVersion: true, restaurantId: true },
+    });
+    if (isLegacyAppOnTakenOverDevice(knownDevice, client)) {
+      return res.status(409).json({
+        error: 'Den här plattan kör nya viaeats-appen. Ta bort plattan under Enheter i admin för att koppla den gamla appen igen.',
+        code: 'TERMINAL_REPLACED',
+      });
+    }
+    const takeover = isTakeoverByV2(knownDevice, client);
 
     const normalizedCode = String(code).replace(/\s+/g, '').toUpperCase();
     const now = new Date();
@@ -353,6 +385,7 @@ router.post('/pair', async (req, res) => {
     }
 
     notifyDeviceChanged(pairing.restaurantId, 'paired');
+    if (takeover && knownDevice?.restaurantId) notifyLegacyAppReplaced(knownDevice.restaurantId, String(deviceId));
     res.json(terminalSessionPayload(ensured, String(deviceId), refreshToken));
   } catch (error) {
     console.error('[terminal/pair] error:', error);
@@ -378,6 +411,10 @@ router.post('/session', async (req, res) => {
     });
     if (!device) return res.status(404).json({ error: 'needs_pairing' });
     if (device.revoked) return res.status(403).json({ error: 'device_revoked' });
+    if (isLegacyAppOnTakenOverDevice(device, client)) {
+      return res.status(403).json({ error: 'device_revoked', code: 'TERMINAL_REPLACED' });
+    }
+    const takeover = isTakeoverByV2(device, client);
 
     const reinstallRecovery = !refreshToken;
     const matchesCurrent =
@@ -418,6 +455,7 @@ router.post('/session', async (req, res) => {
       });
     }
     notifyDeviceChanged(device.restaurantId, 'session');
+    if (takeover) notifyLegacyAppReplaced(device.restaurantId, String(deviceId));
     res.json(rotated);
   } catch (error) {
     console.error('[terminal/session] error:', error);

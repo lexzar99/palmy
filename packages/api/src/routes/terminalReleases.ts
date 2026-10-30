@@ -25,6 +25,11 @@ const router = Router();
 // Paketet vi accepterar. En APK med annat paketnamn kan aldrig uppgradera
 // terminalerna — den skulle installeras som en separat app.
 const PARTNER_PACKAGE = 'com.matgo.restaurant';
+// v2 har ett eget paketnamn (den gamla signeringsnyckeln finns inte kvar). v1
+// installerar det som en ny app via sitt vanliga uppdateringsflöde, och v2
+// tar sedan över plattan (se terminal.ts). Båda paketen får laddas upp.
+const PARTNER_V2_PACKAGE = 'se.viaeats.partner';
+const ALLOWED_PACKAGES = [PARTNER_PACKAGE, PARTNER_V2_PACKAGE];
 const FLAVORS = ['sunmi', 'universal'] as const;
 type Flavor = (typeof FLAVORS)[number];
 
@@ -81,11 +86,11 @@ router.post(
         return res.status(400).json({ error: `Kunde inte läsa APK:n: ${e?.message || e}` });
       }
 
-      if (info.packageName !== PARTNER_PACKAGE) {
+      if (!ALLOWED_PACKAGES.includes(info.packageName)) {
         return res.status(400).json({
           error:
             `Fel app: APK:n har paketnamn "${info.packageName}" men terminalerna kör ` +
-            `"${PARTNER_PACKAGE}". En APK med annat paketnamn kan inte uppdatera dem.`,
+            `"${PARTNER_PACKAGE}" eller "${PARTNER_V2_PACKAGE}".`,
         });
       }
 
