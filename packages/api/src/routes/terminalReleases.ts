@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { offersReleaseToInstalled } from '../lib/terminalTakeover';
 import multer from 'multer';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
@@ -238,7 +239,7 @@ terminalUpdateRouter.get('/app-update', authenticate, async (req: AuthRequest, r
   if (!latest) return res.json({ updateAvailable: false, latest: null });
 
   return res.json({
-    updateAvailable: latest.versionCode > installed,
+    updateAvailable: offersReleaseToInstalled(latest.versionCode, installed),
     latest,
   });
 });

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { clientVersionCode, isLegacyAppOnTakenOverDevice, isTakeoverByV2 } from '../lib/terminalTakeover';
+import { clientVersionCode, isLegacyAppOnTakenOverDevice, isTakeoverByV2, offersReleaseToInstalled } from '../lib/terminalTakeover';
 
 const v1 = { version: '26.08.21.2+90' };
 const v2 = { version: '2.0.0+200' };
@@ -20,5 +20,11 @@ assert.equal(isLegacyAppOnTakenOverDevice({ appVersion: '26.08.21.2+90' }, v1), 
 assert.equal(isLegacyAppOnTakenOverDevice({ appVersion: '2.0.0+200' }, v2), false);
 assert.equal(isLegacyAppOnTakenOverDevice({ appVersion: '2.0.0+200' }, {}), false, 'klient utan version spärras inte');
 assert.equal(isLegacyAppOnTakenOverDevice(null, v1), false);
+
+// v2-releaser erbjuds bara v2; v1 byts ut kontrollerat.
+assert.equal(offersReleaseToInstalled(201, 90), false, 'v1 får ingen uppdateringsruta för v2');
+assert.equal(offersReleaseToInstalled(201, 200), true);
+assert.equal(offersReleaseToInstalled(200, 200), false);
+assert.equal(offersReleaseToInstalled(91, 90), true, 'v1-releaser fungerar som förut');
 
 console.log('terminal takeover contracts: ok');

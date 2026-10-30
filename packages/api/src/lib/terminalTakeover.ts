@@ -25,3 +25,13 @@ export function isTakeoverByV2(device: { appVersion?: string | null } | null, cl
   const stored = clientVersionCode(device?.appVersion);
   return stored == null || stored < V2_MIN_VERSION_CODE;
 }
+
+/**
+ * En v2-release (versionCode ≥ 200, eget paketnamn) erbjuds bara plattor som
+ * redan kör v2. Plattor med v1 byts ut kontrollerat (via kabel), så de ska inte
+ * få en uppdateringsruta som startar bytet på egen hand.
+ */
+export function offersReleaseToInstalled(releaseVersionCode: number, installedVersionCode: number): boolean {
+  if (releaseVersionCode <= installedVersionCode) return false;
+  return !(releaseVersionCode >= V2_MIN_VERSION_CODE && installedVersionCode < V2_MIN_VERSION_CODE);
+}
