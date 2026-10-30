@@ -578,9 +578,18 @@ router.post('/test-order', authenticate, async (req: AuthRequest, res) => {
     const keepAfterAccept = (req.body || {}).keepAfterAccept === true;
 
     const now = new Date();
-    const suffix = crypto.randomBytes(2).toString('hex').toUpperCase();
-    // Fyrsiffrigt som riktiga ordrar (PREFIX-1042-AB); prefixet TEST- är det som identifierar testordrar.
-    const orderNumber = `TEST-${crypto.randomInt(1000, 10000)}-${suffix}`;
+    // Testordrar visas alltid som #9999. Nyckeln är ändå unik: TEST-9999- plus sex slumptecken
+    // (dras om om den redan finns), och riktiga ordrar har andra nycklar (FR-9999-…), så en
+    // restaurang som själv når #9999 krockar aldrig med en testorder i databasen.
+    const keyChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let orderNumber = '';
+    for (let attempt = 0; attempt < 10 && !orderNumber; attempt++) {
+      const key = Array.from({ length: 6 }, () => keyChars[crypto.randomInt(keyChars.length)]).join('');
+      const candidate = `TEST-9999-${key}`;
+      const taken = await prisma.order.findUnique({ where: { orderNumber: candidate }, select: { id: true } });
+      if (!taken) orderNumber = candidate;
+    }
+    if (!orderNumber) return res.status(503).json({ error: 'Kunde inte skapa ett ledigt testnummer, försök igen' });
     const order = await prisma.order.create({
       data: {
         orderNumber,
