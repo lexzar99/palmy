@@ -118,3 +118,10 @@ export function trackMetaPurchase(input: { orderId: string; value?: number | nul
   );
   if (sent) markSent(eventKey);
 }
+
+/** Lead från /erbjudande. En gång per anmälan; stoppas tyst utan marknadsföringssamtycke. */
+export function trackMetaLead(eventId: string, campaign?: string): void {
+  const key = `Lead:${eventId}`;
+  if (alreadySent(key)) return;
+  if (track("Lead", { content_name: "erbjudande", content_category: campaign || "erbjudande" }, { eventID: key })) markSent(key);
+}

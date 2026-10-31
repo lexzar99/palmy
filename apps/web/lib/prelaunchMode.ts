@@ -47,6 +47,9 @@ export function isLaunchGateBypassPath(pathname: string): boolean {
     || pathname === "/tipsa"
     // Mötesbokning för restaurangpartners (SMS-länk).
     || pathname === "/boka"
+    // Erbjudandesidan för restauranger och dess film/omslag.
+    || pathname === "/erbjudande"
+    || /^\/erbjudande\/[a-zA-Z0-9_.-]+\.(?:mp4|jpg)$/.test(pathname)
     || pathname.startsWith("/tipsa/")
     || pathname === "/privacy"
     || pathname === "/terms"

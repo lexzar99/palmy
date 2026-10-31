@@ -25,3 +25,7 @@
 .panel button.retry{text-decoration:underline;font-size:13px}
 .divider{font-size:10px;letter-spacing:1.4px;opacity:.5;margin:10px 0 2px}
 @media(max-width:700px){.item{grid-template-columns:1fr}.side{flex-direction:row;align-items:center;justify-content:space-between}.panel{padding:20px}.panel>header{align-items:start}}
+
+/* Översikten: Bokade möten och Nya restauranger sida vid sida */
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+@media (max-width: 1180px) { .pair { grid-template-columns: minmax(0, 1fr); } }

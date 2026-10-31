@@ -1,3 +1,4 @@
+import { SITE_URL } from "@/lib/siteUrl";
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import localFont from "next/font/local";
@@ -45,7 +46,7 @@ const baloo = localFont({
 export const metadata: Metadata = {
   // Basurl för OG-bilder + canonical URLs. Krävs i prod annars fallar
   // sociala medier-previews till http://localhost:3000 vid build.
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://viaeats.se"),
+  metadataBase: new URL(SITE_URL),
   title: "ViaEats | Beställ från dina favoritrestauranger",
   description: "Beställ mat från flera lokala restauranger. Snabb leverans, smidig betalning och ett brett utbud.",
   applicationName: "ViaEats",

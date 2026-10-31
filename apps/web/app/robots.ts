@@ -1,11 +1,9 @@
 import type { MetadataRoute } from "next";
+import { SITE_URL } from "@/lib/siteUrl";
 
 // Next.js auto-genererar /robots.txt från denna fil. Sidan serveras med rätt
 // content-type så Google/Bing kan parse den direkt.
 export default function robots(): MetadataRoute.Robots {
-  // NEXT_PUBLIC_SITE_URL sätts i Vercel; fallback är prod-domänen.
-  const base = process.env.NEXT_PUBLIC_SITE_URL || "https://viaeats.se";
-
   return {
     rules: [
       {
@@ -22,6 +20,6 @@ export default function robots(): MetadataRoute.Robots {
         ],
       },
     ],
-    sitemap: `${base}/sitemap.xml`,
+    sitemap: `${SITE_URL}/sitemap.xml`,
   };
 }

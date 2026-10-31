@@ -3,7 +3,8 @@ import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
-import { PARTNER_INBOX, PartnerApplicationSchema, partnerApplicationId, partnerApplicationBody, partnerRetentionCutoff } from '../lib/partnerApplications';
+import { sendHermesAlert } from '../lib/hermesAlerts';
+import { PARTNER_INBOX, PartnerApplicationSchema, partnerApplicationId, partnerApplicationBody, partnerRetentionCutoff, restaurantSignupAlertText } from '../lib/partnerApplications';
 
 const router = Router();
 const limiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 8, standardHeaders: true, legacyHeaders: false, message: { error: 'För många försök. Försök igen om en stund.' } });
@@ -14,15 +15,28 @@ async function expireApplications() {
 }
 router.post('/interest', limiter, async (req, res) => {
   const parsed = PartnerApplicationSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: 'Kontrollera namn, e-post och obligatoriska fält.' });
+  if (!parsed.success) return res.status(400).json({ error: 'Kontrollera de obligatoriska fälten.' });
   if (parsed.data.website) return res.status(200).json({ ok: true });
   try {
     await expireApplications();
     const input = parsed.data;
     // Oautentiserade återförsök får inte skriva över en tidigare anmälan.
-    await prisma.note.upsert({ where: { id: partnerApplicationId(input) }, update: {}, create: {
-      id: partnerApplicationId(input), ...scope, body: partnerApplicationBody(input),
+    const id = partnerApplicationId(input);
+    const existing = await prisma.note.findUnique({ where: { id }, select: { id: true } });
+    await prisma.note.upsert({ where: { id }, update: {}, create: {
+      id, ...scope, body: partnerApplicationBody(input),
     } });
+    // Ny restaurang på gratisplanen → WhatsApp. Bara första gången, och ett notisfel fäller aldrig anmälan.
+    if (input.kind === 'restaurant' && !existing) {
+      await sendHermesAlert({
+        source: 'viaeats-partner-applications',
+        type: 'restaurant:signup',
+        severity: 'info',
+        dedupeKey: `viaeats:restaurant:signup:${id}`,
+        text: restaurantSignupAlertText(input),
+        restaurantName: input.restaurant,
+      }).catch((error) => console.error('[partner-inbox] Hermes-notis misslyckades:', (error as Error)?.message ?? error));
+    }
     return res.status(200).json({ ok: true });
   } catch {
     console.error('[partner-inbox] Anmälan kunde inte sparas');

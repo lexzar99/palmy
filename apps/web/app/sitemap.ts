@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { SITE_URL } from "@/lib/siteUrl";
 
 // Dynamisk sitemap — listar alla restauranger så Google/Bing kan indexera
 // menysidor. Statiska sidor (om, kontakt, etc.) också med.
@@ -9,6 +10,7 @@ const STATIC_ROUTES: { path: string; changeFrequency: MetadataRoute.Sitemap[numb
   { path: "/discover", changeFrequency: "daily", priority: 0.8 },
   { path: "/search", changeFrequency: "weekly", priority: 0.7 },
   { path: "/for-restauranger", changeFrequency: "monthly", priority: 0.7 },
+  { path: "/erbjudande", changeFrequency: "weekly", priority: 0.9 },
   { path: "/tipsa", changeFrequency: "monthly", priority: 0.6 },
   { path: "/about", changeFrequency: "monthly", priority: 0.5 },
   { path: "/contact", changeFrequency: "monthly", priority: 0.5 },
@@ -19,7 +21,7 @@ const STATIC_ROUTES: { path: string; changeFrequency: MetadataRoute.Sitemap[numb
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // NEXT_PUBLIC_SITE_URL + NEXT_PUBLIC_API_URL sätts i Vercel.
   // Fallback är prod-domänen.
-  const base = (process.env.NEXT_PUBLIC_SITE_URL || "https://viaeats.se").replace(/\/$/, "");
+  const base = SITE_URL;
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://api.viaeats.se";
 
   const now = new Date();

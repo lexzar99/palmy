@@ -1,5 +1,7 @@
 "use client";
 import { BookedMeetings } from "@/modules/partner-meetings/BookedMeetings";
+import { RestaurantLeads } from "@/modules/partner-meetings/RestaurantLeads";
+import meetingStyles from "@/modules/partner-meetings/partner-meetings.module.css";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -139,8 +141,11 @@ export function DashboardPage() {
           </small>
         </Link>
       </div>
-      {/* Bokningar från viaeats.se/boka. Högt upp — ett nytt möte är något att agera på direkt. */}
-      <BookedMeetings compact />
+      {/* Bokningar och nya restauranger. Högt upp — det här är något att agera på direkt. */}
+      <div className={meetingStyles.pair}>
+        <BookedMeetings compact />
+        <RestaurantLeads />
+      </div>
       <div className={styles.grid}>
         <section className={styles.panel}>
           <div className={styles.panelHead}>
