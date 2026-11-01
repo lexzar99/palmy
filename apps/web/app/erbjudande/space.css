@@ -1,0 +1,68 @@
+/* Resan ritas i ett enda WebGL-lager. Här finns bara text och kort ovanpå det. */
+/* iPhone visar sidans bakgrund runt innehållet, så den har djungelns färg i stället för svart. */
+html:has(.fs), body:has(.fs) { background: var(--fs-edge); }
+:root { --fs-edge: #24351a; }
+html.fs-lock, html.fs-lock body { overflow: hidden; overscroll-behavior: none; height: 100%; }
+.fs { position: relative; height: 100lvh; background: var(--fs-edge); color: #fff; }
+/* Medan resan är låst ligger scenen fast och går in under webbläsarens fält. */
+html.fs-lock .fs-stage { position: fixed; inset: 0 0 auto; height: 100lvh; touch-action: none; }
+.fs-stage { position: absolute; inset: 0; overflow: hidden; touch-action: pan-y; background: #0b1a11 url("/erbjudande/gl/djungel.webp") center / cover; }
+.fs-gl { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 0.3s ease; }
+.fs-stage.on .fs-gl { opacity: 1; }
+.fs-copy, .fs-brand { z-index: 3; color: #fff; opacity: 1; }
+.fs-brand { position: absolute; left: 20px; right: 20px; top: max(16px, env(safe-area-inset-top)); margin: 0; font-family: var(--font-baloo), sans-serif; font-weight: 800; font-size: 34px; line-height: 1; }
+.fs-copy { position: absolute; left: 20px; right: 20px; top: calc(68px + env(safe-area-inset-top)); text-align: center; }
+.fs-copy h1 { margin: 0; font-size: clamp(33px, 9.4vw, 72px); line-height: 1.02; font-weight: 800; letter-spacing: -0.025em; text-wrap: balance; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); -webkit-font-smoothing: antialiased; }
+.fs-copy p { display: inline-block; margin: 10px auto 0; color: #fff; font-size: 16px; font-weight: 600; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55); line-height: 1.3; text-wrap: balance; -webkit-font-smoothing: antialiased; }
+.fs-cue { z-index: 2; position: fixed; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom)); translate: -50% 0; display: flex; align-items: center; gap: 4px; padding: 8px 14px; border-radius: 99px; background: rgba(0, 0, 0, 0.6); font-size: 15px; font-weight: 600; }
+.fs-cue svg { animation: fs-bob 1.6s ease-in-out infinite; }
+@keyframes fs-bob { 50% { transform: translateY(4px); } }
+.fc { position: absolute; left: 50%; top: 50%; z-index: 6; width: min(calc(100vw - 36px), 420px); opacity: 0; visibility: hidden; transform: translate(-50%, -50%); border-radius: 24px; padding: 24px 22px; color: #fff; background: #0b1a11; border: 1px solid rgba(255, 255, 255, 0.14); box-shadow: 0 30px 70px rgba(0, 0, 0, 0.5); }
+.fc h2 { margin: 0; font-size: 29px; line-height: 1.08; font-weight: 800; letter-spacing: -0.02em; text-wrap: balance; }
+.fc-compare h2 { margin-bottom: 18px; }
+.fc-compare div { display: grid; grid-template-columns: 1fr auto; gap: 6px; margin-bottom: 16px; font-size: 16px; }
+.fc-compare b { font-weight: 800; }
+.fc-compare i { grid-column: 1 / -1; display: block; height: 8px; border-radius: 4px; background: #7d8a80; }
+.fc-compare .us span, .fc-compare .us b { color: #ff7a45; font-weight: 800; }
+.fc-compare .us i { background: #f04f1a; }
+.fc-compare small { display: block; font-size: 12px; line-height: 1.4; color: #b9c4bc; }
+.fc-go { text-align: center; }
+.fc-go h2 { font-size: 40px; }
+.fc-go p { margin: 10px 0 18px; font-size: 17px; line-height: 1.35; color: #d6dfd9; }
+.fc-go a { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 58px; border-radius: 99px; background: #f04f1a; color: #fff !important; font-size: 18px; font-weight: 700; text-decoration: none; }
+@media (prefers-reduced-motion: reduce) {
+  .fs-cue svg { animation: none; }
+}
+/* Anmälan ligger mitt på skärmen, ovanpå djungeln som syns genom bakgrunden. */
+.lead-overlay { inset: auto 0 auto 0 !important; top: var(--lead-top, 0px) !important; height: var(--lead-height, 100dvh); align-items: center !important; justify-content: center !important; padding: 16px !important; background: rgba(4, 12, 7, 0.46) !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; overscroll-behavior: contain; touch-action: none; animation: fs-fade 0.28s ease; }
+.lead-sheet { width: min(100%, 440px) !important; max-height: calc(var(--lead-height, 100dvh) - 32px); overflow-y: auto; border-radius: 26px !important; padding: 22px 22px 24px !important; touch-action: pan-y; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5); animation: fs-pop 0.42s cubic-bezier(0.16, 1, 0.3, 1) !important; }
+@keyframes fs-fade { from { opacity: 0; } }
+@keyframes fs-pop { from { opacity: 0; transform: translateY(18px) scale(0.94); } }
+@media (prefers-reduced-motion: reduce) {
+  .lead-overlay, .lead-sheet { animation: none !important; }
+}
+
+/* Under resan: astronauten över jorden, sedan skarpa skärmbilder. */
+.sp-band { --astro: min(118vw, 640px); position: relative; overflow: hidden; height: calc(250px + var(--astro) * 1.62); background: #000; color: #fff; contain: paint; }
+.sp-earth { position: absolute; left: 0; bottom: 0; width: 100%; height: 100%; object-fit: cover; object-position: bottom; transform: translate3d(0, var(--earth, 0), 0) scale(1.08); }
+.sp-band-text { position: relative; z-index: 2; max-width: 640px; margin: 0 auto; padding: clamp(56px, 11vh, 110px) 22px 0; text-align: center; }
+.sp-band-text h2 { margin: 0; font-size: clamp(36px, 10vw, 68px); line-height: 1.02; font-weight: 800; letter-spacing: -0.03em; text-wrap: balance; }
+.sp-band-text p { margin: 14px auto 0; max-width: 30em; font-size: 17px; line-height: 1.4; font-weight: 500; color: #dfe6ee; text-wrap: balance; }
+.sp-astro { position: absolute; z-index: 1; left: 50%; top: 250px; width: var(--astro); aspect-ratio: 9 / 16; margin-left: calc(var(--astro) * -0.52); transform: translate3d(0, var(--rise, 0), 0); will-change: transform; }
+.sp-astro img:first-child { width: 100%; height: 100%; display: block; }
+.sp-astro-screen { position: absolute; left: 14.2%; top: 40.15%; width: 31.1%; height: 35.1%; object-fit: cover; object-position: top; border-radius: 9% / 4.5%; }
+.sp-section h2 { max-width: 15em; scroll-margin-top: 96px; }
+.sp-lead { margin: 12px 0 0; max-width: 34em; font-size: 18px; line-height: 1.45; color: var(--o-stone); }
+.sp-row { display: flex; gap: 14px; margin: 28px -16px 0; padding: 4px 16px 10px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.sp-row::-webkit-scrollbar { display: none; }
+.sp-row > * { flex: 0 0 min(76vw, 340px); scroll-snap-align: center; }
+.sp-phone { margin: 0; overflow: hidden; border-radius: 30px; background: #111; box-shadow: 0 0 0 7px #101010, 0 18px 40px rgba(0, 0, 0, 0.2); }
+.sp-row > .sp-phone { margin: 7px; }
+.sp-phone img { display: block; width: 100%; height: auto; }
+.sp-site { display: block; color: inherit !important; text-decoration: none; padding: 7px; }
+.sp-site b { display: block; margin-top: 18px; font-size: 18px; font-weight: 750; }
+.sp-site span { font-size: 15px; color: var(--o-stone); }
+@media (min-width: 900px) {
+  .sp-row { justify-content: center; overflow: visible; margin-inline: 0; }
+  .sp-row > * { flex-basis: 320px; }
+}

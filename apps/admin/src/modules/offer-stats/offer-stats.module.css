@@ -1,0 +1,18 @@
+.periods{display:flex;flex-wrap:wrap;gap:8px}
+.periods button{font-size:13px;padding:7px 14px;border-radius:999px;border:1px solid #8885}
+.periods .on{background:#F04F1A;border-color:#F04F1A;color:#fff}
+.note{font-size:13px;opacity:.7}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.tiles div{border:1px solid var(--border-subtle);background:var(--bg-panel);border-radius:16px;padding:18px}
+.tiles b{display:block;font-size:30px;font-weight:700;letter-spacing:-.8px;font-variant-numeric:tabular-nums}
+.tiles span{font-size:12px;opacity:.65}
+.panel{border:1px solid var(--border-subtle);background:var(--bg-panel);border-radius:20px;padding:22px}
+.panel h2{font-size:18px;font-weight:650;margin-bottom:14px}
+.table{display:flex;flex-direction:column}
+.head,.row{display:grid;grid-template-columns:minmax(0,1fr) 100px 110px;gap:12px;align-items:center;padding:9px 0;font-size:14px}
+.head{font-size:11px;opacity:.6}
+.row{border-top:1px solid #8882;font-variant-numeric:tabular-nums}
+.row i{display:block;height:4px;margin-top:6px;border-radius:2px;background:#F04F1A}
+.row small{opacity:.55}
+.left{color:#F04F1A;font-weight:650}
+@media(max-width:700px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.head,.row{grid-template-columns:minmax(0,1fr) 72px 72px}}

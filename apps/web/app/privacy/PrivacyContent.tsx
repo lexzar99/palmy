@@ -78,6 +78,7 @@ export default function PrivacyContent({ company }: { company: CompanyProps }) {
               <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Betalning:</strong> hanteras av Mollie. Vi lagrar aldrig kortnummer eller CVC.</span></li>
               <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Teknisk data:</strong> IP-adress, enhetstyp, push-token för orderstatus-notiser.</span></li>
               <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Analys (frivillig):</strong> felrapporter via Sentry, endast om du accepterar i cookie-bannern.</span></li>
+              <li className="flex gap-3"><span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-2.5 shrink-0" /><span><strong>Besöksstatistik:</strong> på sidan för restauranger mäter vi anonymt hur långt besökare kommer och hur länge de stannar, utan cookies, IP-adress eller kontaktuppgifter. Uppgifterna sparas i högst 90 dagar.</span></li>
             </ul>
           </section>
 

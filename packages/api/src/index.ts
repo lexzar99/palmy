@@ -40,6 +40,7 @@ import homeCategoriesRoutes from './routes/homeCategories';
 import launchRoutes from './routes/launch';
 import partnerApplicationsRoutes from './routes/partnerApplications';
 import partnerMeetingsRoutes, { partnerMeetingsAdminRouter } from './routes/partnerMeetings';
+import offerStatsRoutes, { offerStatsAdminRouter } from './routes/offerStats';
 import orderRoutes from './routes/orders';
 import adminRoutes from './routes/admin';
 import companyLookupRoutes from './routes/companyLookup';
@@ -492,6 +493,8 @@ app.use('/api/launch', launchRoutes);
 app.use('/api/partner-applications', partnerApplicationsRoutes);
 app.use('/api/partner-meetings', partnerMeetingsRoutes);
 app.use('/api/admin/partner-meetings', partnerMeetingsAdminRouter);
+app.use('/api/offer-stats', offerStatsRoutes);
+app.use('/api/admin/offer-stats', offerStatsAdminRouter);
 
 // Serve uploaded images
 import path from 'path';

@@ -86,6 +86,7 @@ export const ADMIN_ROUTES: AdminRouteDefinition[] = [
   route({ id: "deals", href: "/deals", label: "Deals & kampanjer", shortLabel: "Deals", icon: Gift, section: "growth", keywords: "kampanj rabatt app" }),
   route({ id: "coupons", href: "/coupons", label: "Kuponger", icon: TicketPercent, section: "growth", keywords: "kupong rabattkod kod" }),
   route({ id: "referrals", href: "/referrals", label: "Värva vän", icon: UserPlus, section: "growth", keywords: "referral värva vän välkomst" }),
+  route({ id: "offer-stats", href: "/offer-stats", label: "Erbjudandesidan", shortLabel: "Erbjudande", icon: BarChart3, section: "growth", keywords: "erbjudande besök skroll tid leads statistik funnel restaurangägare" }),
   route({ id: "launch-campaign", href: "/launch-campaign", label: "Lanseringskampanj", shortLabel: "Lansering", icon: BarChart3, section: "growth", keywords: "launch intresse leads rabatt kampanj statistik funnel" }),
   route({ id: "journey", href: "/journey", label: "Kundresan", icon: Footprints, section: "growth", keywords: "funnel tratt avhopp varukorg kassa zon adress betalning konvertering beteende steg" }),
   route({ id: "push", href: "/push", label: "Push-notiser", shortLabel: "Push", icon: BellRing, section: "growth", keywords: "notification meddelande" }),

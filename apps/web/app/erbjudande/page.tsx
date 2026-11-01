@@ -1,11 +1,15 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import localFont from "next/font/local";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import LeadSheet from "./LeadSheet";
+import TerminalScene from "./TerminalScene";
+import OfferStats from "./OfferStats";
+import SpaceBand from "./SpaceBand";
 import StickyCta from "./StickyCta";
 import { SITE_URL } from "@/lib/siteUrl";
 import "./erbjudande.css";
+import "./space.css";
 
 const brandFont = localFont({ src: "../fonts/Baloo2-latin-variable.woff2", weight: "500 800", display: "swap", variable: "--font-baloo" });
 const sansFont = localFont({ src: "../fonts/InterTight-Variable-latin.woff2", weight: "300 900", display: "swap", variable: "--font-offer-sans" });
@@ -37,6 +41,8 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title: "Gratis hemsida och beställningssystem. Bara 5 % per order.", description: DESCRIPTION, images: ["/erbjudande/og.jpg"] },
 };
 
+export const viewport: Viewport = { themeColor: "#24351a" };
+
 const TERMS = ["Ingen startavgift", "Ingen månadsavgift", "Ingen bindningstid", "Ingen uppsägningstid"];
 
 const INCLUDED = [
@@ -50,6 +56,12 @@ const COMPARE = [
   { name: "foodora", note: "med bud", value: "20–30 %", width: "100%", tone: "rust" },
   { name: "Lumit", note: "upp till", value: "7 %", width: "23.3%", tone: "stone" },
   { name: "viaeats", note: "", value: "5 %", width: "16.7%", tone: "us" },
+];
+
+const SITES = [
+  { name: "Palmyra Pizzeria", place: "Lund", image: "hemsida-palmyra", href: "https://www.palmyrapizzeria.se" },
+  { name: "Wanthai", place: "Foodtruck", image: "hemsida-wanthai", href: "/demo/wanthai" },
+  { name: "Pizzeria Roma", place: "Åstorp", image: "hemsida-roma", href: "/demo/pizzeria-roma" },
 ];
 
 const STEPS = [
@@ -93,31 +105,41 @@ export default function ErbjudandePage() {
   return (
     <div className={`offer-site ${brandFont.variable} ${sansFont.variable} ${serifFont.variable}`}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
+      <OfferStats />
+      <TerminalScene />
       <header className="offer-header">
         <span className="offer-wordmark">viaeats<span>för restauranger</span></span>
         <a href={SIGNUP} className="offer-header-cta">Testa gratis</a>
       </header>
 
       <main>
-        <section className="offer-hero offer-hero-lead">
-          <div className="offer-hero-copy">
-            <p className="offer-seats-pill"><span className="offer-live" aria-hidden="true" />{SEATS_LEFT} platser kvar</p>
-            <h1>Gratis hemsida och beställnings{"\u00AD"}system för din restaurang. <em>Bara 5 % per order.</em></h1>
-            <p className="offer-lead">Onlinebeställning med Swish och kort, och terminal i köket. Vi lägger upp menyn och fixar allt.</p>
-            <ul className="offer-ticks" aria-label="Villkor">
-              {TERMS.map((term) => <li key={term}><Check size={16} aria-hidden="true" />{term}</li>)}
-            </ul>
-            <a href={SIGNUP} className="offer-btn offer-btn-primary offer-hero-cta">Testa gratis <ArrowRight size={20} aria-hidden="true" /></a>
-            <p className="offer-hero-alt">Tar 20 sekunder. Vi ringer upp. <Link href={BOOK}>Eller boka en tid</Link></p>
-          </div>
-          <div className="offer-hero-media">
-            <div className="offer-phone">
-              <video src="/erbjudande/film.mp4" poster="/erbjudande/poster.jpg" autoPlay muted loop playsInline preload="metadata" aria-label="Film: så här beställer kunden med viaeats" />
-            </div>
+        <SpaceBand />
+
+        <section data-stat="tillval" className="offer-section sp-section" aria-labelledby="tillval">
+          <p className="offer-kicker">Så ser det ut för gästen</p>
+          <h2 id="tillval">Tillval som gör varje order större.</h2>
+          <p className="sp-lead">Storlek, sås och dryck på ett tryck. Vi lägger upp hela menyn med bilder åt dig.</p>
+          <div className="sp-row">
+            <figure className="sp-phone"><img src="/erbjudande/sida/tillval-1.webp" width={1170} height={2532} alt="King Kong med val av storlek och pris" loading="lazy" /></figure>
+            <figure className="sp-phone"><img src="/erbjudande/sida/tillval-2.webp" width={1170} height={2532} alt="Tillval för sås och dryck till King Kong" loading="lazy" /></figure>
           </div>
         </section>
 
-        <section className="offer-section offer-compare" aria-labelledby="jamfor">
+        <section data-stat="hemsidor" className="offer-section sp-section" aria-labelledby="hemsidor">
+          <p className="offer-kicker">Exempel på hemsidor</p>
+          <h2 id="hemsidor">Varje restaurang får en egen hemsida.</h2>
+          <p className="sp-lead">Eget utseende, din meny och din logga. Byggd för mobilen.</p>
+          <div className="sp-row">
+            {SITES.map((site) => (
+              <a key={site.name} className="sp-site" href={site.href} target="_blank" rel="noreferrer">
+                <figure className="sp-phone"><img src={`/erbjudande/sida/${site.image}.webp`} width={1000} height={1641} alt={`Hemsidan för ${site.name}`} loading="lazy" /></figure>
+                <b>{site.name}</b><span>{site.place}</span>
+              </a>
+            ))}
+          </div>
+        </section>
+
+        <section data-stat="pris" className="offer-section offer-compare" aria-labelledby="jamfor">
           <p className="offer-kicker offer-kicker-light">Jämför själv</p>
           <h2 id="jamfor">Billigare än Lumit och foodora.</h2>
           <div className="offer-bars">
@@ -132,7 +154,7 @@ export default function ErbjudandePage() {
           <a href={SIGNUP} className="offer-btn offer-btn-light">Testa gratis <ArrowRight size={18} aria-hidden="true" /></a>
         </section>
 
-        <section className="offer-section" aria-labelledby="ingar">
+        <section data-stat="ingar" className="offer-section" aria-labelledby="ingar">
           <p className="offer-kicker">Det här får du</p>
           <h2 id="ingar">Allt din restaurang behöver för att ta emot beställningar online.</h2>
           <div className="offer-grid">
@@ -147,7 +169,7 @@ export default function ErbjudandePage() {
           </div>
         </section>
 
-        <section className="offer-section offer-proof" aria-labelledby="bevis">
+        <section data-stat="palmyra" className="offer-section offer-proof" aria-labelledby="bevis">
           <div>
             <p className="offer-kicker">Riktig partner</p>
             <h2 id="bevis">Palmyra Pizzeria gick från 150 kr till <em>230 kr</em> i snittorder.</h2>
@@ -156,7 +178,7 @@ export default function ErbjudandePage() {
           </div>
         </section>
 
-        <section className="offer-section" aria-labelledby="sa">
+        <section data-stat="steg" className="offer-section" aria-labelledby="sa">
           <p className="offer-kicker">Så går det till</p>
           <h2 id="sa">Tre steg. Sedan är du igång.</h2>
           <ol className="offer-steps">
@@ -176,7 +198,7 @@ export default function ErbjudandePage() {
           </div>
         </section>
 
-        <section className="offer-section" aria-labelledby="fragor">
+        <section data-stat="fragor" className="offer-section" aria-labelledby="fragor">
           <p className="offer-kicker">Frågor</p>
           <h2 id="fragor">Vanliga frågor om beställningssystem för restauranger.</h2>
           <div className="offer-faq">
@@ -189,7 +211,7 @@ export default function ErbjudandePage() {
           </div>
         </section>
 
-        <section className="offer-final">
+        <section data-stat="slut" className="offer-final">
           <h2>Bara {SEATS_LEFT} platser kvar. <em>Testa gratis.</em></h2>
           <p>{TERMS.join(" · ")}</p>
           <a href={SIGNUP} className="offer-btn offer-btn-light">Testa gratis <ArrowRight size={18} aria-hidden="true" /></a>

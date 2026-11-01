@@ -6,14 +6,14 @@ import { ArrowRight } from "lucide-react";
 export default function StickyCta() {
   const [show, setShow] = useState(false);
   useEffect(() => {
-    const onScroll = () => setShow(window.scrollY > 420);
+    const onScroll = () => setShow(window.scrollY > Math.max(420, (document.querySelector(".fs") as HTMLElement | null)?.offsetHeight ?? 0));
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
   return (
     <div className={`offer-sticky${show ? " on" : ""}`} aria-hidden={!show}>
-      <a href="#registrera" tabIndex={show ? 0 : -1}>Testa gratis <span>bara 5 % per order</span> <ArrowRight size={18} aria-hidden="true" /></a>
+      <a href="#registrera" tabIndex={show ? 0 : -1}>Testa gratis <ArrowRight size={18} aria-hidden="true" /></a>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Check, LoaderCircle, X } from "lucide-react";
 import { trackMetaLead } from "@/lib/metaEvents";
+import { atFormStep } from "./visitStats";
 
 const STEPS = [
   { name: "restaurant", title: "Vad heter din restaurang?", type: "text", autoComplete: "organization", placeholder: "Restaurangens namn", min: 2, max: 150 },
@@ -45,11 +46,37 @@ export default function LeadSheet() {
   }, []);
   useEffect(() => {
     if (!open) return;
-    document.body.style.overflow = "hidden";
     const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") close(); };
     window.addEventListener("keydown", onKey);
-    return () => { document.body.style.overflow = ""; window.removeEventListener("keydown", onKey); };
+    return () => window.removeEventListener("keydown", onKey);
   }, [open, close]);
+  // Formuläret följer den synliga ytan, så att tangentbordet aldrig täcker det, och sidan bakom står still.
+  useEffect(() => {
+    if (!open) return;
+    const root = document.documentElement;
+    const viewport = window.visualViewport;
+    const place = () => {
+      root.style.setProperty("--lead-height", `${viewport?.height ?? window.innerHeight}px`);
+      root.style.setProperty("--lead-top", `${viewport?.offsetTop ?? 0}px`);
+    };
+    const hold = (event: Event) => {
+      const sheet = (event.target as HTMLElement).closest?.(".lead-sheet");
+      if (sheet && sheet.scrollHeight > sheet.clientHeight) return;
+      if (event.cancelable) event.preventDefault();
+    };
+    place();
+    viewport?.addEventListener("resize", place);
+    viewport?.addEventListener("scroll", place);
+    document.addEventListener("touchmove", hold, { passive: false });
+    document.addEventListener("wheel", hold, { passive: false });
+    return () => {
+      viewport?.removeEventListener("resize", place);
+      viewport?.removeEventListener("scroll", place);
+      document.removeEventListener("touchmove", hold);
+      document.removeEventListener("wheel", hold);
+    };
+  }, [open]);
+  useEffect(() => { if (open) atFormStep(state === "done" ? STEPS.length + 1 : step + 1); }, [open, step, state]);
   useEffect(() => { if (open && state !== "done") input.current?.focus(); }, [open, step, state]);
 
   async function send() {
@@ -105,15 +132,16 @@ export default function LeadSheet() {
           <form onSubmit={next} noValidate>
             <div className="lead-progress" aria-hidden="true"><span style={{ width: `${((step + 1) / STEPS.length) * 100}%` }} /></div>
             <p className="lead-count">{step + 1} av {STEPS.length}</p>
-            <label key={current.name} className="lead-step">
-              <span>{current.title}</span>
+            <label className="lead-step">
+              <span key={current.name}>{current.title}</span>
               <input ref={input} name={current.name} type={current.type} value={value} placeholder={current.placeholder} autoComplete={current.autoComplete} maxLength={current.max} inputMode={current.type === "tel" ? "tel" : undefined} enterKeyHint={last ? "send" : "next"} onChange={(event) => setValues({ ...values, [current.name]: event.target.value })} />
             </label>
             <div className="offer-honeypot" aria-hidden="true"><label>Hemsida<input ref={trap} name="website" tabIndex={-1} autoComplete="off" /></label></div>
             {error && <p className="offer-error" role="alert">{error}</p>}
             <div className="lead-actions">
-              {step > 0 && <button type="button" className="lead-back" onClick={() => setStep(step - 1)} aria-label="Tillbaka"><ArrowLeft size={20} aria-hidden="true" /></button>}
-              <button type="submit" className="lead-next" disabled={!valid || state === "sending"}>
+              {step > 0 && <button type="button" className="lead-back" onPointerDown={(event) => event.preventDefault()} onMouseDown={(event) => event.preventDefault()} onClick={() => setStep(step - 1)} aria-label="Tillbaka"><ArrowLeft size={20} aria-hidden="true" /></button>}
+              {/* Fältet behåller fokus vid tryck, så tangentbordet ligger kvar hela vägen till Skicka. */}
+              <button type="submit" className="lead-next" onPointerDown={(event) => event.preventDefault()} onMouseDown={(event) => event.preventDefault()} disabled={!valid || state === "sending"}>
                 {state === "sending" ? <>Skickar <LoaderCircle size={18} className="offer-spin" aria-hidden="true" /></> : <>{last ? "Testa gratis" : "Nästa"} <ArrowRight size={18} aria-hidden="true" /></>}
               </button>
             </div>
