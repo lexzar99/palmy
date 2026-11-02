@@ -49,6 +49,8 @@ writeFileSync(join(ROOT, "dist/404.html"), '<!doctype html><meta charset="utf-8"
 writeFileSync(join(ROOT, "vercel.json"), `${JSON.stringify({
   buildCommand: "npm run check && npm run build",
   outputDirectory: "dist",
+  // Bygg bara om när något i sites/ har ändrats
+  ignoreCommand: "git diff --quiet HEAD^ HEAD -- .",
   rewrites: routes,
   headers: [
     { source: "/(.*)", headers: SECURITY },

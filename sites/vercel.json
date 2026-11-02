@@ -1,6 +1,7 @@
 {
   "buildCommand": "npm run check && npm run build",
   "outputDirectory": "dist",
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- .",
   "rewrites": [
     {
       "source": "/",
