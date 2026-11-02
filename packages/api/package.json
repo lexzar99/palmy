@@ -57,6 +57,7 @@
     "send:launch-coupons": "ts-node --transpile-only -r dotenv/config scripts/send-launch-coupons.ts",
     "test:order-attribution": "ts-node --transpile-only src/contracts/orderAttribution.test.ts",
     "test:partner-meetings": "ts-node --transpile-only src/contracts/partnerMeetings.test.ts",
+    "test:restaurant-status": "ts-node --transpile-only src/contracts/restaurantPublicStatus.test.ts",
     "test:offer-visits": "ts-node --transpile-only src/contracts/offerVisits.test.ts"
   },
   "dependencies": {

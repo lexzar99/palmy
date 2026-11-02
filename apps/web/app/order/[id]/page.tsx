@@ -24,6 +24,7 @@ import {
   readEmbedParentOrigin,
   rememberEmbedOrder,
   trustedPartnerOrigin,
+  partnerMenuPath,
 } from "@/lib/embedPartner";
 import { orderTrackingCopy, orderTrackingProgress } from "@/lib/orderTrackingPresentation";
 import PhoneAuth from "@/components/PhoneAuth";
@@ -191,7 +192,7 @@ const OrderStatusPage = () => {
         readEmbedParentOrigin() ||
         partnerOriginForRestaurant(restaurantSlug);
       if (partnerOrigin) {
-        const partnerReturn = new URL("/meny.html", partnerOrigin);
+        const partnerReturn = new URL(partnerMenuPath(partnerOrigin), partnerOrigin);
         partnerReturn.searchParams.set("order", orderId);
         partnerReturn.searchParams.set("restaurant", restaurantSlug);
         window.location.replace(partnerReturn.toString());

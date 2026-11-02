@@ -87,6 +87,10 @@ export const DEFAULT_ORIGINS = [
   // läser publik data (meny/öppetstatus) direkt från API:t i browsern.
   'https://palmyrapizzeria.se',
   'https://www.palmyrapizzeria.se',
+  'https://fredspizza.se',
+  'https://www.fredspizza.se',
+  // Vårt eget Vercel-projekt för restaurangsajter, innan domänen är kopplad.
+  'https://viaeats-sites.vercel.app',
 ];
 
 export const getAllowedOrigins = (): string[] => {

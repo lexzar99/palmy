@@ -33,7 +33,7 @@ import {
 import { API_URL } from "@/lib/api";
 import { palmyraCartPrice } from "@/lib/palmyraCartPrice";
 import { ensureKioskAccess } from "@/lib/kioskAccessClient";
-import { EMBED_PARENT_ORIGIN_PARAM, partnerOriginForRestaurant, readEmbedParentOrigin, rememberEmbedOrder, trustedPartnerOrigin } from "@/lib/embedPartner";
+import { EMBED_PARENT_ORIGIN_PARAM, partnerOriginForRestaurant, readEmbedParentOrigin, rememberEmbedOrder, partnerMenuPath, trustedPartnerOrigin } from "@/lib/embedPartner";
 import { checkDeliveryStreet, isDeliverableStreet } from "@/lib/deliveryAddress";
 import { useCartStore } from "@/store/cartStore";
 import { trackJourney } from "@/lib/journey";
@@ -2174,7 +2174,7 @@ export default function CartPage() {
       : `/order/${orderId}`;
 
     if (trackingEmbedded && trackingParentOrigin && window.parent === window) {
-      const partnerReturn = new URL("/meny.html", trackingParentOrigin);
+      const partnerReturn = new URL(partnerMenuPath(trackingParentOrigin), trackingParentOrigin);
       partnerReturn.searchParams.set("order", orderId);
       partnerReturn.searchParams.set("restaurant", trackingRestaurantSlug);
       window.location.replace(partnerReturn.toString());
@@ -3038,7 +3038,7 @@ export default function CartPage() {
         })()
         : null;
       const returnUrl = embedParentOrigin
-        ? `${embedParentOrigin}/meny.html?${returnParams.toString()}`
+        ? `${embedParentOrigin}${partnerMenuPath(embedParentOrigin)}?${returnParams.toString()}`
         : demoReturnPath
           ? `${window.location.origin}${demoReturnPath}?${returnParams.toString()}`
           : `${window.location.origin}/${swishAppSwitchReturn ? "pay/back" : "cart"}?${returnParams.toString()}`;

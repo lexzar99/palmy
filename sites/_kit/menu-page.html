@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <link rel="preconnect" href="https://www.viaeats.se" />
+  <link rel="preconnect" href="https://api.viaeats.se" crossorigin />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Beställ från {{name}}</title>
+  <meta name="description" content="Beställ från {{name}} och betala med Swish eller kort." />
+  <meta name="theme-color" content="{{theme}}" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/img/icon-192.png" />
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #f7f6f4; }
+    body { color: #222; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+    [data-viaeats-menu] { position: fixed; inset: 0; padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
+    .menu-loading { display: grid; min-height: 220px; place-items: center; margin: 0; color: #6c6c6c; font-size: 14px; font-weight: 600; }
+    .menu-error { margin: 24px auto; max-width: 520px; padding: 20px; text-align: center; line-height: 1.6; }
+    .menu-error a { font-weight: 700; color: inherit; }
+  </style>
+</head>
+<body>
+  <main data-viaeats-menu="{{slug}}" data-viaeats-fullscreen="1" data-viaeats-back="/" aria-busy="true">
+    <p class="menu-loading">Laddar menyn</p>
+  </main>
+  <script>
+    function showMenuFallback() {
+      var host = document.querySelector("[data-viaeats-menu]");
+      if (!host || host.querySelector("iframe")) return;
+      host.removeAttribute("aria-busy");
+      host.innerHTML = '<p class="menu-error">Beställningen kunde inte laddas. Försök igen om en stund.<br><a href="/">Tillbaka</a></p>';
+    }
+    addEventListener("DOMContentLoaded", function () { setTimeout(showMenuFallback, 10000); });
+  </script>
+  <script src="https://www.viaeats.se/embed.js" defer onerror="showMenuFallback()"></script>
+</body>
+</html>

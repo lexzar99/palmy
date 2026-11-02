@@ -52,6 +52,9 @@
   function trustedPartnerOrigin(origin) {
     return origin === "https://palmyrapizzeria.se" ||
       origin === "https://www.palmyrapizzeria.se" ||
+      origin === "https://fredspizza.se" ||
+      origin === "https://www.fredspizza.se" ||
+      origin === "https://viaeats-sites.vercel.app" ||
       origin === "http://localhost:3000" ||
       origin === "http://localhost:4000";
   }

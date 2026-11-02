@@ -1,0 +1,73 @@
+{
+  "buildCommand": "npm run check && npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "viaeats-sites.vercel.app"
+        }
+      ],
+      "destination": "/freds/index.html"
+    },
+    {
+      "source": "/meny",
+      "has": [
+        {
+          "type": "host",
+          "value": "viaeats-sites.vercel.app"
+        }
+      ],
+      "destination": "/freds/meny/index.html"
+    },
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "viaeats-sites.vercel.app"
+        }
+      ],
+      "destination": "/freds/:path*"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000"
+        }
+      ]
+    },
+    {
+      "source": "/:site/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
+}

@@ -4,6 +4,10 @@ const EMBED_PARENT_ORIGIN_SESSION_KEY = "viaeats_embed_parent_origin_v1";
 const TRUSTED_PARTNER_ORIGINS = new Set([
   "https://palmyrapizzeria.se",
   "https://www.palmyrapizzeria.se",
+  "https://fredspizza.se",
+  "https://www.fredspizza.se",
+  // Vårt eget Vercel-projekt för restaurangsajter, innan domänen är kopplad.
+  "https://viaeats-sites.vercel.app",
   "http://localhost:3000",
   "http://localhost:4000",
 ]);
@@ -11,6 +15,18 @@ const TRUSTED_PARTNER_ORIGINS = new Set([
 const PARTNER_ORIGIN_BY_RESTAURANT = new Map([
   ["palmyra-pizzeria-lund", "https://www.palmyrapizzeria.se"],
 ]);
+
+// Sidan där partnern har embedden. Betalningar återvänder hit.
+const PARTNER_MENU_PATH_BY_ORIGIN = new Map([
+  ["https://palmyrapizzeria.se", "/meny.html"],
+  ["https://www.palmyrapizzeria.se", "/meny.html"],
+  ["http://localhost:3000", "/meny.html"],
+  ["http://localhost:4000", "/meny.html"],
+]);
+
+export function partnerMenuPath(origin: string): string {
+  return PARTNER_MENU_PATH_BY_ORIGIN.get(origin) || "/meny";
+}
 
 export function trustedPartnerOrigin(candidate: unknown): string | null {
   if (typeof candidate !== "string" || !candidate || candidate.length > 256) return null;

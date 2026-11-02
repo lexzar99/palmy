@@ -17,6 +17,7 @@ import {
 import { resolveOrCreateCity } from '../lib/cityResolver';
 import { cached, bustCache, bustRestaurantCaches } from '../lib/ttlCache';
 import { revalidateWebRestaurant } from '../lib/revalidate';
+import { buildRestaurantPublicStatus } from '../lib/restaurantPublicStatus';
 import { menuCacheBust } from './menu';
 import { deleteFromR2, listR2, r2Enabled, r2UrlToKey, slugifyPathSegment } from '../lib/r2';
 import { syncRestaurantImagePrefix } from '../lib/r2Rename';
@@ -1739,6 +1740,24 @@ router.post('/:restaurantId/items', authenticate, async (req: AuthRequest, res) 
     res.status(201).json(item);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// Public: litet läge för restaurangens egen hemsida, utan meny. Webben cachar svaret.
+router.get('/:slug/status', async (req, res) => {
+  try {
+    const [restaurant, platform] = await Promise.all([
+      prisma.restaurant.findFirst({
+        where: { slug: req.params.slug, archivedAt: null, draft: false },
+        include: { city_relation: { select: { ordersPaused: true, ordersPausedUntil: true, ordersPauseReason: true } } },
+      }),
+      prisma.restaurantSettings.findUnique({ where: { id: 'settings' } }),
+    ]);
+    if (!restaurant) return res.status(404).json({ error: 'Restaurangen finns inte' });
+    return res.json(buildRestaurantPublicStatus(restaurant as any, { city: restaurant.city_relation, platform }));
+  } catch (error) {
+    console.error('[restaurants/status] error:', (error as Error)?.message ?? error);
+    return res.status(500).json({ error: 'Kunde inte hämta läget' });
   }
 });
 
