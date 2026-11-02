@@ -13,6 +13,8 @@ Ny domän: lägg den i sajtens `site.config.js`, koppla den i Vercel och lägg d
 
 Öppettider, adress och telefon ändras i admin, aldrig här.
 
+Ny sajt: skapa Vercel-projektet med restaurangens namn, sätt Root Directory `sites` och `SITE=<mapp>`, och koppla GitHub. Lägg upp restaurangen i viaeats före första bygget, annars stoppar regelkontrollen deployen.
+
     npm install
     SITE=freds npm run build    # bygger en sajt till dist/
     npm run check    # stoppar bygget om en sajt bryter reglerna
