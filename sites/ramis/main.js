@@ -19,6 +19,8 @@ const film = createFrames(stage, { path: "/film/skar", count: FRAMES, fit: mobil
 
 startJourney({
   length: 1.9,
+  // Ett svep räcker: filmen spelas klart och stannar vid Beställ-knappen
+  auto: 5,
   // Handen håller rullen, och bilden lever vidare i filmens sista bilder
   live: () => true,
   onLayout: () => film.layout(),

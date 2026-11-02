@@ -11,14 +11,15 @@ export const seg = (p, a, b) => ease(clamp((p - a) / (b - a)));
 /**
  * length = resans längd i skärmhöjder. draw(g, now, moving) ritar läget 0–1.
  * live() svarar true när scenen rör sig av sig själv, till exempel glöd, och ska ritas även utan skroll.
+ * auto = sekunder: första svepet spelar resan till slutet av sig själv, utan att man behöver skrolla hela vägen.
  * Sidan behöver CSS-klassen html.is-locked, se base i sajtens style.css.
  */
-export function startJourney({ length, draw, live = () => false, onLayout = () => {} }) {
+export function startJourney({ length, draw, live = () => false, onLayout = () => {}, auto = 0 }) {
   const root = document.documentElement;
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   let width = 0, visible = 0, travel = 1, stale = true;
   let g = reduce ? 1 : 0, target = 0, speed = 0, touching = false, locked = false;
-  let lastY = null, lastT = 0, last = performance.now(), running = false;
+  let lastY = null, lastT = 0, last = performance.now(), running = false, playing = false;
 
   const measure = () => {
     // Adressfältet ändrar höjden under skrollen. Då ska bilden inte hoppa.
@@ -41,12 +42,17 @@ export function startJourney({ length, draw, live = () => false, onLayout = () =
       speed *= Math.exp(-dt * GLIDE);
       if (Math.abs(speed) < 0.15) speed = 0;
     }
+    if (playing) {
+      g = clamp(g + dt / auto);
+      target = g * travel;
+      if (g >= 1) playing = false;
+    }
     const goal = target / travel;
     g = clamp(g + (goal - g) * (1 - Math.exp(-dt * FOLLOW)));
     if (Math.abs(goal - g) < 0.00006) g = goal;
     // Fingret måste vara framme också, annars släpps låset direkt på väg tillbaka.
     if (locked && goal >= 0.999 && g >= 0.999) { g = 1; setLock(false); }
-    const moving = Boolean(speed || g !== goal || touching);
+    const moving = Boolean(playing || speed || g !== goal || touching);
     if (onStage()) draw(g, now, moving);
     if (moving || (onStage() && live())) requestAnimationFrame(frame); else running = false;
   }
@@ -58,11 +64,16 @@ export function startJourney({ length, draw, live = () => false, onLayout = () =
   }
   function push(dy) {
     if (!locked) return;
+    if (auto) {
+      if (dy > 0) playing = true;
+      wake();
+      return;
+    }
     target = clamp(target + dy, 0, travel);
     wake();
   }
   function finish() {
-    g = 1; target = travel; speed = 0;
+    g = 1; target = travel; speed = 0; playing = false;
     setLock(false);
     draw(g, performance.now(), false);
   }
@@ -78,7 +89,7 @@ export function startJourney({ length, draw, live = () => false, onLayout = () =
 
   if (!reduce) {
     addEventListener("wheel", (event) => {
-      if (!locked && scrollY <= 0 && event.deltaY < 0) setLock(true);
+      if (!auto && !locked && scrollY <= 0 && event.deltaY < 0) setLock(true);
       if (!locked) return;
       event.preventDefault();
       push(event.deltaY);
@@ -94,7 +105,7 @@ export function startJourney({ length, draw, live = () => false, onLayout = () =
       if (lastY === null) return;
       const y = event.touches[0].clientY;
       const dy = (lastY - y) * TOUCH;
-      if (!locked && scrollY <= 0 && dy < 0) setLock(true);
+      if (!auto && !locked && scrollY <= 0 && dy < 0) setLock(true);
       if (!locked) { lastY = y; return; }
       if (event.cancelable) event.preventDefault();
       const now = performance.now();
