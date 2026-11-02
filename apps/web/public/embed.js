@@ -54,7 +54,7 @@
       origin === "https://www.palmyrapizzeria.se" ||
       origin === "https://fredspizza.se" ||
       origin === "https://www.fredspizza.se" ||
-      origin === "https://viaeats-sites.vercel.app" ||
+      origin === "https://freds-pizzeria.vercel.app" ||
       origin === "http://localhost:3000" ||
       origin === "http://localhost:4000";
   }

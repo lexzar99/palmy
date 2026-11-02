@@ -89,8 +89,8 @@ export const DEFAULT_ORIGINS = [
   'https://www.palmyrapizzeria.se',
   'https://fredspizza.se',
   'https://www.fredspizza.se',
-  // Vårt eget Vercel-projekt för restaurangsajter, innan domänen är kopplad.
-  'https://viaeats-sites.vercel.app',
+  // Freds Vercel-projekt, tills fredspizza.se är kopplad.
+  'https://freds-pizzeria.vercel.app',
 ];
 
 export const getAllowedOrigins = (): string[] => {

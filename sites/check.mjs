@@ -20,14 +20,15 @@ const walk = (dir) => readdirSync(dir).flatMap((name) => {
   return statSync(path).isDirectory() ? walk(path) : /\.(js|css|html)$/.test(name) ? [path] : [];
 });
 
-const sites = readdirSync(ROOT).filter((name) => {
+// På Vercel kontrolleras projektets egen sajt, lokalt alla.
+const sites = process.env.SITE ? [process.env.SITE] : readdirSync(ROOT).filter((name) => {
   try { return statSync(join(ROOT, name, "site.config.js")).isFile(); } catch { return false; }
 });
 for (const name of sites) {
   const { default: site } = await import(join(ROOT, name, "site.config.js"));
   for (const key of ["name", "shortName", "slug", "cuisine", "theme"]) if (!site[key]) errors.push(`${name}: ${key} saknas i site.config.js`);
   if (!site.domains?.length) errors.push(`${name}: domän saknas i site.config.js`);
-  const status = await fetch(`https://www.viaeats.se/api/restaurant-status/${site.slug}`).catch(() => null);
+  const status = await fetch(`https://www.viaeats.se/api/restaurant-status/${site.slug}`, { signal: AbortSignal.timeout(10_000) }).catch(() => null);
   if (status && status.status === 404) errors.push(`${name}: ${site.slug} finns inte i viaeats`);
   for (const file of walk(join(ROOT, name))) {
     const text = readFileSync(file, "utf8");

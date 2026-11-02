@@ -4,6 +4,6 @@ export default {
   slug: "freds-pizzeria-hassleholm",
   cuisine: "Pizza",
   theme: "#141416",
-  // Första domänen är huvudadressen. Vercel-adressen tas bort när fredspizza.se är köpt och kopplad.
-  domains: ["viaeats-sites.vercel.app"],
+  // Första domänen är huvudadressen. Byt till fredspizza.se när den är köpt och kopplad.
+  domains: ["freds-pizzeria.vercel.app"],
 };
