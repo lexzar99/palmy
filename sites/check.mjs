@@ -29,7 +29,7 @@ for (const name of sites) {
   for (const key of ["name", "shortName", "slug", "cuisine", "theme"]) if (!site[key]) errors.push(`${name}: ${key} saknas i site.config.js`);
   if (!site.domains?.length) errors.push(`${name}: domän saknas i site.config.js`);
   const status = await fetch(`https://www.viaeats.se/api/restaurant-status/${site.slug}`, { signal: AbortSignal.timeout(10_000) }).catch(() => null);
-  if (status && status.status === 404) errors.push(`${name}: ${site.slug} finns inte i viaeats`);
+  if (!site.notInViaeats && status && status.status === 404) errors.push(`${name}: ${site.slug} finns inte i viaeats`);
   for (const file of walk(join(ROOT, name))) {
     const text = readFileSync(file, "utf8");
     for (const [pattern, message] of BANNED) if (pattern.test(text)) errors.push(`${file.replace(`${ROOT}/`, "")}: ${message}`);

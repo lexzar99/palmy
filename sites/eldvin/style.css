@@ -1,0 +1,104 @@
+@import "@fontsource-variable/cormorant-garamond/index.css";
+@import "@fontsource-variable/outfit/index.css";
+
+/* Eld & Vin: kol, vinrött och loggans guld. Cormorant och Outfit är deras egna typsnitt. */
+:root {
+  --coal: #0e0908;
+  --wine: #2a0710;
+  --wine-2: #3a0c18;
+  --gold: #e9bd7e;
+  --gold-2: #f6d7a6;
+  --text: #f6ead9;
+  --muted: #c9b3a2;
+  --line: rgba(233, 189, 126, 0.2);
+  --serif: "Cormorant Garamond Variable", Georgia, serif;
+  --sans: "Outfit Variable", system-ui, sans-serif;
+  --gutter: clamp(22px, 6vw, 96px);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+* { box-sizing: border-box; }
+html { background: #000; -webkit-text-size-adjust: 100%; scrollbar-gutter: stable; }
+html.is-locked, html.is-locked body { overflow: hidden; overscroll-behavior: none; height: 100%; }
+body { margin: 0; background: var(--wine); color: var(--text); font: 300 18px/1.6 var(--sans); overflow-x: clip; -webkit-font-smoothing: antialiased; }
+img { display: block; max-width: 100%; height: auto; }
+a { color: inherit; text-decoration: none; }
+h1, h2, p, ul, dl { margin: 0; padding: 0; }
+ul { list-style: none; }
+[hidden] { display: none !important; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; min-height: 58px; padding: 0 34px; border-radius: 2px; background: var(--gold); color: #1c0b08; font: 500 15px/1 var(--sans); letter-spacing: 0.14em; text-transform: uppercase; transition: background 0.2s, transform 0.2s var(--ease); touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.btn:hover { background: var(--gold-2); }
+.btn:active, .btn.is-going { transform: scale(0.97); }
+.btn-line { background: none; color: var(--gold-2); box-shadow: inset 0 0 0 1px var(--gold); }
+.btn-line:hover { background: rgba(233, 189, 126, 0.12); }
+.btn-sm { min-height: 42px; padding: 0 20px; font-size: 12px; }
+.link { display: inline-block; color: var(--gold-2); border-bottom: 1px solid var(--gold); padding-bottom: 4px; letter-spacing: 0.04em; }
+.kicker { color: var(--gold); font-size: 13px; font-weight: 400; letter-spacing: 0.24em; text-transform: uppercase; }
+.h2 { margin-top: 16px; font: 500 clamp(46px, 7.4vw, 104px)/0.98 var(--serif); letter-spacing: -0.015em; }
+.h2 em { color: var(--gold); font-style: italic; }
+.reveal { opacity: 0; transform: translateY(26px); transition: opacity 1s var(--ease), transform 1s var(--ease); }
+.reveal.is-in { opacity: 1; transform: none; }
+
+.top { position: fixed; inset: 0 0 auto; z-index: 40; display: flex; align-items: center; justify-content: space-between; padding: calc(14px + env(safe-area-inset-top, 0px)) var(--gutter) 12px; transition: background 0.3s; }
+.top.is-solid { background: rgba(14, 9, 8, 0.97); box-shadow: 0 1px 0 var(--line); }
+.top__logo img { width: 104px; }
+
+/* ---------- Signaturscenen ---------- */
+.stage { --bars: calc(100lvh - 100svh); position: relative; height: 100lvh; background: #000; }
+.stage__fixed { position: absolute; inset: 0; overflow: hidden; touch-action: pan-y; }
+html.is-locked .stage__fixed { position: fixed; inset: 0 0 auto; height: 100lvh; touch-action: none; }
+.stage__film { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+.stage__tone { position: absolute; inset: 0; opacity: 0; background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.3) 30%, rgba(0, 0, 0, 0.66)); }
+.stage__end { position: absolute; left: var(--gutter); right: var(--gutter); top: calc(50svh - 30px); translate: 0 -50%; text-align: center; visibility: hidden; opacity: 0; pointer-events: none; will-change: transform, opacity; }
+.stage__end.is-on { pointer-events: auto; }
+.stage__title { font: 500 clamp(76px, 22vw, 190px)/0.92 var(--serif); letter-spacing: -0.02em; color: #fff; text-shadow: 0 2px 30px rgba(0, 0, 0, 0.75); }
+.stage__title em { color: var(--gold); }
+.stage__lede { margin-top: 18px; font-size: clamp(16px, 2vw, 20px); font-weight: 400; text-shadow: 0 1px 3px #000, 0 0 14px rgba(0, 0, 0, 0.9); }
+.stage__actions { display: flex; justify-content: center; gap: 10px; margin-top: 26px; }
+.stage__actions .btn { min-height: 54px; padding: 0 clamp(16px, 5vw, 34px); font-size: 13px; white-space: nowrap; }
+.stage__hint { position: absolute; left: 0; right: 0; bottom: calc(var(--bars) + max(26px, 5svh)); text-align: center; color: var(--gold); font-size: 12px; letter-spacing: 0.26em; text-transform: uppercase; transition: opacity 0.4s; pointer-events: none; }
+.stage__hint i { display: block; width: 1px; height: 36px; margin: 12px auto 0; background: var(--gold); animation: hint 1.8s var(--ease) infinite; transform-origin: top; }
+@keyframes hint { 0% { transform: scaleY(0); } 70%, 100% { transform: scaleY(1); opacity: 0; } }
+
+/* ---------- Grillen ---------- */
+.grill { background: linear-gradient(#000, var(--wine) 340px); }
+.grill, .lunch, .hours, .find { padding: clamp(90px, 12vw, 170px) var(--gutter); }
+.plates { max-width: 860px; margin-top: clamp(38px, 5vw, 64px); }
+.plates li { display: flex; align-items: baseline; gap: 12px; padding: 16px 0; font: 500 clamp(30px, 4.6vw, 48px)/1.1 var(--serif); }
+.plates i { flex: 1; min-width: 20px; border-bottom: 1px dotted var(--line); transform: translateY(-6px); }
+.plates b { color: var(--gold); font-weight: 500; font-variant-numeric: lining-nums; }
+.grill__note { max-width: 32em; margin: 30px 0 22px; color: var(--muted); }
+
+/* ---------- Lunchen ---------- */
+.lunch { background: var(--coal); text-align: center; }
+.lunch__price { margin-top: 26px; color: var(--gold); font: 500 clamp(130px, 30vw, 300px)/0.82 var(--serif); font-variant-numeric: lining-nums; letter-spacing: -0.03em; }
+.lunch__price small { margin-left: 8px; font-size: 0.2em; letter-spacing: 0; }
+.lunch__text { max-width: 34em; margin: 26px auto 0; color: var(--muted); }
+
+/* ---------- Öppet och hitta hit ---------- */
+.hours { display: grid; grid-template-columns: 1.1fr 1fr; gap: clamp(40px, 7vw, 110px); align-items: center; }
+.week div { display: flex; justify-content: space-between; padding: 13px 0; border-bottom: 1px solid var(--line); }
+.week dt { color: var(--muted); }
+.week dd { margin: 0; font-variant-numeric: tabular-nums; }
+.week .is-today dt, .week .is-today dd { color: var(--gold-2); font-weight: 400; }
+.find { background: var(--wine-2); }
+.find__text { margin-top: 14px; color: var(--muted); }
+.find__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 18px 28px; margin-top: 30px; }
+.find__phone { display: block; margin-top: 22px; color: var(--muted); }
+
+.footer { display: grid; justify-items: center; gap: 22px; padding: 64px var(--gutter) calc(96px + env(safe-area-inset-bottom, 0px)); background: var(--coal); color: var(--muted); font-size: 14px; text-align: center; }
+.footer img { width: 150px; }
+.powered span { opacity: 0.7; }
+.powered strong { color: var(--text); font-weight: 500; }
+
+.order-bar { display: none; }
+@media (max-width: 800px) {
+  .hours { grid-template-columns: 1fr; }
+  .order-bar { position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 50; display: flex; align-items: center; justify-content: space-between; min-height: 58px; padding: 0 7px 0 18px; border-radius: 3px; background: rgba(14, 9, 8, 0.98); box-shadow: 0 0 0 1px var(--line); color: var(--muted); font-size: 13px; letter-spacing: 0.08em; transition: transform 0.35s var(--ease), opacity 0.35s; }
+  .order-bar strong { padding: 13px 20px; background: var(--gold); color: #1c0b08; font-weight: 500; }
+  .order-bar.hide { transform: translateY(140%); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+  .stage__hint i { animation: none; }
+}

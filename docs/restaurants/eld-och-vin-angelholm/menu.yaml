@@ -1,0 +1,415 @@
+# Eld & Vin, Heimdallgatan 33, Ängelholm: GENERERAD av build.py. Källa foodora, avläst 2026-11-02.
+extraGroups:
+  - name: "Välj sås (ingår)"
+    type: radio
+    required: true
+    options:
+      - { name: "Mild sås", price: 0 }
+      - { name: "Stark sås", price: 0 }
+      - { name: "Blandad sås", price: 0 }
+      - { name: "Vitlökssås", price: 0 }
+      - { name: "Bearnaisesås", price: 0 }
+      - { name: "Ingen sås", price: 0 }
+  - name: "Sås i burk"
+    type: checkbox
+    required: false
+    max: 5
+    options:
+      - { name: "Bearnaisesås i burk", price: 15 }
+      - { name: "Mild sås i burk", price: 15 }
+      - { name: "Stark sås i burk", price: 15 }
+      - { name: "Vitlökssås i burk", price: 15 }
+  - name: "Lägg till tillbehör"
+    type: checkbox
+    required: false
+    max: 6
+    options:
+      - { name: "Pommes frites", price: 40 }
+      - { name: "Vitlöksbröd", price: 50 }
+      - { name: "Lökringar", price: 50 }
+      - { name: "Mozzarellasticks", price: 50 }
+  - name: "Lägg till dryck"
+    type: checkbox
+    required: false
+    max: 10
+    options:
+      - { name: "Pepsi 33 cl", price: 30 }
+      - { name: "Pepsi Max 33 cl", price: 30 }
+  - name: "Extra pålägg"
+    type: checkbox
+    required: false
+    max: 10
+    options:
+      - { name: "Ananas", price: 15 }
+      - { name: "Bacon", price: 15 }
+      - { name: "Banan", price: 15 }
+      - { name: "Champinjoner", price: 15 }
+      - { name: "Feferoni", price: 15 }
+      - { name: "Färsk vitlök", price: 15 }
+      - { name: "Jalapeño", price: 15 }
+      - { name: "Kebabkött", price: 25 }
+      - { name: "Kyckling", price: 25 }
+      - { name: "Köttfärs", price: 15 }
+      - { name: "Lök", price: 15 }
+      - { name: "Oliver", price: 15 }
+      - { name: "Oxfilé", price: 35 }
+      - { name: "Paprika", price: 15 }
+      - { name: "Räkor", price: 25 }
+      - { name: "Salami", price: 15 }
+      - { name: "Skinka", price: 15 }
+      - { name: "Tonfisk", price: 15 }
+      - { name: "Extra ost", price: 15 }
+
+categories:
+  - name: "Förrätter"
+    products:
+      - name: "Buffalo wings"
+        description: "Krispiga kycklingvingar med kryddig buffalosås."
+        price: 99
+      - name: "Vitlöksbröd"
+        description: ""
+        price: 79
+      - name: "Snacks"
+        description: ""
+        price: 79
+  - name: "Pizzor"
+    products:
+      - name: "Oxen"
+        description: "Oxfilé, tryffelkräm, karamelliserad lök, champinjoner, ruccola, grana padano, nymald svartpeppar."
+        price: 145
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Skinkan"
+        description: "Cocktailmozzarella, lufttorkad skinka, vitlökssalami, crema di balsamico, ruccola, grana padano."
+        price: 145
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Sötis"
+        description: "Grana padano, skinka, bacon, honung, ruccola."
+        price: 129
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Chevre"
+        description: "Chevré och färska grönsaker."
+        price: 149
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Margherita"
+        description: "Ost och tomatsås."
+        price: 110
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Al Funghi"
+        description: "Tomatsås, ost och champinjoner."
+        price: 110
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Hawaii"
+        description: "Tomatsås, ost, ananas och skinka."
+        price: 120
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Vesuvio"
+        description: "Tomatsås, ost och skinka."
+        price: 110
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Capricciosa"
+        description: "Tomatsås, champinjoner, skinka och ost."
+        price: 120
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Bolognese"
+        description: "Köttfärs, tomatsås, ost och rödlök."
+        price: 120
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Calzone"
+        description: "Skinka och ost, inbakad."
+        price: 120
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Carpaccio"
+        description: "Oxfilé, ruccola, grana padano och tryffelkräm."
+        price: 139
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Matilda"
+        description: "Färska grönsaker och smält ost."
+        price: 139
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Florens"
+        description: "Oxfilé, rödlök, champinjoner, färsk vitlök och bearnaise."
+        price: 159
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Bussola"
+        description: "Skinka, tomatsås, ost och räkor."
+        price: 120
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Bananen"
+        description: "Tomatsås, ost, banan, skinka och jordnötter."
+        price: 120
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "La Lambada"
+        description: "Tomatsås, ost, banan, curry och jordnötter."
+        price: 110
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Mexicana"
+        description: "Köttfärs, paprika, lök, cayennepeppar, jalapeño och vitlökssås."
+        price: 120
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Tonfisken"
+        description: "Tonfisk, majs och gul lök."
+        price: 120
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Venedig"
+        description: "Tonfisk och räkor."
+        price: 125
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Bari"
+        description: "Tomatsås, ost, bacon, skinka och ägg."
+        price: 125
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Torino"
+        description: "Skinka, räkor och champinjoner."
+        price: 125
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Amigo"
+        description: "Bacon, köttfärs och lök."
+        price: 125
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Jägaren"
+        description: "Bacon, salami, skinka, köttfärs, champinjoner, lök, paprika och tabasco."
+        price: 139
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Provence"
+        description: "Oxfilé, champinjoner, rödlök, bacon och bearnaise."
+        price: 139
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Palermo"
+        description: "Oxfilé, gorgonzola, champinjoner, lök och bearnaise."
+        price: 139
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Mazlum Special"
+        description: "Tomatsås, ost, skinka, gyros och bacon."
+        price: 130
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Quattro Stagioni"
+        description: "Tomat, ost, skinka, svamp, räkor, musslor och kronärtskocka."
+        price: 135
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+  - name: "Kebabpizzor"
+    products:
+      - name: "Baresi"
+        description: "Gyros, rödlök och valfri sås."
+        price: 130
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "BBQ-Kebaben"
+        description: "Gyros, BBQ-sås, jalapeño, bacon, picklad rödlök och valfri sås."
+        price: 139
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Romana"
+        description: "Gyros, skinka, feferoni och valfri sås."
+        price: 130
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Montella"
+        description: "Gyros, färska grönsaker och valfri sås."
+        price: 130
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Super Kebab"
+        description: "Gyros, rödlök, pommes och valfri sås."
+        price: 139
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+  - name: "Kycklingpizzor"
+    products:
+      - name: "Hönan"
+        description: "Kyckling, rödlök, champinjoner och valfri sås."
+        price: 125
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Tuppen"
+        description: "Kyckling, pesto, färsk vitlök, sherrytomater, ruccola och grana padano."
+        price: 135
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Chicken"
+        description: "Kyckling, bacon, BBQ-sås, picklad rödlök och valfri sås."
+        price: 135
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+  - name: "Havets pizzor"
+    products:
+      - name: "Havet"
+        description: "Scampi, räkor, färsk vitlök, provencalska kryddor, kronärtskocka och sherrytomater."
+        price: 159
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Oceanen"
+        description: "Scampi, pesto, tryffelkräm, sherrytomater och cocktailmozzarella."
+        price: 159
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Räkor & Rom"
+        description: "Räkor, krämig sås och rom."
+        price: 159
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Skagerrak"
+        description: "Grönmusslor, räkor, färsk vitlök, sherrytomater och ruccola."
+        price: 139
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Atlanten"
+        description: "Räkor, rödlök, champinjoner, grana padano och ruccola."
+        price: 139
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+  - name: "Vegetariska pizzor"
+    products:
+      - name: "Eld & Vin Special"
+        description: "Sherrytomater, cocktailmozzarella, kalamataoliver och färsk vitlök."
+        price: 125
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Di Bufala"
+        description: "Cocktailmozzarella, ruccola, sherrytomater, crema di balsamico, flingsalt och pesto."
+        price: 130
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Ängen"
+        description: "Grana padano, champinjoner, kalamataoliver, sherrytomater, picklad rödlök och ruccola."
+        price: 139
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Ostis"
+        description: "Gorgonzola, grana padano, rödlök, champinjoner och ruccola."
+        price: 129
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+      - name: "Vegetariana"
+        description: "Paprika, lök, champinjoner, kronärtskocka och oliver."
+        price: 125
+        extras: ["Extra pålägg", "Sås i burk", "Lägg till tillbehör", "Lägg till dryck"]
+  - name: "Pasta"
+    products:
+      - name: "Krämig kycklingpasta"
+        description: "Majskycklingfilé från Munka-Ljungby, paprika, lök, champinjoner, vitlök, tomatsås, grädde och grana padano."
+        price: 179
+        extras: ["Sås i burk", "Lägg till dryck"]
+      - name: "Carbonara"
+        description: "Bacon, grädde, lök, svartpeppar och grana padano."
+        price: 159
+        extras: ["Sås i burk", "Lägg till dryck"]
+      - name: "Vegetarisk pasta"
+        description: "Tomatsås, paprika, lök, vitlök, champinjoner, cocktailmozzarella och grana padano."
+        price: 149
+        extras: ["Sås i burk", "Lägg till dryck"]
+      - name: "Oxfilépasta"
+        description: "Oxfilé, lök, svamp, gorgonzola, parmesan och paprika."
+        price: 199
+        extras: ["Sås i burk", "Lägg till dryck"]
+      - name: "Skaldjurspasta"
+        description: "Svamp, räkor, scampi och vitlök."
+        price: 199
+        extras: ["Sås i burk", "Lägg till dryck"]
+  - name: "Från kolgrillen"
+    products:
+      - name: "Hängmörad ryggbiff"
+        description: "Kolgrillad, serveras med kappa, hemslagen bearnaise och rödvinssås."
+        price: 299
+        extras: ["Lägg till dryck"]
+      - name: "BBQ-glaserad karré"
+        description: "Kolgrillad karré med Eld & Vins BBQ-glaze."
+        price: 219
+        extras: ["Lägg till dryck"]
+      - name: "Baby back ribs"
+        description: "Med Eld & Vins BBQ-glaze."
+        price: 219
+        extras: ["Lägg till dryck"]
+      - name: "Grillad kycklingfilé"
+        description: "Majskycklingfilé från Munka-Ljungby."
+        price: 219
+        extras: ["Lägg till dryck"]
+      - name: "Black & White"
+        description: "Grillad ryggbiff och karré med hemslagen bearnaise och rödvinssås."
+        price: 269
+        extras: ["Lägg till dryck"]
+      - name: "Surf n Turf"
+        description: "Grillad ryggbiff och argentinska rödräkor med bearnaise och citronaioli."
+        price: 369
+        extras: ["Lägg till dryck"]
+      - name: "Mixgrill"
+        description: "Blandat från grillen."
+        price: 319
+        extras: ["Lägg till dryck"]
+      - name: "Grillad lax"
+        description: "ASC-märkt lax med kallrörd dill- och limesås."
+        price: 259
+        extras: ["Lägg till dryck"]
+      - name: "Fish n Chips"
+        description: "Panerad ASC-märkt torskfilé med citronaioli."
+        price: 199
+        extras: ["Lägg till dryck"]
+  - name: "Kebab & sallad"
+    products:
+      - name: "Kebabtallrik"
+        description: "Gyros, pommes, sallad, tomat, gurka, lök, feferoni och valfri sås."
+        price: 125
+        extras: ["Välj sås (ingår)", "Sås i burk", "Lägg till dryck"]
+      - name: "Kebabsallad"
+        description: "Kebabkött, sallad, gurka, tomat, lök, feferoni, hembakat bröd och valfri sås."
+        price: 125
+        extras: ["Välj sås (ingår)", "Sås i burk", "Lägg till dryck"]
+      - name: "Caesarsallad"
+        description: "Kyckling från Munka-Ljungby, bacon, grana padano, caesardressing, sallad, gurka, tomat, lök och hembakat bröd."
+        price: 159
+        extras: ["Sås i burk", "Lägg till dryck"]
+      - name: "Grekisk sallad"
+        description: "Sallad, tomat, gurka, lök, vit ost, oliver, hembakat bröd och valfri sås."
+        price: 140
+        extras: ["Välj sås (ingår)", "Sås i burk", "Lägg till dryck"]
+      - name: "Kebab i pitabröd"
+        description: "Gyros, sallad, lök, tomat, gurka, feferoni och valfri sås."
+        price: 125
+        extras: ["Välj sås (ingår)", "Sås i burk", "Lägg till dryck"]
+      - name: "Kebabrulle"
+        description: "Gyros, sallad, tomat, gurka, lök, feferoni och valfri sås."
+        price: 125
+        extras: ["Välj sås (ingår)", "Sås i burk", "Lägg till dryck"]
+      - name: "Räksallad"
+        description: "Räkor, sallad, tomat, gurka, lök, hembakat bröd och valfri sås."
+        price: 159
+        extras: ["Välj sås (ingår)", "Sås i burk", "Lägg till dryck"]
+  - name: "Hamburgare"
+    products:
+      - name: "Americano"
+        description: "Chilimayo, bostongurka, cheddar, bacon, sallad, rödlök, tomat och pommes."
+        price: 119
+        extras: ["Lägg till dryck"]
+      - name: "Texas"
+        description: "BBQ-sås, mayo, cheddar, bacon, sallad, rödlök, tomat och pommes."
+        price: 119
+        extras: ["Lägg till dryck"]
+      - name: "Eld & Vin burgare"
+        description: "Mayo, sötstark senap, karamelliserad lök, cheddar, sallad, tomat och pommes."
+        price: 119
+        extras: ["Lägg till dryck"]
+      - name: "Baconlover"
+        description: "BBQ-sås, mayo, rödlök, cheddar, dubbel bacon och pommes."
+        price: 119
+        extras: ["Lägg till dryck"]
+      - name: "Halloumi"
+        description: "Hamburgerdressing, mangochutney, sallad, rödlök, tomat och pommes."
+        price: 149
+        extras: ["Lägg till dryck"]
+  - name: "Barnmeny"
+    products:
+      - name: "Barn Vesuvio"
+        description: ""
+        price: 99
+        extras: ["Lägg till dryck"]
+      - name: "Barn Bolognese"
+        description: ""
+        price: 99
+        extras: ["Lägg till dryck"]
+      - name: "Barn Burgare"
+        description: ""
+        price: 99
+        extras: ["Lägg till dryck"]
+      - name: "Barn Hawaii"
+        description: ""
+        price: 99
+        extras: ["Lägg till dryck"]
+  - name: "Drycker"
+    products:
+      - name: "Pepsi 33 cl"
+        description: ""
+        price: 30
+      - name: "Pepsi Max 33 cl"
+        description: ""
+        price: 30
+      - name: "Zingo 33 cl"
+        description: ""
+        price: 30
+      - name: "7UP 33 cl"
+        description: ""
+        price: 30
+      - name: "Loka Naturell 33 cl"
+        description: ""
+        price: 30

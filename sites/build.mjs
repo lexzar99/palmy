@@ -29,5 +29,5 @@ writeFileSync(join(out, "sitemap.xml"), `<?xml version="1.0" encoding="UTF-8"?>\
 
 // Sista kända tider, som reserv om viaeats inte svarar
 const status = await fetch(STATUS_URL + site.slug, { signal: AbortSignal.timeout(10_000) }).catch(() => null);
-if (status?.ok) writeFileSync(join(out, "status.json"), await status.text());
+if (status?.ok && !site.notInViaeats) writeFileSync(join(out, "status.json"), await status.text());
 console.log(`Byggde ${name}`);

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Eld & Vin · Kolgrill, vin och lunchbuffé i Ängelholm</title>
+  <meta name="description" content="Ängelholms enda restaurang med kolgrill. Hängmörat kött, pizza, lunchbuffé och fullständiga rättigheter på Heimdallgatan 33." />
+  <meta name="theme-color" content="#000000" />
+  <meta property="og:title" content="Eld & Vin" />
+  <meta property="og:description" content="Kolgrill och vin på Heimdallgatan 33 i Ängelholm." />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/img/icon-192.png" />
+  <link rel="apple-touch-icon" href="/img/icon-192.png" />
+</head>
+<body>
+  <header class="top" data-top>
+    <a class="top__logo" href="/" aria-label="Eld & Vin, till början"><img src="/img/logo.svg" alt="" width="201" height="95" /></a>
+    <a class="btn btn-sm" href="/meny">Beställ</a>
+  </header>
+
+  <main>
+    <!-- Signaturen: en skroll. Vinet hälls på den kalla grillen, och elden tar fart -->
+    <section class="stage" data-stage>
+      <div class="stage__fixed">
+        <canvas class="stage__film" data-film aria-hidden="true"></canvas>
+        <div class="stage__tone" data-tone aria-hidden="true"></div>
+        <div class="stage__end" data-end>
+          <h1 class="stage__title">Eld <em>&amp;</em> Vin</h1>
+          <p class="stage__lede">Ängelholms enda restaurang med kolgrill.</p>
+          <div class="stage__actions">
+            <a class="btn" data-phone-link href="#hitta">Boka bord</a>
+            <a class="btn btn-line" href="/meny" data-order>Beställ</a>
+          </div>
+        </div>
+        <p class="stage__hint" data-hint>Skrolla för att hälla<i aria-hidden="true"></i></p>
+      </div>
+    </section>
+
+    <section id="grillen" class="grill">
+      <header class="reveal">
+        <p class="kicker">Från kolgrillen</p>
+        <h2 class="h2">Eld, rök och<br /><em>riktiga råvaror.</em></h2>
+      </header>
+      <ul class="plates">
+        <li class="reveal"><span>Hängmörad ryggbiff</span><i></i><b>279</b></li>
+        <li class="reveal"><span>Oxfilé</span><i></i><b>309</b></li>
+        <li class="reveal"><span>Black n White</span><i></i><b>299</b></li>
+        <li class="reveal"><span>Surf n Turf</span><i></i><b>349</b></li>
+        <li class="reveal"><span>Baby back ribs</span><i></i><b>199</b></li>
+        <li class="reveal"><span>Argentinska rödräkor</span><i></i><b>259</b></li>
+      </ul>
+      <p class="grill__note reveal">Hemslagen bearnaise och rödvinssås till köttet. Dessutom pizza, burgare, sallader, kebab och pasta.</p>
+      <a class="link reveal" href="/meny" data-order>Se hela menyn</a>
+    </section>
+
+    <section class="lunch">
+      <div class="reveal">
+        <p class="kicker">Lunchbuffé · vardagar 11–14</p>
+        <p class="lunch__price">135<small>kr</small></p>
+        <h2 class="h2">Ät så mycket<br /><em>du vill.</em></h2>
+        <p class="lunch__text">Lagat från grunden, med minst en skånsk råvara i varje rätt. Salladsbuffé, nybakad pizza och vitlöksbröd, måltidsdryck, kaffe och kaka ingår.</p>
+      </div>
+    </section>
+
+    <section id="oppet" class="hours">
+      <div class="reveal">
+        <p class="kicker">Öppettider</p>
+        <h2 class="h2">Hemma, oavsett<br /><em>vilken dag det är.</em></h2>
+      </div>
+      <dl class="week reveal" data-week></dl>
+    </section>
+
+    <section id="hitta" class="find">
+      <div class="reveal">
+        <p class="kicker">Hitta hit</p>
+        <h2 class="h2" data-address>Heimdallgatan 33, Ängelholm</h2>
+        <p class="find__text">Vid Ica Maxi. Sitt hos oss, eller beställ och hämta.</p>
+        <div class="find__actions">
+          <a class="btn" data-phone-link href="#hitta">Boka bord</a>
+          <a class="link" href="https://www.google.com/maps/search/?api=1&query=Heimdallgatan+33+%C3%84ngelholm" target="_blank" rel="noopener">Vägbeskrivning</a>
+        </div>
+        <a class="find__phone" data-phone hidden></a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <img src="/img/logo.svg" alt="Eld & Vin" width="201" height="95" loading="lazy" />
+    <a class="powered" href="https://www.viaeats.se" target="_blank" rel="noopener">Beställning och betalning <span>powered by</span> <strong>viaeats</strong></a>
+  </footer>
+
+  <a class="order-bar" href="/meny" data-order-bar><span>Beställ och hämta</span><strong>Beställ</strong></a>
+  <script type="module" src="/main.js"></script>
+</body>
+</html>

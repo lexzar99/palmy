@@ -46,6 +46,7 @@ function renderDetails(status) {
       if (el.tagName === "A") el.href = `tel:${status.phone.replace(/[^\d+]/g, "")}`;
       el.hidden = false;
     });
+    document.querySelectorAll("[data-phone-link]").forEach((el) => { el.href = `tel:${status.phone.replace(/[^\d+]/g, "")}`; });
   }
   if (status.address) fill("[data-address]", [status.address, status.city].filter(Boolean).join(", "));
   document.querySelectorAll("[data-delivery-only]").forEach((el) => { el.hidden = !status.delivery; });
@@ -75,8 +76,8 @@ function renderSeo(status, site) {
   document.head.appendChild(tag);
 }
 
-async function fetchStatus(slug) {
-  const live = await fetch(STATUS_URL + slug).catch(() => null);
+async function fetchStatus(site) {
+  const live = site.notInViaeats ? null : await fetch(STATUS_URL + site.slug).catch(() => null);
   if (live?.ok) return { status: await live.json(), live: true };
   // Svarar inte viaeats visas tiderna från senaste bygget, men inget påstående om öppet just nu.
   const saved = await fetch("/status.json").catch(() => null);
@@ -84,7 +85,7 @@ async function fetchStatus(slug) {
 }
 
 export async function startRestaurant(site) {
-  const loaded = await fetchStatus(site.slug);
+  const loaded = await fetchStatus(site);
   if (!loaded) return;
   const { status, live } = loaded;
   const now = new Date();

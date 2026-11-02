@@ -1,0 +1,739 @@
+{
+ "_kommentar": "GENERERAD av build.py. Läses av docs/restaurants/apply-menu.mjs.",
+ "sizePrefix": "storlek-eldvin",
+ "sizeGroups": [
+  {
+   "key": "size:pizza",
+   "description": "storlek-eldvin-pizza",
+   "default": "Normal",
+   "extras": [
+    [
+     "Normal",
+     0,
+     "/demo/eld-och-vin/img/tiles/storlek-normal.webp"
+    ],
+    [
+     "Familj",
+     110,
+     "/demo/eld-och-vin/img/tiles/storlek-familj.webp"
+    ]
+   ]
+  },
+  {
+   "key": "size:kott80",
+   "description": "storlek-eldvin-kott80",
+   "default": "200 g",
+   "extras": [
+    [
+     "200 g",
+     0,
+     null
+    ],
+    [
+     "300 g",
+     80,
+     null
+    ]
+   ]
+  },
+  {
+   "key": "size:kott50",
+   "description": "storlek-eldvin-kott50",
+   "default": "200 g",
+   "extras": [
+    [
+     "200 g",
+     0,
+     null
+    ],
+    [
+     "300 g",
+     50,
+     null
+    ]
+   ]
+  },
+  {
+   "key": "size:burgare",
+   "description": "storlek-eldvin-burgare",
+   "default": "110 g",
+   "extras": [
+    [
+     "110 g",
+     0,
+     null
+    ],
+    [
+     "220 g",
+     70,
+     null
+    ]
+   ]
+  }
+ ],
+ "productGroups": {
+  "Oxen": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Skinkan": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Sötis": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Chevre": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Margherita": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Al Funghi": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Hawaii": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Vesuvio": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Capricciosa": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Bolognese": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Calzone": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Carpaccio": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Matilda": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Florens": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Bussola": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Bananen": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "La Lambada": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Mexicana": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Tonfisken": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Venedig": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Bari": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Torino": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Amigo": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Jägaren": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Provence": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Palermo": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Mazlum Special": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Quattro Stagioni": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Baresi": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "BBQ-Kebaben": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Romana": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Montella": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Super Kebab": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Hönan": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Tuppen": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Chicken": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Havet": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Oceanen": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Räkor & Rom": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Skagerrak": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Atlanten": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Eld & Vin Special": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Di Bufala": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Ängen": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Ostis": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Vegetariana": [
+   "size:pizza",
+   "Extra pålägg",
+   "Sås i burk",
+   "Lägg till tillbehör",
+   "Lägg till dryck"
+  ],
+  "Krämig kycklingpasta": [
+   "Sås i burk",
+   "Lägg till dryck"
+  ],
+  "Carbonara": [
+   "Sås i burk",
+   "Lägg till dryck"
+  ],
+  "Vegetarisk pasta": [
+   "Sås i burk",
+   "Lägg till dryck"
+  ],
+  "Oxfilépasta": [
+   "Sås i burk",
+   "Lägg till dryck"
+  ],
+  "Skaldjurspasta": [
+   "Sås i burk",
+   "Lägg till dryck"
+  ],
+  "Hängmörad ryggbiff": [
+   "size:kott80",
+   "Lägg till dryck"
+  ],
+  "BBQ-glaserad karré": [
+   "size:kott50",
+   "Lägg till dryck"
+  ],
+  "Baby back ribs": [
+   "Lägg till dryck"
+  ],
+  "Grillad kycklingfilé": [
+   "Lägg till dryck"
+  ],
+  "Black & White": [
+   "Lägg till dryck"
+  ],
+  "Surf n Turf": [
+   "Lägg till dryck"
+  ],
+  "Mixgrill": [
+   "Lägg till dryck"
+  ],
+  "Grillad lax": [
+   "Lägg till dryck"
+  ],
+  "Fish n Chips": [
+   "Lägg till dryck"
+  ],
+  "Kebabtallrik": [
+   "Välj sås (ingår)",
+   "Sås i burk",
+   "Lägg till dryck"
+  ],
+  "Kebabsallad": [
+   "Välj sås (ingår)",
+   "Sås i burk",
+   "Lägg till dryck"
+  ],
+  "Caesarsallad": [
+   "Sås i burk",
+   "Lägg till dryck"
+  ],
+  "Grekisk sallad": [
+   "Välj sås (ingår)",
+   "Sås i burk",
+   "Lägg till dryck"
+  ],
+  "Kebab i pitabröd": [
+   "Välj sås (ingår)",
+   "Sås i burk",
+   "Lägg till dryck"
+  ],
+  "Kebabrulle": [
+   "Välj sås (ingår)",
+   "Sås i burk",
+   "Lägg till dryck"
+  ],
+  "Räksallad": [
+   "Välj sås (ingår)",
+   "Sås i burk",
+   "Lägg till dryck"
+  ],
+  "Americano": [
+   "size:burgare",
+   "Lägg till dryck"
+  ],
+  "Texas": [
+   "size:burgare",
+   "Lägg till dryck"
+  ],
+  "Eld & Vin burgare": [
+   "size:burgare",
+   "Lägg till dryck"
+  ],
+  "Baconlover": [
+   "size:burgare",
+   "Lägg till dryck"
+  ],
+  "Halloumi": [
+   "Lägg till dryck"
+  ],
+  "Barn Vesuvio": [
+   "Lägg till dryck"
+  ],
+  "Barn Bolognese": [
+   "Lägg till dryck"
+  ],
+  "Barn Burgare": [
+   "Lägg till dryck"
+  ],
+  "Barn Hawaii": [
+   "Lägg till dryck"
+  ]
+ },
+ "categoryOrder": [
+  "Förrätter",
+  "Pizzor",
+  "Kebabpizzor",
+  "Kycklingpizzor",
+  "Havets pizzor",
+  "Vegetariska pizzor",
+  "Pasta",
+  "Från kolgrillen",
+  "Kebab & sallad",
+  "Hamburgare",
+  "Barnmeny",
+  "Drycker"
+ ],
+ "productOrder": [
+  "Buffalo wings",
+  "Vitlöksbröd",
+  "Snacks",
+  "Oxen",
+  "Skinkan",
+  "Sötis",
+  "Chevre",
+  "Margherita",
+  "Al Funghi",
+  "Hawaii",
+  "Vesuvio",
+  "Capricciosa",
+  "Bolognese",
+  "Calzone",
+  "Carpaccio",
+  "Matilda",
+  "Florens",
+  "Bussola",
+  "Bananen",
+  "La Lambada",
+  "Mexicana",
+  "Tonfisken",
+  "Venedig",
+  "Bari",
+  "Torino",
+  "Amigo",
+  "Jägaren",
+  "Provence",
+  "Palermo",
+  "Mazlum Special",
+  "Quattro Stagioni",
+  "Baresi",
+  "BBQ-Kebaben",
+  "Romana",
+  "Montella",
+  "Super Kebab",
+  "Hönan",
+  "Tuppen",
+  "Chicken",
+  "Havet",
+  "Oceanen",
+  "Räkor & Rom",
+  "Skagerrak",
+  "Atlanten",
+  "Eld & Vin Special",
+  "Di Bufala",
+  "Ängen",
+  "Ostis",
+  "Vegetariana",
+  "Krämig kycklingpasta",
+  "Carbonara",
+  "Vegetarisk pasta",
+  "Oxfilépasta",
+  "Skaldjurspasta",
+  "Hängmörad ryggbiff",
+  "BBQ-glaserad karré",
+  "Baby back ribs",
+  "Grillad kycklingfilé",
+  "Black & White",
+  "Surf n Turf",
+  "Mixgrill",
+  "Grillad lax",
+  "Fish n Chips",
+  "Kebabtallrik",
+  "Kebabsallad",
+  "Caesarsallad",
+  "Grekisk sallad",
+  "Kebab i pitabröd",
+  "Kebabrulle",
+  "Räksallad",
+  "Americano",
+  "Texas",
+  "Eld & Vin burgare",
+  "Baconlover",
+  "Halloumi",
+  "Barn Vesuvio",
+  "Barn Bolognese",
+  "Barn Burgare",
+  "Barn Hawaii",
+  "Pepsi 33 cl",
+  "Pepsi Max 33 cl",
+  "Zingo 33 cl",
+  "7UP 33 cl",
+  "Loka Naturell 33 cl"
+ ],
+ "images": {
+  "logo": "/demo/eld-och-vin/img/logo-square.png",
+  "hero": "/demo/eld-och-vin/img/hero.webp",
+  "categories": {
+   "Förrätter": "/demo/eld-och-vin/img/dishes/buffalo-wings.webp",
+   "Pizzor": "/demo/eld-och-vin/img/dishes/oxen.webp",
+   "Kebabpizzor": "/demo/eld-och-vin/img/dishes/notkebabpizza.webp",
+   "Kycklingpizzor": "/demo/eld-och-vin/img/dishes/kycklingpizza.webp",
+   "Havets pizzor": "/demo/eld-och-vin/img/dishes/havet.webp",
+   "Vegetariska pizzor": "/demo/eld-och-vin/img/dishes/eldvin-special.webp",
+   "Pasta": "/demo/eld-och-vin/img/dishes/kycklingpasta.webp",
+   "Från kolgrillen": "/demo/eld-och-vin/img/dishes/ryggbiff.webp",
+   "Kebab & sallad": "/demo/eld-och-vin/img/dishes/kebabtallrik.webp",
+   "Hamburgare": "/demo/eld-och-vin/img/dishes/americano.webp",
+   "Barnmeny": "/demo/eld-och-vin/img/dishes/vesuvio.webp",
+   "Drycker": "/demo/eld-och-vin/img/drinks/pepsi-33.webp"
+  },
+  "products": {
+   "Buffalo wings": "/demo/eld-och-vin/img/dishes/buffalo-wings.webp",
+   "Vitlöksbröd": "/demo/eld-och-vin/img/dishes/vitloksbrod.webp",
+   "Snacks": "/demo/eld-och-vin/img/dishes/snacks.webp",
+   "Oxen": "/demo/eld-och-vin/img/dishes/oxen.webp",
+   "Skinkan": "/demo/eld-och-vin/img/dishes/skinkan.webp",
+   "Sötis": "/demo/eld-och-vin/img/dishes/sotis.webp",
+   "Chevre": "/demo/eld-och-vin/img/dishes/chevre.webp",
+   "Margherita": "/demo/eld-och-vin/img/dishes/margherita.webp",
+   "Al Funghi": "/demo/eld-och-vin/img/dishes/al-funghi.webp",
+   "Hawaii": "/demo/eld-och-vin/img/dishes/hawaii.webp",
+   "Vesuvio": "/demo/eld-och-vin/img/dishes/vesuvio.webp",
+   "Capricciosa": "/demo/eld-och-vin/img/dishes/capricciosa.webp",
+   "Bolognese": "/demo/eld-och-vin/img/dishes/bolognese.webp",
+   "Calzone": "/demo/eld-och-vin/img/dishes/calzone.webp",
+   "Carpaccio": "/demo/eld-och-vin/img/dishes/carpaccio.webp",
+   "Matilda": "/demo/eld-och-vin/img/dishes/matilda.webp",
+   "Florens": "/demo/eld-och-vin/img/dishes/oxfile-special.webp",
+   "Bussola": "/demo/eld-och-vin/img/dishes/monaco.webp",
+   "Bananen": "/demo/eld-och-vin/img/dishes/banana.webp",
+   "La Lambada": "/demo/eld-och-vin/img/dishes/exotica.webp",
+   "Mexicana": "/demo/eld-och-vin/img/dishes/mexicana.webp",
+   "Tonfisken": "/demo/eld-och-vin/img/dishes/al-tonno.webp",
+   "Venedig": "/demo/eld-och-vin/img/dishes/pescatore.webp",
+   "Bari": "/demo/eld-och-vin/img/dishes/amigo.webp",
+   "Torino": "/demo/eld-och-vin/img/dishes/torino.webp",
+   "Amigo": "/demo/eld-och-vin/img/dishes/mama-mia.webp",
+   "Jägaren": "/demo/eld-och-vin/img/dishes/new-york.webp",
+   "Provence": "/demo/eld-och-vin/img/dishes/sverige-special.webp",
+   "Palermo": "/demo/eld-och-vin/img/dishes/gorgonzola.webp",
+   "Mazlum Special": "/demo/eld-och-vin/img/dishes/kebab-special.webp",
+   "Quattro Stagioni": "/demo/eld-och-vin/img/dishes/quattro-stagioni.webp",
+   "Baresi": "/demo/eld-och-vin/img/dishes/notkebabpizza.webp",
+   "BBQ-Kebaben": "/demo/eld-och-vin/img/dishes/bbq-kebaben.webp",
+   "Romana": "/demo/eld-och-vin/img/dishes/domino.webp",
+   "Montella": "/demo/eld-och-vin/img/dishes/dana-pizza.webp",
+   "Super Kebab": "/demo/eld-och-vin/img/dishes/super-kebab.webp",
+   "Hönan": "/demo/eld-och-vin/img/dishes/kycklingpizza.webp",
+   "Tuppen": "/demo/eld-och-vin/img/dishes/tuppen.webp",
+   "Chicken": "/demo/eld-och-vin/img/dishes/chicken.webp",
+   "Havet": "/demo/eld-och-vin/img/dishes/havet.webp",
+   "Oceanen": "/demo/eld-och-vin/img/dishes/oceanen.webp",
+   "Räkor & Rom": "/demo/eld-och-vin/img/dishes/rakor-rom.webp",
+   "Skagerrak": "/demo/eld-och-vin/img/dishes/skagerrak.webp",
+   "Atlanten": "/demo/eld-och-vin/img/dishes/atlanten.webp",
+   "Eld & Vin Special": "/demo/eld-och-vin/img/dishes/eldvin-special.webp",
+   "Di Bufala": "/demo/eld-och-vin/img/dishes/di-bufala.webp",
+   "Ängen": "/demo/eld-och-vin/img/dishes/angen.webp",
+   "Ostis": "/demo/eld-och-vin/img/dishes/ostis.webp",
+   "Vegetariana": "/demo/eld-och-vin/img/dishes/vegetariana.webp",
+   "Krämig kycklingpasta": "/demo/eld-och-vin/img/dishes/kycklingpasta.webp",
+   "Carbonara": "/demo/eld-och-vin/img/dishes/carbonara.webp",
+   "Vegetarisk pasta": "/demo/eld-och-vin/img/dishes/vegopasta.webp",
+   "Oxfilépasta": "/demo/eld-och-vin/img/dishes/oxfilepasta.webp",
+   "Skaldjurspasta": "/demo/eld-och-vin/img/dishes/skaldjurspasta.webp",
+   "Hängmörad ryggbiff": "/demo/eld-och-vin/img/dishes/ryggbiff.webp",
+   "BBQ-glaserad karré": "/demo/eld-och-vin/img/dishes/karre.webp",
+   "Baby back ribs": "/demo/eld-och-vin/img/dishes/ribs.webp",
+   "Grillad kycklingfilé": "/demo/eld-och-vin/img/dishes/kycklingfile.webp",
+   "Black & White": "/demo/eld-och-vin/img/dishes/black-white.webp",
+   "Surf n Turf": "/demo/eld-och-vin/img/dishes/surf-turf.webp",
+   "Mixgrill": "/demo/eld-och-vin/img/dishes/mixgrill.webp",
+   "Grillad lax": "/demo/eld-och-vin/img/dishes/lax.webp",
+   "Fish n Chips": "/demo/eld-och-vin/img/dishes/fish-chips.webp",
+   "Kebabtallrik": "/demo/eld-och-vin/img/dishes/kebabtallrik.webp",
+   "Kebabsallad": "/demo/eld-och-vin/img/dishes/kebabsallad.webp",
+   "Caesarsallad": "/demo/eld-och-vin/img/dishes/caesar.webp",
+   "Grekisk sallad": "/demo/eld-och-vin/img/dishes/grekisk-sallad.webp",
+   "Kebab i pitabröd": "/demo/eld-och-vin/img/dishes/pita.webp",
+   "Kebabrulle": "/demo/eld-och-vin/img/dishes/kebabrulle.webp",
+   "Räksallad": "/demo/eld-och-vin/img/dishes/raksallad.webp",
+   "Americano": "/demo/eld-och-vin/img/dishes/americano.webp",
+   "Texas": "/demo/eld-och-vin/img/dishes/texas.webp",
+   "Eld & Vin burgare": "/demo/eld-och-vin/img/dishes/eldvin-burgare.webp",
+   "Baconlover": "/demo/eld-och-vin/img/dishes/baconlover.webp",
+   "Halloumi": "/demo/eld-och-vin/img/dishes/halloumi.webp",
+   "Barn Vesuvio": "/demo/eld-och-vin/img/dishes/vesuvio.webp",
+   "Barn Bolognese": "/demo/eld-och-vin/img/dishes/bolognese.webp",
+   "Barn Burgare": "/demo/eld-och-vin/img/dishes/barnburgare.webp",
+   "Barn Hawaii": "/demo/eld-och-vin/img/dishes/hawaii.webp",
+   "Pepsi 33 cl": "/demo/eld-och-vin/img/drinks/pepsi-33.webp",
+   "Pepsi Max 33 cl": "/demo/eld-och-vin/img/drinks/pepsi-max-33.webp"
+  },
+  "extras": {
+   "Välj sås (ingår)": {
+    "Mild sås": "/demo/eld-och-vin/img/tiles/sas-kebab-mild.webp",
+    "Stark sås": "/demo/eld-och-vin/img/tiles/sas-kebab-stark.webp",
+    "Blandad sås": "/demo/eld-och-vin/img/tiles/sas-kebab-blandad.webp",
+    "Vitlökssås": "/demo/eld-och-vin/img/tiles/sas-vitlok.webp",
+    "Bearnaisesås": "/demo/eld-och-vin/img/tiles/sas-bearnaise.webp",
+    "Ingen sås": "/demo/eld-och-vin/img/tiles/sas-ingen.webp"
+   },
+   "Sås i burk": {
+    "Bearnaisesås i burk": "/demo/eld-och-vin/img/tiles/sas-bearnaise.webp",
+    "Mild sås i burk": "/demo/eld-och-vin/img/tiles/sas-kebab-mild.webp",
+    "Stark sås i burk": "/demo/eld-och-vin/img/tiles/sas-kebab-stark.webp",
+    "Vitlökssås i burk": "/demo/eld-och-vin/img/tiles/sas-vitlok.webp"
+   },
+   "Lägg till tillbehör": {
+    "Pommes frites": "/demo/eld-och-vin/img/tiles/pommes-mellan.webp",
+    "Vitlöksbröd": "/demo/eld-och-vin/img/tiles/vitloksbrod.webp",
+    "Lökringar": "/demo/eld-och-vin/img/tiles/lokringar.webp",
+    "Mozzarellasticks": "/demo/eld-och-vin/img/tiles/mozzarellasticks.webp"
+   },
+   "Lägg till dryck": {
+    "Pepsi 33 cl": "/demo/eld-och-vin/img/drinks/pepsi-33.webp",
+    "Pepsi Max 33 cl": "/demo/eld-och-vin/img/drinks/pepsi-max-33.webp"
+   }
+  }
+ }
+}

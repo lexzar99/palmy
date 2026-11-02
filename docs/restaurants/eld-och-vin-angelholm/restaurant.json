@@ -1,0 +1,82 @@
+{
+ "_kommentar": "Body till POST /api/restaurants. Källa: eldochvin.se och foodora, 2026-11-02. pickupOnly eftersom viaeats inte kör bud. rating 0, så foodoras betyg följer inte med.",
+ "name": "Eld & Vin",
+ "slug": "eld-och-vin-angelholm",
+ "cuisine": "Grill · Pizza · Pasta",
+ "address": "Heimdallgatan 33",
+ "city": "Ängelholm",
+ "latitude": 56.2515,
+ "longitude": 12.8887,
+ "etaMinutes": 25,
+ "vatPercent": 6,
+ "rating": 0,
+ "ratingCount": 0,
+ "pickupOnly": true,
+ "draft": true,
+ "phone": "0431-10420",
+ "openingHours": {
+  "monday": {
+   "closed": false,
+   "shifts": [
+    {
+     "open": "11:00",
+     "close": "21:00"
+    }
+   ]
+  },
+  "tuesday": {
+   "closed": false,
+   "shifts": [
+    {
+     "open": "11:00",
+     "close": "21:00"
+    }
+   ]
+  },
+  "wednesday": {
+   "closed": false,
+   "shifts": [
+    {
+     "open": "11:00",
+     "close": "21:00"
+    }
+   ]
+  },
+  "thursday": {
+   "closed": false,
+   "shifts": [
+    {
+     "open": "11:00",
+     "close": "21:00"
+    }
+   ]
+  },
+  "friday": {
+   "closed": false,
+   "shifts": [
+    {
+     "open": "11:00",
+     "close": "21:00"
+    }
+   ]
+  },
+  "saturday": {
+   "closed": false,
+   "shifts": [
+    {
+     "open": "12:00",
+     "close": "22:00"
+    }
+   ]
+  },
+  "sunday": {
+   "closed": false,
+   "shifts": [
+    {
+     "open": "12:00",
+     "close": "21:00"
+    }
+   ]
+  }
+ }
+}
