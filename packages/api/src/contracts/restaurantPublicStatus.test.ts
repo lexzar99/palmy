@@ -31,6 +31,10 @@ assert.equal(open.week[0].day, 'monday');
 assert.deepEqual(open.week[0].shifts, [{ open: '11:00', close: '21:00' }]);
 assert.ok(JSON.stringify(open).length < 4096, 'svaret ska vara litet');
 
+// Tiden blir exakt även om anropet sker mitt i en minut
+const midMinute = buildRestaurantPublicStatus(base, {}, new Date('2026-11-02T11:00:37.000Z'));
+assert.equal(midMinute.changes[0].at, '2026-11-02T20:00:00.000Z');
+
 // Nattöppet: fredag 12.00, stänger lördag 04.00
 const night = buildRestaurantPublicStatus({ ...base, openingHours: week('11:00', '04:00') }, {}, new Date('2026-11-06T11:00:00.000Z'));
 assert.equal(night.changes[0].at, '2026-11-07T03:00:00.000Z', 'stängning efter midnatt hamnar på rätt dygn');

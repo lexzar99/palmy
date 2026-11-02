@@ -43,7 +43,8 @@ function weekFromHours(openingHours: unknown) {
  */
 export function buildRestaurantPublicStatus(restaurant: Restaurant, overlays: Overlays, now = new Date()) {
   const openAt = (time: number) => resolveRestaurantAvailability(restaurant, overlays, new Date(time)).isOpen;
-  const start = now.getTime();
+  // Allt räknas på hela minuter, så att tiderna blir exakt de som står i schemat.
+  const start = Math.floor(now.getTime() / 60_000) * 60_000;
   const changes: { at: string; open: boolean }[] = [];
   let previous = openAt(start);
   const openNow = previous;
@@ -54,11 +55,11 @@ export function buildRestaurantPublicStatus(restaurant: Restaurant, overlays: Ov
     let low = time - STEP_MS;
     let high = time;
     while (high - low > 60_000) {
-      const middle = Math.floor((low + high) / 2);
+      const middle = Math.floor((low + high) / 120_000) * 60_000;
       if (openAt(middle) === previous) low = middle;
       else high = middle;
     }
-    changes.push({ at: new Date(Math.ceil(high / 60_000) * 60_000).toISOString(), open });
+    changes.push({ at: new Date(high).toISOString(), open });
     previous = open;
   }
 
