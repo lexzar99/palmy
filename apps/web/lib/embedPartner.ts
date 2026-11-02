@@ -9,6 +9,7 @@ const TRUSTED_PARTNER_ORIGINS = new Set([
   // Freds Vercel-projekt, tills fredspizza.se är kopplad.
   "https://freds-pizzeria.vercel.app",
   "https://eld-och-vin.vercel.app",
+  "https://ramis-grill.vercel.app",
   "http://localhost:3000",
   "http://localhost:4000",
 ]);

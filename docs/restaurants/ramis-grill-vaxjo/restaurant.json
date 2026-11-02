@@ -1,0 +1,81 @@
+{
+ "_kommentar": "Body till POST /api/restaurants. Testdata, se build.py. pickupOnly eftersom viaeats inte kör bud.",
+ "name": "Ramis Grill",
+ "slug": "ramis-grill-vaxjo",
+ "cuisine": "Gatukök · Kebab · Burgare",
+ "address": "Växjö",
+ "city": "Växjö",
+ "latitude": 56.8777,
+ "longitude": 14.8091,
+ "etaMinutes": 20,
+ "vatPercent": 6,
+ "rating": 0,
+ "ratingCount": 0,
+ "pickupOnly": true,
+ "draft": true,
+ "openingHours": {
+  "monday": {
+   "closed": false,
+   "shifts": [
+    {
+     "open": "11:00",
+     "close": "21:00"
+    }
+   ]
+  },
+  "tuesday": {
+   "closed": false,
+   "shifts": [
+    {
+     "open": "11:00",
+     "close": "21:00"
+    }
+   ]
+  },
+  "wednesday": {
+   "closed": false,
+   "shifts": [
+    {
+     "open": "11:00",
+     "close": "21:00"
+    }
+   ]
+  },
+  "thursday": {
+   "closed": false,
+   "shifts": [
+    {
+     "open": "11:00",
+     "close": "21:00"
+    }
+   ]
+  },
+  "friday": {
+   "closed": false,
+   "shifts": [
+    {
+     "open": "11:00",
+     "close": "21:00"
+    }
+   ]
+  },
+  "saturday": {
+   "closed": false,
+   "shifts": [
+    {
+     "open": "11:00",
+     "close": "21:00"
+    }
+   ]
+  },
+  "sunday": {
+   "closed": false,
+   "shifts": [
+    {
+     "open": "11:00",
+     "close": "21:00"
+    }
+   ]
+  }
+ }
+}

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Ramis Grill · Gatukök i Växjö</title>
+  <meta name="description" content="Rullar, kebab och burgare från Ramis Grill i Växjö. Beställ i telefonen och hämta när det är klart." />
+  <meta name="theme-color" content="#ffb81c" />
+  <meta property="og:title" content="Ramis Grill" />
+  <meta property="og:description" content="Gatuköket i Växjö. Rulla, beställ och hämta." />
+  <meta property="og:url" content="https://ramis-grill.vercel.app/" />
+  <meta property="og:image" content="https://ramis-grill.vercel.app/film/skar/060.webp" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/img/icon-192.png" />
+  <link rel="apple-touch-icon" href="/img/icon-192.png" />
+</head>
+<body>
+  <header class="top" data-top>
+    <a class="top__logo" href="/" aria-label="Ramis Grill, till början"><img src="/img/logo.svg" alt="" /></a>
+    <a class="btn btn-sm" href="/meny">Beställ</a>
+  </header>
+
+  <main>
+    <!-- Signaturen: skrollen drar kniven genom spettet, och filmen slutar med rullen i handen -->
+    <section class="stage" data-stage>
+      <div class="stage__fixed">
+        <canvas class="stage__film" data-film aria-hidden="true"></canvas>
+        <div class="stage__tone" data-tone aria-hidden="true"></div>
+        <p class="stage__hint" data-hint>Dra uppåt<i aria-hidden="true"></i></p>
+        <div class="stage__end" data-end>
+          <h1 class="stage__title">Klar att<br />hämtas.</h1>
+          <p class="stage__lede">Gatuköket i Växjö. Beställ i telefonen.</p>
+          <a class="btn btn-big" href="/meny" data-order>Beställ nu</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="menu">
+      <p class="kicker reveal">Exempelmeny</p>
+      <h2 class="h2 reveal">Det här<br />rullar vi.</h2>
+      <ul class="dishes">
+        <li class="reveal"><span>Kebabrulle</span><i></i><b>119</b></li>
+        <li class="reveal"><span>Falafelrulle</span><i></i><b>109</b></li>
+        <li class="reveal"><span>Kycklingrulle</span><i></i><b>119</b></li>
+        <li class="reveal"><span>Kebabtallrik</span><i></i><b>139</b></li>
+        <li class="reveal"><span>Ramis burgare</span><i></i><b>119</b></li>
+      </ul>
+      <a class="btn" href="/meny" data-order>Se hela menyn</a>
+    </section>
+
+    <section class="how">
+      <h2 class="h2 reveal">Tre tryck.<br />Sen mat.</h2>
+      <ol>
+        <li class="reveal"><b>1</b><span>Välj vad du är sugen på</span></li>
+        <li class="reveal"><b>2</b><span>Betala med Swish eller kort</span></li>
+        <li class="reveal"><b>3</b><span>Hämta när det är klart</span></li>
+      </ol>
+    </section>
+
+    <section class="hours">
+      <div class="reveal">
+        <p class="kicker">Öppet</p>
+        <p class="hours__now" data-open-state><span data-open-text>Öppettider</span></p>
+      </div>
+      <dl class="week reveal" data-week></dl>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <img src="/img/logo-light.svg" alt="Ramis Grill" loading="lazy" />
+    <p>Växjö</p>
+    <a class="powered" href="https://www.viaeats.se" target="_blank" rel="noopener">Beställning och betalning <span>powered by</span> <strong>viaeats</strong></a>
+  </footer>
+
+  <a class="order-bar hide" href="/meny" data-order-bar><span>Hungrig?</span><strong>Beställ</strong></a>
+  <script type="module" src="/main.js"></script>
+</body>
+</html>

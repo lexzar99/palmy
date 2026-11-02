@@ -1,0 +1,99 @@
+# Ramis Grill, Växjö: GENERERAD av build.py. TESTMENY, inte restaurangens riktiga.
+extraGroups:
+  - name: "Välj sås (ingår)"
+    type: radio
+    required: true
+    options:
+      - { name: "Mild sås", price: 0 }
+      - { name: "Stark sås", price: 0 }
+      - { name: "Blandad sås", price: 0 }
+      - { name: "Vitlökssås", price: 0 }
+      - { name: "Ingen sås", price: 0 }
+  - name: "Lägg till dryck"
+    type: checkbox
+    required: false
+    max: 10
+    options:
+      - { name: "Extra Coca-Cola 33 cl", price: 25 }
+      - { name: "Extra Coca-Cola Zero 33 cl", price: 25 }
+      - { name: "Extra Fanta 33 cl", price: 25 }
+      - { name: "Extra Sprite 33 cl", price: 25 }
+
+categories:
+  - name: "Rullar"
+    products:
+      - name: "Kebabrulle"
+        description: "Kebabkött, sallad, tomat, lök och valfri sås i tunnbröd."
+        price: 119
+        extras: ["Välj sås (ingår)", "Lägg till dryck"]
+      - name: "Kycklingrulle"
+        description: "Kyckling, sallad, tomat, lök och valfri sås i tunnbröd."
+        price: 119
+        extras: ["Välj sås (ingår)", "Lägg till dryck"]
+      - name: "Falafelrulle"
+        description: "Falafel, sallad, tomat, lök och valfri sås i tunnbröd."
+        price: 109
+        extras: ["Välj sås (ingår)", "Lägg till dryck"]
+      - name: "Mixrulle"
+        description: "Kebab och kyckling, sallad, tomat, lök och valfri sås."
+        price: 129
+        extras: ["Välj sås (ingår)", "Lägg till dryck"]
+  - name: "Tallrikar"
+    products:
+      - name: "Kebabtallrik"
+        description: "Kebabkött med pommes, sallad och valfri sås."
+        price: 139
+        extras: ["Välj sås (ingår)", "Lägg till dryck"]
+      - name: "Kycklingtallrik"
+        description: "Kyckling med pommes, sallad och valfri sås."
+        price: 139
+        extras: ["Välj sås (ingår)", "Lägg till dryck"]
+      - name: "Falafeltallrik"
+        description: "Falafel med pommes, sallad och valfri sås."
+        price: 129
+        extras: ["Välj sås (ingår)", "Lägg till dryck"]
+  - name: "Pitabröd"
+    products:
+      - name: "Kebab i pitabröd"
+        description: "Kebabkött, sallad, tomat, lök och valfri sås."
+        price: 109
+        extras: ["Välj sås (ingår)", "Lägg till dryck"]
+      - name: "Kyckling i pitabröd"
+        description: "Kyckling, sallad, tomat, lök och valfri sås."
+        price: 109
+        extras: ["Välj sås (ingår)", "Lägg till dryck"]
+  - name: "Burgare"
+    products:
+      - name: "Ramis burgare"
+        description: "Hamburgare med pommes, sallad, tomat och dressing."
+        price: 119
+        extras: ["Lägg till dryck"]
+      - name: "Kycklingburgare"
+        description: "Kycklingburgare med pommes, sallad och dressing."
+        price: 125
+        extras: ["Lägg till dryck"]
+  - name: "Tillbehör"
+    products:
+      - name: "Pommes"
+        description: ""
+        price: 39
+      - name: "Lökringar"
+        description: ""
+        price: 49
+      - name: "Mozzarellasticks"
+        description: ""
+        price: 49
+  - name: "Drycker"
+    products:
+      - name: "Coca-Cola 33 cl"
+        description: ""
+        price: 25
+      - name: "Coca-Cola Zero 33 cl"
+        description: ""
+        price: 25
+      - name: "Fanta 33 cl"
+        description: ""
+        price: 25
+      - name: "Sprite 33 cl"
+        description: ""
+        price: 25

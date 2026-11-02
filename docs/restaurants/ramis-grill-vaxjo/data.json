@@ -1,0 +1,124 @@
+{
+ "_kommentar": "GENERERAD av build.py. Läses av docs/restaurants/apply-menu.mjs.",
+ "sizePrefix": "storlek-ramis",
+ "sizeGroups": [],
+ "productGroups": {
+  "Kebabrulle": [
+   "Välj sås (ingår)",
+   "Lägg till dryck"
+  ],
+  "Kycklingrulle": [
+   "Välj sås (ingår)",
+   "Lägg till dryck"
+  ],
+  "Falafelrulle": [
+   "Välj sås (ingår)",
+   "Lägg till dryck"
+  ],
+  "Mixrulle": [
+   "Välj sås (ingår)",
+   "Lägg till dryck"
+  ],
+  "Kebabtallrik": [
+   "Välj sås (ingår)",
+   "Lägg till dryck"
+  ],
+  "Kycklingtallrik": [
+   "Välj sås (ingår)",
+   "Lägg till dryck"
+  ],
+  "Falafeltallrik": [
+   "Välj sås (ingår)",
+   "Lägg till dryck"
+  ],
+  "Kebab i pitabröd": [
+   "Välj sås (ingår)",
+   "Lägg till dryck"
+  ],
+  "Kyckling i pitabröd": [
+   "Välj sås (ingår)",
+   "Lägg till dryck"
+  ],
+  "Ramis burgare": [
+   "Lägg till dryck"
+  ],
+  "Kycklingburgare": [
+   "Lägg till dryck"
+  ]
+ },
+ "categoryOrder": [
+  "Rullar",
+  "Tallrikar",
+  "Pitabröd",
+  "Burgare",
+  "Tillbehör",
+  "Drycker"
+ ],
+ "productOrder": [
+  "Kebabrulle",
+  "Kycklingrulle",
+  "Falafelrulle",
+  "Mixrulle",
+  "Kebabtallrik",
+  "Kycklingtallrik",
+  "Falafeltallrik",
+  "Kebab i pitabröd",
+  "Kyckling i pitabröd",
+  "Ramis burgare",
+  "Kycklingburgare",
+  "Pommes",
+  "Lökringar",
+  "Mozzarellasticks",
+  "Coca-Cola 33 cl",
+  "Coca-Cola Zero 33 cl",
+  "Fanta 33 cl",
+  "Sprite 33 cl"
+ ],
+ "images": {
+  "logo": "/demo/ramis-grill/img/logo-square.png",
+  "hero": "/demo/ramis-grill/img/hero.webp",
+  "categories": {
+   "Rullar": "/demo/freds-pizzeria/img/dishes/kebabrulle.webp",
+   "Tallrikar": "/demo/freds-pizzeria/img/dishes/kebabtallrik.webp",
+   "Pitabröd": "/demo/freds-pizzeria/img/dishes/kebab-pitabrod.webp",
+   "Burgare": "/demo/freds-pizzeria/img/dishes/hamburgertallrik.webp",
+   "Tillbehör": "/demo/freds-pizzeria/img/dishes/pommes-mellan.webp",
+   "Drycker": "/demo/freds-pizzeria/img/drinks/coca-cola-33.webp"
+  },
+  "products": {
+   "Kebabrulle": "/demo/freds-pizzeria/img/dishes/kebabrulle.webp",
+   "Kycklingrulle": "/demo/freds-pizzeria/img/dishes/kycklingrulle.webp",
+   "Falafelrulle": "/demo/freds-pizzeria/img/dishes/falafelrulle.webp",
+   "Mixrulle": "/demo/freds-pizzeria/img/dishes/mix-kebabrulle.webp",
+   "Kebabtallrik": "/demo/freds-pizzeria/img/dishes/kebabtallrik.webp",
+   "Kycklingtallrik": "/demo/freds-pizzeria/img/dishes/kycklingtallrik.webp",
+   "Falafeltallrik": "/demo/freds-pizzeria/img/dishes/falafeltallrik.webp",
+   "Kebab i pitabröd": "/demo/freds-pizzeria/img/dishes/kebab-pitabrod.webp",
+   "Kyckling i pitabröd": "/demo/freds-pizzeria/img/dishes/kyckling-pitabrod.webp",
+   "Ramis burgare": "/demo/freds-pizzeria/img/dishes/hamburgertallrik.webp",
+   "Kycklingburgare": "/demo/freds-pizzeria/img/dishes/kycklingburgertallrik.webp",
+   "Pommes": "/demo/freds-pizzeria/img/dishes/pommes-mellan.webp",
+   "Lökringar": "/demo/freds-pizzeria/img/dishes/lokringar.webp",
+   "Mozzarellasticks": "/demo/freds-pizzeria/img/dishes/mozzarellasticks.webp",
+   "Coca-Cola 33 cl": "/demo/freds-pizzeria/img/drinks/coca-cola-33.webp",
+   "Coca-Cola Zero 33 cl": "/demo/freds-pizzeria/img/drinks/cola-zero-33.webp",
+   "Fanta 33 cl": "/demo/freds-pizzeria/img/drinks/fanta-orange-33.webp",
+   "Sprite 33 cl": "/demo/freds-pizzeria/img/drinks/sprite-33.webp"
+  },
+  "extras": {
+   "Välj sås (ingår)": {
+    "Mild sås": "/demo/freds-pizzeria/img/dishes/sas-kebab-mild.webp",
+    "Stark sås": "/demo/freds-pizzeria/img/dishes/sas-kebab-stark.webp",
+    "Blandad sås": "/demo/freds-pizzeria/img/dishes/sas-kebab-blandad.webp",
+    "Vitlökssås": "/demo/freds-pizzeria/img/dishes/sas-vitlok.webp",
+    "Ingen sås": "/demo/freds-pizzeria/img/dishes/sas-ingen.webp"
+   },
+   "Lägg till dryck": {
+    "Extra Coca-Cola 33 cl": "/demo/freds-pizzeria/img/drinks/coca-cola-33.webp",
+    "Extra Coca-Cola Zero 33 cl": "/demo/freds-pizzeria/img/drinks/cola-zero-33.webp",
+    "Extra Fanta 33 cl": "/demo/freds-pizzeria/img/drinks/fanta-orange-33.webp",
+    "Extra Sprite 33 cl": "/demo/freds-pizzeria/img/drinks/sprite-33.webp"
+   }
+  }
+ }
+}

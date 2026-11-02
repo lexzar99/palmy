@@ -92,6 +92,7 @@ export const DEFAULT_ORIGINS = [
   // Freds Vercel-projekt, tills fredspizza.se är kopplad.
   'https://freds-pizzeria.vercel.app',
   'https://eld-och-vin.vercel.app',
+  'https://ramis-grill.vercel.app',
 ];
 
 export const getAllowedOrigins = (): string[] => {

@@ -56,6 +56,7 @@
       origin === "https://www.fredspizza.se" ||
       origin === "https://freds-pizzeria.vercel.app" ||
       origin === "https://eld-och-vin.vercel.app" ||
+      origin === "https://ramis-grill.vercel.app" ||
       origin === "http://localhost:3000" ||
       origin === "http://localhost:4000";
   }
