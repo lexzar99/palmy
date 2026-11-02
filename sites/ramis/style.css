@@ -41,16 +41,16 @@ ul, ol { list-style: none; }
 .stage__fixed { position: absolute; inset: 0; overflow: hidden; touch-action: pan-y; }
 html.is-locked .stage__fixed { position: fixed; inset: 0 0 auto; height: 100lvh; touch-action: none; }
 .stage__film { position: absolute; inset: 0; width: 100%; height: 100%; background: var(--saffron); }
-.stage__tone { position: absolute; inset: auto 0 0; height: 40%; opacity: 0; background: linear-gradient(transparent, rgba(255, 184, 28, 0.96) 38%, var(--saffron)); }
+.stage__tone { position: absolute; inset: auto 0 0; height: 34%; opacity: 0; background: linear-gradient(transparent, rgba(255, 184, 28, 0.96) 38%, var(--saffron)); }
 .stage__hint { position: absolute; left: 0; right: 0; bottom: calc(var(--bars) + 26px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; align-items: center; gap: 8px; font-weight: 800; font-size: 16px; transition: opacity 0.2s; pointer-events: none; }
 .stage__hint span, .stage__hint { color: var(--green); }
 .stage__hint { text-shadow: 0 1px 0 rgba(255, 243, 220, 0.8), 0 0 12px rgba(255, 243, 220, 0.9); }
 .stage__hint i { width: 3px; height: 30px; border-radius: 3px; background: var(--chili); animation: hint 1.4s var(--ease) infinite; }
 @keyframes hint { from { transform: translateY(14px); opacity: 0; } 40% { opacity: 1; } to { transform: translateY(-14px); opacity: 0; } }
-.stage__end { position: absolute; left: var(--gutter); right: var(--gutter); bottom: calc(var(--bars) + 26px + env(safe-area-inset-bottom, 0px)); text-align: center; visibility: hidden; opacity: 0; pointer-events: none; will-change: transform, opacity; }
-.stage__end.is-on { pointer-events: auto; }
+.stage__end { position: absolute; left: var(--gutter); right: var(--gutter); bottom: calc(var(--bars) + 102px + env(safe-area-inset-bottom, 0px)); text-align: center; visibility: hidden; opacity: 0; pointer-events: none; will-change: transform, opacity; }
 .stage__title { font: italic 900 clamp(42px, 11.5vw, 84px)/0.92 var(--font); font-stretch: 118%; letter-spacing: -0.02em; }
-.stage__lede { margin: 12px 0 18px; font-weight: 600; }
+.stage__lede { margin-top: 10px; font-weight: 600; }
+.stage__cta { position: absolute; left: 50%; bottom: calc(var(--bars) + 22px + env(safe-area-inset-bottom, 0px)); margin-left: -105px; width: 210px; padding: 0; box-shadow: 0 10px 28px rgba(60, 20, 0, 0.35); opacity: 0; visibility: hidden; transform: translate3d(0, 110px, 0); will-change: transform, opacity; }
 
 /* ---------- Sektioner ---------- */
 .menu { background: var(--green); color: var(--cream); padding: 84px var(--gutter); }

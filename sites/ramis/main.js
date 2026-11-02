@@ -14,12 +14,13 @@ const tone = document.querySelector("[data-tone]");
 const top = document.querySelector("[data-top]");
 const hint = document.querySelector("[data-hint]");
 const end = document.querySelector("[data-end]");
+const cta = document.querySelector("[data-cta]");
 
 const film = createFrames(stage, { path: "/film/skar", count: FRAMES, fit: mobile ? "cover" : "contain" });
 
 startJourney({
   length: 1.9,
-  // Ett svep räcker: filmen spelas klart och stannar vid Beställ-knappen
+  // Ett svep räcker: knappen kommer upp direkt medan rullen byggs i filmen
   auto: 5,
   // Handen håller rullen, och bilden lever vidare i filmens sista bilder
   live: () => true,
@@ -32,7 +33,10 @@ startJourney({
     end.style.opacity = last.toFixed(3);
     end.style.visibility = last > 0.01 ? "visible" : "hidden";
     end.style.transform = `translate3d(0, ${((1 - last) * 24).toFixed(1)}px, 0)`;
-    end.classList.toggle("is-on", g > 0.92);
+    const up = seg(g, 0.005, 0.1);
+    cta.style.opacity = up.toFixed(3);
+    cta.style.visibility = up > 0.01 ? "visible" : "hidden";
+    cta.style.transform = `translate3d(0, ${((1 - up) * 110).toFixed(1)}px, 0)`;
     hint.style.opacity = g > 0.02 ? 0 : 1;
   },
 });
