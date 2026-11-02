@@ -15,10 +15,9 @@ import { getVapidPublicKey } from '../lib/courierPush';
 import { addOrderSubscription } from '../lib/customerPush';
 import { revokeOrderWebPushSubscription } from '../lib/deviceInstallations';
 import {
+  attachOrderWebCredentials,
   issueOrderAccessProof,
-  issueOrderHttpSession,
   ORDER_HTTP_SESSION_HEADER,
-  ORDER_HTTP_SESSION_ID_HEADER,
   resolveOrderAccess,
   validOrderId,
   verifyOrderAccessProof,
@@ -51,9 +50,7 @@ const denyOrderAccess = (res: Response) =>
   res.status(404).json({ error: 'Order hittades inte' });
 
 const attachWebOrderSession = (req: any, res: Response, orderId: string) => {
-  if (req.headers?.['x-client-type'] !== 'web') return;
-  res.setHeader(ORDER_HTTP_SESSION_HEADER, issueOrderHttpSession(orderId));
-  res.setHeader(ORDER_HTTP_SESSION_ID_HEADER, orderId);
+  attachOrderWebCredentials(req, res, orderId);
 };
 
 router.post('/order-access', async (req, res) => {

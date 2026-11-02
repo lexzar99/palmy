@@ -3,6 +3,12 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
   allowLegacyOrderPhoneProof,
+  attachOrderWebCredentials,
+  issueOrderEmbedKey,
+  limitedOrderTracking,
+  ORDER_EMBED_KEY_HEADER,
+  ORDER_HTTP_SESSION_HEADER,
+  verifyOrderEmbedKey,
   exchangeOrderAccessForHttpSession,
   exchangeOrderPaymentResumeForHttpSession,
   issueOrderAccessProof,
@@ -229,3 +235,70 @@ void Promise.all([assertOneTimeRawExchange(), assertOneTimePaymentResumeExchange
     console.error(error);
     process.exitCode = 1;
   });
+
+// Partner-embedden: orderns egen nyckel ersätter cookien, kioskbeviset gör det aldrig.
+{
+  const embedOrderId = 'embed-order-1';
+  const embedKey = issueOrderEmbedKey(embedOrderId);
+  assert.equal(verifyOrderEmbedKey(embedKey, embedOrderId), true);
+  assert.equal(verifyOrderHttpSession(embedKey, embedOrderId), true, 'nyckeln gäller där sessionen gäller');
+  assert.equal(verifyOrderEmbedKey(embedKey, 'annan-order'), false, 'nyckeln är bunden till sin order');
+  assert.equal(verifyOrderHttpSession(embedKey, 'annan-order'), false);
+  assert.equal(verifyOrderNativeSession(embedKey, embedOrderId), false, 'nyckeln är inget native-bevis');
+  assert.equal(verifyOrderAccessProof(embedKey, embedOrderId), false, 'nyckeln är inget socketbevis');
+  assert.equal(verifyOrderEmbedKey(issueOrderHttpSession(embedOrderId), embedOrderId), false);
+  assert.equal(verifyOrderEmbedKey(issueOrderEmbedKey(embedOrderId, undefined, -1), embedOrderId), false, 'utgången nyckel avvisas');
+
+  const attached = (headers: Record<string, unknown>) => {
+    const sent: Record<string, string> = {};
+    attachOrderWebCredentials({ headers }, { setHeader: (name, value) => { sent[name] = value; } }, embedOrderId);
+    return sent;
+  };
+  assert.ok(attached({ 'x-client-type': 'web', 'x-viaeats-embed': '1' })[ORDER_EMBED_KEY_HEADER], 'embedden får nyckeln');
+  assert.equal(attached({ 'x-client-type': 'web' })[ORDER_EMBED_KEY_HEADER], undefined, 'vanlig webb får ingen nyckel');
+  assert.deepEqual(attached({ 'x-viaeats-embed': '1' }), {}, 'bara webbklienten får webbevis');
+  assert.deepEqual(
+    attached({ 'x-client-type': 'web', 'x-viaeats-embed': '1', [ORDER_HTTP_SESSION_HEADER]: embedKey }),
+    {},
+    'en nyckel kan aldrig förlänga sig själv',
+  );
+
+  const limited = limitedOrderTracking({
+    id: embedOrderId,
+    orderNumber: 'V-1',
+    status: 'PREPARING',
+    type: 'DELIVERY',
+    paymentStatus: 'PAID',
+    restaurant: { name: 'Palmyra', phone: '046-123', selfDelivery: true },
+    customerPhone: '+46700000000',
+    customerName: 'Testkund',
+    customerEmail: 'kund@example.com',
+    deliveryStreet: 'Hemliga gatan 1',
+    deliveryLatitude: 55.7,
+    total: 19900,
+    allergens: 'Nötter',
+    items: [{ productName: 'Pizza' }],
+    accessToken: 'hemlig',
+  } as any, { etaEndsAt: null });
+  const limitedJson = JSON.stringify(limited);
+  for (const secret of ['+46700000000', 'Testkund', 'kund@example.com', 'Hemliga gatan', '55.7', '19900', 'Nötter', 'Pizza', 'hemlig']) {
+    assert.equal(limitedJson.includes(secret), false, `begränsad spårning får inte visa ${secret}`);
+  }
+  assert.equal(limited.trackingAccess, 'limited');
+  assert.equal(limited.status, 'PREPARING', 'kunden ser fortfarande statusen');
+  assert.equal(limited.restaurantPhone, '046-123', 'kunden kan fortfarande nå restaurangen');
+
+  const ordersSource = readFileSync(path.join(__dirname, '../routes/orders.ts'), 'utf8');
+  const routeBlock = (start: string, end: string) => ordersSource.slice(ordersSource.indexOf(start), ordersSource.indexOf(end));
+  assert.equal(ordersSource.includes('kioskCanTrackPaidOrder'), false, 'kioskbeviset är inget ägarbevis');
+  assert.doesNotMatch(routeBlock("router.post('/:id/access-proof'", "router.get('/:id/summary'"), /kioskCan|KIOSK_ACCESS/, 'kioskbeviset ger ingen socket');
+  assert.doesNotMatch(routeBlock("router.post('/:id/review'", "router.post('/:id/abandon'"), /kioskCan/, 'kioskbeviset får inte skriva betyg');
+  const fullOrderBlock = routeBlock("router.get('/:id', async", 'attachWebOrderSession(req, res, order.id);\n    res.json({\n      id: order.id');
+  assert.match(fullOrderBlock, /if \(limitedAccess\) \{[\s\S]*limitedOrderTracking\([\s\S]*return;\s*\}/, 'kioskvägen slutar före hela orderobjektet');
+  assert.doesNotMatch(routeBlock('if (limitedAccess) {', 'if (order.delivery?.courier) {'), /attachWebOrderSession/, 'kioskvägen får inget orderbevis');
+
+  const paymentsSource = readFileSync(path.join(__dirname, '../routes/payments.ts'), 'utf8');
+  assert.match(paymentsSource, /order\.accessToken && ownCheckoutReturn/, 'återhoppsbeviset hamnar aldrig i partnerns adressfält');
+}
+
+console.log('Partner-embed order key contract OK');

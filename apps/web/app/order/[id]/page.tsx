@@ -238,6 +238,7 @@ const OrderStatusPage = () => {
   const [pushBusy, setPushBusy] = useState(false);
   const [showPhoneVerifyPrompt, setShowPhoneVerifyPrompt] = useState(false);
   const [phoneVerifyPrefillName, setPhoneVerifyPrefillName] = useState("");
+  const [recoveryPhone, setRecoveryPhone] = useState("");
 
   useEffect(() => {
     if (!orderId) return;
@@ -340,8 +341,9 @@ const OrderStatusPage = () => {
       // bakåt mellan statusar, så kundvyn får inte låsa fast sig i DELIVERED.
       setOrder(res.data);
       // Offline-kvitto: senaste ordern cachas lokalt så sidan kan visas helt
-      // utan nät (app-skalet serveras redan av service workern).
-      cacheOrderDetail(res.data);
+      // utan nät (app-skalet serveras redan av service workern). Begränsad
+      // spårning får inte skriva över ett riktigt kvitto.
+      if (res.data?.trackingAccess !== "limited") cacheOrderDetail(res.data);
       setFetchError(null);
     } catch (err: any) {
       console.error(err);
@@ -490,17 +492,19 @@ const OrderStatusPage = () => {
   // hos Palmyras föräldrasida.
   useEffect(() => {
     if (!embedMode || !embedRestaurant || !order?.id || typeof window === "undefined") return;
-    saveOrderToHistory({
-      id: String(order.id),
-      phone: typeof order.customerPhone === "string" ? order.customerPhone : "",
-      createdAt: order.createdAt || new Date().toISOString(),
-      restaurantName: order.restaurantName || "Palmyra Pizzeria",
-      restaurantSlug: embedRestaurant,
-      total: typeof order.total === "number" ? order.total : undefined,
-    });
-    rememberActiveOrder(String(order.id), {
-      phone: typeof order.customerPhone === "string" ? order.customerPhone : null,
-    });
+    if (order.trackingAccess !== "limited") {
+      saveOrderToHistory({
+        id: String(order.id),
+        phone: typeof order.customerPhone === "string" ? order.customerPhone : "",
+        createdAt: order.createdAt || new Date().toISOString(),
+        restaurantName: order.restaurantName || "Palmyra Pizzeria",
+        restaurantSlug: embedRestaurant,
+        total: typeof order.total === "number" ? order.total : undefined,
+      });
+      rememberActiveOrder(String(order.id), {
+        phone: typeof order.customerPhone === "string" ? order.customerPhone : null,
+      });
+    }
     rememberEmbedOrder(embedRestaurant, String(order.id));
     const parentOrigin = readEmbedParentOrigin() || partnerOriginForRestaurant(embedRestaurant);
     if (parentOrigin && window.parent !== window) {
@@ -509,7 +513,19 @@ const OrderStatusPage = () => {
         parentOrigin,
       );
     }
-  }, [embedMode, embedRestaurant, order?.id, order?.createdAt, order?.customerPhone, order?.restaurantName, order?.total]);
+  }, [embedMode, embedRestaurant, order?.id, order?.createdAt, order?.customerPhone, order?.restaurantName, order?.total, order?.trackingAccess]);
+
+  // Telefonnumret på återställningsvyn är restaurangens publika uppgift.
+  useEffect(() => {
+    if (!embedMode || !embedRestaurant || fetchError !== "not-found") return;
+    let active = true;
+    axios.get(`/api/platform/restaurants/${encodeURIComponent(embedRestaurant)}`)
+      .then((res) => {
+        if (active && typeof res.data?.phone === "string") setRecoveryPhone(res.data.phone);
+      })
+      .catch(() => { /* vyn fungerar utan telefonnummer */ });
+    return () => { active = false; };
+  }, [embedMode, embedRestaurant, fetchError]);
 
   // Skippa recensionen och kom ihåg valet för denna order.
   const dismissReview = useCallback(() => {
@@ -576,6 +592,30 @@ const OrderStatusPage = () => {
 
   // 404 från backend — order finns verkligen inte (eller du saknar
   // ownership-bevis). Härifrån är "till startsidan" rätt åtgärd.
+  if (!order && embedMode) {
+    const recoveryTel = recoveryPhone ? `tel:${recoveryPhone.replace(/\s+/g, "")}` : null;
+    return (
+      <div className="ve-root min-h-screen flex flex-col items-center justify-center p-6 text-center">
+        <span className="mb-5 grid h-16 w-16 place-items-center rounded-full" style={{ backgroundColor: "#FFF4DF", color: "#C77800" }}><ShieldCheck size={28} strokeWidth={2.2} /></span>
+        <h1 className="m-0 text-[22px] font-semibold" style={{ letterSpacing: "-0.02em", color: "var(--ve-ink)" }}>Ordern kan inte visas här</h1>
+        <p className="m-0 mt-2 max-w-sm text-[15px]" style={{ color: "var(--ve-ink-2)" }}>Har du betalat är din beställning kvar hos restaurangen. Av säkerhetsskäl visas den bara i webbläsaren där du beställde. Öppna sidan där, eller ring restaurangen om du undrar något.</p>
+        <div className="mt-7 flex flex-col gap-2.5 sm:flex-row">
+          {recoveryTel && (
+            <a href={recoveryTel} target="_top" className="ve-press flex h-12 items-center justify-center gap-2 rounded-full px-7 text-[16px] font-semibold" style={{ backgroundColor: "var(--ve-cta)", color: "var(--ve-cta-ink)" }}>
+              <Phone size={17} strokeWidth={2.2} /> Ring restaurangen
+            </a>
+          )}
+          <button onClick={() => { setLoading(true); setFetchError(null); fetchOrder(); }} className="ve-press h-12 rounded-full px-7 text-[16px] font-medium" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>
+            {t("order.error.retry")}
+          </button>
+          <Link href={embedMenuHref} className="ve-press flex h-12 items-center justify-center rounded-full px-7 text-[16px] font-medium" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>
+            {t("order.error.menuCta")}
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (!order) {
     return (
        <div className="ve-root min-h-screen flex flex-col items-center justify-center p-6 text-center">
@@ -587,6 +627,7 @@ const OrderStatusPage = () => {
     );
   }
 
+  const limitedTracking = order.trackingAccess === "limited";
   const isCompleted = order.status === "DELIVERED" || order.status === "COMPLETED";
   const currentStatus = order.status;
   const isRejected = currentStatus === "REJECTED" || currentStatus === "CANCELLED" || currentStatus === "DELIVERY_FAILED";
@@ -1225,12 +1266,21 @@ const OrderStatusPage = () => {
               </div>
             </section>
           )}
-          {ReviewCard}
+          {limitedTracking && (
+            <section className="ve-card flex items-start gap-3.5 px-4 py-3.5">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}><ShieldCheck size={17} strokeWidth={2.2} /></span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[15px] font-medium" style={{ color: "var(--ve-ink)" }}>Du ser orderns status</span>
+                <span className="block mt-0.5 text-[13px] leading-snug" style={{ color: "var(--ve-ink-2)" }}>Beställning och kvitto visas bara i webbläsaren där du beställde. Statusen uppdateras här automatiskt.</span>
+              </span>
+            </section>
+          )}
+          {!limitedTracking && ReviewCard}
           {embedMode && embedRestaurant === "palmyra-pizzeria-lund" && !isRejected && order.paymentStatus === "PAID" && <EmbedViaeatsPromotion completed={isCompleted} />}
           {WhereCard}
-          {OrderCollapse}
+          {!limitedTracking && OrderCollapse}
 
-          {pushAvailable && !isTerminal(currentStatus) && (
+          {!limitedTracking && pushAvailable && !isTerminal(currentStatus) && (
             <section className="ve-card flex items-center gap-3.5 px-4 py-3.5">
               <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-accent-soft)", color: "var(--ve-accent)" }}><Bell size={17} strokeWidth={2.2} /></span>
               <span className="min-w-0 flex-1">

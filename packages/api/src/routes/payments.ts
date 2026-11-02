@@ -511,7 +511,10 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
       if (adyenChannel === 'Web') {
         const swishReturnUrl = new URL(verifiedReturnUrl);
         swishReturnUrl.searchParams.set('payment_provider', 'swish');
-        if (order.accessToken) {
+        // Partnerns retur går via dess adressfält, och embed.js använder inte
+        // beviset. Det får därför bara följa med till viaeats egen kassa.
+        const ownCheckoutReturn = ['/cart', '/pay/back'].includes(swishReturnUrl.pathname);
+        if (order.accessToken && ownCheckoutReturn) {
           swishReturnUrl.searchParams.set(
             'payment_resume',
             issueOrderPaymentResumeProof(order.id, order.accessToken),

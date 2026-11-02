@@ -12,6 +12,8 @@ export function orderSessionCookieName(orderId: string): string | null {
 }
 
 export const EMBED_CONTEXT_HEADER = "x-viaeats-embed";
+export const ORDER_EMBED_KEY_HEADER = "x-viaeats-order-key";
+export const ORDER_EMBED_KEY_ORDER_HEADER = "x-viaeats-order-key-order";
 
 /**
  * Partnersidan bäddar in kassan i en cross-site iframe. En SameSite=Lax-cookie

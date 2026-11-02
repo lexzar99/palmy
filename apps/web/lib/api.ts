@@ -1,7 +1,8 @@
 import axios from "axios";
 import { palmyraOfferChannel } from "@/lib/palmyraOffer";
 import { getKioskAccessProof } from "@/lib/kioskAccessClient";
-import { EMBED_CONTEXT_HEADER } from "@/lib/orderSession";
+import { EMBED_CONTEXT_HEADER, ORDER_EMBED_KEY_HEADER, ORDER_EMBED_KEY_ORDER_HEADER } from "@/lib/orderSession";
+import { orderIdFromPlatformRequest, readOrderEmbedKey, rememberOrderEmbedKey } from "@/lib/orderEmbedKey";
 
 // Global axios-default: 25 sekunders timeout istället för 0 (oändlig).
 // På 3G/flakey-nät innebar oändliga timeouts att checkout-POSTs och
@@ -63,8 +64,18 @@ if (typeof window !== "undefined") {
       // en cross-site iframe) och innan den skickar kioskcookien vidare.
       config.headers = config.headers || {};
       config.headers[EMBED_CONTEXT_HEADER] = "1";
+      // Orderns egen nyckel följer bara med anrop om just den ordern.
+      const orderId = orderIdFromPlatformRequest(url, config.data);
+      const orderKey = orderId ? readOrderEmbedKey(orderId) : null;
+      if (orderKey) config.headers[ORDER_EMBED_KEY_HEADER] = orderKey;
     }
     return config;
+  });
+  axios.interceptors.response.use((response) => {
+    const orderKey = response.headers?.[ORDER_EMBED_KEY_HEADER];
+    const orderId = response.headers?.[ORDER_EMBED_KEY_ORDER_HEADER];
+    if (typeof orderKey === "string" && typeof orderId === "string") rememberOrderEmbedKey(orderId, orderKey);
+    return response;
   });
 }
 

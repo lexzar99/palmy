@@ -13,6 +13,8 @@ import {
   ORDER_SESSION_COOKIE_PREFIX,
   ORDER_SESSION_HEADER,
   ORDER_SESSION_ID_HEADER,
+  ORDER_EMBED_KEY_HEADER,
+  ORDER_EMBED_KEY_ORDER_HEADER,
   orderSessionCookieName,
 } from "@/lib/orderSession";
 import { KIOSK_ACCESS_COOKIE } from "@/lib/kioskAccess";
@@ -142,7 +144,11 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
       const orderSession = orderCookieName
         ? request.cookies.get(orderCookieName)?.value
         : null;
+      // Safari skickar ingen cookie från en cross-site iframe. Då bär klienten
+      // orderns egen nyckel, som API:t verifierar precis som sessionen.
+      const orderKey = isEmbeddedRequest ? request.headers.get(ORDER_EMBED_KEY_HEADER) : null;
       if (orderSession) headers.set(ORDER_SESSION_HEADER, orderSession);
+      else if (orderKey && orderKey.length <= 2048) headers.set(ORDER_SESSION_HEADER, orderKey);
     }
     const launchProof = request.cookies.get(LAUNCH_ACCESS_COOKIE)?.value;
     if (isValidLaunchCookie(launchProof)) {
@@ -166,6 +172,7 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
     // använder den för plattforms-låsta rabattkoder (t.ex. app-only-koder som
     // inte får lösas in via webben).
     headers.set("x-client-type", "web");
+    if (isEmbeddedRequest) headers.set(EMBED_CONTEXT_HEADER, "1");
     // Forward the idempotency key — it was being dropped here, so the API's
     // order-create idempotency never triggered (duplicate orders / orphaned
     // payments on a retry). With it forwarded, the existing server-side replay works.
@@ -226,6 +233,14 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
         issuedOrderSession,
         getOrderSessionCookieOptions({ embedded: isEmbeddedRequest }),
       );
+    }
+    // Enda undantaget från att bevis stannar i proxyn: orderns nyckel lämnas
+    // till samma iframe som just bevisade att den äger ordern. Den ligger i ett
+    // svar till viaeats origin och når aldrig partnersidan.
+    const issuedOrderKey = upstreamResponse.headers.get(ORDER_EMBED_KEY_HEADER);
+    if (isEmbeddedRequest && issuedOrderKey && issuedCookieName) {
+      response.headers.set(ORDER_EMBED_KEY_HEADER, issuedOrderKey);
+      response.headers.set(ORDER_EMBED_KEY_ORDER_HEADER, issuedOrderId!);
     }
     if (recoveredAsGuest) expirePlatformCredential(response);
     return response;

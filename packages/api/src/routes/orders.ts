@@ -51,14 +51,15 @@ import {
   allowLegacyOrderPhoneProof,
   exchangeOrderAccessForHttpSession,
   exchangeOrderPaymentResumeForHttpSession,
+  attachOrderWebCredentials,
   issueOrderAccessProof,
-  issueOrderHttpSession,
   issueOrderNativeSession,
+  limitedOrderTracking,
   ORDER_NATIVE_SESSION_HEADER,
   ORDER_NATIVE_SESSION_TTL_SECONDS,
   ORDER_HTTP_SESSION_HEADER,
-  ORDER_HTTP_SESSION_ID_HEADER,
   ORDER_HTTP_SESSION_TTL_SECONDS,
+  RAW_ORDER_ACCESS_TTL_MS,
   ownsOrderWithActiveRawSecret,
   resolveActiveCustomerFromAuthorization,
   resolveActiveCustomerIdFromAuthorization,
@@ -96,9 +97,7 @@ function attachWebOrderSession(req: Request, res: Response, orderId: string) {
   // Order responses can contain native exchange credentials or customer PII.
   // They must never be retained by a browser, CDN, or shared intermediary.
   res.setHeader('Cache-Control', 'no-store');
-  if (req.headers['x-client-type'] !== 'web' || !validOrderId(orderId)) return;
-  res.setHeader(ORDER_HTTP_SESSION_HEADER, issueOrderHttpSession(orderId));
-  res.setHeader(ORDER_HTTP_SESSION_ID_HEADER, orderId);
+  attachOrderWebCredentials(req, res, orderId);
 }
 
 function rawOrderAccessForNonWebClient(req: Request, accessToken: string | null) {
@@ -134,11 +133,25 @@ const nativeSessionLimiter = rateLimit({
   message: { error: 'För många försök. Vänta en stund och försök igen.' },
 });
 
-function kioskCanTrackPaidOrder(
+// Kioskbeviset är publikt för en tillåten restaurang och är därför inget
+// ägarbevis. Det ger bara status utan kunduppgifter för en betald order, så att
+// kunden aldrig blir utan spårning om orderns nyckel saknas. Det täcker ordrar
+// som lades före nyckeln fanns och webbläsare som tappat lagringen.
+function kioskCanSeeOrderStatus(
   req: Request,
-  order: { paymentStatus?: string | null; restaurant?: { slug?: string | null } | null },
+  order: {
+    paymentStatus?: string | null;
+    createdAt: Date;
+    scheduledFor?: Date | null;
+    restaurant?: { slug?: string | null } | null;
+  },
 ): boolean {
   if (req.headers['x-client-type'] !== 'web' || order.paymentStatus !== 'PAID') return false;
+  const relevantAt = Math.max(
+    new Date(order.createdAt).getTime(),
+    order.scheduledFor ? new Date(order.scheduledFor).getTime() : 0,
+  );
+  if (!(Date.now() - relevantAt <= RAW_ORDER_ACCESS_TTL_MS)) return false;
   const kioskSlug = validKioskAccessProof(req.headers[KIOSK_ACCESS_HEADER]);
   const allowedRestaurants = new Set(
     String(process.env.KIOSK_RESTAURANT_SLUGS || 'palmyra-pizzeria-lund')
@@ -2116,19 +2129,13 @@ router.post('/:id/session', async (req: Request, res: Response) => {
 // long-lived credential out of JavaScript while realtime remains order-scoped.
 router.post('/:id/access-proof', async (req: Request, res: Response) => {
   const orderId = req.params.id;
-  let allowed = await resolveOrderAccess({
+  // Kioskbeviset ger aldrig socketåtkomst: rummet sänder leveransbevis och
+  // budets position. Begränsad spårning uppdateras med vanlig polling.
+  const allowed = await resolveOrderAccess({
     orderId,
     orderSession: req.headers[ORDER_HTTP_SESSION_HEADER],
     authorization: req.headers.authorization,
   }).catch(() => false);
-
-  if (!allowed && validOrderId(orderId)) {
-    const kioskOrder = await prisma.order.findUnique({
-      where: { id: orderId },
-      select: { paymentStatus: true, restaurant: { select: { slug: true } } },
-    });
-    allowed = Boolean(kioskOrder && kioskCanTrackPaidOrder(req, kioskOrder));
-  }
 
   if (!allowed || !validOrderId(orderId)) {
     return res.status(404).json({ error: 'Order hittades inte' });
@@ -2142,7 +2149,7 @@ router.post('/:id/access-proof', async (req: Request, res: Response) => {
 // use the HttpOnly order proof; account callers use active customer auth.
 router.get('/:id/summary', async (req: Request, res: Response) => {
   const orderId = req.params.id;
-  let allowed = await resolveOrderAccess({
+  const allowed = await resolveOrderAccess({
     orderId,
     orderSession: req.headers[ORDER_HTTP_SESSION_HEADER],
     authorization: req.headers.authorization,
@@ -2161,13 +2168,29 @@ router.get('/:id/summary', async (req: Request, res: Response) => {
       total: true,
       type: true,
       createdAt: true,
+      scheduledFor: true,
       restaurant: { select: { name: true, slug: true, selfDelivery: true } },
       _count: { select: { items: true } },
     },
   });
   if (!order) return res.status(404).json({ error: 'Order hittades inte' });
-  if (!allowed) allowed = kioskCanTrackPaidOrder(req, order);
-  if (!allowed) return res.status(404).json({ error: 'Order hittades inte' });
+  if (!allowed) {
+    if (!kioskCanSeeOrderStatus(req, order)) {
+      return res.status(404).json({ error: 'Order hittades inte' });
+    }
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({
+      trackingAccess: 'limited',
+      id: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      type: order.type,
+      selfDelivery: order.restaurant?.selfDelivery ?? false,
+      createdAt: order.createdAt,
+      restaurantName: order.restaurant?.name ?? null,
+    });
+  }
 
   attachWebOrderSession(req, res, orderId);
   return res.json({
@@ -2234,8 +2257,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     let isOwner =
       verifyOrderHttpSession(req.headers[ORDER_HTTP_SESSION_HEADER], order.id) ||
       ownsByNativeOrderSession(req, order.id) ||
-      Boolean(callerUserId && order.userId === callerUserId) ||
-      kioskCanTrackPaidOrder(req, order);
+      Boolean(callerUserId && order.userId === callerUserId);
 
     // Local-only compatibility for old dev builds. Production never accepts a
     // phone number as proof of access to customer PII.
@@ -2247,8 +2269,19 @@ router.get('/:id', async (req: Request, res: Response) => {
       }
     }
 
-    if (!isOwner) {
+    const limitedAccess = !isOwner && kioskCanSeeOrderStatus(req, order);
+    if (!isOwner && !limitedAccess) {
       res.status(404).json({ error: 'Order hittades inte' });
+      return;
+    }
+
+    if (limitedAccess) {
+      res.setHeader('Cache-Control', 'no-store');
+      const liveOrder = { ...order, ...(await overlayOrderLiveEta(order)) };
+      res.json(limitedOrderTracking(liveOrder, {
+        etaEndsAt: customerStepEtaEndsAt(liveOrder, liveOrder.status)?.toISOString() ?? null,
+        ...etaResponseFields(liveOrder),
+      }));
       return;
     }
 
@@ -2783,10 +2816,9 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
 // Tidigare var endpointen helt publik och en angripare kunde betygsätta vilken
 // levererad order som helst, vilket gav en rating-attack-vektor mot konkurrenter.
 // Ägar-check: JWT (Supabase eller legacy) som matchar order.userId, eller
-// accessToken som matchar order.accessToken. En betald partnerorder får även
-// använda det signerade, restaurangbundna kioskbeviset. Det behövs när Safari
-// blockerar ordersessionens cookie inuti Palmyras iframe. Telefonnummer är
-// inte ett autentiseringsbevis och får aldrig ge rätt att skriva ett betyg.
+// accessToken som matchar order.accessToken. Partnerembedden använder orderns
+// egen nyckel. Kioskbevis och telefonnummer är inga autentiseringsbevis och får
+// aldrig ge rätt att skriva ett betyg.
 router.post('/:id/review', async (req: Request, res: Response) => {
   try {
     const { rating, review, likedItemIds, accessToken: bodyAccessToken } = req.body;
@@ -2817,10 +2849,6 @@ router.post('/:id/review', async (req: Request, res: Response) => {
       req.headers.authorization,
     ).catch(() => null);
     if (reviewerUserId && (order as any).userId === reviewerUserId) isOwner = true;
-    // Partnerembedden är gästläge och kan köras med blockerade third-party
-    // cookies. Kioskbeviset är signerat, tidsbegränsat och låst till exakt den
-    // restaurang som den betalda ordern tillhör.
-    if (!isOwner && kioskCanTrackPaidOrder(req, order)) isOwner = true;
     if (!isOwner) {
       const tokenCandidate =
         typeof bodyAccessToken === 'string' ? bodyAccessToken : null;

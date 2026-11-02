@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import axios from "axios";
 import { ChevronRight, History } from "lucide-react";
+// Registrerar embedbevisen på axios, även när sidan öppnas direkt.
+import "@/lib/api";
 import { useTranslation } from "@/lib/i18n/LocaleProvider";
 import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
 import { forgetRawOrderAccessToken, readOrderHistory, removeOrderFromHistory, type StoredOrderRef } from "@/lib/orderHistory";

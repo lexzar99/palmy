@@ -17,6 +17,8 @@ const ORDER_HTTP_SESSION_AUDIENCE = 'viaeats-order-http';
 const ORDER_HTTP_SESSION_SCOPE = 'order:http';
 const ORDER_NATIVE_SESSION_AUDIENCE = 'viaeats-order-native-http';
 const ORDER_NATIVE_SESSION_SCOPE = 'order:native-http';
+const ORDER_EMBED_KEY_AUDIENCE = 'viaeats-order-embed-key';
+const ORDER_EMBED_KEY_SCOPE = 'order:embed-key';
 const ORDER_PAYMENT_RESUME_AUDIENCE = 'viaeats-order-payment-resume';
 const ORDER_PAYMENT_RESUME_SCOPE = 'order:payment-resume';
 const ORDER_PAYMENT_RESUME_TTL_SECONDS = 15 * 60;
@@ -30,6 +32,9 @@ export const ORDER_HTTP_SESSION_HEADER = 'x-viaeats-order-session';
 export const ORDER_HTTP_SESSION_ID_HEADER = 'x-viaeats-order-id';
 export const ORDER_NATIVE_SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 export const ORDER_NATIVE_SESSION_HEADER = 'x-viaeats-order-native-session';
+export const ORDER_EMBED_KEY_TTL_SECONDS = 7 * 24 * 60 * 60;
+export const ORDER_EMBED_KEY_HEADER = 'x-viaeats-order-key';
+export const ORDER_EMBED_REQUEST_HEADER = 'x-viaeats-embed';
 
 type OrderAccessProofPayload = jwt.JwtPayload & {
   orderId?: string;
@@ -189,8 +194,122 @@ export function verifyOrderHttpSession(
     }) as OrderAccessProofPayload;
     return payload.scope === ORDER_HTTP_SESSION_SCOPE && payload.orderId === orderId;
   } catch {
+    // Partneriframen saknar ofta cookies (Safari). Proxyn skickar då orderns
+    // egen nyckel i samma header, så den gäller överallt där sessionen gäller.
+    return verifyOrderEmbedKey(proof, orderId, secret);
+  }
+}
+
+/**
+ * Orderns egen nyckel för partner-iframen. Den ersätter cookien när webbläsaren
+ * blockerar tredjepartscookies, ligger bara i iframens lagring på viaeats-origin
+ * (partnersidan kan inte läsa den) och förlänger aldrig sig själv.
+ */
+export function issueOrderEmbedKey(
+  orderId: string,
+  secret = JWT_SECRET,
+  expiresInSeconds = ORDER_EMBED_KEY_TTL_SECONDS,
+): string {
+  if (!validOrderId(orderId)) throw new Error('Invalid order id');
+  return jwt.sign(
+    { orderId, scope: ORDER_EMBED_KEY_SCOPE },
+    secret,
+    {
+      algorithm: 'HS256',
+      audience: ORDER_EMBED_KEY_AUDIENCE,
+      issuer: ORDER_ACCESS_ISSUER,
+      expiresIn: expiresInSeconds,
+    },
+  );
+}
+
+export function verifyOrderEmbedKey(
+  proof: unknown,
+  orderId: unknown,
+  secret = JWT_SECRET,
+): boolean {
+  if (typeof proof !== 'string' || !proof || !validOrderId(orderId)) return false;
+  try {
+    const payload = jwt.verify(proof, secret, {
+      algorithms: ['HS256'],
+      audience: ORDER_EMBED_KEY_AUDIENCE,
+      issuer: ORDER_ACCESS_ISSUER,
+    }) as OrderAccessProofPayload;
+    return payload.scope === ORDER_EMBED_KEY_SCOPE && payload.orderId === orderId;
+  } catch {
     return false;
   }
+}
+
+/**
+ * Sätter orderns webbsession på svaret. Får bara anropas efter ägarkontroll,
+ * aldrig efter enbart kioskbevis. En nyckel ger inga nya bevis: annars skulle en
+ * läckt nyckel kunna förlänga sig själv hur länge som helst.
+ */
+export function attachOrderWebCredentials(
+  req: { headers: Record<string, unknown> },
+  res: { setHeader(name: string, value: string): unknown },
+  orderId: string,
+): void {
+  if (req.headers['x-client-type'] !== 'web' || !validOrderId(orderId)) return;
+  if (verifyOrderEmbedKey(req.headers[ORDER_HTTP_SESSION_HEADER], orderId)) return;
+  res.setHeader(ORDER_HTTP_SESSION_HEADER, issueOrderHttpSession(orderId));
+  res.setHeader(ORDER_HTTP_SESSION_ID_HEADER, orderId);
+  if (req.headers[ORDER_EMBED_REQUEST_HEADER] === '1') {
+    res.setHeader(ORDER_EMBED_KEY_HEADER, issueOrderEmbedKey(orderId));
+  }
+}
+
+type LimitedTrackingOrder = {
+  id: string;
+  orderNumber?: unknown;
+  status?: unknown;
+  type?: unknown;
+  paymentStatus?: unknown;
+  estimatedTime?: unknown;
+  scheduledFor?: unknown;
+  createdAt?: unknown;
+  preparingAt?: unknown;
+  deliveringAt?: unknown;
+  restaurant?: {
+    name?: string | null;
+    address?: string | null;
+    zip?: string | null;
+    city?: string | null;
+    phone?: string | null;
+    selfDelivery?: boolean | null;
+  } | null;
+};
+
+/**
+ * Säkerhetsnätet när kunden saknar orderns nyckel: kioskbevis plus order-id ger
+ * status och restaurangens publika uppgifter, inget annat. Listan är en
+ * tillåtelselista, så nya orderfält blir aldrig synliga här av misstag.
+ */
+export function limitedOrderTracking(
+  order: LimitedTrackingOrder,
+  eta: Record<string, unknown>,
+) {
+  return {
+    trackingAccess: 'limited' as const,
+    id: order.id,
+    orderNumber: order.orderNumber,
+    status: order.status,
+    type: order.type,
+    paymentStatus: order.paymentStatus,
+    estimatedTime: order.estimatedTime,
+    scheduledFor: order.scheduledFor,
+    createdAt: order.createdAt,
+    preparingAt: order.preparingAt,
+    deliveringAt: order.deliveringAt,
+    selfDelivery: order.restaurant?.selfDelivery ?? false,
+    ...eta,
+    restaurantName: order.restaurant?.name || 'Okänd restaurang',
+    restaurantAddress: order.restaurant?.address || '',
+    restaurantZip: order.restaurant?.zip || '',
+    restaurantCity: order.restaurant?.city || '',
+    restaurantPhone: order.restaurant?.phone || '',
+  };
 }
 
 /**

@@ -143,6 +143,14 @@
     var requestedProduct = pageParams.get("product");
     var paymentReturn = pageParams.get("payment_return");
     var trackedOrder = pageParams.get("order");
+    // Ett gammalt Swish-återhoppsbevis ska inte ligga kvar i partnerns adressfält.
+    if (pageParams.has("payment_resume")) {
+      try {
+        var cleanLocation = new URL(window.location.href);
+        cleanLocation.searchParams.delete("payment_resume");
+        window.history.replaceState(window.history.state, "", cleanLocation.toString());
+      } catch (_) { /* adressfältet får vara kvar hellre än att menyn stoppas */ }
+    }
     if (validOrderId(trackedOrder)) rememberHostOrder(slug, trackedOrder);
 
     var frame = document.createElement("iframe");
