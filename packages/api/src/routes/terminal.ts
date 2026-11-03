@@ -11,6 +11,7 @@ import { getIO } from '../lib/socket';
 import { notifyPartnerDevicesOfNewOrder } from '../lib/partnerFcm';
 import { deleteServerTerminalTestOrder } from '../lib/terminalTestOrder';
 import { getStandaloneTestPrintArtifact } from '../lib/serverPrintArtifact';
+import terminalSettingsRouter from './terminalSettings';
 
 // ── Terminal-sessioner för restaurang-appen (Flutter) ───────────────────────
 //
@@ -30,7 +31,8 @@ const router = Router();
 // Längre access-token (24h) håller socket-handshaket levande utan täta
 // re-auths. Revokering är ändå omedelbar: admin-revoke bumpar kontots
 // tokenVersion → access-token avvisas direkt vid nästa API-anrop.
-const ACCESS_TTL = '24h';
+// TERMINAL_ACCESS_TTL används bara i långtest (t.ex. 2m för att prova många förnyelser).
+const ACCESS_TTL = (process.env.TERMINAL_ACCESS_TTL?.trim() || '24h') as jwt.SignOptions['expiresIn'];
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
 
 const refreshTokenMatches = (plain: string | undefined, expectedHash: string | null | undefined) => {
@@ -764,5 +766,8 @@ router.post('/push-token', authenticate, async (req: AuthRequest, res) => {
     res.status(500).json({ error: 'Kunde inte registrera push-token' });
   }
 });
+
+// Priser, zonavgifter och öppettider som restaurangen ändrar från plattan.
+router.use(terminalSettingsRouter);
 
 export default router;

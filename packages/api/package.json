@@ -13,6 +13,8 @@
     "test:delivery-window": "ts-node --transpile-only src/contracts/deliveryWindow.test.ts",
     "test:order-eta-step": "ts-node --transpile-only src/contracts/orderEtaCustomerStep.test.ts",
     "test:terminal-takeover": "ts-node --transpile-only src/contracts/terminalTakeover.test.ts",
+    "test:terminal-settings": "ts-node --transpile-only src/contracts/terminalSettings.test.ts",
+    "test:terminal-settings-db": "ts-node --transpile-only src/contracts/terminalSettings.db.test.ts",
     "test:order-status": "ts-node --transpile-only src/contracts/orderStatusMachine.test.ts",
     "test:dispatch": "ts-node --transpile-only src/contracts/courierDispatch.test.ts",
     "test:referrals": "ts-node --transpile-only src/contracts/referralContracts.test.ts",

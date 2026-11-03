@@ -30,6 +30,11 @@ function schedule(restaurantId: string | null) {
   }, DEBOUNCE_MS));
 }
 
+/** Samma meddelande till plattorna när menyn ändrats utanför admin-rutterna (t.ex. priser från plattan). */
+export function notifyTerminalsMenuChanged(restaurantId: string) {
+  schedule(restaurantId);
+}
+
 async function restaurantFor(resource: string, id: string | undefined, body: any): Promise<string | null | undefined> {
   const looksLikeId = (v: unknown): v is string => typeof v === 'string' && v.length >= 8 && !['reorder', 'copy', 'duplicate'].includes(v);
   if (looksLikeId(id)) {

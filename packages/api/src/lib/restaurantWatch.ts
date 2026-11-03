@@ -118,6 +118,29 @@ export async function alertRestaurantPause(params: {
   });
 }
 
+// ── 2b. Ändring från plattan (priser, zoner, öppettider) ─────────────────────
+// En rad per sparning, aldrig en per pris. dedupeKey = plattans idempotensnyckel,
+// så ett omförsök från plattan inte ger två meddelanden.
+export async function alertTerminalSettingsChanged(params: {
+  restaurantId: string;
+  restaurantName: string;
+  summary: string;
+  dedupeKey?: string | null;
+}): Promise<void> {
+  const text = [
+    `🛠️ ${params.restaurantName} ${params.summary} från plattan`,
+    `Tid: ${swedenDateTime(new Date())}`,
+  ].join('\n');
+  await safeSend({
+    type: 'restaurant_terminal_change',
+    severity: 'info',
+    text,
+    restaurantId: params.restaurantId,
+    restaurantName: params.restaurantName,
+    ...(params.dedupeKey ? { dedupeKey: `terminal-change:${params.restaurantId}:${params.dedupeKey}` } : {}),
+  });
+}
+
 // ── 3. Periodisk vakt: stängd/pausad > 30 min under öppettider ────────────────
 const CLOSED_ALERT_MIN = 30; // flagga när stängningen passerar 30 min
 const EARLY_CLOSE_MIN = 90; // "stängde tidigt" om >= 1,5h kvar till schemalagd stängning

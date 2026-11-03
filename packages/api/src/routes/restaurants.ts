@@ -23,6 +23,8 @@ import { deleteFromR2, listR2, r2Enabled, r2UrlToKey, slugifyPathSegment } from 
 import { syncRestaurantImagePrefix } from '../lib/r2Rename';
 import { isCustomerVisibleDeal, isDealAvailableNow, parseApplicableRestaurantIds, parseDealProductIds } from '../lib/deals';
 import { audit } from '../lib/auditLog';
+import { terminalWriteGate } from '../middleware/terminalScope';
+import { keepSpecialHours } from '../lib/terminalSettings';
 import { normalizeFoodVatPercent } from '../lib/tax';
 
 const router = Router();
@@ -829,7 +831,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
+router.patch('/:id', authenticate, terminalWriteGate, async (req: AuthRequest, res) => {
   try {
     const { id: paramId } = req.params;
     
@@ -1032,7 +1034,8 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       // adminpanelen skickar alltid tagIds och går genom katalogvalideringen.
       data.tags = safeStringify(payload.tags);
     }
-    if (payload.openingHours !== undefined) data.openingHours = safeStringify(payload.openingHours);
+    // Adminformuläret känner inte till avvikande dagar; de som plattan lagt in ska inte raderas.
+    if (payload.openingHours !== undefined) data.openingHours = safeStringify(keepSpecialHours(payload.openingHours, existingRestaurant.openingHours));
     if (payload.internalInfo !== undefined) data.internalInfo = payload.internalInfo;
     
     if (payload.latitude !== undefined) data.latitude = payload.latitude === null ? null : toSafeNum(payload.latitude);
