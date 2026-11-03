@@ -66,7 +66,6 @@ import profileRoutes from './routes/profile';
 import customerRoutes from './routes/customers';
 import campaignRoutes from './routes/campaigns';
 import deliveryRoutes from './routes/delivery';
-import reportRoutes from './routes/reports';
 import uploadRoutes from './routes/upload';
 import notificationRoutes from './routes/notifications';
 import payoutsRoutes from './routes/payouts';
@@ -477,7 +476,6 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/hermes', hermesRoutes);
-app.use('/api/admin/reports', reportRoutes);
 // uploadRoutes monteras direkt på /api/admin så routern's egna paths
 // (/upload, /upload-r2, /images/list, /images/exists, /images/auto-match,
 // /images/migrate) hamnar på de URL:er admin-klienten faktiskt anropar.
