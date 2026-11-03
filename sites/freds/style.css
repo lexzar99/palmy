@@ -26,13 +26,10 @@ a { color: inherit; }
 h1, h2, h3, p, ol { margin: 0; }
 ul, ol { list-style: none; padding: 0; }
 
-/* ---------- Logotypen: ren och skarp ---------- */
-.logo { display: inline-flex; flex-direction: column; text-decoration: none; line-height: 1; }
-.logo__mark { font-stretch: 125%; font-weight: 900; font-size: 26px; letter-spacing: -0.02em; text-transform: uppercase; }
-.logo__mark::after { content: ""; display: inline-block; width: 0.22em; height: 0.22em; margin-left: 0.08em; background: var(--red); }
-.logo__sub { font-stretch: 75%; font-weight: 700; font-size: 10px; letter-spacing: 0.42em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
-.logo--big .logo__mark { font-size: clamp(56px, 9vw, 120px); }
-.logo--big .logo__sub { font-size: clamp(12px, 1.4vw, 16px); margin-top: 10px; }
+/* ---------- Logotypen: vektorfiler från docs/restaurants/freds-pizzeria-hassleholm/build_logo.py ---------- */
+.logo { display: block; line-height: 0; }
+.logo img { height: 44px; width: auto; }
+.footer__logo { width: clamp(200px, 22vw, 280px); height: auto; margin-bottom: 10px; }
 
 /* ---------- Knappar ---------- */
 .btn {
@@ -72,7 +69,6 @@ ul, ol { list-style: none; padding: 0; }
 .hero__content { position: relative; z-index: 2; width: 100%; padding: 0 var(--gutter) clamp(60px, 11vh, 120px); }
 .hero__word { display: block; margin: 22px 0 32px; line-height: 0.86; font-weight: 400; }
 .hero__mark { display: block; white-space: nowrap; font-stretch: 125%; font-weight: 900; font-size: clamp(96px, 15vw, 236px); letter-spacing: -0.035em; text-transform: uppercase; }
-.hero__mark .line > span::after { content: ""; display: inline-block; width: 0.16em; height: 0.16em; margin-left: 0.05em; background: var(--red); }
 .hero__sub { display: block; font-stretch: 75%; font-weight: 700; font-size: clamp(14px, 1.4vw, 19px); letter-spacing: 0.4em; text-transform: uppercase; color: var(--muted); margin-top: 18px; }
 .line { display: block; overflow: hidden; padding-bottom: 0.04em; }
 .line > span { display: inline-block; transform: translateY(105%); transition: transform 1.2s var(--ease); }
@@ -228,6 +224,7 @@ ul, ol { list-style: none; padding: 0; }
   .hero__mark { font-size: clamp(64px, 20vw, 130px); }
   .hero__sub { letter-spacing: 0.3em; font-size: 13px; margin-top: 12px; }
   .hero__word { margin: 16px 0 22px; }
+  .logo img { height: 36px; }
   .hero__lede { font-size: 16px; }
   .hero__row .btn { flex: 1 1 100%; }
   .hero__scroll { display: none; }
@@ -254,7 +251,6 @@ ul, ol { list-style: none; padding: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .reveal, .row__name, .line > span, .hero .kicker, .hero__row { opacity: 1; transform: none; transition: none; }
   .hero__scroll span, .hours__state .dot { animation: none; }
 }
 
