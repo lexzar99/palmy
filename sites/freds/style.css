@@ -238,13 +238,8 @@ ul, ol { list-style: none; padding: 0; }
   .hero__row .btn { flex: 1 1 100%; min-height: 58px; }
   .disk { flex: 1 1 0; min-height: 0; grid-template-rows: repeat(2, minmax(0, 46vw)); align-content: center; }
   .hero .kicker { font-size: 12px; letter-spacing: 0.1em; white-space: nowrap; }
-  .disk__row { height: 100%; }
+  .disk__row { height: 100%; min-height: 0; }
   .disk__tile { width: auto; height: 100%; }
-}
-/* Låga skärmar (iPhone SE med webbläsarlister): en rad pizzor räcker */
-@media (max-width: 700px) and (max-height: 700px) {
-  .disk__row--back { display: none; }
-  .disk { grid-template-rows: minmax(0, 52vw); }
 }
 @media (max-width: 700px) {
   .manifest, .board, .more, .hours { background: var(--paper); color: var(--ink); }
