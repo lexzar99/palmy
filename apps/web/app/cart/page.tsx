@@ -4068,7 +4068,9 @@ export default function CartPage() {
   const renderCartItem = (item: (typeof items)[number], idx: number) => {
     const last = idx === items.length - 1;
     const extrasText = item.extras.map((e) => ((e.quantity ?? 1) > 1 ? `${e.name} ×${e.quantity}` : e.name)).join(" · ");
-    const lineTotal = item.price * item.quantity;
+    // Raden visar samma pris som totalen räknar: baspris plus tillval (storlek, extra pålägg, även negativa) gånger antal.
+    const extrasPerUnit = item.extras.reduce((sum, e) => sum + e.price * (e.quantity ?? 1), 0);
+    const lineTotal = (item.price + extrasPerUnit) * item.quantity;
     return (
       <motion.div key={item.cartItemId} layout className="mx-4 flex items-center gap-3 py-3" style={{ boxShadow: last ? undefined : hairline }}>
         {item.imageUrl ? (
@@ -4096,7 +4098,7 @@ export default function CartPage() {
           ) : item.catalogDiscountApplied && typeof item.originalPrice === "number" && item.originalPrice > item.price ? (
             <span className="ve-tabular flex items-baseline gap-1.5">
               <span className="text-[15px] font-semibold" style={{ color: "var(--ve-ink)" }}>{formatSekAmount(lineTotal)} kr</span>
-              <span className="text-[12.5px] line-through" style={{ color: "var(--ve-ink-3)" }}>{formatSekAmount(item.originalPrice * item.quantity)}</span>
+              <span className="text-[12.5px] line-through" style={{ color: "var(--ve-ink-3)" }}>{formatSekAmount((item.originalPrice + extrasPerUnit) * item.quantity)}</span>
             </span>
           ) : (
             <span className="ve-tabular text-[15px] font-semibold" style={{ color: "var(--ve-ink)" }}>{formatSekAmount(lineTotal)} kr</span>
