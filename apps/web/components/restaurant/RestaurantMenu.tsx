@@ -398,9 +398,16 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
     const previousType = localStorage.getItem("platform_order_type");
     localStorage.setItem("platform_order_type", nextType);
     if (nextType === "PICKUP") {
+      // Avhämtning sker alltid hos den här restaurangen, så orten är given. En sparad ort från
+      // en annan restaurang (t.ex. Växjö efter Ramis) får aldrig följa med, och ingen bekräftelse behövs.
       setZoneAvailable(null);
-      const pickupCity = localStorage.getItem("platform_pickup_city");
-      if (pickupCity) { localStorage.setItem("platform_address", pickupCity); setAddress(pickupCity); return; }
+      const pickupCity = restaurant?.city || localStorage.getItem("platform_pickup_city");
+      if (pickupCity) {
+        localStorage.setItem("platform_pickup_city", pickupCity);
+        localStorage.setItem("platform_address", pickupCity);
+        setAddress(pickupCity);
+        return;
+      }
       setShowAddressModal(true);
       return;
     }
@@ -416,6 +423,15 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
   // adressgrinden eller leveransvalet. API:t nekar dessutom DELIVERY-ordrar.
   const pickupOnly = Boolean(restaurant?.pickupOnly);
   const pickupOnlyCity = restaurant?.city || "";
+  // Vanlig restaurang med avhämtning vald (även sparad från ett tidigare besök): använd alltid
+  // restaurangens egen ort som avhämtningsplats.
+  const restaurantCity = restaurant?.city || "";
+  useEffect(() => {
+    if (pickupOnly || orderType !== "PICKUP" || !restaurantCity || typeof window === "undefined") return;
+    setAddress(restaurantCity);
+    localStorage.setItem("platform_pickup_city", restaurantCity);
+    localStorage.setItem("platform_address", restaurantCity);
+  }, [pickupOnly, orderType, restaurantCity]);
   useEffect(() => {
     if (!pickupOnly || typeof window === "undefined") return;
     const pickupCity = pickupOnlyCity || "Avhämtning";
@@ -599,13 +615,14 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
   const handleOpenProduct = useCallback((p: any) => {
     if (!restaurant?.isOpen) return;
     if (zoneAvailable === false) { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
-    if (!address.trim() || (orderType === "DELIVERY" && !localStorage.getItem("platform_coords"))) {
+    const needsAddress = orderType === "PICKUP" ? !(restaurant?.city || address.trim()) : (!address.trim() || !localStorage.getItem("platform_coords"));
+    if (needsAddress) {
       setPendingProduct(p);
       setShowAddressModal(true);
     } else {
       setSelectedProduct(p);
     }
-  }, [restaurant?.isOpen, zoneAvailable, address, orderType]);
+  }, [restaurant?.isOpen, restaurant?.city, zoneAvailable, address, orderType]);
 
   // Embed-API mellan partnersidan och iframe:en. Produktdeeplinks går genom
   // samma adress-/zon-grind som ett vanligt produktklick.
