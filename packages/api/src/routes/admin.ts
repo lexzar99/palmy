@@ -54,6 +54,7 @@ import {
   partnerEmbedEnabledIds,
   removePartnerEmbedDiscountSetting,
   setPartnerEmbedDiscountEnabled,
+  enablePartnerEmbedOnCreate,
 } from '../lib/partnerEmbedDiscounts';
 
 const router = Router();
@@ -3745,7 +3746,11 @@ router.post('/deals', async (req, res) => {
     const deal = await prisma.deal.create({
       data: normalized as any,
     });
-    if (partnerEmbedEnabled === true) {
+    const embedEnabled = enablePartnerEmbedOnCreate({
+      requested: partnerEmbedEnabled,
+      createdByRestaurant: !isSuperAdmin(req as AuthRequest) && Boolean(scopedRestaurantId),
+    });
+    if (embedEnabled) {
       await setPartnerEmbedDiscountEnabled('deal', deal.id, true);
     }
 
@@ -3785,7 +3790,7 @@ router.post('/deals', async (req, res) => {
       })();
     }
 
-    res.status(201).json(formatDealForAdmin(deal, partnerEmbedEnabled === true));
+    res.status(201).json(formatDealForAdmin(deal, embedEnabled));
   } catch (error) {
     console.error('Create deal error:', error);
     res.status(500).json({ error: sanitizeError(error, 'Kunde inte skapa deal') });

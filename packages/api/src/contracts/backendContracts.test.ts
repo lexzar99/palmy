@@ -22,6 +22,7 @@ import {
 import {
   partnerEmbedDiscountSettingKey,
   partnerEmbedEnabledIdsFromRows,
+  enablePartnerEmbedOnCreate,
 } from '../lib/partnerEmbedDiscounts';
 
 const now = new Date('2026-07-10T12:00:00.000Z');
@@ -232,6 +233,11 @@ assert.equal(customerNameWithOrderChannel('Anna', ORDER_CHANNELS.partnerEmbed), 
 assert.equal(customerNameWithOrderChannel('Anna', ORDER_CHANNELS.web), 'Anna – viaeats');
 assert.equal(customerNameWithOrderChannel('Anna – privat', ORDER_CHANNELS.partnerEmbed), 'Anna – privat');
 assert.equal(partnerEmbedDiscountSettingKey('deal', 'deal-1'), 'partner_embed_discount:deal:deal-1');
+// Restaurangens egna erbjudanden gäller direkt på deras sajt; viaeats erbjudanden kräver aktivt val.
+assert.equal(enablePartnerEmbedOnCreate({ requested: undefined, createdByRestaurant: true }), true);
+assert.equal(enablePartnerEmbedOnCreate({ requested: undefined, createdByRestaurant: false }), false);
+assert.equal(enablePartnerEmbedOnCreate({ requested: true, createdByRestaurant: false }), true);
+assert.equal(enablePartnerEmbedOnCreate({ requested: 'true', createdByRestaurant: false }), false);
 assert.deepEqual(
   [...partnerEmbedEnabledIdsFromRows('deal', [
     { key: 'partner_embed_discount:deal:deal-1' },

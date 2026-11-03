@@ -19,6 +19,15 @@ export function partnerEmbedEnabledIdsFromRows(
 }
 
 /**
+ * Ett erbjudande som restaurangen själv skapar (plattan eller restaurangens konto) är till för
+ * restaurangens egna kunder och gäller därför direkt även på deras egen sajt. Erbjudanden från
+ * viaeats (superadmin och agenterna) följer fortfarande admins uttryckliga val.
+ */
+export function enablePartnerEmbedOnCreate(params: { requested: unknown; createdByRestaurant: boolean }): boolean {
+  return params.requested === true || params.createdByRestaurant;
+}
+
+/**
  * Privat embed är fullpris som standard. Bara poster som en admin uttryckligen
  * slagit på får lämna rabattmotorn. EngineSetting finns redan i produktion, så
  * kanalregeln kräver ingen riskabel databasmigrering inför lansering.
