@@ -74,9 +74,9 @@ export function orderTrackingCopy(order: any): OrderTrackingCopy {
     case "ON_THE_WAY":
       return selfDelivery
         ? {
-            title: "Restaurangen är på väg",
+            title: "Restaurangen kör ut din mat",
             short: "På väg till dig",
-            description: `${restaurant} har lämnat restaurangen och kör nu beställningen till dig.`,
+            description: `${restaurant} kör själv ut beställningen. Tiden är en uppskattning.`,
           }
         : {
             title: "Budet är på väg",
@@ -85,6 +85,15 @@ export function orderTrackingCopy(order: any): OrderTrackingCopy {
           };
     case "DELIVERED":
     case "COMPLETED":
+      // Egen hemkörning: vi vet inte när maten kom fram (servern avslutar ordern
+      // en stund efter PÅ VÄG), så vi påstår aldrig "levererad".
+      if (selfDelivery && !pickup) {
+        return {
+          title: "Hoppas maten smakade!",
+          short: "Avslutad",
+          description: "Ordern är avslutad. Fick du inte din mat? Kontakta restaurangen nedan.",
+        };
+      }
       return {
         title: pickup ? "Beställningen är hämtad" : "Beställningen är levererad",
         short: pickup ? "Hämtad" : "Levererad",
@@ -131,7 +140,8 @@ export function orderTrackingProgress(order: any): { labels: string[]; activeInd
     return { labels, activeIndex: 0 };
   }
 
-  const labels = [firstLabel, status === "READY" ? "Maten klar" : "Tillagas", "På väg", "Levererad"];
+  const selfDelivery = Boolean(order?.selfDelivery);
+  const labels = [firstLabel, status === "READY" ? "Maten klar" : "Tillagas", "På väg", selfDelivery ? "Framme" : "Levererad"];
   if (DONE_STATUSES.includes(status)) return { labels, activeIndex: 3 };
   if (ON_WAY_STATUSES.includes(status)) return { labels, activeIndex: 2 };
   if (status === "PREPARING" || status === "READY") return { labels, activeIndex: 1 };

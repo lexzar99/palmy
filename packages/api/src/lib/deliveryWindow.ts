@@ -5,13 +5,37 @@
  * Fönstret är restaurangens "tid till kund" som sattes vid PÅ VÄG
  * (etaCustomerAt). Terminalen v2 skickar ingen egen tid längre; då räknar
  * servern fram den ur avståndet ([selfDeliveryMinutesForDistance]). Saknas
- * en sådan tid (äldre ordrar) gäller 15 minuter som förut. Samma fönster
- * styr kundens nedräkning och när ordern markeras som levererad.
+ * en sådan tid (äldre ordrar) gäller 15 minuter som förut.
+ *
+ * Fönstret styr bara vad kunden ser (intervallet "framme kl. X–Y"). Vi vet
+ * inte när maten faktiskt kommer fram, så ordern blir DELIVERED först
+ * [AUTO_FINAL_AFTER_MIN] minuter efter PÅ VÄG, för ekonomi och historik.
  */
 
 const DEFAULT_WINDOW_MIN = 15;
 const MIN_WINDOW_MIN = 5;
 const MAX_WINDOW_MIN = 90;
+
+/** Egen hemkörning blir DELIVERED så här länge efter PÅ VÄG (användarens beslut 2026-11-03). */
+export const AUTO_FINAL_AFTER_MIN = 50;
+export const AUTO_FINAL_AFTER_MS = AUTO_FINAL_AFTER_MIN * 60_000;
+
+/** Intervallets övre gräns ligger så här långt efter den nedre. */
+const LATEST_EXTRA_MIN = 15;
+/** Övre gränsen hålls alltid före den automatiska avslutningen. */
+const LATEST_MAX_MIN = AUTO_FINAL_AFTER_MIN - 5;
+
+export function isSelfDeliveryAutoFinalDue(deliveringAt: Date | string | null | undefined, now = Date.now()): boolean {
+  if (!deliveringAt) return false;
+  const at = new Date(deliveringAt).getTime();
+  return Number.isFinite(at) && now - at >= AUTO_FINAL_AFTER_MS;
+}
+
+/** Intervallets övre gräns i ms efter PÅ VÄG, givet fönstret (den nedre gränsen). */
+export function selfDeliveryLatestMs(windowMs: number): number {
+  const latestMin = Math.min(LATEST_MAX_MIN, windowMs / 60_000 + LATEST_EXTRA_MIN);
+  return Math.round(Math.max(windowMs / 60_000, latestMin) * 60_000);
+}
 
 export function computeDeliveryWindowMs(
   deliveringAt: Date,

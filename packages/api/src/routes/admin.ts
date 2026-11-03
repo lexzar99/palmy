@@ -26,6 +26,7 @@ import { overlayOrderLiveEta, overlayOrderLiveEtas } from '../lib/orderLiveEta';
 import { sanitizeError } from '../lib/errors';
 import { menuCacheBust } from './menu';
 import { bustCache } from '../lib/ttlCache';
+import { readOutcomes, terminalOutcomeView } from '../lib/deliveryOutcome';
 import { broadcastMenuChange } from '../lib/menuBroadcast';
 import { terminalWriteGate } from '../middleware/terminalScope';
 import { parseMenuImport, runMenuImport } from '../lib/menuImport';
@@ -546,6 +547,7 @@ router.get('/orders', async (req, res) => {
     }
 
     const liveOrders = await overlayOrderLiveEtas(orders);
+    const outcomeByOrderId = await readOutcomes(orders.map((order) => order.id));
     const showFullPII = canSeeCustomerPII(req as AuthRequest);
     res.json({
       orders: liveOrders.map((o) => {
@@ -555,6 +557,7 @@ router.get('/orders', async (req, res) => {
           ...o,
           channel: orderChannel,
           attribution: attributionByOrderId.get(o.id) || null,
+          deliveryOutcome: terminalOutcomeView(outcomeByOrderId.get(o.id)),
           customerName: customerNameWithOrderChannel(o.customerName, orderChannel),
           totalOre: o.total,
           totalMoney: moneyDto(o.total),

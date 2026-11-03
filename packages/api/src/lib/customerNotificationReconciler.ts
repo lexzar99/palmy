@@ -78,6 +78,7 @@ type LockedOrder = {
   estimatedTime: number | null;
   etaCustomerMin: number | null;
   liveActivityToken: string | null;
+  selfDelivery: boolean | null;
 };
 
 async function repairCurrentOrderNotification(orderId: string): Promise<'created' | 'deduped' | 'skipped'> {
@@ -87,7 +88,8 @@ async function repairCurrentOrderNotification(orderId: string): Promise<'created
     // status history or synthesize missing intermediate notifications.
     const rows = await tx.$queryRaw<LockedOrder[]>`
       SELECT "id", "status", "type", "userId",
-             "estimatedTime", "etaCustomerMin", "liveActivityToken"
+             "estimatedTime", "etaCustomerMin", "liveActivityToken",
+             (SELECT r."selfDelivery" FROM "Restaurant" r WHERE r."id" = "Order"."restaurantId") AS "selfDelivery"
       FROM "Order"
       WHERE "id" = ${orderId}
       FOR UPDATE
@@ -95,7 +97,7 @@ async function repairCurrentOrderNotification(orderId: string): Promise<'created
     const order = rows[0];
     if (!order) return 'skipped';
     const status = String(order.status || '').toUpperCase();
-    const copy = customerOrderStatusCopy(status, order.type, order.estimatedTime, order.etaCustomerMin);
+    const copy = customerOrderStatusCopy(status, order.type, order.estimatedTime, order.etaCustomerMin, Boolean(order.selfDelivery));
     if (!copy) return 'skipped';
 
     const user = order.userId

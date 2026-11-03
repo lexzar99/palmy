@@ -77,7 +77,7 @@ function CompactTrackingCard({ order, href, className = "" }: { order: any; href
   const firstStep = phase === "sent" || phase === "payment" ? "Skickad" : "Bekräftad";
   const steps = pickup
     ? [firstStep, "Tillagas", "Klar", "Hämtad"]
-    : [firstStep, "Tillagas", "Klar", selfDelivery ? "Kör ut" : "På väg", "Levererad"];
+    : [firstStep, "Tillagas", "Klar", selfDelivery ? "Kör ut" : "På väg", selfDelivery ? "Framme" : "Levererad"];
   const stepIndex = phase === "done" ? steps.length - 1 : phase === "readyPickup" || phase === "readyWait" ? 2 : phase === "onWay" ? 3 : phase === "cooking" ? 1 : 0;
   const journey = phase === "done" ? 1 : phase === "failed" || phase === "payment" ? 0.06 : Math.min(0.96, (stepIndex + 0.6) / steps.length);
   const active = phase !== "done" && phase !== "failed" && phase !== "readyPickup" && phase !== "payment";

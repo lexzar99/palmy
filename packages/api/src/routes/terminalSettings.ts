@@ -39,9 +39,9 @@ const router = Router();
 const ARCHIVE_CATEGORY_NAME = 'Arkiverade produkter';
 const TX_OPTIONS = { maxWait: 10_000, timeout: 30_000 };
 
-type TerminalRequest = AuthRequest & { admin: NonNullable<AuthRequest['admin']> & { restaurantId: string; deviceId: string } };
+export type TerminalRequest = AuthRequest & { admin: NonNullable<AuthRequest['admin']> & { restaurantId: string; deviceId: string } };
 
-function requireTerminalDevice(req: AuthRequest, res: Response, next: NextFunction) {
+export function requireTerminalDevice(req: AuthRequest, res: Response, next: NextFunction) {
   if (!req.admin?.deviceId || !req.admin.restaurantId) {
     res.status(403).json({ error: 'Bara restaurangens platta kan ändra detta här', code: 'TERMINAL_ONLY' });
     return;
@@ -51,7 +51,7 @@ function requireTerminalDevice(req: AuthRequest, res: Response, next: NextFuncti
 
 const kr = (ore: number) => `${new Intl.NumberFormat('sv-SE', { maximumFractionDigits: 2 }).format(ore / 100)} kr`;
 
-const appVersionOf = (req: AuthRequest) => {
+export const appVersionOf = (req: AuthRequest) => {
   const match = /ViaEats-Partner-Native-Android\/([\w.\-]+)/.exec(String(req.headers['user-agent'] || ''));
   return match?.[1] ?? null;
 };
@@ -69,7 +69,7 @@ const sendError = (res: Response, error: unknown, where: string) => {
  * får samma svar. Den verkliga garantin är jämför-och-sätt, som håller även
  * efter en omstart då minnescachen är tom.
  */
-async function idempotent(
+export async function idempotent(
   req: TerminalRequest,
   res: Response,
   route: string,

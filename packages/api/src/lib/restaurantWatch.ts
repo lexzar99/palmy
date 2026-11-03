@@ -141,6 +141,31 @@ export async function alertTerminalSettingsChanged(params: {
   });
 }
 
+/** "Kunden gick inte att nå" från plattan. Fritexten skickas aldrig vidare. */
+export async function alertDeliveryOutcome(params: {
+  restaurantId: string;
+  restaurantName: string;
+  orderNumber: string;
+  label: string;
+  resolved: boolean;
+  revision: number;
+}): Promise<void> {
+  const text = [
+    params.resolved
+      ? `✅ LÖST: ${params.restaurantName}, order ${params.orderNumber}, kunden har fått maten`
+      : `📵 KUND EJ NÅBAR: ${params.restaurantName}, order ${params.orderNumber}, ${params.label}`,
+    `Tid: ${swedenDateTime(new Date())}`,
+  ].join('\n');
+  await safeSend({
+    type: 'delivery:outcome',
+    severity: params.resolved ? 'info' : 'warning',
+    text,
+    restaurantId: params.restaurantId,
+    restaurantName: params.restaurantName,
+    dedupeKey: `delivery-outcome:${params.orderNumber}:${params.revision}`,
+  });
+}
+
 // ── 3. Periodisk vakt: stängd/pausad > 30 min under öppettider ────────────────
 const CLOSED_ALERT_MIN = 30; // flagga när stängningen passerar 30 min
 const EARLY_CLOSE_MIN = 90; // "stängde tidigt" om >= 1,5h kvar till schemalagd stängning

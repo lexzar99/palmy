@@ -2,7 +2,7 @@
  * Order lifecycle and Live Activity finalisation.
  *
  * Every minute it atomically completes only two timer-owned flows:
- *   - self-delivery: DELIVERING -> DELIVERED after 15 minutes
+ *   - self-delivery: DELIVERING -> DELIVERED AUTO_FINAL_AFTER_MIN (50) minutes after PÅ VÄG
  *   - pickup: READY -> DELIVERED (shown as "Hämtad") after 10 minutes
  * Platform delivery is never timer-completed; the courier owns that status.
  * Terminal Live Activities are then ended and their tokens cleared.
@@ -15,7 +15,7 @@ import {
   pushLiveActivityUpdate,
   sendApnsSilentWake,
 } from './liveActivityPush';
-import { computeDeliveryWindowMs, departureEtaCustomerAt } from './deliveryWindow';
+import { AUTO_FINAL_AFTER_MS, computeDeliveryWindowMs, departureEtaCustomerAt } from './deliveryWindow';
 import { getIO } from './socket';
 import { dispatchCustomerOrderStatus } from './customerOrderNotifier';
 import { bustCache } from './ttlCache';
@@ -33,8 +33,10 @@ const PICKUP_READY_WINDOW_MS = 10 * 60 * 1000;
  */
 export async function finalizeDueOrders(): Promise<void> {
   const now = Date.now();
-  // Kortaste möjliga fönster som förfilter; varje orders eget fönster prövas nedan.
-  const selfDeliveryCutoff = new Date(now - 5 * 60 * 1000);
+  // Egen hemkörning: vi vet inte när maten kommer fram, så ordern avslutas
+  // först AUTO_FINAL_AFTER_MIN efter PÅ VÄG. Kundens fönster (15–25 min) styr
+  // bara texten på spårningssidan, aldrig statusen.
+  const selfDeliveryCutoff = new Date(now - AUTO_FINAL_AFTER_MS);
   const pickupCutoff = new Date(now - PICKUP_READY_WINDOW_MS);
   const candidates = await prisma.order.findMany({
     where: {
@@ -52,15 +54,9 @@ export async function finalizeDueOrders(): Promise<void> {
         },
       ],
     },
-    select: { id: true, type: true, restaurantId: true, deliveringAt: true, etaCustomerAt: true, etaReason: true },
+    select: { id: true, type: true, restaurantId: true, deliveringAt: true },
   });
-  // Egen hemkörning blir levererad när restaurangens tid till kund har gått
-  // (15–25 min efter avstånd, se deliveryWindow.ts), inte efter fasta 15 min.
-  const due = candidates.filter((order) => {
-    if (order.type === 'PICKUP' || !order.deliveringAt) return true;
-    const deliveringAt = new Date(order.deliveringAt);
-    return now - deliveringAt.getTime() >= computeDeliveryWindowMs(deliveringAt, order.id, departureEtaCustomerAt(order));
-  });
+  const due = candidates.filter((order) => order.type === 'PICKUP' || !!order.deliveringAt);
 
   for (const order of due) {
     const where = order.type === 'PICKUP'

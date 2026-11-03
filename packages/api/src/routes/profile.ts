@@ -11,6 +11,7 @@ import { invalidateCachedCustomerIdentity } from '../lib/customerIdentityCache';
 import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
 import { normalizeReferralPhone, referralPhoneVariants } from '../lib/referralRules';
 import { calculateOrderVat, normalizeFoodVatPercent } from '../lib/tax';
+import { outcomeBlocksReview, readOutcome } from '../lib/deliveryOutcome';
 
 const router = Router();
 
@@ -1031,11 +1032,18 @@ router.post('/orders/:id/review', authenticateUser, async (req: any, res: any) =
       include: { items: { select: { productId: true } } },
     });
     if (!order) return res.status(404).json({ error: 'Order hittades inte' });
-    if (!['DELIVERED', 'READY', 'COMPLETED'].includes(order.status)) {
+    // READY räknas bara för avhämtning. En hemkörning som är klar i köket har
+    // inte kommit fram, så den får inte betygsättas förrän den är avslutad.
+    const reviewable = ['DELIVERED', 'COMPLETED'].includes(order.status)
+      || (order.status === 'READY' && order.type === 'PICKUP');
+    if (!reviewable) {
       return res.status(400).json({ error: 'Du kan bara betygsätta levererade ordrar' });
     }
     if (order.rating) {
       return res.status(400).json({ error: 'Du har redan betygsatt denna order' });
+    }
+    if (outcomeBlocksReview(await readOutcome(order.id))) {
+      return res.status(409).json({ error: 'Kontakta restaurangen om din mat först', code: 'DELIVERY_OUTCOME_OPEN' });
     }
 
     // Validera likedItemIds — bara productIds som faktiskt fanns i ordern.

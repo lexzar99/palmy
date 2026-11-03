@@ -23,7 +23,7 @@ const STATUS_LABEL: Record<string, string> = {
   PREPARING: "Tillagas",
   READY: "Klar",
   DELIVERING: "På väg",
-  DELIVERED: "Levererad",
+  DELIVERED: "Avslutad",
   CANCELLED: "Avbruten",
   REJECTED: "Avvisad",
 };

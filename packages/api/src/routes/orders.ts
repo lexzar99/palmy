@@ -28,12 +28,13 @@ import { bustCache } from '../lib/ttlCache';
 import { getIdempotencyKey } from '../lib/idempotency';
 import { normalizeDeliveryZones, normalizeMoneyToOre, resolveDeliveryFee } from '../utils/deliveryZones';
 import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
-import { computeDeliveryWindowMs, departureEtaCustomerAt } from '../lib/deliveryWindow';
+import { isSelfDeliveryAutoFinalDue } from '../lib/deliveryWindow';
+import { customerOutcomeView, outcomeBlocksReview, readOutcome } from '../lib/deliveryOutcome';
 import { checkDeliveryStreet } from '../lib/deliveryAddress';
 import { discountPlatformAllowed } from '../lib/clientPlatform';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
 import { dispatchCustomerOrderStatus } from '../lib/customerOrderNotifier';
-import { customerStepEtaEndsAt, etaResponseFields, refreshOrderEta } from '../lib/orderEta';
+import { customerEtaLatestAt, customerStepEtaEndsAt, etaResponseFields, refreshOrderEta } from '../lib/orderEta';
 import { overlayCourierLivePosition } from '../lib/courierLivePosition';
 import { overlayOrderLiveEta } from '../lib/orderLiveEta';
 import { resolveRestaurantAvailability } from '../lib/restaurantAvailability';
@@ -2340,9 +2341,12 @@ router.get('/:id', async (req: Request, res: Response) => {
     if (limitedAccess) {
       res.setHeader('Cache-Control', 'no-store');
       const liveOrder = { ...order, ...(await overlayOrderLiveEta(order)) };
+      const limitedOutcome = customerOutcomeView(await readOutcome(order.id), { includeNote: false });
       res.json(limitedOrderTracking(liveOrder, {
         etaEndsAt: customerStepEtaEndsAt(liveOrder, liveOrder.status)?.toISOString() ?? null,
+        etaLatestAt: customerEtaLatestAt(liveOrder, liveOrder.status)?.toISOString() ?? null,
         ...etaResponseFields(liveOrder),
+        deliveryOutcome: limitedOutcome,
       }));
       return;
     }
@@ -2352,9 +2356,11 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
     Object.assign(order, await overlayOrderLiveEta(order));
 
-    // Database status is the sole source of truth. The lifecycle worker keeps
-    // self-delivery in DELIVERING for exactly 15 minutes before completing it.
+    // Database status is the sole source of truth. Self-delivery stays in
+    // DELIVERING until AUTO_FINAL_AFTER_MIN after PÅ VÄG (deliveryWindow.ts);
+    // the customer sees an estimated interval, never a guessed "levererad".
     const customerStatus = order.status;
+    const storedOutcome = await readOutcome(order.id);
 
     // Absolute timestamp when the active LiveActivity step's countdown should
     // hit zero. Computed from anchor timestamps + the originally agreed-on
@@ -2443,7 +2449,10 @@ router.get('/:id', async (req: Request, res: Response) => {
       // Budets aktiva orderantal (bara satt under leverans) — driver ETA-spannet.
       courierActiveOrders,
       etaEndsAt,
+      etaLatestAt: customerEtaLatestAt(order, customerStatus)?.toISOString() ?? null,
       ...etaResponseFields(order),
+      deliveryOutcome: customerOutcomeView(storedOutcome, { includeNote: true }),
+      reviewAllowed: ['DELIVERED', 'COMPLETED'].includes(customerStatus) && !order.rating && !outcomeBlocksReview(storedOutcome),
       restaurantName: order.restaurant?.name || 'Okänd restaurang',
       restaurantAddress: order.restaurant?.address || '',
       restaurantZip: order.restaurant?.zip || '',
@@ -2832,10 +2841,9 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     if (order.status !== 'DELIVERING') {
       return res.status(409).json({ error: `Kan inte gå från ${order.status} till DELIVERED` });
     }
-    const elapsed = order.deliveringAt
-      ? Date.now() - new Date(order.deliveringAt).getTime()
-      : 0;
-    if (elapsed < computeDeliveryWindowMs(order.deliveringAt || new Date(), orderId, departureEtaCustomerAt(order))) {
+    // Klienten får inte avsluta tidigare än servern själv gör (AUTO_FINAL_AFTER_MIN
+    // efter PÅ VÄG). Kundens fönster är bara en uppskattning.
+    if (!isSelfDeliveryAutoFinalDue(order.deliveringAt)) {
       return res.json({ changed: false, status: order.status });
     }
 
@@ -2900,6 +2908,9 @@ router.post('/:id/review', async (req: Request, res: Response) => {
     }
     if ((order as any).rating) {
       return res.status(400).json({ error: 'Denna order har redan fått ett betyg' });
+    }
+    if (outcomeBlocksReview(await readOutcome(order.id))) {
+      return res.status(409).json({ error: 'Kontakta restaurangen om din mat först', code: 'DELIVERY_OUTCOME_OPEN' });
     }
 
     let isOwner = false;

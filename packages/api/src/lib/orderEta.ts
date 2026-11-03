@@ -1,7 +1,7 @@
 import prisma from './prisma';
 import { getEffectiveEtaMinutes } from './restaurantEta';
 import { haversineKm } from '../utils/geo';
-import { computeDeliveryWindowMs, departureEtaCustomerAt } from './deliveryWindow';
+import { computeDeliveryWindowMs, departureEtaCustomerAt, selfDeliveryLatestMs } from './deliveryWindow';
 import type { TravelLookup } from './travelMatrix';
 import { overlayCourierLivePosition } from './courierLivePosition';
 import { setOrderEta } from './liveState';
@@ -93,6 +93,22 @@ export function customerStepEtaEndsAt(
     return addMinutes(new Date(), displayedPromiseMinutes(new Date(), promise));
   }
   return null;
+}
+
+/**
+ * Egen hemkörning visar ett intervall, "framme kl. X–Y". Den nedre gränsen är
+ * [customerStepEtaEndsAt]; den här är den övre. Bara medan ordern är på väg.
+ */
+export function customerEtaLatestAt(order: any, statusInput: string = String(order?.status || '')): Date | null {
+  const status = String(statusInput || '').toUpperCase();
+  const selfDelivery = Boolean(order?.selfDelivery ?? order?.restaurant?.selfDelivery);
+  if (!selfDelivery || status !== 'DELIVERING' || !order?.deliveringAt) return null;
+  const deliveringAt = new Date(order.deliveringAt);
+  const earliest = customerStepEtaEndsAt(order, status);
+  const windowMs = earliest
+    ? Math.max(0, earliest.getTime() - deliveringAt.getTime())
+    : computeDeliveryWindowMs(deliveringAt, String(order?.id || ''), departureEtaCustomerAt(order ?? {}));
+  return new Date(deliveringAt.getTime() + selfDeliveryLatestMs(windowMs));
 }
 
 /**

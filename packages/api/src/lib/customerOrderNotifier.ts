@@ -15,6 +15,7 @@ export function customerOrderStatusCopy(
   orderType: string,
   estimatedTime?: number | null,
   etaCustomerMin?: number | null,
+  selfDelivery = false,
 ): StatusCopy | null {
   const status = String(statusValue || '').toUpperCase();
   const pickup = String(orderType || '').toUpperCase() === 'PICKUP';
@@ -38,6 +39,20 @@ export function customerOrderStatusCopy(
     return pickup
       ? { title: 'Maten är redo', body: 'Din beställning är klar att hämtas.' }
       : { title: 'Redo för utkörning', body: 'Maten är klar och väntar på budet.' };
+  }
+  // Egen hemkörning: vi vet inte när maten kommer fram, så texten lovar ett
+  // intervall och säger aldrig "levererad" (se lib/deliveryWindow.ts).
+  if (status === 'DELIVERING' && selfDelivery && !pickup) {
+    const latest = etaCustomerMin ? Math.min(etaCustomerMin + 15, 45) : null;
+    return {
+      title: 'Din mat är på väg',
+      body: etaCustomerMin
+        ? `Restaurangen kör ut din beställning. Beräknas vara framme om cirka ${etaCustomerMin}–${latest} minuter.`
+        : 'Restaurangen kör ut din beställning.',
+    };
+  }
+  if ((status === 'DELIVERED' || status === 'COMPLETED') && selfDelivery && !pickup) {
+    return { title: 'Hoppas maten smakade!', body: 'Fick du inte din mat? Kontakta restaurangen.' };
   }
   if (status === 'DELIVERING') {
     return {
@@ -102,6 +117,7 @@ export async function dispatchCustomerOrderStatus(orderId: string, statusValue?:
         estimatedTime: true,
         etaCustomerMin: true,
         liveActivityToken: true,
+        restaurant: { select: { selfDelivery: true } },
       },
     });
     if (!order) return;
@@ -117,7 +133,7 @@ export async function dispatchCustomerOrderStatus(orderId: string, statusValue?:
       console.warn('[customerOrderNotifier] Live Activity failed:', error?.message || error),
     );
 
-    const copy = customerOrderStatusCopy(status, order.type, order.estimatedTime, order.etaCustomerMin);
+    const copy = customerOrderStatusCopy(status, order.type, order.estimatedTime, order.etaCustomerMin, Boolean(order.restaurant?.selfDelivery));
     if (!copy) return;
 
     // Only the immutable Order.userId grants account-wide delivery. A phone

@@ -31,6 +31,7 @@ import { orderTrackingCopy, orderTrackingProgress } from "@/lib/orderTrackingPre
 import { customerOrderNumber } from "@/lib/orderNumber";
 import PhoneAuth from "@/components/PhoneAuth";
 import RestaurantContactBar from "@/components/order/RestaurantContactBar";
+import DeliveryOutcomeBanner from "@/components/order/DeliveryOutcomeBanner";
 import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
 import { useDesignBackground } from "@/components/restaurant/useDesignBackground";
 import "@/components/restaurant/restaurant.css";
@@ -339,6 +340,11 @@ const OrderStatusPage = () => {
     socket.on("courier:location", (d: any) => {
       if (typeof d?.lat === "number" && typeof d?.lng === "number") setCourierPos({ lat: d.lat, lng: d.lng });
     });
+    // Restaurangens besked när kunden inte gick att nå (plattan, partner v2).
+    socket.on("order:delivery-outcome", (d: any) => {
+      if (d?.orderId !== orderId) return;
+      setOrder((prev: any) => prev ? { ...prev, deliveryOutcome: d.deliveryOutcome ?? null } : prev);
+    });
     // Leveransbevis (foto + hur maten lämnats) → merge in direkt utan poll.
     socket.on("delivery:proof", (d: any) => {
       if (d?.orderId !== orderId) return;
@@ -623,10 +629,26 @@ const OrderStatusPage = () => {
     deliverySecondsLeft = Math.max(0, Math.round((target - nowMs) / 1000));
   }
   // Inline-recension: visas när ordern är levererad, ej betygsatt och ej stängd.
-  const showInlineReview = isCompleted && !order.rating && !reviewDone && !reviewDismissed;
+  const showInlineReview = isCompleted && order.reviewAllowed !== false && !order.rating && !reviewDone && !reviewDismissed;
   const isPickup = order.type !== "DELIVERY";
   const isSelf = order.type === "DELIVERY" && !!order.selfDelivery;
   const isOnWay = ["DELIVERING", "OUT_FOR_DELIVERY", "ON_THE_WAY"].includes(currentStatus);
+  // Egen hemkörning: vi vet inte när maten kommer fram. Kunden ser ett
+  // intervall ("framme kl. X–Y"), sedan "Snart framme" och efter intervallet
+  // en ärlig text. Ordet "Levererad" används aldrig (servern avslutar ordern
+  // en stund efter PÅ VÄG, se packages/api/src/lib/deliveryWindow.ts).
+  const selfOnWay = isSelf && isOnWay;
+  const selfEarliestMs = selfOnWay && order.etaEndsAt ? new Date(order.etaEndsAt).getTime() : null;
+  const selfLatestMs = selfOnWay
+    ? order.etaLatestAt
+      ? new Date(order.etaLatestAt).getTime()
+      : selfEarliestMs != null ? selfEarliestMs + 15 * 60000 : null
+    : null;
+  const selfStage: "before" | "within" | "late" | null = !selfOnWay || selfEarliestMs == null || selfLatestMs == null
+    ? null
+    : nowMs < selfEarliestMs ? "before" : nowMs < selfLatestMs ? "within" : "late";
+  const clock = (ms: number) => new Date(ms).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
+  const reviewAllowed = order.reviewAllowed !== false;
   const isGreenStatus = isPickup ? (currentStatus === "READY" || isCompleted) : (isCompleted || isOnWay);
   const statusTone = isRejected ? "red" : isGreenStatus ? "green" : ["PREPARING", "READY"].includes(currentStatus) ? "yellow" : "orange";
   const statusAccent = statusTone === "red" ? "#C0392B" : statusTone === "green" ? "#2E7D4F" : statusTone === "yellow" ? "#E1A70D" : "#F0531C";
@@ -732,7 +754,9 @@ const OrderStatusPage = () => {
   const fullscreenEtaSub = showMapFullscreen ? "Framme om ca" : etaSub;
   const fullscreenEtaMain = showMapFullscreen ? formatLiveEta(liveEtaSecondsLeft) : etaMain;
   const statusTitle = statusCopy.title;
-  const statusDescription = deliveryOverdue ? t("order.eta.overdueBusy") : statusCopy.description;
+  const statusDescription = selfStage === "late"
+    ? `${restName} kör fortfarande ut din mat.`
+    : deliveryOverdue ? t("order.eta.overdueBusy") : statusCopy.description;
   const showEtaAsEstimate = etaMinutes != null && ["ACCEPTED", "PREPARING", "DELIVERING", "OUT_FOR_DELIVERY", "ON_THE_WAY"].includes(currentStatus);
 
   const rawSubtotal = (order.items ?? []).reduce((s: number, it: any) => s + (Number(it.subtotal) || 0), 0);
@@ -774,7 +798,7 @@ const OrderStatusPage = () => {
     readyWait: { color: "#C77800", soft: "#FFF4DF", label: isSelf ? "Klar · restaurangen kör snart" : "Klar · budet hämtar snart", icon: PackageCheck },
     onWay: { color: "#0A84FF", soft: "#E8F2FF", label: isSelf ? "Restaurangen kör ut" : "Budet är på väg", icon: isSelf ? Store : Bike },
     readyPickup: { color: "#1F8A3B", soft: "#E9F6EC", label: "Klar att hämta", icon: PackageCheck },
-    done: { color: "#1F8A3B", soft: "#E9F6EC", label: isPickup ? "Hämtad" : "Levererad", icon: Check },
+    done: { color: "#1F8A3B", soft: "#E9F6EC", label: isPickup ? "Hämtad" : isSelf ? "Avslutad" : "Levererad", icon: Check },
     failed: { color: "#D70015", soft: "#FDECEE", label: cancelledCopy.main, icon: AlertCircle },
   };
   const ph = PHASE[phase];
@@ -796,7 +820,7 @@ const OrderStatusPage = () => {
         { label: "Tillagas", color: PHASE.cooking.color },
         { label: "Klar", color: PHASE.readyWait.color },
         { label: isSelf ? "Kör ut" : "På väg", color: PHASE.onWay.color },
-        { label: "Levererad", color: PHASE.done.color },
+        { label: isSelf ? "Framme" : "Levererad", color: PHASE.done.color },
       ];
   const stepIndex = phase === "done"
     ? steps.length - 1
@@ -816,6 +840,8 @@ const OrderStatusPage = () => {
       ? null
       : phase === "readyPickup"
         ? "Nu"
+        : selfStage === "late"
+          ? null
         : showEtaAsEstimate && etaMinutes != null
           ? etaMinutes <= 0 ? "Snart" : `${etaMinutes} min`
           : order.scheduledFor
@@ -826,7 +852,13 @@ const OrderStatusPage = () => {
     : phase === "readyPickup"
       ? "Redo att hämtas"
       : phase === "onWay"
-        ? "Framme om cirka"
+        ? selfStage === "before" && selfEarliestMs != null && selfLatestMs != null
+          ? `Framme kl. ${clock(selfEarliestMs)}–${clock(selfLatestMs)}`
+          : selfStage === "within"
+            ? "Snart framme"
+            : selfStage === "late"
+              ? "Tar lite längre"
+              : "Framme om cirka"
         : phase === "readyWait"
           ? (isSelf ? "Utkörning förbereds" : "Väntar på bud")
           : phase === "payment"
@@ -937,7 +969,7 @@ const OrderStatusPage = () => {
             {etaCaption || ph.label}
           </span>
           <h1 className="m-0 mt-3 text-[26px] font-semibold leading-[1.12]" style={{ letterSpacing: "-0.025em" }}>
-            {isRejected ? cancelledCopy.title : statusCopy.title}
+            {isRejected ? cancelledCopy.title : selfStage === "late" ? "Det tar lite längre än beräknat" : statusCopy.title}
           </h1>
           <p className="m-0 mx-auto mt-2 max-w-[320px] text-[14.5px] leading-[1.45]" style={{ color: "rgba(255,255,255,0.78)" }}>
             {isRejected ? cancelledCopy.description : statusDescription}
@@ -1052,7 +1084,9 @@ const OrderStatusPage = () => {
   );
 
   // ── Recension efter leverans ──────────────────────────────────────────────
-  const ReviewCard = isCompleted ? (
+  // Betyget visas bara när ordern är avslutad och inget besked om maten är
+  // öppet (servern skickar reviewAllowed).
+  const ReviewCard = isCompleted && reviewAllowed ? (
     <section className="ve-card px-5 py-5">
       {order.rating || reviewDone ? (
         <div className="flex items-center gap-3.5">
@@ -1194,6 +1228,7 @@ const OrderStatusPage = () => {
               </div>
             </section>
           )}
+          <DeliveryOutcomeBanner outcome={order.deliveryOutcome} restaurantName={restName} phone={order.restaurantPhone} />
           {limitedTracking && (
             <section className="ve-card flex items-start gap-3.5 px-4 py-3.5">
               <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}><ShieldCheck size={17} strokeWidth={2.2} /></span>

@@ -12,6 +12,7 @@ import { notifyPartnerDevicesOfNewOrder } from '../lib/partnerFcm';
 import { deleteServerTerminalTestOrder } from '../lib/terminalTestOrder';
 import { getStandaloneTestPrintArtifact } from '../lib/serverPrintArtifact';
 import terminalSettingsRouter from './terminalSettings';
+import terminalOrdersRouter from './terminalOrders';
 
 // ── Terminal-sessioner för restaurang-appen (Flutter) ───────────────────────
 //
@@ -769,5 +770,6 @@ router.post('/push-token', authenticate, async (req: AuthRequest, res) => {
 
 // Priser, zonavgifter och öppettider som restaurangen ändrar från plattan.
 router.use(terminalSettingsRouter);
+router.use(terminalOrdersRouter);
 
 export default router;
