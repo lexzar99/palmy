@@ -1159,7 +1159,12 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 />
               </Field>
               <Field label="Postnummer"><Input inputMode="numeric" autoComplete="postal-code" value={form.zip} onChange={(e) => set("zip", e.target.value)} /></Field>
-              <Field label="Telefon"><Input type="tel" inputMode="tel" autoComplete="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} /></Field>
+              <Field
+                label="Telefon"
+                hint={!form.phone.trim() ? <span className="font-semibold text-[var(--warning-text)]">Saknas. Kunden kan inte ringa restaurangen från spårningssidan{form.email.trim() ? " (e-post visas i stället)" : ""}.</span> : undefined}
+              >
+                <Input type="tel" inputMode="tel" autoComplete="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} />
+              </Field>
             </div>
             <Field
               label="Sök- och kategoritaggar"

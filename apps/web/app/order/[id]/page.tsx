@@ -7,7 +7,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Clock, Store, Loader2, Phone, AlertCircle, ShieldCheck, MapPin, Star, X, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Navigation, Receipt, Download, Bike, Flame, PackageCheck, CreditCard, Bell } from "lucide-react";
+import { Check, Clock, Store, Loader2, AlertCircle, ShieldCheck, MapPin, Star, X, MessageSquare, ChevronLeft, ChevronRight, ChevronDown, Navigation, Receipt, Download, Bike, Flame, PackageCheck, CreditCard, Bell } from "lucide-react";
 import { io as socketIO } from "socket.io-client";
 import { SOCKET_URL } from "@/lib/api";
 import { cacheOrderDetail, getCachedOrderDetail } from "@/lib/offlineOrders";
@@ -30,6 +30,7 @@ import {
 import { orderTrackingCopy, orderTrackingProgress } from "@/lib/orderTrackingPresentation";
 import { customerOrderNumber } from "@/lib/orderNumber";
 import PhoneAuth from "@/components/PhoneAuth";
+import RestaurantContactBar from "@/components/order/RestaurantContactBar";
 import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
 import { useDesignBackground } from "@/components/restaurant/useDesignBackground";
 import "@/components/restaurant/restaurant.css";
@@ -172,6 +173,7 @@ const OrderStatusPage = () => {
   const [showPhoneVerifyPrompt, setShowPhoneVerifyPrompt] = useState(false);
   const [phoneVerifyPrefillName, setPhoneVerifyPrefillName] = useState("");
   const [recoveryPhone, setRecoveryPhone] = useState("");
+  const [recoveryEmail, setRecoveryEmail] = useState("");
 
   useEffect(() => {
     if (!orderId) return;
@@ -456,6 +458,7 @@ const OrderStatusPage = () => {
     axios.get(`/api/platform/restaurants/${encodeURIComponent(embedRestaurant)}`)
       .then((res) => {
         if (active && typeof res.data?.phone === "string") setRecoveryPhone(res.data.phone);
+        if (active && typeof res.data?.email === "string") setRecoveryEmail(res.data.email);
       })
       .catch(() => { /* vyn fungerar utan telefonnummer */ });
     return () => { active = false; };
@@ -527,18 +530,12 @@ const OrderStatusPage = () => {
   // 404 från backend — order finns verkligen inte (eller du saknar
   // ownership-bevis). Härifrån är "till startsidan" rätt åtgärd.
   if (!order && embedMode) {
-    const recoveryTel = recoveryPhone ? `tel:${recoveryPhone.replace(/\s+/g, "")}` : null;
     return (
       <div className="ve-root min-h-screen flex flex-col items-center justify-center p-6 text-center">
         <span className="mb-5 grid h-16 w-16 place-items-center rounded-full" style={{ backgroundColor: "#FFF4DF", color: "#C77800" }}><ShieldCheck size={28} strokeWidth={2.2} /></span>
         <h1 className="m-0 text-[22px] font-semibold" style={{ letterSpacing: "-0.02em", color: "var(--ve-ink)" }}>Ordern kan inte visas här</h1>
         <p className="m-0 mt-2 max-w-sm text-[15px]" style={{ color: "var(--ve-ink-2)" }}>Har du betalat är din beställning kvar hos restaurangen. Av säkerhetsskäl visas den bara i webbläsaren där du beställde. Öppna sidan där, eller ring restaurangen om du undrar något.</p>
         <div className="mt-7 flex flex-col gap-2.5 sm:flex-row">
-          {recoveryTel && (
-            <a href={recoveryTel} target="_top" className="ve-press flex h-12 items-center justify-center gap-2 rounded-full px-7 text-[16px] font-semibold" style={{ backgroundColor: "var(--ve-cta)", color: "var(--ve-cta-ink)" }}>
-              <Phone size={17} strokeWidth={2.2} /> Ring restaurangen
-            </a>
-          )}
           <button onClick={() => { setLoading(true); setFetchError(null); fetchOrder(); }} className="ve-press h-12 rounded-full px-7 text-[16px] font-medium" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>
             {t("order.error.retry")}
           </button>
@@ -546,6 +543,7 @@ const OrderStatusPage = () => {
             {t("order.error.menuCta")}
           </Link>
         </div>
+        <RestaurantContactBar phone={recoveryPhone} email={recoveryEmail} embed />
       </div>
     );
   }
@@ -840,7 +838,6 @@ const OrderStatusPage = () => {
                 : isPickup ? "Klar om cirka" : "Levereras om cirka";
   const showLiveMap = hasLiveMap;
   const mapsHref = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(restAddr || restName)}`;
-  const telHref = order.restaurantPhone ? `tel:${String(order.restaurantPhone).replace(/\s+/g, "")}` : null;
   const placedAt = order.createdAt ? new Date(order.createdAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" }) : null;
 
   const hairline = "inset 0 0.5px 0 var(--ve-line)";
@@ -1010,22 +1007,8 @@ const OrderStatusPage = () => {
               <span className="block text-[12.5px]" style={{ color: "var(--ve-ink-3)" }}>{isSelf ? "Restaurangen levererar själv" : "Restaurang"}</span>
               <span className="block truncate text-[16px] font-semibold" style={{ color: "var(--ve-ink)", letterSpacing: "-0.01em" }}>{restName}</span>
             </span>
-            {telHref && (
-              <a href={telHref} target="_top" aria-label="Ring restaurangen" className="ve-press grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>
-                <Phone size={17} strokeWidth={2.2} />
-              </a>
-            )}
           </div>
         </>
-      )}
-      {isPickup && telHref && (
-        <a href={telHref} target="_top" className="ve-row-press flex items-center gap-3.5 px-4 py-3.5" style={{ boxShadow: hairline }}>
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full" style={{ backgroundColor: "var(--ve-fill)", color: "var(--ve-ink)" }}>
-            <Phone size={17} strokeWidth={2.2} />
-          </span>
-          <span className="min-w-0 flex-1 text-[16px] font-medium" style={{ color: "var(--ve-ink)" }}>Ring restaurangen</span>
-          <ChevronRight size={17} strokeWidth={2.2} style={{ color: "var(--ve-ink-3)" }} />
-        </a>
       )}
     </section>
   );
@@ -1293,6 +1276,8 @@ const OrderStatusPage = () => {
       </div>
 
       {OrderInfoOverlayWeb}
+
+      <RestaurantContactBar phone={order.restaurantPhone} email={order.restaurantEmail} embed={embedMode} />
 
       <AnimatePresence>
         {proofZoom && order?.proofPhotoUrl && (
