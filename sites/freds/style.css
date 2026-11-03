@@ -61,26 +61,40 @@ ul, ol { list-style: none; padding: 0; }
 .nav a { font-stretch: 75%; font-weight: 700; font-size: 14px; letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none; color: var(--muted); transition: color 0.2s; }
 .nav a:hover { color: var(--text); }
 
-/* ---------- 1. Hero ---------- */
-.hero { --bars: calc(100lvh - 100svh); position: relative; min-height: 100lvh; padding-bottom: var(--bars); display: flex; align-items: flex-end; overflow: hidden; background: #070707; }
-.hero__media { position: absolute; inset: 0; overflow: hidden; }
-.hero__film { width: 100%; height: 100%; object-fit: cover; object-position: 88% 50%; }
-.hero__shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(7, 7, 7, 0.9) 0%, rgba(7, 7, 7, 0.5) 38%, rgba(7, 7, 7, 0) 62%), linear-gradient(0deg, var(--bg) 0%, rgba(12, 12, 13, 0) 30%); }
-.hero__content { position: relative; z-index: 2; width: 100%; padding: 0 var(--gutter) clamp(60px, 11vh, 120px); }
-.hero__word { display: block; margin: 22px 0 32px; line-height: 0.86; font-weight: 400; }
-.hero__mark { display: block; white-space: nowrap; font-stretch: 125%; font-weight: 900; font-size: clamp(96px, 15vw, 236px); letter-spacing: -0.035em; text-transform: uppercase; }
-.hero__sub { display: block; font-stretch: 75%; font-weight: 700; font-size: clamp(14px, 1.4vw, 19px); letter-spacing: 0.4em; text-transform: uppercase; color: var(--muted); margin-top: 18px; }
+/* ---------- 1. Hero: pizzadisken ---------- */
+.hero { position: relative; min-height: 100svh; display: flex; flex-direction: column; justify-content: center; gap: clamp(26px, 4vh, 48px); padding: calc(110px + env(safe-area-inset-top, 0px)) 0 clamp(48px, 8vh, 90px); overflow: hidden; background: var(--bg); }
+.hero::before { content: ""; position: absolute; inset: 0; background: radial-gradient(80% 50% at 50% 58%, rgba(227, 38, 46, 0.16), transparent 70%); pointer-events: none; }
+.hero__content, .hero__row { position: relative; z-index: 2; padding: 0 var(--gutter); }
+.hero__title { margin-top: 18px; font-stretch: 125%; font-weight: 900; font-size: clamp(58px, 9vw, 170px); line-height: 0.88; letter-spacing: -0.04em; text-transform: uppercase; }
+.hero__title i { font-style: normal; color: var(--red); }
+/* Plats ovanför raden så att prickarna i Ö inte klipps av masken */
+.hero__title .line { padding-top: 0.16em; margin-top: -0.16em; }
 .line { display: block; overflow: hidden; padding-bottom: 0.04em; }
 .line > span { display: inline-block; transform: translateY(105%); transition: transform 1.2s var(--ease); }
-.hero__sub .line > span { transition-delay: 0.18s; }
+.hero__title .line + .line > span { transition-delay: 0.12s; }
 .is-loaded .line > span { transform: none; }
-.hero__row { display: flex; flex-wrap: wrap; align-items: center; gap: 24px 40px; }
-.hero__lede { max-width: 26em; color: #d9d6d1; font-size: 18px; }
-.hero .kicker, .hero__row { opacity: 0; transform: translateY(16px); transition: opacity 1s var(--ease) 0.5s, transform 1s var(--ease) 0.5s; }
-.is-loaded .hero .kicker, .is-loaded .hero__row { opacity: 1; transform: none; }
-.hero__scroll { position: absolute; right: var(--gutter); bottom: clamp(60px, 11vh, 120px); z-index: 2; width: 1px; height: 70px; background: var(--line); overflow: hidden; }
-.hero__scroll span { position: absolute; inset: 0; background: var(--text); animation: drip 2s var(--ease) infinite; }
-@keyframes drip { from { transform: translateY(-100%); } to { transform: translateY(100%); } }
+.hero__row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 22px 40px; }
+.hero__lede { max-width: 30em; color: #d9d6d1; font-size: 18px; }
+.hero .kicker, .hero__row, .disk { opacity: 0; transform: translateY(16px); transition: opacity 1s var(--ease) 0.4s, transform 1s var(--ease) 0.4s; }
+.is-loaded .hero .kicker, .is-loaded .hero__row, .is-loaded .disk { opacity: 1; transform: none; }
+
+/* Dator: rubriken till vänster, text och knapp till höger, pizzadisken under över hela bredden */
+@media (min-width: 901px) {
+  .hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: center; column-gap: 40px; }
+  .hero__row { grid-column: 2; grid-row: 1; align-self: end; flex-direction: column; align-items: flex-start; max-width: 400px; padding-left: 0; padding-bottom: 0.4em; }
+  .disk { grid-column: 1 / -1; }
+}
+
+/* Raderna är samma bildserie två gånger, så att de loopar utan skarv */
+.disk { position: relative; display: grid; gap: clamp(8px, 1vw, 14px); -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
+.disk__row { display: flex; gap: clamp(8px, 1vw, 14px); width: max-content; animation: disk 70s linear infinite; will-change: transform; }
+.disk__row--back { animation-duration: 84s; animation-direction: reverse; }
+@keyframes disk { to { transform: translate3d(calc(-50% - clamp(4px, 0.5vw, 7px)), 0, 0); } }
+.disk__tile { position: relative; flex: none; width: clamp(140px, 15vw, 250px); aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: #2a1a15; }
+.disk__tile img { width: 100%; height: 100%; object-fit: cover; }
+.disk__tile span { position: absolute; left: 12px; bottom: 10px; font-stretch: 110%; font-weight: 900; font-size: clamp(13px, 1.1vw, 16px); letter-spacing: 0.02em; text-transform: uppercase; text-shadow: 0 1px 10px rgba(0, 0, 0, 0.9); }
+.disk__tile::after { content: ""; position: absolute; inset: 55% 0 0; background: linear-gradient(transparent, rgba(0, 0, 0, 0.55)); }
+.disk__tile span { z-index: 1; }
 
 /* ---------- 2. Orden som tänds ---------- */
 .manifest, .board, .more, .hours { background: var(--paper); color: var(--ink); }
@@ -173,7 +187,7 @@ ul, ol { list-style: none; padding: 0; }
 .hours__state.is-closed { color: var(--ink-muted); }
 .hours__state.is-closed .dot { background: var(--ink-muted); animation: none; }
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(79, 209, 127, 0.6); } 70%, 100% { box-shadow: 0 0 0 10px rgba(79, 209, 127, 0); } }
-.hours__big { font-stretch: 125%; font-weight: 900; font-size: clamp(60px, 9vw, 146px); line-height: 0.9; letter-spacing: -0.04em; white-space: nowrap; margin: 20px 0 16px; font-variant-numeric: tabular-nums; }
+.hours__big { font-stretch: 125%; font-weight: 900; font-size: clamp(44px, 9vw, 146px); line-height: 0.9; letter-spacing: -0.04em; white-space: nowrap; margin: 20px 0 16px; font-variant-numeric: tabular-nums; }
 .hours__sub { color: var(--ink-muted); }
 .hours__week div { display: flex; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--ink-line); font-stretch: 75%; font-weight: 700; font-size: 17px; letter-spacing: 0.12em; text-transform: uppercase; }
 .hours__week dt { color: var(--ink-muted); }
@@ -181,11 +195,10 @@ ul, ol { list-style: none; padding: 0; }
 .hours__week .is-today dt, .hours__week .is-today dd { color: var(--red); }
 
 /* ---------- 7. Sista uppmaningen ---------- */
-.final { background: var(--bg); color: var(--text); position: relative; min-height: 100svh; display: grid; place-items: center; overflow: hidden; text-align: center; }
-.final__img { position: absolute; inset: 0; }
-.final__img::after { content: ""; position: absolute; inset: 0; background: rgba(0, 0, 0, 0.45); }
-.final__img img { width: 100%; height: 100%; object-fit: cover; }
-.final::after { content: ""; position: absolute; inset: 0; background: radial-gradient(70% 60% at 50% 50%, rgba(12, 12, 13, 0.6), rgba(12, 12, 13, 0.25)); pointer-events: none; }
+.final { background: var(--bg); color: var(--text); position: relative; min-height: 100svh; display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; overflow: hidden; text-align: center; }
+.final__grid { position: absolute; inset: -4%; display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; opacity: 0.4; transform: rotate(-6deg) scale(1.15); }
+.final__grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; }
+.final::after { content: ""; position: absolute; inset: 0; background: radial-gradient(60% 55% at 50% 50%, rgba(12, 12, 13, 0.92), rgba(12, 12, 13, 0.45)); pointer-events: none; }
 .final__text { position: relative; z-index: 2; display: grid; justify-items: center; gap: 30px; padding: 0 var(--gutter); }
 .final__big { font-stretch: 125%; font-weight: 900; font-size: clamp(80px, 16vw, 250px); line-height: 0.85; letter-spacing: -0.045em; text-transform: uppercase; text-shadow: 0 10px 60px rgba(0, 0, 0, 0.5); }
 .final__addr { color: #e4e1dc; font-size: 15px; text-shadow: 0 1px 12px rgba(0, 0, 0, 0.8); }
@@ -215,25 +228,19 @@ ul, ol { list-style: none; padding: 0; }
 /* ---------- Mobil ---------- */
 @media (max-width: 700px) {
   body { font-size: 16px; }
-  /* Filmen överst och texten under, så biten och osten alltid syns */
-  .hero { display: block; min-height: 0; background: var(--bg); }
-  .hero__media { position: relative; height: 64svh; }
-  .hero__film { object-position: 50% 40%; }
-  .hero__shade { bottom: auto; height: 64svh; background: linear-gradient(0deg, var(--bg) 0%, rgba(12, 12, 13, 0) 36%), linear-gradient(180deg, rgba(7, 7, 7, 0.65) 0%, rgba(7, 7, 7, 0) 22%); }
-  .hero__content { margin-top: -70px; padding-bottom: 60px; }
-  .hero__mark { font-size: clamp(64px, 20vw, 130px); }
-  .hero__sub { letter-spacing: 0.3em; font-size: 13px; margin-top: 12px; }
-  .hero__word { margin: 16px 0 22px; }
-  .logo img { height: 36px; }
+  .hero { min-height: 0; justify-content: flex-start; gap: 26px; padding-top: calc(96px + env(safe-area-inset-top, 0px)); }
+  .hero__title { font-size: clamp(42px, 14.2vw, 96px); white-space: nowrap; }
   .hero__lede { font-size: 16px; }
   .hero__row .btn { flex: 1 1 100%; }
-  .hero__scroll { display: none; }
+  .disk__tile { width: 37vw; }
   .manifest, .board, .more, .hours { background: var(--paper); color: var(--ink); }
 .manifest { padding: 90px var(--gutter) 110px; }
   .board__head { flex-direction: column; align-items: flex-start; gap: 8px; }
   .row__name { font-stretch: 100%; font-size: clamp(24px, 7.4vw, 44px); white-space: normal; }
   .final__text { width: 100%; }
-  .final__big { font-size: 16vw; }
+  .final__big { font-size: 17vw; }
+  .btn-xl { font-size: 15px; padding: 0 18px; gap: 8px; }
+  .final__grid { grid-template-columns: repeat(3, 1fr); inset: -10% -20%; }
   .home__big { white-space: normal; font-size: clamp(44px, 13vw, 70px); }
   .home__big span:last-child { justify-self: start; }
   .final { min-height: 92svh; }
@@ -258,6 +265,6 @@ ul, ol { list-style: none; padding: 0; }
 .hours__phone { display: inline-block; margin-top: 14px; font-weight: 800; font-size: 20px; color: var(--ink); }
 .btn.is-going, .order-bar.is-going strong { opacity: 0.8; }
 @media (prefers-reduced-motion: reduce) {
-  .band { animation: none; }
+  .band, .disk__row { animation: none; }
   .w { opacity: 1; transition: none; }
 }

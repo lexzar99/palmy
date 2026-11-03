@@ -21,7 +21,6 @@ const PIZZA_COUNT = 80;
 
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const finePointer = matchMedia("(hover: hover) and (pointer: fine)").matches;
-const mobile = matchMedia("(max-width: 700px)").matches;
 
 document.querySelectorAll('a[href^="#"]').forEach((link) => link.addEventListener("click", (event) => {
   const target = document.querySelector(link.getAttribute("href"));
@@ -30,14 +29,19 @@ document.querySelectorAll('a[href^="#"]').forEach((link) => link.addEventListene
   scrollTo({ top: target.getBoundingClientRect().top + scrollY - 70, behavior: reduce ? "auto" : "smooth" });
 }));
 
-// Filmen loopar av sig själv. Mobilen får ett eget stående utsnitt.
-const film = document.querySelector("[data-film]");
-film.poster = mobile ? "/img/poster-mobile.jpg" : "/img/poster.jpg";
-if (!reduce) {
-  film.src = mobile ? "/film-mobile.mp4" : "/film.mp4";
-  film.play().catch(() => {});
-  new IntersectionObserver(([entry]) => { if (entry.isIntersecting) film.play().catch(() => {}); else film.pause(); }).observe(film);
-}
+// Pizzadisken: två rader av riktiga pizzor ur menyn. Varje rad ritas två gånger så att loopen blir sömlös.
+const DISK = [
+  ["pepperoni", "Pepperoni"], ["john-blund", "John Blund"], ["mad-greek", "Mad Greek"], ["quattro-stagioni", "Quattro Stagioni"],
+  ["amigo", "Amigo"], ["havet", "Havet"], ["oxfile-special", "Oxfilé Special"], ["margherita", "Margherita"],
+  ["mama-mia", "Mama Mia"], ["la-more", "La More"], ["babylon-special", "Babylon Special"], ["salami", "Salami"],
+  ["dana-pizza", "Dana Pizza"], ["hawaii-special", "Hawaii Special"], ["capricciosa", "Capricciosa"], ["afrikana", "Afrikana"],
+];
+const tile = ([file, name], lazy) => `<a class="disk__tile" href="/meny" tabindex="-1"><img src="/img/disk/${file}.webp" alt="" width="640" height="640" ${lazy ? 'loading="lazy"' : ""} decoding="async" /><span>${name}</span></a>`;
+document.querySelectorAll("[data-disk]").forEach((row) => {
+  const half = row.dataset.disk === "0" ? DISK.slice(0, 8) : DISK.slice(8);
+  row.innerHTML = [...half, ...half].map((pizza, i) => tile(pizza, i >= 5)).join("");
+});
+document.querySelector("[data-final-grid]").innerHTML = [...DISK, ...DISK.slice(0, 8)].map(([file]) => `<img src="/img/disk/${file}.webp" alt="" loading="lazy" width="640" height="640" />`).join("");
 requestAnimationFrame(() => document.body.classList.add("is-loaded"));
 
 // Orden tonas fram ett i taget
