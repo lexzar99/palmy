@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import { ensureKioskAccess } from "@/lib/kioskAccessClient";
-import { EMBED_PARENT_ORIGIN_PARAM, rememberEmbedParentOrigin, trustedPartnerOrigin } from "@/lib/embedPartner";
+import { EMBED_PARENT_ORIGIN_PARAM, isEmbedParentMessage, rememberEmbedParentOrigin } from "@/lib/embedPartner";
 import { useDesignBackground } from "./useDesignBackground";
 import "./restaurant.css";
 import { menuWithDeals, DEALS_CATEGORY_ID } from "@/lib/menuDealCategory";
@@ -612,13 +612,12 @@ export default function RestaurantMenu({ restaurantSlug, initialData = null, emb
   useEffect(() => {
     if (!embedMode || typeof window === "undefined") return;
     // Tillåtna partnerursprung ägs av lib/embedPartner — ingen lista här.
-    const originAllowed = (origin: string) => origin === window.location.origin || trustedPartnerOrigin(origin) !== null;
     const sendHeight = () => {
       if (window.parent === window) return;
       window.parent.postMessage({ type: "viaeats:embed-height", height: document.documentElement.scrollHeight }, "*");
     };
     const onMessage = (event: MessageEvent) => {
-      if (!originAllowed(event.origin) || !event.data || event.data.type !== "viaeats:open-product") return;
+      if (!isEmbedParentMessage(event) || !event.data || event.data.type !== "viaeats:open-product") return;
       const productId = typeof event.data.productId === "string" ? event.data.productId : "";
       if (!productId) return;
       const product = categories.flatMap((c: any) => c.products || []).find((item: any) => item.id === productId);

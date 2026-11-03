@@ -40,13 +40,10 @@
     document.head.appendChild(style);
   }
 
+  // Meddelanden kommer från iframen, alltså från ViaEats (eller samma sida
+  // när demon ligger på viaeats.se). Partnerdomäner skickar aldrig hit.
   function allowedParentOrigin(origin) {
-    if (origin === window.location.origin) return true;
-    if (origin === SITE) return true;
-    return origin === "https://palmyrapizzeria.se" ||
-      origin === "https://www.palmyrapizzeria.se" ||
-      origin === "http://localhost:3000" ||
-      origin === "http://localhost:4000";
+    return origin === window.location.origin || origin === SITE;
   }
 
   // Partnersidans egen origin skickas alltid med. ViaEats server avgör om

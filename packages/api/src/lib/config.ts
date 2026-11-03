@@ -84,19 +84,8 @@ export const DEFAULT_ORIGINS = [
   // Känd äldre storefront-deploy. Övriga previews måste uttryckligen läggas i
   // CORS_ALLOWED_ORIGINS; vem som helst kan annars skapa en *.vercel.app-domän.
   'https://viaeats-web-pi.vercel.app',
-  // Partner-sajter (powered by ViaEats): restaurangernas egna domäner som
-  // läser publik data (meny/öppetstatus) direkt från API:t i browsern.
-  // RESERV under övergången till fas 3: nya domäner läggs i admin
-  // (RestaurantDomain) och ska aldrig läggas till här. Listan tas bort när
-  // tabellen är skapad och raderna kontrollerade i produktion.
-  'https://palmyrapizzeria.se',
-  'https://www.palmyrapizzeria.se',
-  'https://fredspizza.se',
-  'https://www.fredspizza.se',
-  // Freds Vercel-projekt, tills fredspizza.se är kopplad.
-  'https://freds-pizzeria.vercel.app',
-  'https://eld-och-vin.vercel.app',
-  'https://ramis-grill.vercel.app',
+  // Restaurangernas egna domäner läggs in i admin (RestaurantDomain) och
+  // läggs till av getAllowedOrigins. Lägg aldrig till en restaurangdomän här.
 ];
 
 export const getAllowedOrigins = (): string[] => {

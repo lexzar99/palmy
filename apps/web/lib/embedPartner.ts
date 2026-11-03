@@ -6,32 +6,15 @@ const EMBED_PARENT_CLAIM_SESSION_KEY = "viaeats_embed_parent_claim_v1";
 const EMBED_VERIFIED_PARTNER_SESSION_KEY = "viaeats_embed_partner_v2";
 
 /**
- * RESERV under övergången till fas 3. Restaurangernas domäner ligger i admin
- * (RestaurantDomain) och bekräftas av servern. Lägg aldrig till en domän här:
- * listan tas bort när tabellen finns i produktion.
+ * Restaurangernas domäner ligger i admin (RestaurantDomain) och bekräftas av
+ * servern när kioskbeviset lämnas ut. Lägg aldrig till en domän här. Bara
+ * lokala sajter under utveckling litas på utan server, som tidigare.
  */
-const LEGACY_PARTNER_ORIGINS = new Set([
-  "https://palmyrapizzeria.se",
-  "https://www.palmyrapizzeria.se",
-  "https://fredspizza.se",
-  "https://www.fredspizza.se",
-  "https://freds-pizzeria.vercel.app",
-  "https://eld-och-vin.vercel.app",
-  "https://ramis-grill.vercel.app",
+const LOCAL_DEV_PARTNER_ORIGINS = new Set([
   "http://localhost:3000",
   "http://localhost:4000",
 ]);
-
-const LEGACY_PARTNER_ORIGIN_BY_RESTAURANT = new Map([
-  ["palmyra-pizzeria-lund", "https://www.palmyrapizzeria.se"],
-]);
-
-const LEGACY_PARTNER_MENU_PATH_BY_ORIGIN = new Map([
-  ["https://palmyrapizzeria.se", "/meny.html"],
-  ["https://www.palmyrapizzeria.se", "/meny.html"],
-  ["http://localhost:3000", "/meny.html"],
-  ["http://localhost:4000", "/meny.html"],
-]);
+const LOCAL_DEV_MENU_PATH = "/meny.html";
 
 export type VerifiedEmbedPartner = {
   origin: string;
@@ -102,6 +85,30 @@ export function storeVerifiedEmbedPartner(value: unknown): VerifiedEmbedPartner 
 }
 
 /**
+ * Gör fliken samstämmig med den embed som visas nu. Anropas efter varje
+ * kioskbevis. Utan det kan en partner från en tidigare embed i samma flik
+ * ligga kvar, och kassan skulle då skicka fel restaurangs returadress, som
+ * servern nekar. Partnern gäller bara när servern bekräftat den för just den
+ * här restaurangen och domänen.
+ */
+export function syncEmbedPartnerAfterKiosk(restaurantSlug: string, value: unknown, claimedOrigin: string | null): void {
+  const partner = parseVerifiedPartner(value);
+  if (partner && partner.restaurantSlug === restaurantSlug && partner.origin === claimedOrigin) {
+    storeVerifiedEmbedPartner(partner);
+    return;
+  }
+  verifiedPartnerMemory = null;
+  if (typeof window === "undefined") return;
+  // Lokala utvecklingssajter litas på utan server.
+  const legacy = claimedOrigin && LOCAL_DEV_PARTNER_ORIGINS.has(claimedOrigin) ? claimedOrigin : null;
+  try {
+    window.sessionStorage.removeItem(EMBED_VERIFIED_PARTNER_SESSION_KEY);
+    if (legacy) window.sessionStorage.setItem(EMBED_PARENT_ORIGIN_SESSION_KEY, legacy);
+    else window.sessionStorage.removeItem(EMBED_PARENT_ORIGIN_SESSION_KEY);
+  } catch { /* noop */ }
+}
+
+/**
  * Frågar servern om origin hör till restaurangen, utan att skapa kioskbevis.
  * Används när en betalning landar på viaeats toppnivå och kunden ska tillbaka
  * till partnerns sida. Returnerar partnerns bekräftade origin eller null.
@@ -129,12 +136,12 @@ export function partnerMenuPath(origin: string): string {
   const verified = readVerifiedPartner();
   if (verified && verified.origin === origin) return verified.menuPath;
   if (verified && verified.primaryOrigin === origin) return verified.menuPath;
-  return LEGACY_PARTNER_MENU_PATH_BY_ORIGIN.get(origin) || "/meny";
+  return LOCAL_DEV_PARTNER_ORIGINS.has(origin) ? LOCAL_DEV_MENU_PATH : "/meny";
 }
 
 /**
  * Returnerar origin om den är en betrodd partner: bekräftad av servern för den
- * här fliken, eller med på reservlistan. Används för postMessage-mål och för
+ * här fliken, eller en lokal utvecklingssajt. Används för postMessage-mål och för
  * att godta meddelanden från föräldern.
  */
 export function trustedPartnerOrigin(candidate: unknown): string | null {
@@ -142,12 +149,39 @@ export function trustedPartnerOrigin(candidate: unknown): string | null {
   if (!origin) return null;
   const verified = readVerifiedPartner();
   if (verified && (verified.origin === origin || verified.primaryOrigin === origin)) return origin;
-  return LEGACY_PARTNER_ORIGINS.has(origin) ? origin : null;
+  return LOCAL_DEV_PARTNER_ORIGINS.has(origin) ? origin : null;
+}
+
+/**
+ * Förälderns riktiga origin enligt webbläsaren (Chrome och Safari). Den går
+ * inte att förfalska via adressen och finns kvar även när lagringen är
+ * blockerad. Firefox saknar den, och där gäller parent_origin.
+ */
+function actualParentOrigin(): string | null {
+  if (typeof window === "undefined" || window.parent === window) return null;
+  try {
+    const ancestors = window.location.ancestorOrigins;
+    return ancestors && ancestors.length > 0 ? normalizeOrigin(ancestors[0]) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Kommer meddelandet från partnersidan som bäddar in oss? Godtar viaeats egen
+ * origin, en bekräftad partner och förälderns riktiga origin enligt
+ * webbläsaren. Bara för ofarliga meddelanden som att öppna en produkt.
+ */
+export function isEmbedParentMessage(event: MessageEvent): boolean {
+  if (typeof window === "undefined" || event.source !== window.parent) return false;
+  if (event.origin === window.location.origin) return true;
+  return trustedPartnerOrigin(event.origin) !== null || event.origin === actualParentOrigin();
 }
 
 /** Origin som embed.js uppgav. Inte betrodd: servern avgör vid kioskbeviset. */
 export function claimedEmbedParentOrigin(candidate?: unknown): string | null {
-  const fromCandidate = normalizeOrigin(candidate);
+  const actual = actualParentOrigin();
+  const fromCandidate = actual || normalizeOrigin(candidate);
   if (typeof window === "undefined") return fromCandidate;
   const fromQuery = fromCandidate || normalizeOrigin(
     new URLSearchParams(window.location.search).get(EMBED_PARENT_ORIGIN_PARAM),
@@ -173,10 +207,13 @@ export function rememberEmbedParentOrigin(candidate: unknown): string | null {
 
 export function readEmbedParentOrigin(): string | null {
   if (typeof window === "undefined") return null;
-  const fromQuery = rememberEmbedParentOrigin(
-    new URLSearchParams(window.location.search).get(EMBED_PARENT_ORIGIN_PARAM),
-  );
-  if (fromQuery) return fromQuery;
+  // Den riktiga föräldern går före allt annat. Står föräldern i adressen
+  // gäller den, även när den inte är betrodd. En sparad partner från en
+  // tidigare embed i fliken får aldrig ta över.
+  const actual = actualParentOrigin();
+  if (actual) return rememberEmbedParentOrigin(actual);
+  const fromAddress = new URLSearchParams(window.location.search).get(EMBED_PARENT_ORIGIN_PARAM);
+  if (fromAddress) return rememberEmbedParentOrigin(fromAddress);
   try {
     return trustedPartnerOrigin(window.sessionStorage.getItem(EMBED_PARENT_ORIGIN_SESSION_KEY));
   } catch {
@@ -214,8 +251,7 @@ export function partnerOriginForRestaurant(restaurantSlug: unknown): string | nu
   if (typeof restaurantSlug !== "string") return null;
   const slug = restaurantSlug.trim().toLowerCase();
   const verified = readVerifiedPartner();
-  if (verified && verified.restaurantSlug === slug) return verified.primaryOrigin;
-  return LEGACY_PARTNER_ORIGIN_BY_RESTAURANT.get(slug) || null;
+  return verified && verified.restaurantSlug === slug ? verified.primaryOrigin : null;
 }
 
 // Embedden har ingen orderhistorik, men kunden ska kunna lämna sidan och sedan hitta tillbaka till

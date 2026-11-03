@@ -6,7 +6,7 @@
  * Palmyra embeds ViaEats, but the signed proof is still limited to the
  * configured restaurant and expires automatically.
  */
-import { claimedEmbedParentOrigin, storeVerifiedEmbedPartner } from "@/lib/embedPartner";
+import { claimedEmbedParentOrigin, syncEmbedPartnerAfterKiosk } from "@/lib/embedPartner";
 
 export const KIOSK_ACCESS_SESSION_KEY = "viaeats_kiosk_access_v1";
 
@@ -64,7 +64,7 @@ export async function ensureKioskAccess(restaurantSlug: string, parentOrigin?: s
     const data = (await response.json()) as { proof?: unknown; restaurantSlug?: unknown; partner?: unknown };
     if (typeof data.proof !== "string" || data.restaurantSlug !== restaurantSlug) return false;
     storeKioskAccess(restaurantSlug, data.proof);
-    if (data.partner) storeVerifiedEmbedPartner(data.partner);
+    syncEmbedPartnerAfterKiosk(restaurantSlug, data.partner, claimedOrigin);
     return true;
   } catch {
     // A previously issued proof can still be useful during a short network

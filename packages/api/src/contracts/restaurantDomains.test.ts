@@ -59,7 +59,8 @@ async function main() {
   await ensureRestaurantDomains();
   console.warn = warn;
   assert.equal(restaurantDomainsAuthoritative(), false);
-  assert.equal(isOriginAllowed('https://fredspizza.se'), true, 'reservlistan gäller utan tabell');
+  assert.equal(isOriginAllowed('https://fredspizza.se'), false, 'inga restaurangdomäner i koden');
+  assert.equal(isOriginAllowed('https://viaeats.se'), true, 'viaeats egna origins gäller utan tabell');
   assert.equal(isOriginAllowed('https://nyapizzan.se'), false);
   assert.equal(kioskRestaurantAllowed('palmyra-pizzeria-lund', {} as NodeJS.ProcessEnv), true, 'standardvärdet som förut');
   assert.equal(kioskRestaurantAllowed('nya-pizzan-lund', { KIOSK_RESTAURANT_SLUGS: 'nya-pizzan-lund' } as any), true);
@@ -106,7 +107,8 @@ async function main() {
   assert.equal(isOriginAllowed('https://versal.se'), false, 'ogiltig rad ignoreras');
   assert.equal(isOriginAllowed('https://trick.se'), false);
   assert.equal(isOriginAllowed('https://viaeats.se'), true, 'viaeats egna origins påverkas inte');
-  assert.ok(getAllowedOrigins().includes('https://fredspizza.se'), 'reservlistan ligger kvar under övergången');
+  assert.ok(getAllowedOrigins().includes('https://freds.example'), 'domänerna från tabellen ingår i allowlistan');
+  assert.ok(!getAllowedOrigins().includes('https://fredspizza.se'), 'inga restaurangdomäner i koden');
 
   // ── Kioskbevis: slug och domän måste höra ihop ──────────────────────────
   const env = { KIOSK_RESTAURANT_SLUGS: 'demo-pizzan' } as NodeJS.ProcessEnv;

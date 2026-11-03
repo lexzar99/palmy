@@ -8,7 +8,7 @@ import { API_URL, SOCKET_URL } from "@/lib/api";
 import { ensureKioskAccess } from "@/lib/kioskAccessClient";
 import dynamic from "next/dynamic";
 import FloatingCartButton from "@/components/FloatingCartButton";
-import { EMBED_PARENT_ORIGIN_PARAM, rememberEmbedParentOrigin } from "@/lib/embedPartner";
+import { EMBED_PARENT_ORIGIN_PARAM, isEmbedParentMessage, rememberEmbedParentOrigin } from "@/lib/embedPartner";
 import SmartImage from "@/components/SmartImage";
 import { PublicDeal } from "@/lib/deals";
 import Link from "next/link";
@@ -752,13 +752,6 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, embed
   // en deal på Palmyras startsida öppna produktmodalen utan leveransadress.
   useEffect(() => {
     if (!embedMode || typeof window === "undefined") return;
-    const allowedOrigins = new Set([
-      window.location.origin,
-      "https://palmyrapizzeria.se",
-      "https://www.palmyrapizzeria.se",
-      "http://localhost:3000",
-      "http://localhost:4000",
-    ]);
     const sendHeight = () => {
       if (window.parent === window) return;
       window.parent.postMessage({
@@ -767,7 +760,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false, embed
       }, "*");
     };
     const onMessage = (event: MessageEvent) => {
-      if (!allowedOrigins.has(event.origin) || !event.data || event.data.type !== "viaeats:open-product") return;
+      if (!isEmbedParentMessage(event) || !event.data || event.data.type !== "viaeats:open-product") return;
       const productId = typeof event.data.productId === "string" ? event.data.productId : "";
       if (!productId) return;
       const product = categories.flatMap((category: any) => category.products || []).find((item: any) => item.id === productId);
