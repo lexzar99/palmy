@@ -67,6 +67,7 @@ import {
 import { ImageUploadField } from "@/shared/components/image-upload";
 import { NotesPanel } from "@/shared/components/notes-panel";
 import { RestaurantDomainsPanel } from "@/modules/restaurants/restaurant-domains-panel";
+import { RestaurantPricingPanel } from "@/modules/restaurants/restaurant-pricing-panel";
 import { CompanyLookup } from "@/modules/restaurants/company-lookup";
 import type { CompanyLookupResult } from "@/modules/restaurants/api";
 import { getRestaurantDevices } from "@/modules/restaurant-devices/api";
@@ -519,7 +520,12 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
           ? new Date(form.homeBoostEndsAt).toISOString()
           : null;
       }
-      if (restaurantId) return patchRestaurant(restaurantId, payload);
+      // Provisionen sparas av Prismodell (finansavtalet). Formulärets kopia kan
+      // vara äldre och får inte skriva över ett avtal som just sparats där.
+      if (restaurantId) {
+        delete payload.commissionPctOverride;
+        return patchRestaurant(restaurantId, payload);
+      }
       // Nya restauranger föds som utkast — de publiceras medvetet från
       // detaljsidan när checklistan är grön.
       return createRestaurant({ ...payload, draft: true });
@@ -1443,11 +1449,9 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                     <option value="pickup">Endast avhämtning</option>
                   </Select>
                 </Field>
-                <Field label="Egen provision" hint="Tomt = global sats · 0 % = provisionsfritt">
-                  <PercentInput min={0} max={100} step={1} integer placeholder="Global sats" value={form.commissionPctOverride} onValueChange={(value) => set("commissionPctOverride", value)} />
-                </Field>
               </div>
             </div>
+            {restaurantId && detailData ? <RestaurantPricingPanel restaurantId={restaurantId} detail={detailData} /> : null}
             <div className="grid gap-3.5 border-t border-[var(--row-divider)] pt-4">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">ETA</p>
