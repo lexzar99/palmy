@@ -219,6 +219,11 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
     const responseContentType = upstreamResponse.headers.get("content-type");
     const cacheControl = upstreamResponse.headers.get("cache-control");
     if (responseContentType) response.headers.set("content-type", responseContentType);
+    // Kvittot laddas ner som fil; namnet och nosniff följer med från API:t.
+    const contentDisposition = upstreamResponse.headers.get("content-disposition");
+    if (contentDisposition) response.headers.set("content-disposition", contentDisposition);
+    const contentTypeOptions = upstreamResponse.headers.get("x-content-type-options");
+    if (contentTypeOptions) response.headers.set("x-content-type-options", contentTypeOptions);
     response.headers.set("cache-control", cacheControl || "no-store");
 
     // The API signs the order-scoped proof. This proxy is the only layer that

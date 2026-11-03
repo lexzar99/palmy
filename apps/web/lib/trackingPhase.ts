@@ -43,14 +43,14 @@ export function phaseTitle(phase: BreathingPhase, pickup = false): string {
   }
 }
 
-export function phaseSubtitle(phase: BreathingPhase, restaurant: string, pickup = false): string {
+export function phaseSubtitle(phase: BreathingPhase, restaurant: string, pickup = false, orderNumber?: string | null): string {
   switch (phase) {
     case "waiting": return `${restaurant} svarar oftast inom en minut.`;
     case "preparing": return pickup
       ? "Köket förbereder din mat. Vi säger till när den går att hämta."
       : "Köket förbereder din mat.";
     case "onTheWay": return "Maten har lämnat restaurangen.";
-    case "readyForPickup": return "Visa ordernumret i restaurangen.";
+    case "readyForPickup": return orderNumber ? `Visa ordernummer ${orderNumber} i restaurangen.` : "Visa ordernumret i restaurangen.";
     case "done": return "Hoppas det smakade.";
   }
 }

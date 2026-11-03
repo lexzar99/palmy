@@ -120,3 +120,6 @@ car-os/
 # Personliga hjälpskript och lösa filer, samlade ur repo-roten 2026-08-22.
 # Innehållet är lokalt och ska inte versionshanteras.
 _local/
+
+# API:ts typsnitt och logga för PDF-kvittot måste följa med i deployen.
+!packages/api/assets/

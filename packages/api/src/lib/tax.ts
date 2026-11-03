@@ -66,6 +66,30 @@ export function allocateProportionally(totalOre: number, grossAmounts: number[])
 
 export type VatBreakdownRow = { rate: number; grossOre: number; vatOre: number };
 
+/**
+ * Orderns frysta momssatser för varje del. Används av momsuppdelningen nedan
+ * och av kundkvittot, så att raderna på kvittot alltid visar samma sats som
+ * momsbeloppet räknats med.
+ */
+export function orderVatRates(input: { foodVatPercent?: number | null; deliveryVatPercent?: number | null }) {
+  const rawFoodRate = normalizeVatPercent(input.foodVatPercent, 6);
+  const foodRate = normalizeFoodVatPercent(input.foodVatPercent, 6);
+  const hasLegacyZeroFoodRate = rawFoodRate === 0;
+  const rawDeliveryRate = normalizeVatPercent(input.deliveryVatPercent, foodRate);
+  return {
+    foodRate,
+    // Old orders created while the restaurant itself had the invalid 0 rate
+    // also snapshotted 0 on every food line. Repair that projection only;
+    // explicit product-level 0 remains intact when the order food rate is > 0.
+    itemRate(itemVatPercent: number | null | undefined): number {
+      const itemRate = normalizeVatPercent(itemVatPercent, foodRate);
+      return hasLegacyZeroFoodRate && itemRate === 0 ? foodRate : itemRate;
+    },
+    smallOrderFeeRate: foodRate,
+    deliveryRate: hasLegacyZeroFoodRate && rawDeliveryRate === 0 ? foodRate : rawDeliveryRate,
+  };
+}
+
 export function calculateOrderVat(input: {
   items?: Array<{ subtotal?: number | null; vatPercent?: number | null }> | null;
   discountAmount?: number | null;
@@ -76,9 +100,7 @@ export function calculateOrderVat(input: {
   foodVatPercent?: number | null;
   deliveryVatPercent?: number | null;
 }): { totalVatOre: number; taxableGrossOre: number; breakdown: VatBreakdownRow[] } {
-  const rawFoodRate = normalizeVatPercent(input.foodVatPercent, 6);
-  const foodRate = normalizeFoodVatPercent(input.foodVatPercent, 6);
-  const hasLegacyZeroFoodRate = rawFoodRate === 0;
+  const rates = orderVatRates(input);
   const items = input.items || [];
   const foodGrossRows = items.map((item) => Math.max(0, Math.trunc(Number(item.subtotal) || 0)));
   const foodGross = foodGrossRows.reduce((sum, value) => sum + value, 0);
@@ -99,23 +121,18 @@ export function calculateOrderVat(input: {
   const byRate = new Map<number, number>();
   items.forEach((item, index) => {
     const net = foodGrossRows[index] - allocations[index];
-    const itemRate = normalizeVatPercent(item.vatPercent, foodRate);
-    // Old orders created while the restaurant itself had the invalid 0 rate
-    // also snapshotted 0 on every food line. Repair that projection only;
-    // explicit product-level 0 remains intact when the order food rate is > 0.
-    const rate = hasLegacyZeroFoodRate && itemRate === 0 ? foodRate : itemRate;
+    const rate = rates.itemRate(item.vatPercent);
     byRate.set(rate, (byRate.get(rate) || 0) + net);
   });
 
   const smallOrderFee = Math.max(0, Math.trunc(Number(input.smallOrderFee) || 0));
   if (smallOrderFee > 0) {
-    const rate = foodRate;
+    const rate = rates.smallOrderFeeRate;
     byRate.set(rate, (byRate.get(rate) || 0) + smallOrderFee);
   }
   const netDelivery = deliveryFee - deliveryDiscount;
   if (netDelivery > 0) {
-    const rawDeliveryRate = normalizeVatPercent(input.deliveryVatPercent, foodRate);
-    const rate = hasLegacyZeroFoodRate && rawDeliveryRate === 0 ? foodRate : rawDeliveryRate;
+    const rate = rates.deliveryRate;
     byRate.set(rate, (byRate.get(rate) || 0) + netDelivery);
   }
 

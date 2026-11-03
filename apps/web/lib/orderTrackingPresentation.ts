@@ -1,3 +1,5 @@
+import { customerOrderNumber } from "./orderNumber";
+
 const ON_WAY_STATUSES = ["DELIVERING", "OUT_FOR_DELIVERY", "ON_THE_WAY"];
 const DONE_STATUSES = ["DELIVERED", "COMPLETED"];
 
@@ -16,6 +18,7 @@ export function orderTrackingCopy(order: any): OrderTrackingCopy {
   const pickup = type === "PICKUP";
   const selfDelivery = type === "DELIVERY" && Boolean(order?.selfDelivery);
   const restaurant = order?.restaurantName || order?.restaurant?.name || "Restaurangen";
+  const pickupNumber = customerOrderNumber(order?.orderNumber);
 
   switch (status) {
     case "AWAITING_PAYMENT":
@@ -51,7 +54,9 @@ export function orderTrackingCopy(order: any): OrderTrackingCopy {
         ? {
             title: "Klar för hämtning",
             short: "Din mat väntar",
-            description: "Visa ordernumret i restaurangen när du hämtar beställningen.",
+            description: pickupNumber
+              ? `Visa ordernummer ${pickupNumber} i restaurangen när du hämtar beställningen.`
+              : "Visa ordernumret i restaurangen när du hämtar beställningen.",
           }
         : selfDelivery
           ? {

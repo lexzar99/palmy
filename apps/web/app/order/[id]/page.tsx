@@ -28,6 +28,7 @@ import {
   verifyEmbedParentOrigin,
 } from "@/lib/embedPartner";
 import { orderTrackingCopy, orderTrackingProgress } from "@/lib/orderTrackingPresentation";
+import { customerOrderNumber } from "@/lib/orderNumber";
 import PhoneAuth from "@/components/PhoneAuth";
 import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
 import { useDesignBackground } from "@/components/restaurant/useDesignBackground";
@@ -95,81 +96,6 @@ const authoritativeDiscount = (order: any, rawSubtotal: number): number => {
   return Math.max(0, rawSubtotal + deliveryFee + smallOrderFee + tip - (Number(order?.total) || 0));
 };
 
-const escapeHtml = (s: any): string =>
-  String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
-
-// Bygger ett snyggt, fristående HTML-kvitto från riktig orderdata (restaurangens
-// juridiska namn, org.nr, adress, kontakt). Ren HTML → ingen serverbelastning;
-// laddas ner som en fil och kan skrivas ut/sparas som PDF i webbläsaren.
-function buildReceiptHtml(order: any): string {
-  const items: any[] = order.items ?? [];
-  const rawSubtotal = items.reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
-  const tip = Number(order.tipAmount) || 0;
-  const deliveryFee = Number(order.deliveryFee) || 0;
-  const smallOrderFee = Number(order.smallOrderFee) || 0;
-  const total = Number(order.total) || 0;
-  const discount = authoritativeDiscount(order, rawSubtotal);
-  const vatRows = receiptVatRows(order);
-  const created = order.createdAt ? new Date(order.createdAt) : new Date();
-  const dateStr = created.toLocaleString("sv-SE", { dateStyle: "long", timeStyle: "short" });
-  const legalName = order.restaurantLegalName || order.restaurantName || "Restaurang";
-  const addressLine = [order.restaurantAddress, [order.restaurantZip, order.restaurantCity].filter(Boolean).join(" ")].filter(Boolean).join(", ");
-
-  const row = (label: string, value: string, opts?: { strong?: boolean; muted?: boolean; accent?: boolean }) =>
-    `<div style="display:flex;justify-content:space-between;gap:16px;padding:${opts?.strong ? "10px 0 0" : "3px 0"};${opts?.strong ? "border-top:1px solid #e7e3da;margin-top:8px;" : ""}">
-      <span style="${opts?.strong ? "font-weight:700;font-size:15px;" : "font-size:13px;"}color:${opts?.accent ? "#F0531C" : opts?.muted ? "#6b6b70" : "#111113"};">${escapeHtml(label)}</span>
-      <span style="${opts?.strong ? "font-weight:700;font-size:18px;color:#F0531C;" : "font-size:13px;color:#111113;"}font-variant-numeric:tabular-nums;">${escapeHtml(value)}</span>
-    </div>`;
-
-  const itemsHtml = items.map((it) => {
-    const extras = Array.isArray(it.selectedExtras) ? it.selectedExtras : [];
-    const extrasHtml = extras.length
-      ? `<div style="padding-left:22px;color:#6b6b70;font-size:12px;">${extras.map((e: any) => escapeHtml(e.extraName || e.name)).join("<br/>")}</div>`
-      : "";
-    const noteHtml = it.note ? `<div style="padding-left:22px;color:#6b6b70;font-size:12px;font-style:italic;">${escapeHtml(it.note)}</div>` : "";
-    return `<div style="display:flex;justify-content:space-between;gap:16px;margin-bottom:10px;">
-      <div style="flex:1;min-width:0;">
-        <div><span style="color:#F0531C;font-weight:700;font-size:12px;">${escapeHtml(it.quantity)}×</span> <span style="font-weight:600;font-size:14px;">${escapeHtml(it.productName)}</span></div>
-        ${extrasHtml}${noteHtml}
-      </div>
-      <div style="font-weight:600;font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap;">${escapeHtml(formatSek(it.subtotal))} kr</div>
-    </div>`;
-  }).join("");
-
-  return `<!DOCTYPE html>
-<html lang="sv"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Kvitto ${escapeHtml(order.orderNumber || "")}</title></head>
-<body style="margin:0;background:#f4f4f2;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#111113;">
-  <div style="max-width:520px;margin:24px auto;background:#fff;border:1px solid #e7e3da;border-radius:16px;overflow:hidden;">
-    <div style="padding:28px 28px 20px;border-bottom:1px solid #e7e3da;">
-      <div style="font-size:20px;font-weight:800;letter-spacing:-0.3px;">${escapeHtml(legalName)}</div>
-      ${order.restaurantOrgNr ? `<div style="font-size:12px;color:#6b6b70;margin-top:4px;">Org.nr ${escapeHtml(order.restaurantOrgNr)}</div>` : ""}
-      ${addressLine ? `<div style="font-size:12px;color:#6b6b70;margin-top:2px;">${escapeHtml(addressLine)}</div>` : ""}
-      <div style="font-size:12px;color:#6b6b70;margin-top:2px;">${[order.restaurantPhone, order.restaurantEmail].filter(Boolean).map(escapeHtml).join(" · ")}</div>
-    </div>
-    <div style="padding:20px 28px;border-bottom:1px solid #e7e3da;">
-      <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:#6b6b70;">Kvitto</span><span style="font-weight:700;">#${escapeHtml(order.orderNumber || "")}</span></div>
-      <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;"><span style="color:#6b6b70;">Datum</span><span>${escapeHtml(dateStr)}</span></div>
-      <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;"><span style="color:#6b6b70;">Typ</span><span>${order.type === "DELIVERY" ? "Leverans" : "Avhämtning"}</span></div>
-    </div>
-    <div style="padding:22px 28px;">
-      ${itemsHtml}
-      <div style="margin-top:14px;padding-top:12px;border-top:1px solid #e7e3da;">
-        ${row("Delsumma", formatSek(rawSubtotal) + " kr", { muted: true })}
-        ${discount > 0 ? row(order.appliedDealTitle || "Rabatt", "−" + formatSek(discount) + " kr", { accent: true }) : ""}
-        ${deliveryFee > 0 ? row("Leveransavgift", "+" + formatSek(deliveryFee) + " kr", { muted: true }) : ""}
-        ${smallOrderFee > 0 ? row("Avgift för liten beställning", "+" + formatSek(smallOrderFee) + " kr", { muted: true }) : ""}
-        ${tip > 0 ? row("Dricks", "+" + formatSek(tip) + " kr", { muted: true }) : ""}
-        ${vatRows.map((vat) => row(`Varav moms ${formatSek(vat.rate)} %`, formatSek(vat.vat) + " kr", { muted: true })).join("")}
-        ${row("Totalt", formatSek(total) + " kr", { strong: true })}
-      </div>
-      <div style="margin-top:14px;font-size:12px;color:#6b6b70;">Betalsätt: ${escapeHtml(paymentMethodLabel(order.paymentMethod))}</div>
-    </div>
-    <div style="padding:16px 28px 24px;text-align:center;font-size:11px;color:#9a9a9f;border-top:1px solid #e7e3da;">Tack för din beställning!</div>
-  </div>
-</body></html>`;
-}
-
 const OrderStatusPage = () => {
   const { t } = useTranslation();
   useDesignBackground();
@@ -232,10 +158,10 @@ const OrderStatusPage = () => {
   const [reviewDone, setReviewDone] = useState(false);
   // Bekräftelsetext efter inskickad recension.
   const [reviewRewardText, setReviewRewardText] = useState<string | null>(null);
-  // Kvitto-modal + nedladdningsräknare (max 2 ggr per order, lokalt).
+  // Kvitto-modal + PDF-nedladdning.
   const [showReceipt, setShowReceipt] = useState(false);
   const [orderOpen, setOrderOpen] = useState(false);
-  const [receiptDownloads, setReceiptDownloads] = useState(0);
+  const [receiptState, setReceiptState] = useState<"idle" | "loading" | "error">("idle");
   // Förstora leveransfotot.
   const [proofZoom, setProofZoom] = useState(false);
   // Web push: visas bara när webbläsaren stödjer push OCH servern har VAPID-
@@ -311,30 +237,31 @@ const OrderStatusPage = () => {
     setPushBusy(false);
   };
 
-  // Kvitto-nedladdningar räknas lokalt per order (max 2). Ingen serverbelastning.
-  const RECEIPT_MAX_DOWNLOADS = 2;
-  useEffect(() => {
-    if (!orderId) return;
+  // Kvittot är en PDF som servern skapar, med viaeats som säljare. Den hämtas
+  // genom proxyn med samma ägarbevis som spårningen (även embeddens ordernyckel),
+  // så en vanlig länk räcker inte i en partneriframe utan cookies.
+  const downloadReceipt = async () => {
+    if (!order || !orderId || receiptState === "loading") return;
+    setReceiptState("loading");
     try {
-      setReceiptDownloads(parseInt(localStorage.getItem(`receipt_dl_${orderId}`) || "0", 10) || 0);
-    } catch { /* ignore */ }
-  }, [orderId]);
-
-  const downloadReceipt = () => {
-    if (!order || !orderId || receiptDownloads >= RECEIPT_MAX_DOWNLOADS) return;
-    const html = buildReceiptHtml(order);
-    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `kvitto-${order.orderNumber || orderId}.html`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    const next = receiptDownloads + 1;
-    setReceiptDownloads(next);
-    try { localStorage.setItem(`receipt_dl_${orderId}`, String(next)); } catch { /* ignore */ }
+      const res = await axios.get(`/api/platform/orders/${orderId}/receipt.pdf`, {
+        withCredentials: true,
+        responseType: "blob",
+        headers: { accept: "application/pdf" },
+      });
+      const url = URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `kvitto-${order.orderNumber || orderId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
+      setReceiptState("idle");
+    } catch (err) {
+      console.error(err);
+      setReceiptState("error");
+    }
   };
 
   const fetchOrder = useCallback(async (opts?: { silent?: boolean }) => {
@@ -736,7 +663,11 @@ const OrderStatusPage = () => {
   })();
   const restAddr = [order.restaurantAddress, [order.restaurantZip, order.restaurantCity].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   const custAddr = [order.deliveryStreet, [order.deliveryZip, order.deliveryCity || order.restaurantCity].filter(Boolean).join(" ")].filter(Boolean).join(", ");
-  const orderNo = order.orderNumber ? `#${order.orderNumber}` : `#${String(order.id || "").slice(-6).toUpperCase()}`;
+  // Sidan visar kundens fyrsiffriga nummer (samma som restaurangplattan),
+  // kvittot det fullständiga, unika numret.
+  const fullOrderNo = order.orderNumber ? `#${order.orderNumber}` : `#${String(order.id || "").slice(-6).toUpperCase()}`;
+  const shortOrderNo = customerOrderNumber(order.orderNumber);
+  const orderNo = shortOrderNo ? `#${shortOrderNo}` : fullOrderNo;
   const hasRestCoords = typeof order.restaurantLat === "number" && typeof order.restaurantLng === "number";
   const hasCustomerCoords = typeof order.deliveryLatitude === "number" && typeof order.deliveryLongitude === "number";
   // Webben tar aldrig över hela skärmen som appen gör — spårningen är en
@@ -1193,10 +1124,12 @@ const OrderStatusPage = () => {
                 <ChevronLeft size={20} strokeWidth={2.4} className="-ml-0.5" />
               </button>
               <h2 className="m-0 text-[22px] font-semibold" style={{ letterSpacing: "-0.02em", color: "var(--ve-ink)" }}>Kvitto</h2>
-              <span className="ve-tabular ml-auto text-[13px]" style={{ color: "var(--ve-ink-3)" }}>{orderNo}</span>
+              <span className="ve-tabular ml-auto text-[13px]" style={{ color: "var(--ve-ink-3)" }}>{fullOrderNo}</span>
             </div>
 
             <div className="ve-card px-4 py-4">
+              {/* viaeats är säljaren (står i PDF-kvittot); restaurangen har lagat maten. */}
+              <p className="m-0 mb-1 text-[12px] font-medium" style={{ color: "var(--ve-ink-3)" }}>Tillagad av</p>
               <p className="m-0 text-[17px] font-semibold" style={{ letterSpacing: "-0.015em", color: "var(--ve-ink)" }}>{order.restaurantLegalName || restName}</p>
               {order.restaurantOrgNr && <p className="m-0 mt-0.5 text-[13px]" style={{ color: "var(--ve-ink-3)" }}>Org.nr {order.restaurantOrgNr}</p>}
               {restAddr && <p className="m-0 mt-0.5 text-[13px]" style={{ color: "var(--ve-ink-3)" }}>{restAddr}</p>}
@@ -1219,13 +1152,18 @@ const OrderStatusPage = () => {
             <button
               type="button"
               onClick={downloadReceipt}
-              disabled={receiptDownloads >= RECEIPT_MAX_DOWNLOADS}
+              disabled={receiptState === "loading"}
               className="ve-press mt-4 flex h-[52px] w-full items-center justify-center gap-2 rounded-full text-[16px] font-semibold disabled:opacity-40"
               style={{ backgroundColor: "var(--ve-cta)", color: "var(--ve-cta-ink)" }}
             >
-              <Download size={17} strokeWidth={2.2} />
-              {receiptDownloads >= RECEIPT_MAX_DOWNLOADS ? "Kvittot är nedladdat" : "Ladda ner kvitto"}
+              {receiptState === "loading" ? <Loader2 size={17} strokeWidth={2.2} className="animate-spin" /> : <Download size={17} strokeWidth={2.2} />}
+              {receiptState === "loading" ? "Skapar kvittot…" : "Ladda ner kvitto (PDF)"}
             </button>
+            {receiptState === "error" ? (
+              <p className="mt-2 text-center text-[13px]" style={{ color: "var(--ve-danger)" }} role="alert">
+                Kvittot gick inte att hämta. Försök igen om en stund.
+              </p>
+            ) : null}
           </div>
         </motion.div>
       ) : null}

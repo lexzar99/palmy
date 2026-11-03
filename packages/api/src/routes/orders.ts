@@ -85,6 +85,7 @@ import { resolvePlatformFundedDiscount } from '../lib/discountFunding';
 import { customerNameWithOrderChannel, ORDER_CHANNELS, orderChannelAuditChanges, resolveOrderChannel } from '../lib/orderChannel';
 import { normalizeOrderAttribution } from '../lib/orderAttribution';
 import { metaPurchaseReceipt } from '../lib/metaPurchase';
+import { buildCustomerReceipt, customerReceiptAccess, renderCustomerReceiptPdf } from '../lib/customerReceipt';
 import { isPartnerEmbedDiscountEnabled, partnerEmbedEnabledIds } from '../lib/partnerEmbedDiscounts';
 
 const router = Router();
@@ -2206,6 +2207,72 @@ router.get('/:id/summary', async (req: Request, res: Response) => {
 // Ägarskap krävs via JWT eller den slumpade per-order-tokenen. Telefonnummer
 // är kontaktdata, inte ett lösenord. Lokal utveckling behåller en phone-fallback
 // för gamla testverktyg; produktion gör det aldrig.
+// Kvittot genereras på servern så att det blir likadant för alla. Det kostar
+// lite CPU, därför en egen gräns per IP.
+const receiptLimiter = rateLimit({
+  windowMs: 10 * 60_000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'För många kvitton på kort tid. Försök igen om en stund.' },
+});
+
+// GET /api/orders/:id/receipt.pdf — kundkvittot med viaeats som säljare.
+router.get('/:id/receipt.pdf', receiptLimiter, async (req: Request, res: Response) => {
+  try {
+    const order: any = await prisma.order.findUnique({
+      where: { id: req.params.id },
+      include: { items: true, restaurant: true },
+    });
+    if (!order) {
+      res.status(404).json({ error: 'Order hittades inte' });
+      return;
+    }
+    const callerUserId = await resolveActiveCustomerIdFromAuthorization(
+      req.headers.authorization,
+    ).catch(() => null);
+    const access = customerReceiptAccess({
+      order,
+      orderSessionHeader: req.headers[ORDER_HTTP_SESSION_HEADER],
+      nativeSessionOwned: ownsByNativeOrderSession(req, order.id),
+      callerUserId,
+    });
+    res.setHeader('Cache-Control', 'no-store');
+    if (access === 'not_found') {
+      res.status(404).json({ error: 'Order hittades inte' });
+      return;
+    }
+    if (access === 'not_paid') {
+      res.status(409).json({ error: 'Kvittot finns när betalningen är klar.' });
+      return;
+    }
+
+    const settings = await prisma.restaurantSettings.findUnique({
+      where: { id: 'settings' },
+      select: { companyName: true, organizationNumber: true, companyAddress: true, supportEmail: true, contactEmail: true },
+    });
+    const receipt = buildCustomerReceipt(order, settings);
+    if (receipt.missing.length > 0 || receipt.amountMismatchOre !== 0) {
+      console.warn('[receipt] ofullständigt kvitto', {
+        orderId: order.id,
+        missing: receipt.missing,
+        amountMismatchOre: receipt.amountMismatchOre,
+      });
+    }
+    const pdf = await renderCustomerReceiptPdf(receipt);
+    const fileName = `kvitto-${receipt.receiptNumber}`.replace(/[^A-Za-z0-9_-]/g, '-');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}.pdf"`);
+    res.setHeader('Content-Length', String(pdf.length));
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (receipt.missing.length > 0) res.setHeader('X-Viaeats-Receipt-Incomplete', '1');
+    res.end(pdf);
+  } catch (error) {
+    console.error('[receipt] kunde inte skapa kvittot', error);
+    res.status(500).json({ error: 'Kunde inte skapa kvittot' });
+  }
+});
+
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const order: any = await prisma.order.findUnique({

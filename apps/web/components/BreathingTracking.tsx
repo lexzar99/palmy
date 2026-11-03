@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { MapPin, MessageSquareWarning, Phone, Receipt, X } from "lucide-react";
+import { customerOrderNumber } from "@/lib/orderNumber";
 import {
   DONE_STATUSES,
   forecastLabel,
@@ -443,7 +444,7 @@ export function BreathingTrackingPanel({
             ? "Vi beräknar att din mat kommer tidigare än väntat."
             : phase === "onTheWay" && revised
               ? "Uppdaterad prognos — maten är utanför restaurangen och på väg till dig. Oroa dig inte."
-              : phaseSubtitle(phase, restName, pickup)}
+              : phaseSubtitle(phase, restName, pickup, customerOrderNumber(order?.orderNumber))}
         </p>
         {busyKitchen ? (
           <span className="mt-2.5 inline-flex rounded-full px-3 py-1.5 text-[11.5px] font-black" style={{ backgroundColor: "#FFF7DB", color: "#8A5B00" }}>
