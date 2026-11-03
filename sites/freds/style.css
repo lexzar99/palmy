@@ -75,6 +75,7 @@ ul, ol { list-style: none; padding: 0; }
 .is-loaded .line > span { transform: none; }
 .hero__row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 22px 40px; }
 .hero__lede { max-width: 30em; color: #d9d6d1; font-size: 18px; }
+.hero__lede strong { display: block; color: var(--text); font-weight: 800; }
 .hero .kicker, .hero__row, .disk { opacity: 0; transform: translateY(16px); transition: opacity 1s var(--ease) 0.4s, transform 1s var(--ease) 0.4s; }
 .is-loaded .hero .kicker, .is-loaded .hero__row, .is-loaded .disk { opacity: 1; transform: none; }
 
