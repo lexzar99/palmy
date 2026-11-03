@@ -1070,6 +1070,9 @@ model Restaurant {
   brandId String?
   brand   Brand?  @relation(fields: [brandId], references: [id], onDelete: SetNull)
 
+  // Restaurangens egna sajter (fas 3). Styr CORS, kioskbevis och returadress.
+  domains RestaurantDomain[]
+
   // Publika listan sorterar på featuredClass, filtrerar på city och joinar
   // city_relation (cityId). Indexen håller cold-queryn snabb när antalet
   // restauranger växer.
@@ -1078,6 +1081,25 @@ model Restaurant {
   @@index([cityId])
   @@index([brandId])
   @@index([archivedAt])
+}
+
+// Restaurangens egna domäner för partner-embedden (fas 3 i
+// docs/RESTAURANGSAJTER-PLATTFORM.md). En aktiv rad släpper igenom
+// https://<host> för CORS, kioskbevis och betalningsretur. Tabellen skapas
+// manuellt: prisma/migrations_manual/20261103_restaurant_domains.sql.
+model RestaurantDomain {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  // Bara värdnamnet, gemener, utan schema, port eller sökväg.
+  host         String     @unique
+  isPrimary    Boolean    @default(false)
+  // Sidan där embedden ligger. Betalningar återvänder hit.
+  menuPath     String     @default("/meny")
+  embedEnabled Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+
+  @@index([restaurantId])
 }
 
 // Kedja/varumärke som grupperar flera platser (Restaurant). En plats utses

@@ -6,6 +6,8 @@
  * Palmyra embeds ViaEats, but the signed proof is still limited to the
  * configured restaurant and expires automatically.
  */
+import { claimedEmbedParentOrigin, storeVerifiedEmbedPartner } from "@/lib/embedPartner";
+
 export const KIOSK_ACCESS_SESSION_KEY = "viaeats_kiosk_access_v1";
 
 type StoredKioskAccess = {
@@ -38,21 +40,31 @@ function storeKioskAccess(restaurantSlug: string, proof: string): void {
   }
 }
 
-/** Refresh the Palmyra-scoped kiosk session before checkout starts. */
-export async function ensureKioskAccess(restaurantSlug: string): Promise<boolean> {
+/**
+ * Refresh the restaurant-scoped kiosk session before checkout starts.
+ *
+ * Partnerns origin (från embed.js) skickas med. Servern lämnar bara ut ett
+ * bevis när domänen hör till restaurangen, och svarar då med partnerns
+ * bekräftade origin och menysida, som embedPartner sedan litar på.
+ */
+export async function ensureKioskAccess(restaurantSlug: string, parentOrigin?: string | null): Promise<boolean> {
   if (typeof window === "undefined" || !restaurantSlug) return false;
 
   const current = readStoredKioskAccess();
+  const claimedOrigin = claimedEmbedParentOrigin(parentOrigin);
+  const query = new URLSearchParams({ slug: restaurantSlug });
+  if (claimedOrigin) query.set("origin", claimedOrigin);
 
   try {
-    const response = await fetch(`/api/kiosk/session?slug=${encodeURIComponent(restaurantSlug)}`, {
+    const response = await fetch(`/api/kiosk/session?${query.toString()}`, {
       credentials: "same-origin",
       cache: "no-store",
     });
     if (!response.ok) return false;
-    const data = (await response.json()) as { proof?: unknown; restaurantSlug?: unknown };
+    const data = (await response.json()) as { proof?: unknown; restaurantSlug?: unknown; partner?: unknown };
     if (typeof data.proof !== "string" || data.restaurantSlug !== restaurantSlug) return false;
     storeKioskAccess(restaurantSlug, data.proof);
+    if (data.partner) storeVerifiedEmbedPartner(data.partner);
     return true;
   } catch {
     // A previously issued proof can still be useful during a short network

@@ -2030,9 +2030,9 @@ export default function CartPage() {
     const returnRestaurantSlug = params.get("restaurant") || cartRestaurantSlug || "";
     // A partner return belongs only to an explicit embedded checkout. Never
     // reuse a previously remembered partner origin for a normal ViaEats cart.
-    const returnParentOrigin = returnEmbedded
-      ? trustedPartnerOrigin(params.get(EMBED_PARENT_ORIGIN_PARAM)) || readEmbedParentOrigin()
-      : null;
+    // Partnerns origin blir betrodd först när servern bekräftat den vid
+    // kioskbeviset nedan. Spara därför bara kandidaten här.
+    const returnParentOriginCandidate = returnEmbedded ? params.get(EMBED_PARENT_ORIGIN_PARAM) : null;
 
     const cancelled =
       params.get("payment_cancelled") === "1" ||
@@ -2073,8 +2073,11 @@ export default function CartPage() {
       // En hosted betalprovider lämnar iframe:n. När kunden kommer tillbaka måste kiosk-proofen
       // därför skapas på nytt innan statusen eller trackingen hämtas.
       if (returnEmbedded && returnRestaurantSlug) {
-        await ensureKioskAccess(returnRestaurantSlug);
+        await ensureKioskAccess(returnRestaurantSlug, returnParentOriginCandidate);
       }
+      const returnParentOrigin = returnEmbedded
+        ? trustedPartnerOrigin(returnParentOriginCandidate) || readEmbedParentOrigin()
+        : null;
       if (paymentResumeToken) {
         try {
           await axios.post(`/api/platform/orders/${returnOrderId}/session`, {

@@ -49,16 +49,16 @@
       origin === "http://localhost:4000";
   }
 
-  function trustedPartnerOrigin(origin) {
-    return origin === "https://palmyrapizzeria.se" ||
-      origin === "https://www.palmyrapizzeria.se" ||
-      origin === "https://fredspizza.se" ||
-      origin === "https://www.fredspizza.se" ||
-      origin === "https://freds-pizzeria.vercel.app" ||
-      origin === "https://eld-och-vin.vercel.app" ||
-      origin === "https://ramis-grill.vercel.app" ||
-      origin === "http://localhost:3000" ||
-      origin === "http://localhost:4000";
+  // Partnersidans egen origin skickas alltid med. ViaEats server avgör om
+  // domänen hör till restaurangen (domänerna läggs in i admin), så här finns
+  // ingen lista. file:// och andra scheman har ingen användbar origin.
+  function parentOriginParam() {
+    var origin = window.location.origin;
+    if (!origin || origin === "null") return null;
+    var protocol = window.location.protocol;
+    if (protocol === "https:") return origin;
+    var host = window.location.hostname;
+    return protocol === "http:" && (host === "localhost" || host === "127.0.0.1") ? origin : null;
   }
 
   function validOrderId(value) {
@@ -186,9 +186,8 @@
     } else {
       frameUrl = new URL(SITE + "/embed/" + encodeURIComponent(slug));
     }
-    if (trustedPartnerOrigin(window.location.origin)) {
-      frameUrl.searchParams.set("parent_origin", window.location.origin);
-    }
+    var parentOrigin = parentOriginParam();
+    if (parentOrigin) frameUrl.searchParams.set("parent_origin", parentOrigin);
     // data-viaeats-back="index.html" ger en tillbaka-knapp i embeddens egen
     // navbar, så partnersidan inte behöver någon egen ram runt iframen.
     var backHref = hostBackUrl(host.getAttribute("data-viaeats-back"));

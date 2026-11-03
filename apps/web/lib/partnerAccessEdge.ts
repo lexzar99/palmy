@@ -11,6 +11,9 @@
  * Hela mekanismen är TILLFÄLLIG: när PRELAUNCH_MODE=0 är grinden öppen och
  * ingenting här används. Edge-säker (crypto.subtle) så samma kod går i både
  * middleware och server components.
+ *
+ * Grinden går på slug och inte på domän, så restaurangdomänerna i admin (fas 3)
+ * påverkar den inte. Ingen databasfråga här: middlewaren körs på varje anrop.
  */
 
 export const PARTNER_ACCESS_COOKIE = "viaeats_partner_access";

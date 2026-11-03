@@ -66,6 +66,7 @@ import {
 } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
 import { NotesPanel } from "@/shared/components/notes-panel";
+import { RestaurantDomainsPanel } from "@/modules/restaurants/restaurant-domains-panel";
 import { CompanyLookup } from "@/modules/restaurants/company-lookup";
 import type { CompanyLookupResult } from "@/modules/restaurants/api";
 import { getRestaurantDevices } from "@/modules/restaurant-devices/api";
@@ -1276,6 +1277,10 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
 
       {/* Support-anteckningar ligger under huvudlayouten så de inte skapar en
           lång, tom vänsterspalt i den primära restauranginformationen. */}
+      {tab === "info" && !isCreate && restaurantId ? (
+        <RestaurantDomainsPanel restaurantId={restaurantId} />
+      ) : null}
+
       {tab === "info" && !isCreate && restaurantId ? (
         <NotesPanel target={{ restaurantId }} title="Support-anteckningar" />
       ) : null}

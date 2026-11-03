@@ -75,6 +75,7 @@ import {
   resolveAuthoritativeExtraSelection,
 } from '../lib/orderExtraPricing';
 import { KIOSK_ACCESS_HEADER, validKioskAccessProof } from '../lib/kioskAccess';
+import { kioskRestaurantAllowed } from '../lib/restaurantDomains';
 import {
   CHECKOUT_TOTAL_TOLERANCE_ORE,
   checkoutTotalDifferenceOre,
@@ -153,15 +154,9 @@ function kioskCanSeeOrderStatus(
   );
   if (!(Date.now() - relevantAt <= RAW_ORDER_ACCESS_TTL_MS)) return false;
   const kioskSlug = validKioskAccessProof(req.headers[KIOSK_ACCESS_HEADER]);
-  const allowedRestaurants = new Set(
-    String(process.env.KIOSK_RESTAURANT_SLUGS || 'palmyra-pizzeria-lund')
-      .split(',')
-      .map((slug) => slug.trim())
-      .filter(Boolean),
-  );
   return Boolean(
     kioskSlug &&
-    allowedRestaurants.has(kioskSlug) &&
+    kioskRestaurantAllowed(kioskSlug) &&
     order.restaurant?.slug === kioskSlug,
   );
 }

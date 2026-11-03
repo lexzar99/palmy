@@ -29,7 +29,8 @@ import {
   constructStripeWebhookEvent,
   resolveStripeCheckoutSessionRef,
 } from '../lib/payments/stripe';
-import { getAllowedOrigins } from '../lib/config';
+import { ensureRestaurantDomains, kioskRestaurantAllowed } from '../lib/restaurantDomains';
+import { paymentReturnMatchesRestaurant, safePaymentReturnUrl } from '../lib/paymentReturnUrl';
 import { getPublicApiBaseUrl } from '../lib/launchReadiness';
 import { syncRemoteRefundOutcome } from '../lib/payments/refundPersistence';
 import { recordKnownRemoteRefunds } from '../lib/payments/refundLedger';
@@ -155,84 +156,17 @@ function ownsPaymentOrder(
     verifyOrderNativeSession(req.headers?.[ORDER_NATIVE_SESSION_HEADER], order.id)
   ) return true;
   const kioskSlug = validKioskAccessProof(req.headers?.[KIOSK_ACCESS_HEADER]);
-  const kioskAllowedRestaurants = new Set(
-    String(process.env.KIOSK_RESTAURANT_SLUGS || 'palmyra-pizzeria-lund')
-      .split(',')
-      .map((slug) => slug.trim())
-      .filter(Boolean),
-  );
   // Embedded browsers may block the per-order HttpOnly cookie. The kiosk
-  // proof is accepted only when it is valid, configured, and bound to the
+  // proof is accepted only when it is valid, configured (aktiv domän i
+  // RestaurantDomain, annars KIOSK_RESTAURANT_SLUGS) and bound to the
   // restaurant that owns this order.
   if (
     req.headers?.['x-client-type'] === 'web' &&
     kioskSlug &&
-    kioskAllowedRestaurants.has(kioskSlug) &&
+    kioskRestaurantAllowed(kioskSlug) &&
     order.restaurant?.slug === kioskSlug
   ) return true;
   return ownsOrderWithActiveRawSecret(order, accessToken);
-}
-
-function parseOrigin(value: string | undefined): string | null {
-  if (!value) return null;
-  try {
-    return new URL(value).origin;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * PSP:n får bara skicka kunden tillbaka till våra egna origins. En godtycklig
- * returnUrl skulle annars göra betal-endpointen till en trovärdig open redirect.
- */
-function safePaymentReturnUrl(
-  raw: unknown,
-  channel: 'Web' | 'iOS' | 'Android',
-): string | null {
-  if (typeof raw !== 'string' || raw.length < 1 || raw.length > 2_048) return null;
-  let parsed: URL;
-  try {
-    parsed = new URL(raw);
-  } catch {
-    return null;
-  }
-  if (parsed.username || parsed.password || parsed.hash) return null;
-
-  const isLocalDev =
-    process.env.NODE_ENV !== 'production' &&
-    parsed.protocol === 'http:' &&
-    ['localhost', '127.0.0.1'].includes(parsed.hostname);
-  if (parsed.protocol !== 'https:' && !isLocalDev) return null;
-
-  const allowedOrigins = new Set(
-    [
-      ...getAllowedOrigins(),
-      getPublicApiBaseUrl(),
-      process.env.FRONTEND_URL,
-    ]
-      .map(parseOrigin)
-      .filter((origin): origin is string => Boolean(origin)),
-  );
-  if (!isLocalDev && !allowedOrigins.has(parsed.origin)) return null;
-
-  // Native-apparna återvänder alltid via den neutrala API-bryggan, som i sin
-  // tur öppnar viaeats://. Acceptera inte andra sidor bara för att domänen är vår.
-  if (channel !== 'Web') {
-    const nativeApiOrigins = new Set([
-      'https://api.viaeats.se',
-      parseOrigin(getPublicApiBaseUrl()),
-    ].filter((origin): origin is string => Boolean(origin)));
-    if (
-      !nativeApiOrigins.has(parsed.origin) ||
-      parsed.pathname !== '/api/payments/return' ||
-      parsed.searchParams.get('app') !== 'viaeats'
-    ) {
-      return null;
-    }
-  }
-
-  return parsed.toString();
 }
 
 /**
@@ -278,6 +212,9 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
     // utelämnar (→ 'Web'). Måste matcha SDK:n annars failar /sessions/setup.
     const adyenChannel: 'Web' | 'iOS' | 'Android' =
       channel === 'iOS' || channel === 'Android' ? channel : 'Web';
+    // Restaurangdomäner från admin ska vara med i allowlistan. Färsk bild
+    // returneras direkt, så det här kostar ingen databasfråga per betalning.
+    await ensureRestaurantDomains();
     const verifiedReturnUrl = safePaymentReturnUrl(returnUrl, adyenChannel);
     if (!verifiedReturnUrl) {
       res.status(400).json({ error: 'Ogiltig returadress för betalningen' });
@@ -295,6 +232,13 @@ router.post('/create', createLimiter, authenticateUserOptional, async (req: any,
     if (!ownsPaymentOrder(req, order, accessToken)) {
       // Samma svar som för ett okänt id — avslöja inte att ordern finns.
       res.status(404).json({ error: 'Order hittades inte' });
+      return;
+    }
+    // En restaurangs sajt får bara ta emot kunder som betalat för en order hos
+    // just den restaurangen. Annars kunde en order skickas tillbaka till en
+    // annan restaurangs domän.
+    if (!paymentReturnMatchesRestaurant(verifiedReturnUrl, order.restaurant?.slug)) {
+      res.status(400).json({ error: 'Ogiltig returadress för betalningen' });
       return;
     }
     if (storePaymentMethod && (!req.user?.id || req.user.id !== order.userId)) {

@@ -237,3 +237,37 @@ export const searchCompaniesByName = (query: string) =>
 
 export const lookupCompanyByOrgNumber = (orgNumber: string) =>
   apiPost<CompanyLookupResult>("/admin/company-lookup", { orgNumber });
+
+// Restaurangens egna domäner (fas 3). Backend: /api/admin/restaurant-domains.
+export interface RestaurantDomain {
+  id: string;
+  restaurantId: string;
+  host: string;
+  isPrimary: boolean;
+  menuPath: string;
+  embedEnabled: boolean;
+  createdAt: string;
+}
+
+export const restaurantDomainsQueryKey = (restaurantId: string) => ["restaurants", "domains", restaurantId] as const;
+
+export async function getRestaurantDomains(restaurantId: string) {
+  const data = await apiGet<{ domains: RestaurantDomain[] }>(
+    `/admin/restaurant-domains?restaurantId=${encodeURIComponent(restaurantId)}`,
+  );
+  return data.domains;
+}
+
+export async function createRestaurantDomain(payload: { restaurantId: string; host: string; menuPath?: string }) {
+  const data = await apiPost<{ domain: RestaurantDomain }>("/admin/restaurant-domains", payload);
+  return data.domain;
+}
+
+export async function updateRestaurantDomain(id: string, patch: { isPrimary?: true; embedEnabled?: boolean; menuPath?: string }) {
+  const data = await apiPatch<{ domain: RestaurantDomain }>(`/admin/restaurant-domains/${encodeURIComponent(id)}`, patch);
+  return data.domain;
+}
+
+export async function deleteRestaurantDomain(id: string) {
+  return apiDelete<{ ok: boolean }>(`/admin/restaurant-domains/${encodeURIComponent(id)}`);
+}

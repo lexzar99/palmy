@@ -321,6 +321,28 @@ köras med `EXPECT_PRELAUNCH_MODE=0`.
 
 Om ett steg avviker: avbryt. Försök inte reparera genom `db push`.
 
+## Restaurangdomäner (fas 3), 2026-11-03
+
+Fil: `packages/api/prisma/migrations_manual/20261103_restaurant_domains.sql`.
+Additiv: en ny tabell `RestaurantDomain` och en seed med dagens partnerdomäner
+(Palmyra, Freds, Eld & Vin och Ramis). Filen går att köra flera gånger.
+
+API:t klarar sig utan tabellen och använder då de hårdkodade listorna, så filen
+kan köras före eller efter deploy. Kör den ändå före deploy:
+
+1. Ta backup.
+2. Kör filen med `railway run` + `psql -v ON_ERROR_STOP=1 -f <fil>`.
+3. Läs SELECT-utdatan längst ned. Varje restaurang med egen sajt ska ha minst en
+   rad. När tabellen finns är den ensam källa för kioskbevisen. En restaurang
+   utan rad får därför inget bevis, och dess kassa stoppas. Seeden hoppar tyst
+   över sluggar som inte finns i databasen.
+4. Inom en minut gäller tabellen i API:t. Nya domäner läggs därefter in i admin
+   under restaurangens "Domäner".
+5. `KIOSK_RESTAURANT_SLUGS` behövs då bara för menyer som bäddas in på viaeats
+   egna sidor (studiodemona på viaeats.se/demo).
+
+Återställning: `DROP TABLE "RestaurantDomain";`. API:t går då tillbaka till listorna.
+
 ## Permanent Prisma-baseline efter launch-patchen
 
 Det här görs i ett eget, granskat underhållsarbete — inte samtidigt som en

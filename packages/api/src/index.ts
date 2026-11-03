@@ -40,6 +40,7 @@ import homeCategoriesRoutes from './routes/homeCategories';
 import launchRoutes from './routes/launch';
 import partnerApplicationsRoutes from './routes/partnerApplications';
 import partnerMeetingsRoutes, { partnerMeetingsAdminRouter } from './routes/partnerMeetings';
+import embedPartnerRoutes, { restaurantDomainsAdminRouter } from './routes/restaurantDomains';
 import offerStatsRoutes, { offerStatsAdminRouter } from './routes/offerStats';
 import orderRoutes from './routes/orders';
 import adminRoutes from './routes/admin';
@@ -89,7 +90,8 @@ import { startPaymentReconciliation } from './lib/payments/reconcile';
 import { startLiveActivityFinalizer } from './lib/liveActivityFinalize';
 import { logApnsBootStatus } from './lib/liveActivityPush';
 import { checkAllRestaurantsStatus } from './lib/restaurantStatus';
-import { isOriginAllowed } from './lib/config';
+import { isOriginAllowedFresh } from './lib/config';
+import { kioskRestaurantAllowed, startRestaurantDomainRefresh } from './lib/restaurantDomains';
 import { ensureDefaultHomeCategorySections } from './lib/homeCategorySections';
 import { resolveAdminSessionFromToken } from './middleware/auth';
 import prisma from './lib/prisma';
@@ -130,17 +132,23 @@ const corsOptions: cors.CorsOptions = {
     //  - Browser-origin måste finnas exakt i allow-listan.
     //  - Dev tillåter även localhost/192.168.*.
     //  - Server/native/webhook utan Origin tillåts; de autentiseras separat.
-    if (isOriginAllowed(origin)) {
-      callback(null, true);
-    } else {
-      // VIKTIGT: callback(null, false) istället för callback(new Error(...)).
-      // Error propagerar upp som 500 internal server error i Express (synligt
-      // i Sentry/Railway-logs som "uncaught"), och klienten ser "Kan inte
-      // nå servern". `false` returnerar bara request UTAN CORS-headers,
-      // browsern blockar då med en ren CORS-error utan att backend kraschar.
-      console.warn(`🚫 CORS blocked origin: ${origin || '(missing)'}`);
-      callback(null, false);
-    }
+    //  - Restaurangdomäner från admin läses om när bilden är äldre än 60 s.
+    //
+    // VIKTIGT: callback(null, false) istället för callback(new Error(...)).
+    // Error propagerar upp som 500 internal server error i Express (synligt
+    // i Sentry/Railway-logs som "uncaught"), och klienten ser "Kan inte
+    // nå servern". `false` returnerar bara request UTAN CORS-headers,
+    // browsern blockar då med en ren CORS-error utan att backend kraschar.
+    isOriginAllowedFresh(origin)
+      .catch(() => false)
+      .then((allowed) => {
+        if (allowed) {
+          callback(null, true);
+          return;
+        }
+        console.warn(`🚫 CORS blocked origin: ${origin || '(missing)'}`);
+        callback(null, false);
+      });
   },
   credentials: true,
 };
@@ -382,13 +390,9 @@ const requirePrelaunchCheckoutAccess: express.RequestHandler = (req, res, next) 
   if (validPrelaunchProof(req.header(PRELAUNCH_ACCESS_HEADER))) return next();
   const kioskRestaurantSlug = validKioskAccessProof(req.header(KIOSK_ACCESS_HEADER));
   if (kioskRestaurantSlug) {
-    const kioskAllowedRestaurants = new Set(
-      String(process.env.KIOSK_RESTAURANT_SLUGS || 'palmyra-pizzeria-lund')
-        .split(',')
-        .map((slug) => slug.trim())
-        .filter(Boolean),
-    );
-    if (!kioskAllowedRestaurants.has(kioskRestaurantSlug)) {
+    // Aktiv domän i RestaurantDomain, eller KIOSK_RESTAURANT_SLUGS så länge
+    // tabellen saknas (se lib/restaurantDomains.ts).
+    if (!kioskRestaurantAllowed(kioskRestaurantSlug)) {
       res.status(403).json({ error: 'KIOSK_RESTAURANT_NOT_ALLOWED' });
       return;
     }
@@ -493,6 +497,8 @@ app.use('/api/launch', launchRoutes);
 app.use('/api/partner-applications', partnerApplicationsRoutes);
 app.use('/api/partner-meetings', partnerMeetingsRoutes);
 app.use('/api/admin/partner-meetings', partnerMeetingsAdminRouter);
+app.use('/api/embed', embedPartnerRoutes);
+app.use('/api/admin/restaurant-domains', restaurantDomainsAdminRouter);
 app.use('/api/offer-stats', offerStatsRoutes);
 app.use('/api/admin/offer-stats', offerStatsAdminRouter);
 
@@ -696,6 +702,8 @@ const PORT = Number(process.env.PORT || 4000);
   // therefore cannot be swallowed by menu prewarm, watchdog or mail setup;
   // its local heartbeat makes /ready fail until notification delivery recovers.
   startMetaPurchaseWorker();
+  // Restaurangdomänerna (fas 3) hålls varma i minnet för CORS och kioskbevis.
+  startRestaurantDomainRefresh();
   try {
     startCustomerNotificationWorkers();
     console.log('🔔 Customer notification workers started');

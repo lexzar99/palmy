@@ -2,6 +2,7 @@
 // This module will throw at startup if critical env vars are missing in production.
 
 import crypto from 'crypto';
+import { ensureRestaurantDomains, restaurantDomainOrigins } from './restaurantDomains';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -85,6 +86,9 @@ export const DEFAULT_ORIGINS = [
   'https://viaeats-web-pi.vercel.app',
   // Partner-sajter (powered by ViaEats): restaurangernas egna domäner som
   // läser publik data (meny/öppetstatus) direkt från API:t i browsern.
+  // RESERV under övergången till fas 3: nya domäner läggs i admin
+  // (RestaurantDomain) och ska aldrig läggas till här. Listan tas bort när
+  // tabellen är skapad och raderna kontrollerade i produktion.
   'https://palmyrapizzeria.se',
   'https://www.palmyrapizzeria.se',
   'https://fredspizza.se',
@@ -100,6 +104,8 @@ export const getAllowedOrigins = (): string[] => {
     ...DEFAULT_ORIGINS,
     ...(isProduction ? [] : DEV_ORIGINS),
     ...ALLOWED_ORIGINS,
+    // Restaurangernas domäner från admin. Bara exakt https://<host>.
+    ...restaurantDomainOrigins(),
   ];
 };
 
@@ -142,4 +148,19 @@ export function isOriginAllowed(origin: string | undefined): boolean {
   }
 
   return false;
+}
+
+/**
+ * Som isOriginAllowed, men läser om restaurangdomänerna om bilden är äldre än
+ * 60 s innan en okänd origin nekas. Kända origins svarar direkt, så viaeats egna
+ * sidor väntar aldrig på databasen.
+ */
+export async function isOriginAllowedFresh(origin: string | undefined): Promise<boolean> {
+  if (isOriginAllowed(origin)) return true;
+  try {
+    await ensureRestaurantDomains();
+  } catch {
+    return false;
+  }
+  return isOriginAllowed(origin);
 }

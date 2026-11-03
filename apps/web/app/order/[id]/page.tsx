@@ -25,6 +25,7 @@ import {
   rememberEmbedOrder,
   trustedPartnerOrigin,
   partnerMenuPath,
+  verifyEmbedParentOrigin,
 } from "@/lib/embedPartner";
 import { orderTrackingCopy, orderTrackingProgress } from "@/lib/orderTrackingPresentation";
 import PhoneAuth from "@/components/PhoneAuth";
@@ -187,16 +188,21 @@ const OrderStatusPage = () => {
     // en top-level ViaEats-sida. För en registrerad partner återställs då
     // restaurangens skal, som i sin tur laddar ordern i iframe:n.
     if (embedded && window.parent === window && orderId) {
-      const partnerOrigin =
-        trustedPartnerOrigin(params.get(EMBED_PARENT_ORIGIN_PARAM)) ||
-        readEmbedParentOrigin() ||
-        partnerOriginForRestaurant(restaurantSlug);
-      if (partnerOrigin) {
-        const partnerReturn = new URL(partnerMenuPath(partnerOrigin), partnerOrigin);
-        partnerReturn.searchParams.set("order", orderId);
-        partnerReturn.searchParams.set("restaurant", restaurantSlug);
-        window.location.replace(partnerReturn.toString());
-      }
+      const candidate = params.get(EMBED_PARENT_ORIGIN_PARAM);
+      void (async () => {
+        // En domän från admin är okänd för den här fliken tills servern bekräftat den.
+        const partnerOrigin =
+          trustedPartnerOrigin(candidate) ||
+          (await verifyEmbedParentOrigin(restaurantSlug, candidate)) ||
+          readEmbedParentOrigin() ||
+          partnerOriginForRestaurant(restaurantSlug);
+        if (partnerOrigin) {
+          const partnerReturn = new URL(partnerMenuPath(partnerOrigin), partnerOrigin);
+          partnerReturn.searchParams.set("order", orderId);
+          partnerReturn.searchParams.set("restaurant", restaurantSlug);
+          window.location.replace(partnerReturn.toString());
+        }
+      })();
     }
   }, [orderId]);
   const embedMenuHref = embedRestaurant ? `/embed/${encodeURIComponent(embedRestaurant)}` : "/";
