@@ -229,11 +229,24 @@ ul, ol { list-style: none; padding: 0; }
 /* ---------- Mobil ---------- */
 @media (max-width: 700px) {
   body { font-size: 16px; }
-  .hero { min-height: 0; justify-content: flex-start; gap: 26px; padding-top: calc(96px + env(safe-area-inset-top, 0px)); }
-  .hero__title { font-size: clamp(42px, 14.2vw, 96px); white-space: nowrap; }
+  /* Allt i första vyn: rubrik, pizzadisk, text och knapp. Disken tar det utrymme som blir över. */
+  .hero { height: 100svh; min-height: 520px; justify-content: flex-start; gap: 16px; padding: calc(84px + env(safe-area-inset-top, 0px)) 0 calc(16px + env(safe-area-inset-bottom, 0px)); }
+  .hero__title { margin-top: 12px; font-size: clamp(40px, 13.4vw, 96px); white-space: nowrap; }
   .hero__lede { font-size: 16px; }
-  .hero__row .btn { flex: 1 1 100%; }
-  .disk__tile { width: 37vw; }
+  .hero__more { display: none; }
+  .hero__row { gap: 14px; }
+  .hero__row .btn { flex: 1 1 100%; min-height: 58px; }
+  .disk { flex: 1 1 0; min-height: 0; grid-template-rows: repeat(2, minmax(0, 46vw)); align-content: center; }
+  .hero .kicker { font-size: 12px; letter-spacing: 0.1em; white-space: nowrap; }
+  .disk__row { height: 100%; }
+  .disk__tile { width: auto; height: 100%; }
+}
+/* Låga skärmar (iPhone SE med webbläsarlister): en rad pizzor räcker */
+@media (max-width: 700px) and (max-height: 700px) {
+  .disk__row--back { display: none; }
+  .disk { grid-template-rows: minmax(0, 52vw); }
+}
+@media (max-width: 700px) {
   .manifest, .board, .more, .hours { background: var(--paper); color: var(--ink); }
 .manifest { padding: 90px var(--gutter) 110px; }
   .board__head { flex-direction: column; align-items: flex-start; gap: 8px; }
