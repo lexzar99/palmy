@@ -95,21 +95,6 @@ export function MetricCard({
   );
 }
 
-/** Small orange/green sparkline for KPI cards. `tone` picks the stroke colour. */
-export function Sparkline({ points, tone = "accent" }: { points: string; tone?: "accent" | "success" }) {
-  return (
-    <svg width="64" height="30" viewBox="0 0 64 30" fill="none" aria-hidden>
-      <polyline
-        points={points}
-        stroke={tone === "success" ? "var(--success)" : "var(--accent)"}
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 export function Button({
   variant = "secondary",
   loading = false,
@@ -134,10 +119,6 @@ export function Button({
       {children}
     </button>
   );
-}
-
-export function IconButton({ className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return <button {...props} className={cn("icon-button", className)} />;
 }
 
 export function Badge({ tone = "neutral", children }: { tone?: "neutral" | "success" | "danger" | "warning" | "info"; children: React.ReactNode }) {

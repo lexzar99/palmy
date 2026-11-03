@@ -70,18 +70,6 @@ export interface CreatePersonalDealPayload {
   validUntil?: string | null;
 }
 
-export const createPersonalDeal = (payload: CreatePersonalDealPayload) =>
-  apiPost<{ id: string; title: string }>("/admin/deals", {
-    ...payload,
-    // Personal template = används bara av referral, syns inte publikt.
-    isPersonalTemplate: true,
-    showOnSite: false,
-    popupEnabled: false,
-    isActive: true,
-    isGlobal: true,
-    triggerType: "NONE",
-  });
-
 // ────────────────────────────────────────────────────────────────────────────
 // Referrals list — paginerad
 // ────────────────────────────────────────────────────────────────────────────
@@ -141,8 +129,6 @@ export const getReferrals = (params: ReferralsListParams) => {
 
 export const referralDetailQueryKey = (id: string | null) =>
   ["marketing-referrals", "detail", id] as const;
-
-export const getReferral = (id: string) => apiGet<ReferralRecord>(`/admin/referrals/${id}`);
 
 export const revertReferral = (id: string, reason: string) =>
   apiPost<{ success: boolean }>(`/admin/referrals/${id}/revert`, { reason });

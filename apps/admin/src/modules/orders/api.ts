@@ -140,8 +140,6 @@ export const updateOrderStatus = (orderId: string, status: string, estimatedTime
     estimatedTime: estimatedTime ?? undefined,
   });
 
-export const updateOrder = (orderId: string, payload: Partial<AdminOrder>) => apiPatch<AdminOrder>(`/admin/orders/${orderId}`, payload);
-
 export const refundOrder = (orderId: string, amount?: number | null, reason?: string) =>
   apiPost<{
     success: boolean;

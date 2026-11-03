@@ -126,9 +126,6 @@ export type R2AutoMatchResult = {
 export const r2AutoMatch = (restaurantId: string, dryRun: boolean) =>
   apiPost<R2AutoMatchResult>("/admin/images/auto-match", { restaurantId, dryRun });
 
-export const r2ListImages = (prefix: string) =>
-  apiGet<Array<{ key: string; url: string; size: number; lastModified?: string }>>(`/admin/images/list?prefix=${encodeURIComponent(prefix)}`);
-
 export type R2PathsTemplate = {
   restaurant: { name: string; slug: string };
   city: { slug: string };

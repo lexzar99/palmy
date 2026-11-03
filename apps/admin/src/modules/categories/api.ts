@@ -124,5 +124,3 @@ export const createRestaurantTag = (payload: RestaurantTagPayload & { name: stri
   apiPost<RestaurantTag>("/restaurant-tags", payload);
 export const updateRestaurantTag = (id: string, payload: RestaurantTagPayload) =>
   apiPatch<RestaurantTag>(`/restaurant-tags/${id}`, payload);
-export const deleteRestaurantTag = (id: string) =>
-  apiDelete<{ ok: true }>(`/restaurant-tags/${id}`);

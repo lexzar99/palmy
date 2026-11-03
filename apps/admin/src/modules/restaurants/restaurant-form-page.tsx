@@ -1278,7 +1278,7 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
       {/* Support-anteckningar ligger under huvudlayouten så de inte skapar en
           lång, tom vänsterspalt i den primära restauranginformationen. */}
       {tab === "info" && !isCreate && restaurantId ? (
-        <RestaurantDomainsPanel restaurantId={restaurantId} />
+        <RestaurantDomainsPanel restaurantId={restaurantId} restaurantSlug={detailData?.slug} />
       ) : null}
 
       {tab === "info" && !isCreate && restaurantId ? (

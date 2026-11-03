@@ -10,7 +10,6 @@ import {
   CalendarClock,
   CircleDollarSign,
   ClipboardList,
-  Code2,
   ContactRound,
   Footprints,
   Gauge,
@@ -76,7 +75,6 @@ export const ADMIN_ROUTES: AdminRouteDefinition[] = [
   route({ id: "menu", href: "/menu", label: "Menyer", icon: MenuSquare, section: "partners", keywords: "rätter produkter items katalog" }),
   route({ id: "zones", href: "/zones", label: "Leveransområden", shortLabel: "Zoner", icon: Map, section: "partners", keywords: "leverans zone stad city karta" }),
   route({ id: "restaurant-devices", href: "/restaurant-devices", label: "Restaurangenheter", shortLabel: "Enheter", icon: Tablet, section: "partners", keywords: "terminal pos surfplatta pairing" }),
-  route({ id: "embeds", href: "/embeds", label: "Meny på egen hemsida", shortLabel: "Hemsidemeny", icon: Code2, section: "partners", keywords: "embed partner meny kiosk hemsida" }),
   route({ id: "receipts", href: "/receipts", label: "Kvitto & utskrift", icon: ReceiptText, section: "partners", keywords: "restaurangkvitto skrivare print mall" }),
 
   route({ id: "customers", href: "/customers", label: "Kunder", icon: ContactRound, section: "customers-support", keywords: "kund sök lookup gdpr support" }),
@@ -138,6 +136,3 @@ export function isActiveAdminHref(pathname: string, href: string): boolean {
   return pathname === path || pathname.startsWith(`${path}/`);
 }
 
-export function getAdminRoute(id: string): AdminRouteDefinition | undefined {
-  return ADMIN_ROUTES.find((item) => item.id === id);
-}

@@ -85,6 +85,3 @@ export const uploadTerminalRelease = (
 
 export const activateTerminalRelease = (id: string) =>
   apiPost<{ release: TerminalAppRelease; warning?: string }>(`/admin/terminal-releases/${id}/activate`);
-
-export const deleteTerminalRelease = (id: string) =>
-  apiDelete<{ success: boolean }>(`/admin/terminal-releases/${id}`);

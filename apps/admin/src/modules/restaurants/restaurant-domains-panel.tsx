@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Globe, Star, Trash2 } from "lucide-react";
+import { Check, Copy, ExternalLink, Globe, Star, Trash2 } from "lucide-react";
 import { getStoredAdmin } from "@/shared/auth/storage";
 import { Badge, Button, Input, Toggle } from "@/shared/components/ui";
 import {
@@ -19,11 +19,12 @@ import {
  * menyn i iframen, kassan och betalningsreturen, utan kodändring och deploy.
  * Backend: packages/api/src/routes/restaurantDomains.ts. Bara superadmin.
  */
-export function RestaurantDomainsPanel({ restaurantId }: { restaurantId: string }) {
+export function RestaurantDomainsPanel({ restaurantId, restaurantSlug }: { restaurantId: string; restaurantSlug?: string | null }) {
   const queryClient = useQueryClient();
   const isSuperAdmin = getStoredAdmin()?.role === "SUPER_ADMIN";
   const [host, setHost] = useState("");
   const [menuPath, setMenuPath] = useState("/meny");
+  const [copied, setCopied] = useState(false);
   const key = restaurantDomainsQueryKey(restaurantId);
 
   const domains = useQuery({
@@ -61,6 +62,19 @@ export function RestaurantDomainsPanel({ restaurantId }: { restaurantId: string 
 
   const list: RestaurantDomain[] = domains.data || [];
   const tableMissing = (domains.error as { response?: { status?: number } } | null)?.response?.status === 503;
+
+  // Samma kod som sites/_kit/menu-page.html. Den ersätter den gamla sidan
+  // "Meny på egen hemsida", som gav kod till det pensionerade /partner/embed.js.
+  const snippet = restaurantSlug
+    ? `<div data-viaeats-menu="${restaurantSlug}" data-viaeats-back="/"></div>\n<script src="https://www.viaeats.se/embed.js" defer></script>`
+    : "";
+  const copySnippet = async () => {
+    try {
+      await navigator.clipboard.writeText(snippet);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch { /* urklipp blockerat: koden går att markera i rutan */ }
+  };
 
   const confirmRemove = (domain: RestaurantDomain) => {
     if (window.confirm(`Ta bort ${domain.host}? Menyn och kassan slutar fungera på den domänen inom en minut.`)) {
@@ -168,6 +182,35 @@ export function RestaurantDomainsPanel({ restaurantId }: { restaurantId: string 
           )}
         </>
       )}
+
+      {snippet ? (
+        <div className="grid gap-2 border-t border-[var(--row-divider)] pt-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-[var(--text-secondary)]">Embed-kod till sajtens menysida</p>
+            <div className="flex items-center gap-3">
+              <a
+                href={`https://www.viaeats.se/embed/${encodeURIComponent(restaurantSlug || "")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              >
+                <ExternalLink size={12} /> Förhandsgranska
+              </a>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                onClick={() => void copySnippet()}
+              >
+                {copied ? <Check size={12} /> : <Copy size={12} />} {copied ? "Kopierad" : "Kopiera"}
+              </button>
+            </div>
+          </div>
+          <pre className="overflow-x-auto rounded-xl bg-[#17130f] p-3 text-[11px] leading-relaxed text-white"><code>{snippet}</code></pre>
+          <p className="text-[11px] text-[var(--text-muted)]">
+            Koden fungerar bara på domäner som står i listan ovan.
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }

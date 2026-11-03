@@ -31,16 +31,6 @@ export const num = (value: number | null | undefined) => {
 
 export const kr = (value: number | null | undefined) => `${num(value)} kr`;
 
-/**
- * Avrundat belopp för översiktens stora tal, där hela kronor läser bättre än
- * öre. Används aldrig i en kolumn som ska summera.
- */
-export const krCompact = (value: number | null | undefined) => {
-  const numeric = Number(value || 0);
-  const formatted = group(Math.abs(Math.round(numeric)).toLocaleString("sv-SE"));
-  return `${numeric < 0 ? "−" : ""}${formatted} kr`;
-};
-
 /** Justeringar visas alltid med tecken, så riktningen syns direkt. */
 export const signed = (value: number | null | undefined) => {
   const numeric = Number(value || 0);

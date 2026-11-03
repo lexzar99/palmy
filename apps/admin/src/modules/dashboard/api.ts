@@ -251,17 +251,6 @@ export const healthQueryKey = ["dashboard", "health"] as const;
 // Lättviktig restauranglista för scope-väljaren (samma endpoint som menyn).
 export interface RestaurantRef { id: string; name: string }
 export const restaurantRefsQueryKey = ["dashboard", "restaurant-refs"] as const;
-export const getRestaurantRefs = () => apiGet<RestaurantRef[]>("/restaurants");
-
-export const getControlCenter = (params: ControlCenterParams = {}) => {
-  const search = new URLSearchParams();
-  if (params.restaurantId) search.set("restaurantId", params.restaurantId);
-  if (params.period && params.period !== "thisMonth") search.set("period", params.period);
-  const qs = search.toString();
-  return apiGet<ControlCenterData>(`/admin/control-center${qs ? `?${qs}` : ""}`);
-};
-
-export const getSystemHealth = () => apiGet<SystemHealth>("/admin/system/health");
 
 export interface CustomerOverview {
   totalCustomers: number;
@@ -277,7 +266,6 @@ export interface CustomerOverview {
 }
 
 export const customerOverviewQueryKey = ["dashboard", "customer-overview"] as const;
-export const getCustomerOverview = () => apiGet<CustomerOverview>("/admin/customers/overview");
 
 export interface LaunchCampaignData {
   days: 7 | 30 | 90;
@@ -329,17 +317,6 @@ export const setLaunchCouponManualStatus = (leadId: string, sent: boolean) =>
     `/admin/launch-campaign/${leadId}/coupon-status`,
     { sent },
   );
-
-export const updateRestaurantLiveState = (restaurantId: string, acceptingOrdersMode: AcceptingOrdersMode) =>
-  apiPatch(`/restaurants/${restaurantId}`, {
-    acceptingOrdersMode,
-    // Snabbval är ett nytt, permanent beslut. Rensa en eventuell utgången
-    // tidsgräns så det valda läget faktiskt träder i kraft.
-    acceptingOrdersOverrideUntil: null,
-    acceptingOrdersOverrideReason: acceptingOrdersMode === "SCHEDULED"
-      ? null
-      : "Ändrad från operationsöversikten",
-  });
 
 // ── Leveranstider (internt underlag, visas inte för kund) ───────────────────
 export interface DeliveryTimingRestaurantRow {

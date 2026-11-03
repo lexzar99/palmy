@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@/shared/api/client";
+import { apiGet, apiPut } from "@/shared/api/client";
 
 export type ReceiptAlign = "left" | "center" | "right";
 export type ReceiptWeight = "normal" | "bold" | "black";
@@ -69,9 +69,6 @@ export const receiptPreviewDataQueryKey = (orderId: string | null) => ["receipts
 
 export const getPrintingConfig = () => apiGet<PrintingConfig>("/admin/printing/config");
 export const updateReceiptTemplate = (payload: ReceiptTemplate) => apiPut<ReceiptTemplate>("/admin/printing/receipt-template", payload);
-export const createPrinter = (payload: Record<string, unknown>) => apiPost<PrinterRecord>("/admin/printing/printers", payload);
-export const updatePrinter = (printerId: string, payload: Record<string, unknown>) => apiPatch<PrinterRecord>(`/admin/printing/printers/${printerId}`, payload);
-export const deletePrinter = (printerId: string) => apiDelete<{ success: boolean }>(`/admin/printing/printers/${printerId}`);
 export const getPreviewOrders = async () => {
   const response = await apiGet<{ orders: ReceiptPreviewOption[] }>("/admin/orders?limit=20");
   return response.orders;

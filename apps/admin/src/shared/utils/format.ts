@@ -140,7 +140,3 @@ export const restaurantTierLabel = (tier: number | null | undefined) => {
   }
 };
 
-export const shortText = (value: string | null | undefined, max = 90) => {
-  if (!value) return "-";
-  return value.length > max ? `${value.slice(0, max)}...` : value;
-};

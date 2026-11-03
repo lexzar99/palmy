@@ -1,7 +1,6 @@
 "use client";
 
-import type { SelectHTMLAttributes } from "react";
-import { Badge, Select } from "@/shared/components/ui";
+import { Badge } from "@/shared/components/ui";
 import {
   acceptingOrdersModeLabel,
   availabilityReasonLabel,
@@ -9,31 +8,6 @@ import {
   type RestaurantAvailabilityReason,
 } from "@/shared/contracts/restaurants";
 import { cn } from "@/shared/utils/cn";
-
-type ModeSelectProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, "value" | "onChange" | "children"> & {
-  value: AcceptingOrdersMode;
-  onValueChange: (value: AcceptingOrdersMode) => void;
-  compactLabels?: boolean;
-};
-
-export function AcceptingOrdersModeSelect({
-  value,
-  onValueChange,
-  compactLabels = false,
-  ...props
-}: ModeSelectProps) {
-  return (
-    <Select
-      {...props}
-      value={value}
-      onChange={(event) => onValueChange(event.target.value as AcceptingOrdersMode)}
-    >
-      <option value="SCHEDULED">{compactLabels ? "Följ schema" : acceptingOrdersModeLabel.SCHEDULED}</option>
-      <option value="FORCE_OPEN">{acceptingOrdersModeLabel.FORCE_OPEN}</option>
-      <option value="FORCE_CLOSED">{acceptingOrdersModeLabel.FORCE_CLOSED}</option>
-    </Select>
-  );
-}
 
 type ModeToggleProps = {
   value: AcceptingOrdersMode;

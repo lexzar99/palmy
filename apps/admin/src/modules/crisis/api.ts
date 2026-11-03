@@ -46,5 +46,3 @@ export interface HeroSettings {
   heroCtaLabel?: string | null;
   heroCtaUrl?: string | null;
 }
-export const updateHero = (payload: HeroSettings) =>
-  apiPatch<{ success: boolean }>("/settings", payload);
