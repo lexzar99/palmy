@@ -236,10 +236,11 @@ ul, ol { list-style: none; padding: 0; }
   .hero__more { display: none; }
   .hero__row { gap: 14px; }
   .hero__row .btn { flex: 1 1 100%; min-height: 58px; }
-  .disk { flex: 1 1 0; min-height: 0; grid-template-rows: repeat(2, minmax(0, 46vw)); align-content: center; }
+  /* Rutstorleken räknas fram i main.js ur det lediga utrymmet (--tile), så att båda raderna alltid ryms */
+  .disk { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; justify-content: center; }
   .hero .kicker { font-size: 12px; letter-spacing: 0.1em; white-space: nowrap; }
-  .disk__row { height: 100%; min-height: 0; }
-  .disk__tile { width: auto; height: 100%; }
+  .disk__row { flex: none; }
+  .disk__tile { width: var(--tile, 37vw); height: var(--tile, 37vw); }
 }
 @media (max-width: 700px) {
   .manifest, .board, .more, .hours { background: var(--paper); color: var(--ink); }

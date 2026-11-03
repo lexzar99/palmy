@@ -41,6 +41,17 @@ document.querySelectorAll("[data-disk]").forEach((row) => {
   const half = row.dataset.disk === "0" ? DISK.slice(0, 8) : DISK.slice(8);
   row.innerHTML = [...half, ...half].map((pizza, i) => tile(pizza, i >= 5)).join("");
 });
+// Mobil: båda raderna ska rymmas mellan rubriken och knappen. Safari räknar inte rutnätets höjder
+// som Chrome, så storleken mäts här i stället.
+const disk = document.querySelector(".disk");
+const fitDisk = () => {
+  if (!matchMedia("(max-width: 700px)").matches) { disk.style.removeProperty("--tile"); return; }
+  const gap = parseFloat(getComputedStyle(disk).rowGap) || 8;
+  const size = Math.max(70, Math.min(innerWidth * 0.46, (disk.clientHeight - gap) / 2));
+  disk.style.setProperty("--tile", `${Math.floor(size)}px`);
+};
+new ResizeObserver(fitDisk).observe(disk);
+fitDisk();
 document.querySelector("[data-final-grid]").innerHTML = [...DISK, ...DISK.slice(0, 8)].map(([file]) => `<img src="/img/disk/${file}.webp" alt="" loading="lazy" width="640" height="640" />`).join("");
 requestAnimationFrame(() => document.body.classList.add("is-loaded"));
 
