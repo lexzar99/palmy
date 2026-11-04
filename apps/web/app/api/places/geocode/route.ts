@@ -44,10 +44,15 @@ export async function GET(req: NextRequest) {
   try {
     const res = await fetch(`${API_URL}/api/places/geocode`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      // Kundens IP, så API:ts rate limit räknar per kund och inte per
+      // Vercel-IP som alla kunder delar.
+      headers: { "Content-Type": "application/json", "x-viaeats-client-ip": ip },
       body: JSON.stringify({ place_id, sessiontoken }),
     });
 
+    if (res.status === 429) {
+      return NextResponse.json({ error: "För många förfrågningar. Vänta lite." }, { status: 429 });
+    }
     if (!res.ok) throw new Error(`Backend ${res.status}`);
     const data = (await res.json()) as {
       location?: unknown;

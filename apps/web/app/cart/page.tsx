@@ -1022,8 +1022,16 @@ export default function CartPage() {
     const streetCheck = checkDeliveryStreet(street);
     if (!streetCheck.ok) {
       setFormData(prev => ({ ...prev, deliveryStreet: "", deliveryZip: "", deliveryCity: "" }));
-      setError(streetCheck.message);
       setAddressLoading(false);
+      // Ett gatuförslag utan husnummer: be om numret i stället för att säga
+      // "välj i listan" om något kunden just valde ur listan.
+      if (streetCheck.issue === "missing-house-number" && street.trim()) {
+        const route = street.trim();
+        setAddressInput(`${route} `);
+        setError(`Skriv ditt husnummer efter ${route}, till exempel ${route} 12.`);
+        return;
+      }
+      setError(streetCheck.message);
       return;
     }
     setError(null);
@@ -1033,8 +1041,15 @@ export default function CartPage() {
     setFormData(prev => ({ ...prev, deliveryStreet: street, deliveryZip: zipFallback }));
 
     try {
-      const res = await fetch(`/api/places/geocode?place_id=${pred.place_id}&sessiontoken=${sessionToken.current}`);
+      const res = await fetch(`/api/places/geocode?place_id=${encodeURIComponent(pred.place_id)}&sessiontoken=${sessionToken.current}`);
       const data = await res.json();
+      // Förut hände ingenting alls när koordinaterna inte gick att hämta —
+      // kunden valde, inget sparades och kassan sa sedan "välj i listan".
+      if (!data.location) {
+        setError(res.status === 429
+          ? "För många försök på kort tid. Vänta en stund och välj adressen igen."
+          : "Kunde inte hämta koordinater för adressen. Försök igen eller välj adressen på nytt.");
+      }
       if (data.location) {
         const coords = { lat: data.location.lat, lng: data.location.lng };
         // Prefer authoritative postalCode/city from Google address_component
@@ -1062,6 +1077,7 @@ export default function CartPage() {
       }
     } catch (err) {
       console.warn("Failed to load address coords:", err);
+      setError("Kunde inte hämta koordinater för adressen. Försök igen eller välj adressen på nytt.");
     } finally {
       setAddressLoading(false);
     }
@@ -1841,7 +1857,7 @@ export default function CartPage() {
             .then(data => {
               const bestMatch = data.predictions?.[0];
               if (bestMatch) {
-                return fetch(`/api/places/geocode?place_id=${bestMatch.place_id}&sessiontoken=${sessionToken.current}`);
+                return fetch(`/api/places/geocode?place_id=${encodeURIComponent(bestMatch.place_id)}&sessiontoken=${sessionToken.current}`);
               }
               throw new Error("No match");
             })
@@ -2790,7 +2806,7 @@ export default function CartPage() {
             (prediction: any) => isDeliverableStreet(String(prediction?.description || "").split(",")[0]),
           );
           if (bestMatch) {
-            const gRes = await fetch(`/api/places/geocode?place_id=${bestMatch.place_id}&sessiontoken=${sessionToken.current}`);
+            const gRes = await fetch(`/api/places/geocode?place_id=${encodeURIComponent(bestMatch.place_id)}&sessiontoken=${sessionToken.current}`);
             const gData = await gRes.json();
             if (gData.location) {
               lat = gData.location.lat;

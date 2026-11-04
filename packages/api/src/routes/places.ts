@@ -12,6 +12,7 @@ import { Router, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import { trackApiCall } from '../lib/apiHealth';
 import { isDeliverableStreet } from '../lib/deliveryAddress';
+import { trustedClientIp } from '../lib/edgeTrust';
 
 const router = Router();
 
@@ -279,50 +280,81 @@ async function googleReverse(lat: number, lng: number): Promise<ReverseResult | 
       console.error('[places] Google reverse error:', data.status, data.error_message || '');
       return null;
     }
-    const result = (data.results || [])[0];
-    if (!result) return null;
-
-    const components: any[] = result.address_components || [];
-    const get = (type: string) => components.find((c: any) => c.types.includes(type))?.long_name;
-    const route = get('route');
-    const num = get('street_number');
-    const zip = get('postal_code');
-    const city = get('postal_town') || get('locality') || get('sublocality');
-    // En nål mitt i ett fält reverse-geokodar till ett postnummerområde eller
-    // en plus-kod ("HWX2+X2 Malmö"), och den föll förut igenom som en giltig
-    // adress via formatted_address. Fallbacken finns kvar — landsbygdsadresser
-    // som "Gårdstånga 309" saknar ofta strukturerad route/street_number — men
-    // resultatet måste klara samma gatuadress-regel som ordern valideras mot.
-    const street = route && num
-      ? `${route} ${num}`
-      : String(result.formatted_address || '').split(',')[0].trim();
-    if (!isDeliverableStreet(street)) return null;
-    const zipCity = [zip, city].filter(Boolean).join(' ');
-    const address = [street, zipCity].filter(Boolean).join(', ');
-    return { address, postalCode: zip, city };
+    // Google sorterar det mest specifika först, men en nål på en gård utanför
+    // tätorten ger ofta en plus-kod eller ett postnummerområde som första
+    // träff och gatuadressen längre ner. Tidigare lästes bara första träffen,
+    // så nålen svarade "ingen gatuadress" fast Google hade en.
+    for (const result of data.results || []) {
+      const parsed = parseGoogleReverse(result);
+      if (parsed) return parsed;
+    }
+    return null;
   } catch {
     return null;
   }
 }
 
-// ── Per-IP rate limiters ─────────────────────────────────────────────────────
-const autocompleteLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000,  // 10 minutes
-  max: 60,                     // 60 autocomplete calls per 10 min per IP
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => req.ip || 'unknown',
-  message: { error: 'För många sökningar. Vänta lite och försök igen.' },
-});
+function parseGoogleReverse(result: any): ReverseResult | null {
+  const components: any[] = result.address_components || [];
+  const get = (type: string) => components.find((c: any) => c.types.includes(type))?.long_name;
+  const route = get('route');
+  const num = get('street_number');
+  const zip = get('postal_code');
+  const city = get('postal_town') || get('locality') || get('sublocality');
+  // En nål mitt i ett fält reverse-geokodar till ett postnummerområde eller
+  // en plus-kod ("HWX2+X2 Malmö"), och den föll förut igenom som en giltig
+  // adress via formatted_address. Fallbacken finns kvar — landsbygdsadresser
+  // som "Gårdstånga 309" saknar ofta strukturerad route/street_number — men
+  // resultatet måste klara samma gatuadress-regel som ordern valideras mot.
+  const street = route && num
+    ? `${route} ${num}`
+    : String(result.formatted_address || '').split(',')[0].trim();
+  if (!isDeliverableStreet(street)) return null;
+  const zipCity = [zip, city].filter(Boolean).join(' ');
+  const address = [street, zipCity].filter(Boolean).join(', ');
+  return { address, postalCode: zip, city };
+}
 
-const geocodeLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => req.ip || 'unknown',
-  message: { error: 'För många förfrågningar. Vänta lite och försök igen.' },
-});
+// ── Rate limiters ────────────────────────────────────────────────────────────
+// Webbens adressväljare når oss via Next-proxyn på Vercel, så `req.ip` är
+// Vercels utgående IP och inte kundens. Med 20 uppslag per 10 min nycklat på
+// den delade IP:n tog potten slut för alla kunder samtidigt: listval gav inga
+// koordinater och kartnålen svarade aldrig (Freds kunder i Tyringe nov 2026).
+//
+// Nu nycklas den finmaskiga gränsen på avsändar-IP + den kund-IP som proxyn
+// skickar i `x-viaeats-client-ip`. Headern går att förfalska, så den ger bara
+// en egen hink INOM avsändarens tak: varje avsändar-IP har dessutom ett högre
+// totaltak som ingen header tar sig förbi.
+const WINDOW_MS = 10 * 60 * 1000;
+
+function clientRateKey(req: Request): string {
+  const sender = trustedClientIp(req);
+  const raw = req.headers['x-viaeats-client-ip'];
+  const client = typeof raw === 'string' ? raw.trim().slice(0, 64) : '';
+  return client ? `${sender}|${client}` : sender;
+}
+
+function limiter(max: number, key: (req: Request) => string, error: string) {
+  return rateLimit({
+    windowMs: WINDOW_MS,
+    max,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: key,
+    message: { error },
+  });
+}
+
+const SEARCH_ERROR = 'För många sökningar. Vänta lite och försök igen.';
+const LOOKUP_ERROR = 'För många förfrågningar. Vänta lite och försök igen.';
+
+// Per kund.
+const autocompleteLimiter = limiter(120, clientRateKey, SEARCH_ERROR);
+const geocodeLimiter = limiter(60, clientRateKey, LOOKUP_ERROR);
+const reverseLimiter = limiter(120, clientRateKey, LOOKUP_ERROR);
+// Per avsändar-IP (proxyn delar den mellan alla kunder bakom samma IP).
+const senderAutocompleteLimiter = limiter(3000, trustedClientIp, SEARCH_ERROR);
+const senderLookupLimiter = limiter(2000, trustedClientIp, LOOKUP_ERROR);
 
 async function handleAutocomplete(input: string, sessiontoken: string | undefined, res: Response) {
   if (!input || input.length < 3) {
@@ -387,12 +419,12 @@ async function handleGeocode(place_id: string, sessiontoken: string | undefined,
   return res.json({ location: { lat, lng }, postalCode, city });
 }
 
-router.post('/autocomplete', autocompleteLimiter, async (req: Request, res: Response) => {
+router.post('/autocomplete', senderAutocompleteLimiter, autocompleteLimiter, async (req: Request, res: Response) => {
   const { input, sessiontoken } = req.body as { input?: string; sessiontoken?: string };
   return handleAutocomplete(input || '', sessiontoken, res);
 });
 
-router.get('/autocomplete', autocompleteLimiter, async (req: Request, res: Response) => {
+router.get('/autocomplete', senderAutocompleteLimiter, autocompleteLimiter, async (req: Request, res: Response) => {
   const input = (req.query.input as string) || '';
   const sessiontoken = (req.query.sessiontoken as string) || '';
   return handleAutocomplete(input, sessiontoken, res);
@@ -400,7 +432,7 @@ router.get('/autocomplete', autocompleteLimiter, async (req: Request, res: Respo
 
 // Reverse-geocode (lat/lng → adress) för den keyless kart-väljaren. Körs
 // server-side med Google-nyckeln → ingen browser-nyckel/referrer-krångel i prod.
-router.get('/reverse', geocodeLimiter, async (req: Request, res: Response) => {
+router.get('/reverse', senderLookupLimiter, reverseLimiter, async (req: Request, res: Response) => {
   const lat = Number(req.query.lat);
   const lng = Number(req.query.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
@@ -411,12 +443,12 @@ router.get('/reverse', geocodeLimiter, async (req: Request, res: Response) => {
   return res.json(result);
 });
 
-router.post('/geocode', geocodeLimiter, async (req: Request, res: Response) => {
+router.post('/geocode', senderLookupLimiter, geocodeLimiter, async (req: Request, res: Response) => {
   const { place_id, sessiontoken } = req.body as { place_id?: string; sessiontoken?: string };
   return handleGeocode(place_id || '', sessiontoken, res);
 });
 
-router.get('/geocode', geocodeLimiter, async (req: Request, res: Response) => {
+router.get('/geocode', senderLookupLimiter, geocodeLimiter, async (req: Request, res: Response) => {
   const place_id = (req.query.place_id as string) || '';
   const sessiontoken = (req.query.sessiontoken as string) || '';
   return handleGeocode(place_id, sessiontoken, res);

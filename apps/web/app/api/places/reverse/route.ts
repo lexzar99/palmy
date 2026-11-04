@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkGeocodeLimit } from "@/lib/mapsRateLimit";
+import { checkReverseLimit } from "@/lib/mapsRateLimit";
 import { isDeliverableStreet } from "@/lib/deliveryAddress";
 
 // Reverse-geocode (lat/lng → adress) server-side så ingen browser-nyckel behövs
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
     req.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
     req.headers.get("x-real-ip") ||
     "unknown";
-  const limit = checkGeocodeLimit(ip);
+  const limit = checkReverseLimit(ip);
   if (!limit.allowed) {
     return NextResponse.json(
       { error: "För många förfrågningar. Vänta lite." },
@@ -99,7 +99,10 @@ export async function GET(req: NextRequest) {
 
   // 2) Fallback: proxa till backend (har nyckeln i prod).
   try {
-    const res = await fetch(`${API_URL}/api/places/reverse?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`);
+    const res = await fetch(
+      `${API_URL}/api/places/reverse?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`,
+      { headers: { "x-viaeats-client-ip": ip } },
+    );
     // "Ingen gatuadress på den här punkten" är ett giltigt svar, inte ett
     // serverfel. Att kasta här gav 500 för varje nål ute på ett fält eller i
     // vattnet, vilket både larmade i felrapporteringen och dolde att kartan
@@ -108,6 +111,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(
         { address: null, postalCode: null, city: null },
         { status: 404 },
+      );
+    }
+    if (res.status === 429) {
+      return NextResponse.json(
+        { error: "För många förfrågningar. Vänta lite." },
+        { status: 429 },
       );
     }
     if (!res.ok) throw new Error(`Backend ${res.status}`);

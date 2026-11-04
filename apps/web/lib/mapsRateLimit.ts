@@ -3,7 +3,8 @@
  *
  * Strategy:
  *  • Per-IP sliding window for autocomplete (max 60 calls / 10 min)
- *  • Per-IP hard limit for geocode (max 20 calls / 10 min)
+ *  • Per-IP hard limit for geocode (max 60 calls / 10 min)
+ *  • Per-IP hard limit for reverse geocode / kartnål (max 120 calls / 10 min)
  *  • Global daily call counter (resets at midnight UTC)
  *  • Admin alert threshold: warn at 800 calls/day (Google free tier = 200$/month credit)
  *  • Any single IP that exhausts the per-IP limit gets flagged as "suspicious"
@@ -15,7 +16,13 @@
 const WINDOW_MS = 10 * 60 * 1000; // 10 minutes sliding window
 
 const AUTOCOMPLETE_LIMIT = 60;   // per IP per window
-const GEOCODE_LIMIT = 20;        // per IP per window
+// Gränsen var 20 och delades med kartnålen. En kund som flyttade nålen ett
+// tiotal gånger och sedan valde ett förslag fick 429 på allt: nålen sa "Dra
+// nålen till en byggnad" och listvalet gav inga koordinater. Freds kunder i
+// Tyringe fastnade där. Nålen har nu en egen pott och båda är tilltagna efter
+// hur en riktig kund använder adressväljaren.
+const GEOCODE_LIMIT = 60;        // per IP per window (listval → koordinater)
+const REVERSE_LIMIT = 120;       // per IP per window (kartnål → adress)
 const DAILY_WARN_THRESHOLD = 500; // global daily calls before admin warning
 
 interface WindowEntry {
@@ -26,6 +33,7 @@ interface WindowEntry {
 // Maps: ip → { count, windowStart }
 const autocompleteMap = new Map<string, WindowEntry>();
 const geocodeMap = new Map<string, WindowEntry>();
+const reverseMap = new Map<string, WindowEntry>();
 
 // Flagged IPs (abusive)
 export const flaggedIPs = new Set<string>();
@@ -124,6 +132,24 @@ export function checkGeocodeLimit(ip: string): {
   return { ...result, suspicious: flaggedIPs.has(ip) };
 }
 
+export function checkReverseLimit(ip: string): {
+  allowed: boolean;
+  remaining: number;
+  resetAt: number;
+  suspicious: boolean;
+} {
+  const result = checkWindow(reverseMap, ip, REVERSE_LIMIT);
+  if (!result.allowed) {
+    flaggedIPs.add(ip);
+    pushAlert(`IP ${ip} överskred kartnålsgränsen (${REVERSE_LIMIT} anrop / 10 min)`, ip);
+  }
+  if (result.allowed) {
+    dailyGeocode += 1;
+    checkDailyThreshold();
+  }
+  return { ...result, suspicious: flaggedIPs.has(ip) };
+}
+
 function checkDailyThreshold() {
   const total = dailyAutocomplete + dailyGeocode;
   if (!adminAlertSent && total >= DAILY_WARN_THRESHOLD) {
@@ -155,6 +181,7 @@ export function getUsageStats() {
     limits: {
       autocomplete: { perIP: AUTOCOMPLETE_LIMIT, windowMin: WINDOW_MS / 60000 },
       geocode: { perIP: GEOCODE_LIMIT, windowMin: WINDOW_MS / 60000 },
+      reverse: { perIP: REVERSE_LIMIT, windowMin: WINDOW_MS / 60000 },
     },
   };
 }

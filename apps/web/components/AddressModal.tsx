@@ -139,6 +139,12 @@ export default function AddressModal({
     setLoading(true);
     try {
       const res = await fetch(`/api/places/reverse?lat=${lat}&lng=${lng}`);
+      // Gränsen nådd är inte samma sak som "ingen adress här". Förut fick
+      // kunden rådet att dra nålen till en byggnad, vilket aldrig hjälpte.
+      if (res.status === 429) {
+        setError("För många försök på kort tid. Vänta en stund eller sök upp adressen i fältet ovan.");
+        return;
+      }
       const data = await res.json();
       // Servern svarar bara med en adress som har gata + husnummer. Allt annat
       // (postnummerområde, ortnamn) är inte leveransbart.
@@ -334,14 +340,28 @@ export default function AddressModal({
     if (!predictionCheck.ok) {
       setSelectedAddress(null);
       setSelectedCoords(null);
-      setError(predictionCheck.message);
       setLoading(false);
+      // Google föreslår ofta bara gatan ("Skälsbökevägen, Tyringe") när den
+      // inte känner till husnumret. Att då säga "välj i listan" om ett val
+      // ur listan lämnade kunden utan väg framåt. Lägg gatan i fältet och be
+      // om numret, så kommer ett förslag med husnummer.
+      if (predictionCheck.issue === "missing-house-number" && predictedStreet) {
+        const withSpace = `${predictedStreet} `;
+        setInput(withSpace);
+        setError(`Skriv ditt husnummer efter ${predictedStreet}, till exempel ${predictedStreet} 12.`);
+        return;
+      }
+      setError(predictionCheck.message);
       return;
     }
     try {
       const res = await fetch(
-        `/api/places/geocode?place_id=${pred.place_id}&sessiontoken=${sessionToken.current}`
+        `/api/places/geocode?place_id=${encodeURIComponent(pred.place_id)}&sessiontoken=${sessionToken.current}`
       );
+      if (res.status === 429) {
+        setError("För många försök på kort tid. Vänta en stund och välj adressen igen.");
+        return;
+      }
       if (!res.ok) throw new Error("Geocode failed");
       const data = await res.json();
       if (data.location) {

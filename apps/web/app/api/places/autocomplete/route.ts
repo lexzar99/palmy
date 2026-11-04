@@ -46,7 +46,9 @@ export async function GET(req: NextRequest) {
   try {
     const res = await fetch(`${API_URL}/api/places/autocomplete`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      // Kundens IP, så API:ts rate limit räknar per kund och inte per
+      // Vercel-IP som alla kunder delar.
+      headers: { "Content-Type": "application/json", "x-viaeats-client-ip": ip },
       body: JSON.stringify({ input, sessiontoken }),
     });
 
