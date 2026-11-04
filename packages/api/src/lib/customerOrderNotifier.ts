@@ -1,6 +1,7 @@
 import prisma from './prisma';
 import { pushLiveActivityForOrder } from './liveActivityDispatch';
 import { customerOrderNotificationAuditId, reviewPushId } from './notificationIds';
+import { outcomeBlocksReview, readOutcome } from './deliveryOutcome';
 import {
   enqueueCustomerNotification,
   ORDER_STATUS_NOTIFICATION_MAX_ATTEMPTS,
@@ -132,6 +133,12 @@ export async function dispatchCustomerOrderStatus(orderId: string, statusValue?:
     void pushLiveActivityForOrder(order.id, { serverStatus: status }).catch((error) =>
       console.warn('[customerOrderNotifier] Live Activity failed:', error?.message || error),
     );
+
+    // Ett öppet "Kunden gick inte att nå"-besked: ingen "Hoppas maten smakade!"
+    // och ingen betygspush när ordern avslutas. Kunden har redan fått beskedet.
+    if ((status === 'DELIVERED' || status === 'COMPLETED') && outcomeBlocksReview(await readOutcome(order.id))) {
+      return;
+    }
 
     const copy = customerOrderStatusCopy(status, order.type, order.estimatedTime, order.etaCustomerMin, Boolean(order.restaurant?.selfDelivery));
     if (!copy) return;

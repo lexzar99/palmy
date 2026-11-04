@@ -31,7 +31,7 @@ import { orderTrackingCopy, orderTrackingProgress } from "@/lib/orderTrackingPre
 import { customerOrderNumber } from "@/lib/orderNumber";
 import PhoneAuth from "@/components/PhoneAuth";
 import RestaurantContactBar from "@/components/order/RestaurantContactBar";
-import DeliveryOutcomeBanner from "@/components/order/DeliveryOutcomeBanner";
+import DeliveryOutcomeBanner, { deliveryOutcomeCopy } from "@/components/order/DeliveryOutcomeBanner";
 import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
 import { useDesignBackground } from "@/components/restaurant/useDesignBackground";
 import "@/components/restaurant/restaurant.css";
@@ -655,6 +655,11 @@ const OrderStatusPage = () => {
   const statusAccentInk = statusTone === "red" ? "#9A2A1F" : statusTone === "green" ? "#1F6B41" : statusTone === "yellow" ? "#8A5B00" : "#B23C12";
   const statusSoft = statusTone === "red" ? "#FCEBE9" : statusTone === "green" ? "#EAF7EF" : statusTone === "yellow" ? "#FFF7DB" : "#FFF0EA";
   const restName = order.restaurantName || "Restaurang";
+  // Restaurangens besked ("Kunden gick inte att nå") vinner över lägestexten,
+  // även när ordern avslutats efter 50 min. Rutan ligger kvar och betyget är spärrat.
+  const outcomeCopy = order.deliveryOutcome && !isRejected
+    ? deliveryOutcomeCopy(order.deliveryOutcome, restName, String(order.restaurantPhone || "").trim())
+    : null;
   const statusCopy = orderTrackingCopy(order);
   const cancelledCopy = (() => {
     switch (currentStatus) {
@@ -969,10 +974,10 @@ const OrderStatusPage = () => {
             {etaCaption || ph.label}
           </span>
           <h1 className="m-0 mt-3 text-[26px] font-semibold leading-[1.12]" style={{ letterSpacing: "-0.025em" }}>
-            {isRejected ? cancelledCopy.title : selfStage === "late" ? "Det tar lite längre än beräknat" : statusCopy.title}
+            {isRejected ? cancelledCopy.title : outcomeCopy ? outcomeCopy.title : selfStage === "late" ? "Det tar lite längre än beräknat" : statusCopy.title}
           </h1>
           <p className="m-0 mx-auto mt-2 max-w-[320px] text-[14.5px] leading-[1.45]" style={{ color: "rgba(255,255,255,0.78)" }}>
-            {isRejected ? cancelledCopy.description : statusDescription}
+            {isRejected ? cancelledCopy.description : outcomeCopy ? "Se beskedet från restaurangen nedan." : statusDescription}
           </p>
           {deliveryOverdue && <p className="m-0 mt-2 text-[12.5px] font-medium" style={{ color: "rgba(255,255,255,0.85)" }}>Hög belastning just nu</p>}
         </div>

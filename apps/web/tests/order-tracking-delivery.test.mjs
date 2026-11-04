@@ -40,3 +40,13 @@ test("beskedet från restaurangen kommer live och visas i alla vyer", () => {
   }
   assert.doesNotMatch(banner, /case "RESOLVED"/);
 });
+
+test("beskedet vinner över rubriken även när ordern är avslutad", () => {
+  assert.match(page, /outcomeCopy \? outcomeCopy\.title : selfStage === "late"/);
+  assert.match(page, /const outcomeCopy = order\.deliveryOutcome && !isRejected/);
+  // Kunden uppmanas kontakta restaurangen i alla besked.
+  for (const code of ["LEFT_AT_DOOR", "LEFT_WITH_NEIGHBOUR"]) {
+    const start = banner.indexOf(`case "${code}"`);
+    assert.match(banner.slice(start, banner.indexOf("case ", start + 6)), /Kontakta \$\{name\}/);
+  }
+});

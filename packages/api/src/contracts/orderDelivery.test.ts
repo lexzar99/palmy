@@ -92,7 +92,9 @@ assert.equal(outcomeIneligibleReason(base, marked, 'RESOLVED', now), null);
 
 assert.equal(outcomeBlocksReview(marked), true);
 assert.equal(outcomeBlocksReview({ code: 'REDELIVERING' }), true);
-assert.equal(outcomeBlocksReview({ code: 'LEFT_AT_DOOR' }), false);
+assert.equal(outcomeBlocksReview({ code: 'LEFT_AT_DOOR' }), true);
+assert.equal(outcomeBlocksReview({ code: 'LEFT_WITH_NEIGHBOUR' }), true);
+assert.equal(outcomeBlocksReview({ code: 'RESOLVED' }), false);
 assert.equal(outcomeBlocksReview(null), false);
 
 assert.equal(customerOutcomeView({ ...marked, code: 'RESOLVED' }, { includeNote: true }), null);
@@ -126,5 +128,11 @@ assert.match(orders, /DELIVERY_OUTCOME_OPEN/);
 const profile = src('../routes/profile.ts');
 assert.match(profile, /order\.status === 'READY' && order\.type === 'PICKUP'/);
 assert.match(profile, /DELIVERY_OUTCOME_OPEN/);
+
+// Avslutad order med öppet besked: ingen "Hoppas maten smakade!" och ingen betygspush.
+const notifier = src('../lib/customerOrderNotifier.ts');
+assert.match(notifier, /\(status === 'DELIVERED' \|\| status === 'COMPLETED'\) && outcomeBlocksReview\(await readOutcome\(order\.id\)\)/);
+assert.ok(notifier.indexOf('outcomeBlocksReview(await readOutcome') < notifier.indexOf('scheduleReviewPrompt(order.id'));
+assert.match(deliveryOutcomeCopy('LEFT_AT_DOOR', { restaurantName: 'Palmyra', restaurantPhone: '046-1', note: null })?.body || '', /Kontakta Palmyra på 046-1/);
 
 console.log('orderDelivery ok');

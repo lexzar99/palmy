@@ -82,9 +82,13 @@ export function outcomeIneligibleReason(
   return null;
 }
 
-/** Kunden ska inte betygsätta medan maten väntar i restaurangen eller körs ut igen. */
+/**
+ * Så länge restaurangen har ett öppet besked (allt utom RESOLVED) får kunden
+ * inte betygsätta, även när ordern blivit DELIVERED efter 50 min. Beslut
+ * 2026-11-04: beskedet ligger kvar och betyget är spärrat.
+ */
 export function outcomeBlocksReview(outcome: Pick<StoredOutcome, 'code'> | null | undefined): boolean {
-  return outcome?.code === 'AT_RESTAURANT' || outcome?.code === 'REDELIVERING';
+  return !!outcome && outcome.code !== 'RESOLVED';
 }
 
 export function parseStoredOutcome(meta: unknown): StoredOutcome | null {
@@ -212,12 +216,12 @@ export function deliveryOutcomeCopy(
     case 'LEFT_AT_DOOR':
       return {
         title: 'Maten står utanför din dörr',
-        body: 'Restaurangen kunde inte nå dig och har lämnat maten utanför porten eller dörren.',
+        body: `Restaurangen kunde inte nå dig och har lämnat maten utanför porten eller dörren. Hittar du den inte? Kontakta ${name}${phone}.`,
       };
     case 'LEFT_WITH_NEIGHBOUR':
       return {
         title: 'Maten är lämnad hos en granne',
-        body: `Restaurangen kunde inte nå dig. Var maten finns: "${ctx.note || ''}".`,
+        body: `Restaurangen kunde inte nå dig. Var maten finns: "${ctx.note || ''}". Frågor? Kontakta ${name}${phone}.`,
       };
     case 'REDELIVERING':
       return {

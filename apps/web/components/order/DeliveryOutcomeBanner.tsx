@@ -27,15 +27,15 @@ export function deliveryOutcomeCopy(outcome: DeliveryOutcome, restaurantName: st
     case "LEFT_AT_DOOR":
       return {
         title: "Maten står utanför din dörr",
-        body: "Restaurangen kunde inte nå dig och har lämnat maten utanför porten eller dörren.",
+        body: `Restaurangen kunde inte nå dig och har lämnat maten utanför porten eller dörren. Hittar du den inte? Kontakta ${name}${phone ? ` på ${phone}` : ""}.`,
         Icon: DoorOpen,
       };
     case "LEFT_WITH_NEIGHBOUR":
       return {
         title: "Maten är lämnad hos en granne",
         body: outcome.note
-          ? `Restaurangen kunde inte nå dig. Var maten finns: "${outcome.note}".`
-          : "Restaurangen kunde inte nå dig och har lämnat maten hos en granne.",
+          ? `Restaurangen kunde inte nå dig. Var maten finns: "${outcome.note}". Frågor? Kontakta ${name}${phone ? ` på ${phone}` : ""}.`
+          : `Restaurangen kunde inte nå dig och har lämnat maten hos en granne. Frågor? Kontakta ${name}${phone ? ` på ${phone}` : ""}.`,
         Icon: Users,
       };
     case "REDELIVERING":

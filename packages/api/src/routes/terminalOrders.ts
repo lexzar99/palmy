@@ -6,10 +6,12 @@ import { getIO } from '../lib/socket';
 import { bustCache } from '../lib/ttlCache';
 import { alertDeliveryOutcome } from '../lib/restaurantWatch';
 import { sendDeliveryOutcomeEmail } from '../lib/deliveryOutcomeEmail';
+import { reviewPushId } from '../lib/notificationIds';
 import {
   customerOutcomeView,
   DeliveryOutcomeError,
   OUTCOME_MAX_EMAILS,
+  outcomeBlocksReview,
   OUTCOME_TERMINAL_LABEL,
   outcomeIneligibleReason,
   readOutcome,
@@ -93,6 +95,13 @@ router.post('/orders/:id/delivery-outcome', ...guard, async (req, res) => {
       } else if (code !== 'RESOLVED') {
         if (!email.includes('@')) emailResult = 'no_email';
         else if ((previous?.emails ?? 0) >= OUTCOME_MAX_EMAILS) emailResult = 'limit';
+      }
+
+      // En betygspush som redan schemalagts (ordern var avslutad) stoppas.
+      if (outcomeBlocksReview(next)) {
+        await (prisma as any).scheduledPush
+          .updateMany({ where: { id: reviewPushId(order.id), sentAt: null, cancelledAt: null }, data: { cancelledAt: new Date() } })
+          .catch(() => null);
       }
 
       bustCache('order:byid', order.id);
