@@ -54,9 +54,10 @@ ul, ol { list-style: none; padding: 0; }
 /* ---------- Toppraden ---------- */
 .top {
   position: fixed; inset: 0 0 auto; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 20px;
-  height: 70px; padding: 0 var(--gutter); color: var(--text); background: var(--coal); transition: box-shadow 0.3s;
+  height: 62px; padding: 0 var(--gutter); color: var(--text); background: transparent; transition: background 0.3s, box-shadow 0.3s;
 }
-.top.is-solid { box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08); }
+/* Över scenen ligger fältet genomskinligt på bilden. När man skrollat förbi blir det helt mörkt. */
+.top.is-solid { background: var(--coal); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08); }
 .logo { display: flex; align-items: baseline; gap: 10px; text-decoration: none; }
 .logo b { font-size: 1.9rem; }
 .logo span { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); }
@@ -73,7 +74,7 @@ html.is-locked, html.is-locked body { overflow: hidden; overscroll-behavior: non
 html.is-locked .stage__fixed { position: fixed; inset: 0 0 auto; height: 100lvh; touch-action: none; }
 .stage__gl { position: absolute; inset: 0; width: 100%; height: 100%; }
 .stage__tone { position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(180deg, rgba(20, 17, 15, 0.55) 0%, rgba(20, 17, 15, 0) 20%, rgba(20, 17, 15, 0) 52%, rgba(20, 17, 15, 0.9) 88%); }
+  background: linear-gradient(180deg, rgba(20, 17, 15, 0.5) 0%, rgba(20, 17, 15, 0) 13%, rgba(20, 17, 15, 0) 52%, rgba(20, 17, 15, 0.9) 88%); }
 .stage__slide {
   position: absolute; left: var(--gutter); bottom: max(56px, 7svh); width: min(34rem, 46vw);
   display: flex; flex-direction: column; align-items: flex-start; gap: 14px;
