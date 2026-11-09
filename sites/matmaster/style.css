@@ -91,7 +91,8 @@ html.is-locked .stage__fixed { position: fixed; inset: 0 0 auto; height: 100lvh;
 .btn-ghost { background: transparent; box-shadow: inset 0 0 0 1.5px rgba(245, 236, 221, 0.6); }
 .btn-ghost:hover { background: rgba(245, 236, 221, 0.12); }
 .status { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; font-size: 0.9rem; padding: 7px 13px; border-radius: 999px; background: rgba(20, 17, 15, 0.7); }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: #59c26b; box-shadow: 0 0 0 4px rgba(89, 194, 107, 0.22); }
+/* Pricken visar inte öppet på egen hand: kitet sätter bara is-closed, så grundfärgen är neutral mässing */
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 4px rgba(201, 162, 78, 0.22); }
 .is-closed .dot { background: #d9534f; box-shadow: 0 0 0 4px rgba(217, 83, 79, 0.22); }
 .rating { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; color: #cdbfa9; font-size: 0.9rem; }
 .rating strong { font-stretch: 62%; font-weight: 900; font-size: 1.8rem; line-height: 1; color: var(--gold); }
