@@ -1,6 +1,6 @@
 # Matmaster Balkan & Orient (Ekslingan 8, Väla, Helsingborg): uppsättning i viaeats
 
-Demo, byggd 2026-11-09. Restaurangen är **inte** kund och finns inte i viaeats än. Sajten ligger i `sites/matmaster/` med `notInViaeats: true`.
+Demo, byggd 2026-11-09. Restaurangen är **inte** kund. Upplagd och **publicerad** i produktion 2026-11-09 på användarens begäran, med domänen `matmaster-balkan-orient.vercel.app` under Domäner i admin. Sajten ligger i `sites/matmaster/` (Vercel-projektet `matmaster-balkan-orient`).
 
 Källor:
 - **Meny och priser:** menytavlan i restaurangen, fotograferad av gäster på restaurantguru.com (cirka ett år gammal).
@@ -29,11 +29,11 @@ Bilderna är tolkningar och inte restaurangens egna. Visa dem för restaurangen,
 - **Priserna:** tavlan är cirka ett år gammal. Kampanjbilden säger 99 kr för ćevapi och pljeskavica, och tavlan säger 105 kr.
 - **Barnmenyn** finns på restaurangmenyn.se men utan priser, och är därför inte med.
 
-## Lägga upp (inte gjort)
+## Lägga upp igen
 Lokalt:
 ```bash
 python3 docs/restaurants/matmaster-balkan-orient-helsingborg/build.py
 VIAEATS_ADMIN_TOKEN=<lokal-jwt> node docs/restaurants/apply-menu.mjs --dir matmaster-balkan-orient-helsingborg --api http://127.0.0.1:4002 --images local
 ```
-Produktion, först när restaurangen sagt ja: pusha bilderna, kör med `--api https://api.viaeats.se --images r2 --image-base https://www.viaeats.se`,
-publicera och lägg in domänen i admin. Ta sedan bort `notInViaeats` och `public/status.json` i `sites/matmaster/`.
+Produktion: kör med `--api https://api.viaeats.se --images r2 --image-base https://www.viaeats.se`. Skriptet går att köra om, och befintliga rätter uppdateras.
+Första uppläggningen gjordes 2026-11-09 med samma steg via en inloggad superadmin-session i admin.
