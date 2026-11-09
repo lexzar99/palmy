@@ -1,0 +1,244 @@
+# Matmaster Balkan & Orient, Helsingborg: GENERERAD av build.py. Ändra där, inte här.
+# Meny för massimport (Admin → Meny → Massimport, eller POST /api/admin/menu/bulk-import). Priser i kronor.
+extraGroups:
+  - name: "Välj sås (ingår)"
+    type: radio
+    required: true
+    options:
+      - { name: "Vitlökssås", price: 0 }
+      - { name: "Mild sås", price: 0 }
+      - { name: "Stark sås", price: 0 }
+      - { name: "Ingen sås", price: 0 }
+  - name: "Gör det till en meny"
+    type: checkbox
+    required: false
+    max: 1
+    options:
+      - { name: "Pommes och dricka", price: 50 }
+  - name: "Extra"
+    type: checkbox
+    required: false
+    max: 10
+    options:
+      - { name: "Extra kebab", price: 20 }
+      - { name: "Extra kyckling", price: 20 }
+      - { name: "Extra falafel 1 st", price: 8 }
+      - { name: "Extra halloumi 1 st", price: 10 }
+  - name: "Lägg till dryck"
+    type: checkbox
+    required: false
+    max: 10
+    options:
+      - { name: "Läsk burk", price: 20 }
+      - { name: "Läsk flaska", price: 29 }
+      - { name: "Red Bull", price: 25 }
+      - { name: "Ayran", price: 20 }
+  - name: "Storlek"
+    type: radio
+    required: true
+    options:
+      - { name: "Liten", price: 0 }
+      - { name: "Stor", price: 15 }
+  - name: "Välj lunchrätt"
+    type: radio
+    required: true
+    options:
+      - { name: "Ćevapi", price: 0 }
+      - { name: "Pljeskavica", price: 0 }
+      - { name: "Turkisk kebab", price: 0 }
+      - { name: "Falafel", price: 0 }
+      - { name: "Burgare", price: 0 }
+
+categories:
+  - name: "Dagens lunch"
+    products:
+      - name: "Dagens lunch"
+        description: "Vardagar 11 till 14. Välj ćevapi, pljeskavica, turkisk kebab, falafel eller burgare."
+        price: 99
+        extras: ["Välj lunchrätt", "Välj sås (ingår)", "Lägg till dryck"]
+  - name: "Balkan"
+    products:
+      - name: "Ćevapčići"
+        description: "Nötfärs i somun (bosniskt bröd) med kajmak, ajvar, hackad lök och sallad."
+        price: 105
+        extras: ["Gör det till en meny", "Extra", "Lägg till dryck"]
+      - name: "Pljeskavica"
+        description: "Nötfärs i somun (bosniskt bröd) med kajmak, ajvar, hackad lök och sallad."
+        price: 105
+        extras: ["Gör det till en meny", "Extra", "Lägg till dryck"]
+  - name: "Turkisk kebab"
+    products:
+      - name: "Kebab i bröd"
+        description: "Nötkebab i hembakat bröd med sallad, saltgurka, lök och tomat."
+        price: 105
+        extras: ["Välj sås (ingår)", "Extra", "Lägg till dryck"]
+      - name: "Kebabrulle"
+        description: "Nötkebab i dürüm med sallad, saltgurka, lök och tomat."
+        price: 110
+        extras: ["Välj sås (ingår)", "Extra", "Lägg till dryck"]
+      - name: "Kebabtallrik"
+        description: "Nötkebab med pommes, sallad, saltgurka, lök, gurka och tomat."
+        price: 125
+        extras: ["Välj sås (ingår)", "Extra", "Lägg till dryck"]
+      - name: "Kebab box"
+        description: "Kebabkött, kyckling, falafel och halloumi."
+        price: 89
+        extras: ["Välj sås (ingår)", "Extra", "Lägg till dryck"]
+      - name: "Kyckling i bröd"
+        description: "Stekt kyckling i hembakat bröd med sallad, saltgurka, lök och tomat."
+        price: 105
+        extras: ["Välj sås (ingår)", "Extra", "Lägg till dryck"]
+      - name: "Kycklingrulle"
+        description: "Stekt kyckling i dürüm med sallad, saltgurka, lök och tomat."
+        price: 110
+        extras: ["Välj sås (ingår)", "Extra", "Lägg till dryck"]
+      - name: "Kycklingtallrik"
+        description: "Stekt kyckling med pommes, sallad, saltgurka, lök, gurka och tomat."
+        price: 125
+        extras: ["Välj sås (ingår)", "Extra", "Lägg till dryck"]
+      - name: "Crispy kycklingfilé tallrik"
+        description: "5 st med sallad, spicy pommes och vitlökssås."
+        price: 125
+        extras: ["Lägg till dryck"]
+      - name: "Hot wings tallrik"
+        description: "5 st med sallad och spicy pommes."
+        price: 125
+        extras: ["Välj sås (ingår)", "Lägg till dryck"]
+      - name: "Chicken nuggets tallrik"
+        description: "7 st med pommes och remouladsås."
+        price: 110
+        extras: ["Lägg till dryck"]
+  - name: "Burgare"
+    products:
+      - name: "Smash Texas"
+        description: "120 g högrev, pommes, sallad, double cheese, rödlök, pickles och BBQ-sås."
+        price: 110
+        extras: ["Lägg till dryck"]
+      - name: "Smash New York"
+        description: "120 g högrev, pommes, sallad, tomat, rödlök, jalapeños och original dressing."
+        price: 110
+        extras: ["Lägg till dryck"]
+      - name: "Smash Dubbel cheese"
+        description: "120 g högrev, pommes, pickles, double cheese, crispy sallad, gul lök, ketchup och senap."
+        price: 110
+        extras: ["Lägg till dryck"]
+      - name: "Matmaster burgare"
+        description: "180 g hemgjord burgare, spicy pommes, sallad, double cheese, rödlök, pickles och original dressing."
+        price: 129
+        extras: ["Lägg till dryck"]
+      - name: "Chicken crispy burgare XL"
+        description: "Spicy pommes, sallad, rödlök, pickles och original dressing."
+        price: 129
+        extras: ["Lägg till dryck"]
+      - name: "Fiskburgare"
+        description: "Pommes, sallad, rödlök och original dressing."
+        price: 129
+        extras: ["Lägg till dryck"]
+  - name: "Falafel och halloumi"
+    products:
+      - name: "Falafeltallrik"
+        description: "Sallad, saltgurka, lök och tomat."
+        price: 120
+        extras: ["Välj sås (ingår)", "Extra", "Lägg till dryck"]
+      - name: "Falafel i bröd"
+        description: "Hembakat bröd med sallad, saltgurka, lök och tomat."
+        price: 99
+        extras: ["Välj sås (ingår)", "Extra", "Lägg till dryck"]
+      - name: "Falafelrulle"
+        description: "Dürüm med sallad, saltgurka, lök och tomat."
+        price: 90
+        extras: ["Välj sås (ingår)", "Extra", "Lägg till dryck"]
+      - name: "Halloumitallrik"
+        description: "Sallad, saltgurka, lök och tomat."
+        price: 125
+        extras: ["Välj sås (ingår)", "Extra", "Lägg till dryck"]
+      - name: "Halloumi i bröd"
+        description: "Hembakat bröd med sallad, saltgurka, lök och tomat."
+        price: 105
+        extras: ["Välj sås (ingår)", "Extra", "Lägg till dryck"]
+      - name: "Halloumirulle"
+        description: "Dürüm med sallad, saltgurka, lök och tomat."
+        price: 110
+        extras: ["Välj sås (ingår)", "Extra", "Lägg till dryck"]
+      - name: "Halloumiburgare"
+        description: "Sallad, saltgurka, lök och tomat."
+        price: 85
+        extras: ["Välj sås (ingår)", "Lägg till dryck"]
+  - name: "Sallader"
+    products:
+      - name: "Ćevapisallad"
+        description: "Sallad, lök, gurka och tomat."
+        price: 120
+        extras: ["Välj sås (ingår)"]
+      - name: "Kycklingsallad"
+        description: "Stekt kyckling, sallad, lök, gurka och tomat."
+        price: 120
+        extras: ["Välj sås (ingår)"]
+      - name: "Kebabsallad"
+        description: "Kebab, sallad, lök, gurka, tomat och fefferoni."
+        price: 120
+        extras: ["Välj sås (ingår)"]
+      - name: "Grekisk sallad"
+        description: "Vitost, sallad, lök, gurka, tomat och oliver."
+        price: 120
+        extras: ["Välj sås (ingår)"]
+      - name: "Tonfisksallad"
+        description: "Tonfisk, sallad, lök, gurka, tomat och fefferoni."
+        price: 120
+        extras: ["Välj sås (ingår)"]
+      - name: "Falafelsallad"
+        description: "Sallad, lök, saltgurka, tomat och fefferoni."
+        price: 120
+        extras: ["Välj sås (ingår)"]
+      - name: "Halloumisallad"
+        description: "Sallad, lök, saltgurka, tomat och fefferoni."
+        price: 120
+        extras: ["Välj sås (ingår)"]
+  - name: "Fisk"
+    products:
+      - name: "Fish & chips"
+        description: "Pommes frites, sallad och remouladsås."
+        price: 115
+        extras: ["Lägg till dryck"]
+      - name: "Rödspätta"
+        description: "Pommes frites, sallad och remouladsås."
+        price: 129
+        extras: ["Lägg till dryck"]
+  - name: "Snacks"
+    products:
+      - name: "Snacks box"
+        description: "3 mozzarella, 3 chili cheese, 2 hot wings, 3 chicken nuggets och 3 lökringar."
+        price: 99
+      - name: "Pommes"
+        description: "Liten eller stor."
+        price: 40
+        extras: ["Storlek"]
+      - name: "Chili cheese"
+        description: "8 st."
+        price: 80
+      - name: "Mozzarella"
+        description: "8 st."
+        price: 80
+      - name: "Lökringar"
+        description: "8 st."
+        price: 49
+      - name: "Nuggets"
+        description: "8 st."
+        price: 80
+      - name: "Hot wings"
+        description: "5 st."
+        price: 89
+  - name: "Dryck"
+    products:
+      - name: "Läsk burk"
+        description: ""
+        price: 20
+      - name: "Läsk flaska"
+        description: ""
+        price: 29
+      - name: "Red Bull"
+        description: ""
+        price: 25
+      - name: "Ayran"
+        description: ""
+        price: 20

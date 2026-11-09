@@ -1,0 +1,268 @@
+{
+ "_kommentar": "GENERERAD av build.py. Läses av docs/restaurants/apply-menu.mjs.",
+ "sizePrefix": "storlek-matmaster",
+ "sizeGroups": [],
+ "productGroups": {
+  "Dagens lunch": [
+   "Välj lunchrätt",
+   "Välj sås (ingår)",
+   "Lägg till dryck"
+  ],
+  "Ćevapčići": [
+   "Gör det till en meny",
+   "Extra",
+   "Lägg till dryck"
+  ],
+  "Pljeskavica": [
+   "Gör det till en meny",
+   "Extra",
+   "Lägg till dryck"
+  ],
+  "Kebab i bröd": [
+   "Välj sås (ingår)",
+   "Extra",
+   "Lägg till dryck"
+  ],
+  "Kebabrulle": [
+   "Välj sås (ingår)",
+   "Extra",
+   "Lägg till dryck"
+  ],
+  "Kebabtallrik": [
+   "Välj sås (ingår)",
+   "Extra",
+   "Lägg till dryck"
+  ],
+  "Kebab box": [
+   "Välj sås (ingår)",
+   "Extra",
+   "Lägg till dryck"
+  ],
+  "Kyckling i bröd": [
+   "Välj sås (ingår)",
+   "Extra",
+   "Lägg till dryck"
+  ],
+  "Kycklingrulle": [
+   "Välj sås (ingår)",
+   "Extra",
+   "Lägg till dryck"
+  ],
+  "Kycklingtallrik": [
+   "Välj sås (ingår)",
+   "Extra",
+   "Lägg till dryck"
+  ],
+  "Crispy kycklingfilé tallrik": [
+   "Lägg till dryck"
+  ],
+  "Hot wings tallrik": [
+   "Välj sås (ingår)",
+   "Lägg till dryck"
+  ],
+  "Chicken nuggets tallrik": [
+   "Lägg till dryck"
+  ],
+  "Smash Texas": [
+   "Lägg till dryck"
+  ],
+  "Smash New York": [
+   "Lägg till dryck"
+  ],
+  "Smash Dubbel cheese": [
+   "Lägg till dryck"
+  ],
+  "Matmaster burgare": [
+   "Lägg till dryck"
+  ],
+  "Chicken crispy burgare XL": [
+   "Lägg till dryck"
+  ],
+  "Fiskburgare": [
+   "Lägg till dryck"
+  ],
+  "Falafeltallrik": [
+   "Välj sås (ingår)",
+   "Extra",
+   "Lägg till dryck"
+  ],
+  "Falafel i bröd": [
+   "Välj sås (ingår)",
+   "Extra",
+   "Lägg till dryck"
+  ],
+  "Falafelrulle": [
+   "Välj sås (ingår)",
+   "Extra",
+   "Lägg till dryck"
+  ],
+  "Halloumitallrik": [
+   "Välj sås (ingår)",
+   "Extra",
+   "Lägg till dryck"
+  ],
+  "Halloumi i bröd": [
+   "Välj sås (ingår)",
+   "Extra",
+   "Lägg till dryck"
+  ],
+  "Halloumirulle": [
+   "Välj sås (ingår)",
+   "Extra",
+   "Lägg till dryck"
+  ],
+  "Halloumiburgare": [
+   "Välj sås (ingår)",
+   "Lägg till dryck"
+  ],
+  "Ćevapisallad": [
+   "Välj sås (ingår)"
+  ],
+  "Kycklingsallad": [
+   "Välj sås (ingår)"
+  ],
+  "Kebabsallad": [
+   "Välj sås (ingår)"
+  ],
+  "Grekisk sallad": [
+   "Välj sås (ingår)"
+  ],
+  "Tonfisksallad": [
+   "Välj sås (ingår)"
+  ],
+  "Falafelsallad": [
+   "Välj sås (ingår)"
+  ],
+  "Halloumisallad": [
+   "Välj sås (ingår)"
+  ],
+  "Fish & chips": [
+   "Lägg till dryck"
+  ],
+  "Rödspätta": [
+   "Lägg till dryck"
+  ],
+  "Pommes": [
+   "Storlek"
+  ]
+ },
+ "categoryOrder": [
+  "Dagens lunch",
+  "Balkan",
+  "Turkisk kebab",
+  "Burgare",
+  "Falafel och halloumi",
+  "Sallader",
+  "Fisk",
+  "Snacks",
+  "Dryck"
+ ],
+ "productOrder": [
+  "Dagens lunch",
+  "Ćevapčići",
+  "Pljeskavica",
+  "Kebab i bröd",
+  "Kebabrulle",
+  "Kebabtallrik",
+  "Kebab box",
+  "Kyckling i bröd",
+  "Kycklingrulle",
+  "Kycklingtallrik",
+  "Crispy kycklingfilé tallrik",
+  "Hot wings tallrik",
+  "Chicken nuggets tallrik",
+  "Smash Texas",
+  "Smash New York",
+  "Smash Dubbel cheese",
+  "Matmaster burgare",
+  "Chicken crispy burgare XL",
+  "Fiskburgare",
+  "Falafeltallrik",
+  "Falafel i bröd",
+  "Falafelrulle",
+  "Halloumitallrik",
+  "Halloumi i bröd",
+  "Halloumirulle",
+  "Halloumiburgare",
+  "Ćevapisallad",
+  "Kycklingsallad",
+  "Kebabsallad",
+  "Grekisk sallad",
+  "Tonfisksallad",
+  "Falafelsallad",
+  "Halloumisallad",
+  "Fish & chips",
+  "Rödspätta",
+  "Snacks box",
+  "Pommes",
+  "Chili cheese",
+  "Mozzarella",
+  "Lökringar",
+  "Nuggets",
+  "Hot wings",
+  "Läsk burk",
+  "Läsk flaska",
+  "Red Bull",
+  "Ayran"
+ ],
+ "images": {
+  "logo": "/demo/matmaster/img/logo-square.png",
+  "hero": "/demo/matmaster/img/hero.webp",
+  "categories": {
+   "Dagens lunch": "/demo/matmaster/img/dishes/cevapi.webp",
+   "Balkan": "/demo/matmaster/img/dishes/pljeskavica.webp",
+   "Turkisk kebab": "/demo/matmaster/img/dishes/kebabrulle.webp",
+   "Burgare": "/demo/matmaster/img/dishes/smash.webp",
+   "Falafel och halloumi": "/demo/matmaster/img/dishes/falafel.webp",
+   "Sallader": "/demo/matmaster/img/dishes/grekisk-sallad.webp",
+   "Fisk": "/demo/matmaster/img/dishes/fish-chips.webp",
+   "Snacks": "/demo/matmaster/img/dishes/snacks.webp",
+   "Dryck": "/demo/matmaster/img/dishes/ayran.webp"
+  },
+  "products": {
+   "Dagens lunch": "/demo/matmaster/img/dishes/cevapi.webp",
+   "Ćevapčići": "/demo/matmaster/img/dishes/cevapi.webp",
+   "Pljeskavica": "/demo/matmaster/img/dishes/pljeskavica.webp",
+   "Kebab i bröd": "/demo/matmaster/img/dishes/kebab-i-brod.webp",
+   "Kebabrulle": "/demo/matmaster/img/dishes/kebabrulle.webp",
+   "Kebabtallrik": "/demo/matmaster/img/dishes/kebabtallrik.webp",
+   "Kebab box": "/demo/matmaster/img/dishes/kebabbox.webp",
+   "Kyckling i bröd": "/demo/matmaster/img/dishes/kyckling-i-brod.webp",
+   "Kycklingrulle": "/demo/matmaster/img/dishes/kycklingrulle.webp",
+   "Kycklingtallrik": "/demo/matmaster/img/dishes/kycklingtallrik.webp",
+   "Crispy kycklingfilé tallrik": "/demo/matmaster/img/dishes/crispy-tallrik.webp",
+   "Hot wings tallrik": "/demo/matmaster/img/dishes/hotwings-tallrik.webp",
+   "Chicken nuggets tallrik": "/demo/matmaster/img/dishes/nuggets-tallrik.webp",
+   "Smash Texas": "/demo/matmaster/img/dishes/smash.webp",
+   "Smash New York": "/demo/matmaster/img/dishes/smash-newyork.webp",
+   "Smash Dubbel cheese": "/demo/matmaster/img/dishes/smash-dubbelcheese.webp",
+   "Matmaster burgare": "/demo/matmaster/img/dishes/matmaster-burgare.webp",
+   "Chicken crispy burgare XL": "/demo/matmaster/img/dishes/chicken-xl.webp",
+   "Fiskburgare": "/demo/matmaster/img/dishes/fiskburgare.webp",
+   "Falafeltallrik": "/demo/matmaster/img/dishes/falafel.webp",
+   "Falafel i bröd": "/demo/matmaster/img/dishes/falafel-i-brod.webp",
+   "Falafelrulle": "/demo/matmaster/img/dishes/falafelrulle.webp",
+   "Halloumitallrik": "/demo/matmaster/img/dishes/halloumitallrik.webp",
+   "Halloumi i bröd": "/demo/matmaster/img/dishes/halloumi-i-brod.webp",
+   "Halloumirulle": "/demo/matmaster/img/dishes/halloumirulle.webp",
+   "Halloumiburgare": "/demo/matmaster/img/dishes/halloumi.webp",
+   "Ćevapisallad": "/demo/matmaster/img/dishes/cevapisallad.webp",
+   "Kycklingsallad": "/demo/matmaster/img/dishes/kycklingsallad.webp",
+   "Kebabsallad": "/demo/matmaster/img/dishes/kebabsallad.webp",
+   "Grekisk sallad": "/demo/matmaster/img/dishes/grekisk-sallad.webp",
+   "Tonfisksallad": "/demo/matmaster/img/dishes/tonfisksallad.webp",
+   "Falafelsallad": "/demo/matmaster/img/dishes/falafelsallad.webp",
+   "Halloumisallad": "/demo/matmaster/img/dishes/halloumisallad.webp",
+   "Fish & chips": "/demo/matmaster/img/dishes/fish-chips.webp",
+   "Rödspätta": "/demo/matmaster/img/dishes/rodspatta.webp",
+   "Snacks box": "/demo/matmaster/img/dishes/snacks.webp",
+   "Pommes": "/demo/matmaster/img/dishes/pommes.webp",
+   "Chili cheese": "/demo/matmaster/img/dishes/chili-cheese.webp",
+   "Mozzarella": "/demo/matmaster/img/dishes/mozzarella.webp",
+   "Lökringar": "/demo/matmaster/img/dishes/lokringar.webp",
+   "Nuggets": "/demo/matmaster/img/dishes/nuggets.webp",
+   "Hot wings": "/demo/matmaster/img/dishes/hot-wings.webp",
+   "Ayran": "/demo/matmaster/img/dishes/ayran.webp"
+  }
+ }
+}

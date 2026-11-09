@@ -1,0 +1,82 @@
+{
+ "_kommentar": "Body till POST /api/restaurants. Utkast och bara avhämtning tills restaurangen sagt ja. Öppettiderna är antagna, se README.md.",
+ "name": "Matmaster Balkan & Orient",
+ "slug": "matmaster-balkan-orient-helsingborg",
+ "cuisine": "Balkan · Kebab · Burgare",
+ "address": "Ekslingan 8",
+ "city": "Helsingborg",
+ "phone": "072-251 22 57",
+ "latitude": 56.0907,
+ "longitude": 12.7485,
+ "etaMinutes": 20,
+ "vatPercent": 6,
+ "rating": 0,
+ "ratingCount": 0,
+ "pickupOnly": true,
+ "draft": true,
+ "openingHours": {
+  "monday": {
+   "closed": false,
+   "shifts": [
+    {
+     "open": "11:00",
+     "close": "19:00"
+    }
+   ]
+  },
+  "tuesday": {
+   "closed": false,
+   "shifts": [
+    {
+     "open": "11:00",
+     "close": "19:00"
+    }
+   ]
+  },
+  "wednesday": {
+   "closed": false,
+   "shifts": [
+    {
+     "open": "11:00",
+     "close": "19:00"
+    }
+   ]
+  },
+  "thursday": {
+   "closed": false,
+   "shifts": [
+    {
+     "open": "11:00",
+     "close": "19:00"
+    }
+   ]
+  },
+  "friday": {
+   "closed": false,
+   "shifts": [
+    {
+     "open": "11:00",
+     "close": "19:00"
+    }
+   ]
+  },
+  "saturday": {
+   "closed": false,
+   "shifts": [
+    {
+     "open": "12:00",
+     "close": "18:00"
+    }
+   ]
+  },
+  "sunday": {
+   "closed": false,
+   "shifts": [
+    {
+     "open": "12:00",
+     "close": "18:00"
+    }
+   ]
+  }
+ }
+}

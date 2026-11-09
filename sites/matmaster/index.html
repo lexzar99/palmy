@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Matmaster Balkan &amp; Orient · Ćevapi, kebab och smashburgare vid Väla, Helsingborg</title>
+  <meta name="description" content="Ćevapčići och pljeskavica i somunbröd, döner från spettet, falafel och smashburgare på Ekslingan 8 vid Väla i Helsingborg. Dagens lunch 99 kr. Beställ i mobilen och hämta när det är klart." />
+  <meta name="theme-color" content="#14110f" />
+  <meta property="og:title" content="Matmaster Balkan &amp; Orient" />
+  <meta property="og:description" content="Balkangrill och turkisk kebab vid Väla i Helsingborg. Beställ i mobilen och hämta." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://matmaster-balkan-orient.vercel.app/" />
+  <meta property="og:image" content="https://matmaster-balkan-orient.vercel.app/img/scene/cover-wide.webp" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="canonical" href="https://matmaster-balkan-orient.vercel.app/" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/img/icon-192.png" />
+  <link rel="apple-touch-icon" href="/img/icon-192.png" />
+  <link rel="preload" as="image" href="/img/scene/cover-wide.webp" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {"@type": "Question", "name": "Finns det dagens lunch?", "acceptedAnswer": {"@type": "Answer", "text": "Ja. Vardagar 11 till 14 kostar ćevapi, pljeskavica, turkisk kebab, falafel eller burgare 99 kr."}},
+      {"@type": "Question", "name": "Hur beställer jag avhämtning?", "acceptedAnswer": {"@type": "Answer", "text": "Tryck på Beställ, välj rätter och tillval, betala med Swish eller kort och hämta när maten är klar."}},
+      {"@type": "Question", "name": "Finns det vegetariskt?", "acceptedAnswer": {"@type": "Answer", "text": "Ja. Falafel och halloumi finns på tallrik, i bröd, som rulle, som burgare och som sallad."}},
+      {"@type": "Question", "name": "Vad är somun och kajmak?", "acceptedAnswer": {"@type": "Answer", "text": "Somun är ett luftigt bosniskt bröd. Kajmak är en mild, krämig färskost som hör ihop med balkangrill."}}
+    ]
+  }
+  </script>
+</head>
+<body>
+  <header class="top" data-top>
+    <a class="logo" href="/" aria-label="Matmaster Balkan och Orient, till början"><b>Matmaster</b><span>Balkan &amp; Orient</span></a>
+    <nav class="nav" aria-label="Sidan">
+      <a href="#lunch">Lunch</a>
+      <a href="#favoriter">Favoriter</a>
+      <a href="#omdomen">Omdömen</a>
+      <a href="#oppet">Hitta hit</a>
+    </nav>
+    <a class="btn btn-sm" href="/meny" data-order>Beställ avhämtning</a>
+  </header>
+
+  <main>
+    <!-- 1. Scenen: omslagsbilden och fyra rätter i WebGL2 som glider över i varandra när man skrollar (scene.js och _kit/journey.js) -->
+    <section class="stage" data-stage>
+      <div class="stage__fixed">
+        <canvas class="stage__gl" data-gl aria-hidden="true"></canvas>
+        <div class="stage__tone" aria-hidden="true"></div>
+        <div class="stage__slide stage__intro" data-slide>
+          <p class="status" data-open-state><span class="dot"></span><span data-open-text data-address>Ekslingan 8, Helsingborg</span></p>
+          <h1 class="stage__title">Balkan <span>&amp; Orient</span></h1>
+          <p class="stage__lede">Ćevapi i somun med kajmak och nötkebab skuren från spettet. Två kök under ett tak vid Väla.</p>
+          <div class="stage__actions"><a class="btn" href="/meny" data-order>Beställ avhämtning</a><a class="btn btn-ghost" href="#lunch">Lunch 99 kr</a></div>
+          <p class="rating"><strong>4,8</strong><span class="stars">★★★★★</span><span>på Google, över 200 omdömen</span></p>
+        </div>
+        <div class="stage__slide" data-slide><p class="kicker">Balkan</p><h2 class="stage__dish">Ćevapčići</h2><p>Nötfärs i somun med kajmak, ajvar och hackad lök.</p><b class="stage__price">105 kr</b></div>
+        <div class="stage__slide" data-slide><p class="kicker">Orient</p><h2 class="stage__dish">Kebabrulle</h2><p>Nötkebab från spettet med sallad, saltgurka och valfri sås.</p><b class="stage__price">110 kr</b></div>
+        <div class="stage__slide" data-slide><p class="kicker">Burgare</p><h2 class="stage__dish">Smash Texas</h2><p>120 g högrev, double cheese, rödlök, pickles och BBQ-sås.</p><b class="stage__price">110 kr</b></div>
+        <div class="stage__slide" data-slide><p class="kicker">Husets box</p><h2 class="stage__dish">Kebab box</h2><p>Kebab, kyckling, falafel och halloumi över pommes.</p><b class="stage__price">89 kr</b><div class="stage__actions"><a class="btn" href="/meny" data-order>Beställ avhämtning nu</a></div></div>
+        <ol class="stage__dots" aria-hidden="true"><li></li><li></li><li></li><li></li><li></li></ol>
+        <p class="stage__hint" data-hint>Skrolla<i aria-hidden="true"></i></p>
+      </div>
+    </section>
+
+    <!-- 2. Lunchen, det starkaste säljargumentet på vardagar -->
+    <section class="lunch" id="lunch">
+      <p class="lunch__price">99<small>kr</small></p>
+      <div>
+        <h2 class="lunch__title">Dagens lunch, vardagar 11 till 14</h2>
+        <p>Ćevapi, pljeskavica, turkisk kebab, falafel eller burgare.</p>
+      </div>
+      <a class="btn" href="/meny" data-order>Beställ lunch</a>
+    </section>
+
+    <!-- 3. Favoriterna med riktiga priser från menytavlan -->
+    <section class="favs" id="favoriter">
+      <div class="favs__head">
+        <h2 class="h2 reveal">Det folk<br />kommer för.</h2>
+        <p class="reveal">Första gången? Börja med ćevapi i somun. Riktigt hungrig? Kebab box med fyra sorters fyllning.</p>
+      </div>
+      <ul class="favs__grid">
+        <li class="fav reveal"><a href="/meny"><img src="/img/dishes/pljeskavica-480.webp" alt="Pljeskavica i somun med kajmak, sallad och tomat" loading="lazy" width="480" height="600" /><h3>Pljeskavica</h3><p>Nötfärs i somun med kajmak och ajvar</p><b>105 kr</b></a></li>
+        <li class="fav reveal"><a href="/meny"><img src="/img/dishes/kebabbox-480.webp" alt="Kebab box med kebab, kyckling, falafel och halloumi" loading="lazy" width="480" height="600" /><h3>Kebab box</h3><p>Kebab, kyckling, falafel och halloumi</p><b>89 kr</b></a></li>
+        <li class="fav reveal"><a href="/meny"><img src="/img/dishes/smash-480.webp" alt="Smashburgare med dubbel cheddar och pickles" loading="lazy" width="480" height="600" /><h3>Smash Texas</h3><p>120 g högrev, double cheese, BBQ-sås</p><b>110 kr</b></a></li>
+        <li class="fav reveal"><a href="/meny"><img src="/img/dishes/falafel-480.webp" alt="Falafeltallrik med sallad och tahinisås" loading="lazy" width="480" height="600" /><h3>Falafeltallrik</h3><p>Sallad, saltgurka, lök, tomat, valfri sås</p><b>120 kr</b></a></li>
+        <li class="fav reveal"><a href="/meny"><img src="/img/dishes/kebabtallrik-480.webp" alt="Kebabtallrik med pommes och sallad" loading="lazy" width="480" height="600" /><h3>Kebabtallrik</h3><p>Nötkebab med pommes och sallad</p><b>125 kr</b></a></li>
+        <li class="fav reveal"><a href="/meny"><img src="/img/dishes/snacks-480.webp" alt="Snacks box med mozzarella, chili cheese, hot wings och lökringar" loading="lazy" width="480" height="600" /><h3>Snacks box</h3><p>14 bitar att dela, eller inte</p><b>99 kr</b></a></li>
+      </ul>
+      <p class="favs__more reveal"><a class="btn" href="/meny" data-order>Se hela menyn och tillvalen</a></p>
+    </section>
+
+    <!-- 4. Döner från spettet -->
+    <section class="spit">
+      <div class="spit__film">
+        <video muted loop playsinline preload="none" poster="/film/doner.jpg" aria-hidden="true" data-film><source src="/film/doner.mp4" type="video/mp4" /></video>
+      </div>
+      <div class="spit__text">
+        <h2 class="h2 reveal">Skuret<br /><span>när du</span><br />beställer.</h2>
+        <p class="reveal">Kebaben skärs från spettet i samma stund som du beställer. I hembakat bröd, i rulle, i box eller på tallrik.</p>
+        <p class="reveal">Extra kebab kostar 20 kr. Gör din ćevapi till en meny med pommes och dricka för 50 kr.</p>
+        <a class="btn reveal" href="/meny" data-order>Beställ en kebabrulle</a>
+      </div>
+    </section>
+
+    <!-- 5. Så går det till -->
+    <section class="how">
+      <h2 class="h2 reveal">Tre tryck.<br />Sen mat.</h2>
+      <ol>
+        <li class="reveal"><b>1</b><span>Välj rätter och tillval i menyn</span></li>
+        <li class="reveal"><b>2</b><span>Betala med Swish eller kort</span></li>
+        <li class="reveal"><b>3</b><span>Hämta på Ekslingan 8 när det är klart</span></li>
+      </ol>
+    </section>
+
+    <!-- 6. Omdömen: ordagrant och med källa -->
+    <section class="reviews" id="omdomen">
+      <div class="reviews__score reveal">
+        <p class="score">4,8</p>
+        <p class="muted">Snittbetyg på Google från över 200 gäster.</p>
+        <ul class="platforms">
+          <li><a href="https://www.google.com/maps/search/?api=1&amp;query=Matmaster+Balkan+och+Orient+Ekslingan+8+Helsingborg" target="_blank" rel="noopener"><span>Google<small>över 200 omdömen</small></span><b>4,8</b></a></li>
+          <li><a href="https://restaurantguru.com/Matmaster-Helsingborg" target="_blank" rel="noopener"><span>Restaurant Guru<small>plats 6 av 154 snabbmatsställen i Helsingborg</small></span><b>4,8</b></a></li>
+          <li><a href="https://www.tripadvisor.com/Restaurant_Review-g3507710-d28082112-Reviews-Matmaster_Balkan_Orient-Odakra_Helsingborg_Skane_County.html" target="_blank" rel="noopener"><span>Tripadvisor<small>gästomdömen</small></span><b>4,8</b></a></li>
+          <li><span class="plain"><span>Facebook<small>rekommendationer</small></span><b>4,9</b></span></li>
+        </ul>
+      </div>
+      <div class="quotes">
+        <blockquote class="reveal"><p>”The food was very delicious. The bread tasted homemade and the meat had great flavor. The service was very friendly.”</p><cite>Mike B., 5 av 5</cite></blockquote>
+        <blockquote class="reveal"><p>”Jätte god dönerebab. Rekommenderar starkt.”</p><cite>Masoumeh H., 5 av 5</cite></blockquote>
+        <blockquote class="reveal"><p>”10/10.”</p><cite>Eerik W., lunch</cite></blockquote>
+        <p class="muted small">Citerade ordagrant, stavning och allt, via Restaurant Guru.</p>
+      </div>
+    </section>
+
+    <!-- 7. Hitta hit: tiderna, adressen och telefonen kommer från viaeats -->
+    <section class="find" id="oppet">
+      <div class="reveal">
+        <h2 class="h2">Hitta hit.</h2>
+        <p class="find__addr" data-address>Ekslingan 8, Helsingborg</p>
+        <p class="find__near">Vid Väla, med parkering utanför.</p>
+        <dl class="week" data-week></dl>
+        <ul class="facts"><li>Avhämtning</li><li>Uteservering</li><li>Rullstolsanpassat</li><li>Barnstol</li><li>Parkering</li></ul>
+        <p class="find__cta"><a class="btn" href="/meny" data-order>Beställ avhämtning</a> <a class="btn btn-line" href="https://www.google.com/maps/dir/?api=1&amp;destination=Matmaster+Balkan+%26+Orient%2C+Ekslingan+8%2C+Helsingborg" target="_blank" rel="noopener">Vägbeskrivning</a></p>
+        <p class="muted small">Frågor? Ring <a data-phone hidden></a></p>
+      </div>
+      <div class="map reveal">
+        <iframe title="Karta till Ekslingan 8, Helsingborg" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://maps.google.com/maps?q=Ekslingan%208%2C%20254%2067%20Helsingborg&amp;z=15&amp;output=embed"></iframe>
+      </div>
+    </section>
+
+    <!-- 8. Vanliga frågor -->
+    <section class="faq">
+      <h2 class="h2 reveal">Vanliga frågor.</h2>
+      <details><summary>Finns det dagens lunch?</summary><p>Ja. Vardagar 11 till 14 kostar ćevapi, pljeskavica, turkisk kebab, falafel eller burgare 99 kr.</p></details>
+      <details><summary>Hur beställer jag avhämtning?</summary><p>Tryck på Beställ, välj rätter och tillval, betala med Swish eller kort och hämta när maten är klar.</p></details>
+      <details><summary>Finns det vegetariskt?</summary><p>Ja. Falafel och halloumi finns på tallrik, i bröd, som rulle, som burgare och som sallad, plus grekisk sallad.</p></details>
+      <details><summary>Vad är somun och kajmak?</summary><p>Somun är ett luftigt bosniskt bröd som ćevapi och pljeskavica serveras i. Kajmak är en mild, krämig färskost som hör ihop med balkangrill.</p></details>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p class="footer__big">Matmaster</p>
+    <p data-address>Ekslingan 8, Helsingborg</p>
+    <p class="footer__links"><a href="https://www.instagram.com/matmaster_resturant/" target="_blank" rel="noopener">Instagram</a> · <a href="https://restaurantguru.com/Matmaster-Helsingborg" target="_blank" rel="noopener">Restaurant Guru</a> · <a href="https://www.tripadvisor.com/Restaurant_Review-g3507710-d28082112-Reviews-Matmaster_Balkan_Orient-Odakra_Helsingborg_Skane_County.html" target="_blank" rel="noopener">Tripadvisor</a></p>
+    <a class="powered" href="https://www.viaeats.se" target="_blank" rel="noopener">Beställning och betalning <span>powered by</span> <strong>viaeats</strong></a>
+  </footer>
+
+  <a class="order-bar hide" href="/meny" data-order-bar><span>Hungrig?</span><strong>Beställ avhämtning</strong></a>
+  <script type="module" src="/main.js"></script>
+</body>
+</html>
