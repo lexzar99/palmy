@@ -219,3 +219,17 @@ test('restaurangvakten larmar en gang om en order ingen tagit, men inte om den h
   const day = Object.keys(state.orderDays)[0];
   assert.deepEqual(state.orderDays[day], { orders: 4, sales: 628 }, 'orderboken raknar varje ny order en gang');
 });
+
+test('NY RESTAURANG tolkas till namn, stad och telefon för leadkollen', async () => {
+  const { createRequire } = await import('node:module');
+  const { parseRestaurantSignup, startLeadScout } = createRequire(import.meta.url)('./poll-api.js');
+  assert.deepEqual(
+    parseRestaurantSignup('NY RESTAURANG Grill 41 (Lund)\nKontakt: A\nTelefon: +46 70 123 45 67\nPlan: 5 % per order'),
+    { name: 'Grill 41', city: 'Lund', phone: '+46 70 123 45 67' },
+  );
+  assert.deepEqual(parseRestaurantSignup('NY RESTAURANG Pizzeria Ett'), { name: 'Pizzeria Ett', city: '', phone: '' });
+  assert.equal(parseRestaurantSignup('NY ORDER #123'), null);
+  assert.equal(parseRestaurantSignup('NY RESTAURANG --watch (Lund)').name, 'watch', 'ett namn kan aldrig bli en flagga');
+  assert.equal(startLeadScout('NY RESTAURANG Grill 41 (Lund)', { script: '/finns/inte.js' }), false);
+  assert.equal(startLeadScout('NY ORDER #123'), false);
+});

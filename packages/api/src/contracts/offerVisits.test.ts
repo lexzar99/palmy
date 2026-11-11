@@ -21,7 +21,21 @@ assert.equal(stage('slut').reached, 1);
 assert.equal(stage('kvitto').left, 1, 'man lämnar där man är, inte där man som längst kom');
 assert.equal(stage('fragor').left, 0, 'den som anmält sig har inte lämnat sidan utan resultat');
 assert.equal(summary.form[0].reached, 1);
-assert.deepEqual(summary.sources[0], { name: 'meta', visits: 2, leads: 0 });
+assert.deepEqual(summary.sources[0], { name: 'meta', visits: 2, scrolled: 1, opened: 0, leads: 0 });
+assert.deepEqual(summary.outcome.map((row) => row.count), [1, 1, 0, 1], 'gick direkt, skrollade bara, öppnade utan att skicka, anmälde sig');
+
+const paid = summarizeOfferVisits([
+  visit({ platform: 'ig', ad: 'film-1', stage: 'kvitto', last: 'kvitto', form: 2 }),
+  visit({ platform: 'ig', ad: 'film-1' }),
+  visit({ platform: 'fb', ad: 'film-2', stage: 'slut', last: 'slut', form: OFFER_FORM_STEPS.length }),
+  visit({ source: 'direkt' }),
+]);
+assert.deepEqual(paid.platforms[0], { name: 'Instagram', visits: 2, scrolled: 1, opened: 1, leads: 0 });
+assert.deepEqual(paid.platforms[1], { name: 'Facebook', visits: 1, scrolled: 1, opened: 1, leads: 1 });
+assert.deepEqual(paid.ads.map((row) => row.name), ['film-1', 'film-2'], 'besök utan annons räknas inte in bland annonserna');
+assert.deepEqual(paid.outcome.map((row) => row.count), [2, 0, 1, 1]);
+assert.equal(OfferVisitSchema.safeParse({ ...visit({}), platform: 'ig', ad: 'film-1' }).success, true);
+assert.equal(OfferVisitSchema.safeParse({ ...visit({}), platform: 'a b' }).success, false);
 assert.equal(summarizeOfferVisits([]).medianSeconds, 0);
 
 assert.equal(OfferVisitSchema.safeParse(visit({})).success, true);

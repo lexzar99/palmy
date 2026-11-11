@@ -20,6 +20,8 @@ let shown = 0;
 let visibleSince = 0;
 let source = "direkt";
 let campaign: string | undefined;
+let platform: string | undefined;
+let ad: string | undefined;
 let pending = 0;
 
 const seconds = () => Math.min(3600, Math.round((shown + (visibleSince ? Date.now() - visibleSince : 0)) / 1000));
@@ -29,7 +31,7 @@ function send() {
   window.clearTimeout(pending);
   pending = 0;
   const device = window.innerWidth < 768 ? "mobil" : "dator";
-  const body = JSON.stringify({ id, stage: STAGES[deepest], last, seconds: seconds(), form, device, source, campaign });
+  const body = JSON.stringify({ id, stage: STAGES[deepest], last, seconds: seconds(), form, device, source, campaign, platform, ad });
   navigator.sendBeacon("/api/offer-stats", new Blob([body], { type: "application/json" }));
 }
 const soon = () => { if (active && !pending) pending = window.setTimeout(send, 1500); };
@@ -64,6 +66,11 @@ export function startVisit() {
   source = from && TOKEN.test(from) ? from : "direkt";
   const utm = query.get("utm_campaign") ?? "";
   campaign = TOKEN.test(utm) ? utm : undefined;
+  // Meta fyller i utm_medium med var annonsen visades (fb, ig) och utm_content med annonsens namn.
+  const medium = query.get("utm_medium") ?? "";
+  platform = TOKEN.test(medium) && medium.length <= 40 ? medium : undefined;
+  const content = query.get("utm_content") ?? "";
+  ad = TOKEN.test(content) ? content : undefined;
   visibleSince = document.hidden ? 0 : Date.now();
   active = true;
   const onVisibility = () => {

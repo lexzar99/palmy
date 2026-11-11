@@ -38,6 +38,10 @@ export const OfferVisitSchema = z.object({
   device: z.enum(['mobil', 'dator']),
   source: z.string().regex(/^[a-zA-Z0-9_.-]{1,80}$/),
   campaign: z.string().regex(/^[a-zA-Z0-9_.-]{1,80}$/).optional(),
+  /** Var i Meta annonsen visades (utm_medium), till exempel fb eller ig. */
+  platform: z.string().regex(/^[a-zA-Z0-9_.-]{1,40}$/).optional(),
+  /** Annonsens namn (utm_content). */
+  ad: z.string().regex(/^[a-zA-Z0-9_.-]{1,80}$/).optional(),
 });
 
 export type OfferVisit = z.infer<typeof OfferVisitSchema>;
@@ -51,12 +55,19 @@ function median(values: number[]) {
   return sorted.length % 2 ? sorted[middle] : Math.round((sorted[middle - 1] + sorted[middle]) / 2);
 }
 
+const PLATFORM_LABEL: Record<string, string> = { fb: 'Facebook', facebook: 'Facebook', ig: 'Instagram', instagram: 'Instagram', an: 'Audience Network', msg: 'Messenger', th: 'Threads' };
+/** Metas kortnamn blir läsbara. Besök utan uppgift hamnar under ett eget namn i stället för att försvinna. */
+export const offerPlatformLabel = (platform?: string) => (platform ? PLATFORM_LABEL[platform.toLowerCase()] ?? platform : 'Okänd');
+
+/** Per grupp: hur många som kom, skrollade, öppnade formuläret och anmälde sig. */
 function countBy(visits: OfferVisit[], key: (visit: OfferVisit) => string) {
-  const groups = new Map<string, { name: string; visits: number; leads: number }>();
+  const groups = new Map<string, { name: string; visits: number; scrolled: number; opened: number; leads: number }>();
   for (const visit of visits) {
     const name = key(visit);
-    const row = groups.get(name) ?? { name, visits: 0, leads: 0 };
+    const row = groups.get(name) ?? { name, visits: 0, scrolled: 0, opened: 0, leads: 0 };
     row.visits += 1;
+    if (stageIndex(visit.stage) >= 1) row.scrolled += 1;
+    if (visit.form >= 1) row.opened += 1;
     if (visit.form >= OFFER_FORM_STEPS.length) row.leads += 1;
     groups.set(name, row);
   }
@@ -68,12 +79,22 @@ export function summarizeOfferVisits(visits: OfferVisit[]) {
   const total = visits.length;
   const seconds = visits.map((visit) => visit.seconds);
   const leads = visits.filter((visit) => visit.form >= OFFER_FORM_STEPS.length).length;
+  const opened = visits.filter((visit) => visit.form >= 1).length;
+  const scrolled = visits.filter((visit) => stageIndex(visit.stage) >= 1).length;
+  const paid = visits.filter((visit) => visit.platform || visit.ad);
   return {
     visits: total,
     medianSeconds: median(seconds),
     averageSeconds: total ? Math.round(seconds.reduce((sum, value) => sum + value, 0) / total) : 0,
     leads,
     leadPercent: percent(leads, total),
+    /** Det enkla svaret: gick direkt, skrollade bara, öppnade formuläret utan att skicka, anmälde sig. */
+    outcome: [
+      { label: 'Lämnade utan att skrolla', count: total - Math.max(scrolled, opened) },
+      { label: 'Skrollade men öppnade aldrig formuläret', count: Math.max(scrolled, opened) - opened },
+      { label: 'Öppnade formuläret men skickade inte', count: opened - leads },
+      { label: 'Anmälde intresse', count: leads },
+    ].map((row) => ({ ...row, percent: percent(row.count, total) })),
     stages: OFFER_STAGES.map((stage, index) => {
       const reached = visits.filter((visit) => stageIndex(visit.stage) >= index).length;
       const left = visits.filter((visit) => visit.last === stage.id && visit.form < OFFER_FORM_STEPS.length).length;
@@ -85,5 +106,8 @@ export function summarizeOfferVisits(visits: OfferVisit[]) {
     }),
     sources: countBy(visits, (visit) => visit.source),
     devices: countBy(visits, (visit) => visit.device),
+    platforms: countBy(paid, (visit) => offerPlatformLabel(visit.platform)),
+    ads: countBy(paid, (visit) => visit.ad ?? 'Okänd annons'),
+    campaigns: countBy(visits.filter((visit) => visit.campaign), (visit) => visit.campaign as string),
   };
 }

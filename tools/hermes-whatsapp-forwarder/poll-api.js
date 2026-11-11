@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
+const { spawn } = require('child_process');
 
 const rootDir = path.resolve(__dirname, '../..');
 const envFile = path.join(__dirname, '.runtime.env');
@@ -366,6 +368,7 @@ async function pollOnce(config, state) {
     await ackAlert(config, alert);
     advance(alert);
     console.log(`[hermes-poll] sent alert ${alert.id || state.since}`);
+    if (startLeadScout(message)) console.log('[hermes-poll] leadkoll startad');
   }
 
   await checkPendingOrders(config, state);
@@ -494,7 +497,38 @@ if (require.main === module) {
   });
 }
 
+// "NY RESTAURANG Namn (Stad)" från /erbjudande: starta leadkollen, som söker upp restaurangen och skickar
+// ett samtalskort. Den körs som en egen process och får aldrig stoppa eller fördröja aviseringarna.
+// Namnet kommer från ett öppet formulär: det skickas som argument, aldrig genom ett skal.
+function parseRestaurantSignup(message) {
+  const text = String(message || '');
+  const match = text.split('\n')[0].match(/^NY RESTAURANG (.+?)(?: \(([^()]{1,60})\))?$/);
+  if (!match) return null;
+  const tidy = (value, max) => String(value || '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/^[\s-]+/, '').trim().slice(0, max);
+  const name = tidy(match[1], 120);
+  if (!name) return null;
+  return { name, city: tidy(match[2], 60), phone: tidy((text.match(/^Telefon: (.+)$/m) || [])[1], 30) };
+}
+
+function startLeadScout(message, { script = process.env.LEAD_SCOUT_PATH || path.join(os.homedir(), 'viaeats-scout', 'lead-scout.js') } = {}) {
+  try {
+    const lead = parseRestaurantSignup(message);
+    if (!lead || !fs.existsSync(script)) return false;
+    const args = [script, '--name', lead.name, '--send'];
+    if (lead.city) args.push('--city', lead.city);
+    if (lead.phone) args.push('--phone', lead.phone);
+    const child = spawn(process.execPath, args, { detached: true, stdio: 'ignore' });
+    child.on('error', () => {});
+    child.unref();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 module.exports = {
+  parseRestaurantSignup,
+  startLeadScout,
   HttpError,
   alertAgeMs,
   alertText,
