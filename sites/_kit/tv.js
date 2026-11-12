@@ -2,14 +2,16 @@
 // och en kort paus med reklam med jämna mellanrum. Sajten ritar tavlan, kitet sköter tekniken.
 //
 // Tavlan:  <main class="board" data-board> … </main>
-// Rätt:    <li data-item="Cevapi"> … <b data-price>99 kr</b></li>   (namnet som i viaeats admin)
-//          data-sizes på en rätt med storlek: priset visas som "39 / 59 kr" (Liten / Stor).
+// Rätt:    <li data-item="Cevapi"> … <b><span data-price>99</span> kr</b></li>   (namnet som i viaeats admin)
+//          Bara siffran skrivs, så att sajten själv bestämmer hur "kr" ser ut.
+//          data-sizes på en rätt med storlek: priset visas som "39 / 59" (Liten / Stor).
+//          Samma rätt får finnas på flera ställen, till exempel i en lista och i en paus.
 // Paus:    <section data-break> … </section>, en eller flera. Visas i tur och ordning.
 //
 // Adressflaggor: ?rotate=90 eller 270 om TV:n visar liggande bild på en stående skärm,
 //                ?break visar en paus direkt, ?nobreak stänger av pauserna.
 const API = "https://api.viaeats.se/api/restaurants/";
-const kr = (n) => `${Math.round(n)} kr`;
+const num = (n) => String(Math.round(n));
 
 function fitBoard(board, width, height, rotate) {
   const fit = () => {
@@ -40,9 +42,9 @@ async function updatePrices(slug) {
     if (!product || !out) return;
     if (el.hasAttribute("data-sizes")) {
       const big = (product.extraGroups ?? []).flatMap((g) => g.extras ?? []).find((e) => /^stor$/i.test(e.name));
-      out.textContent = big ? `${Math.round(product.price)} / ${kr(product.price + (big.priceAddon ?? 0))}` : kr(product.price);
+      out.textContent = big ? `${num(product.price)} / ${num(product.price + (big.priceAddon ?? 0))}` : num(product.price);
     } else {
-      out.textContent = kr(product.price);
+      out.textContent = num(product.price);
     }
   });
   return true;

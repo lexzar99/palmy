@@ -20,7 +20,7 @@ ul { list-style: none; }
 img, video { display: block; }
 .board {
   position: fixed; left: 50%; top: 50%; transform-origin: center; overflow: hidden;
-  display: grid; grid-template-rows: 116px auto 1fr 148px; grid-template-columns: minmax(0, 1fr);
+  display: grid; grid-template-rows: 116px auto auto 1fr 148px; grid-template-columns: minmax(0, 1fr);
   background: var(--paper); color: var(--ink); font: 500 22px/1.25 var(--font);
   font-variant-numeric: tabular-nums;
 }
@@ -35,15 +35,16 @@ h2, h3, .hit > b, .lunch dd, .break__big { font-stretch: 62%; font-weight: 900; 
 .lunch dl div { display: flex; flex-direction: column; gap: 2px; white-space: nowrap; }
 .lunch dt { font-size: 22px; font-weight: 700; opacity: 0.92; }
 .lunch dd { font-size: 56px; line-height: 0.95; }
+.lunch dd small { font-size: 0.5em; font-weight: 800; opacity: 0.85; }
 .lunch p { font-size: 21px; font-weight: 700; text-align: right; max-width: 150px; line-height: 1.15; }
 
 /* ---------- Populärast: tallrikarna vrids sakta, som på ett bord ---------- */
 .label { display: flex; align-items: center; gap: 16px; font-size: 24px; font-weight: 800; letter-spacing: 0.22em; text-transform: uppercase; color: var(--red); }
 .label::after { content: ""; flex: 1; height: 2px; background: var(--line); }
 .hits { padding: 24px 36px 0; }
-.hits ul { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 18px; margin-top: 12px; }
+.hits ul { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 18px; margin-top: 14px; }
 .hit { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0; }
-.plate { position: relative; width: 286px; height: 286px; margin-bottom: 10px; }
+.plate { position: relative; width: 244px; height: 244px; margin-bottom: 12px; }
 /* Skuggan ligger still på bordet, bara tallriken vrids */
 .plate::before { content: ""; position: absolute; inset: 6% 4% -2%; border-radius: 50%; background: radial-gradient(closest-side, rgba(28, 20, 17, 0.34), rgba(28, 20, 17, 0.12) 70%, transparent); filter: blur(12px); transform: translateY(14px); }
 .plate img { position: relative; width: 100%; height: 100%; animation: turn 150s linear infinite; will-change: transform; }
@@ -53,23 +54,33 @@ h2, h3, .hit > b, .lunch dd, .break__big { font-stretch: 62%; font-weight: 900; 
 .hit:nth-child(5) .plate img { animation-duration: 175s; animation-delay: -130s; }
 .hit:nth-child(6) .plate img { animation-duration: 200s; animation-delay: -70s; }
 @keyframes turn { to { transform: rotate(360deg); } }
-.hit h3 { font-size: 54px; line-height: 0.92; }
-.hit p { margin-top: 5px; max-width: 100%; font-size: 21px; font-weight: 600; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hit h3 { font-size: 52px; line-height: 0.92; }
+.hit p { margin-top: 5px; max-width: 100%; font-size: 20px; font-weight: 600; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hit p b { font-weight: 800; color: var(--ink); }
-.hit > b { margin-top: 4px; font-size: 60px; line-height: 1; color: var(--red); }
+.hit > b { margin-top: 6px; font-size: 44px; line-height: 1; color: var(--red); }
+.hit > b small { font-size: 0.55em; font-weight: 800; color: var(--muted); }
+
+/* ---------- Lägg till: tillbehören direkt under rätterna ---------- */
+.extras { display: flex; align-items: center; gap: 30px; margin: 22px 36px 0; padding: 16px 28px; border-radius: 16px; background: #fff; box-shadow: 0 1px 0 var(--line), 0 10px 30px rgba(28, 20, 17, 0.06); }
+.extras .label::after { display: none; }
+.extras ul { flex: 1; display: flex; justify-content: space-between; gap: 20px; }
+.extras li { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.1; }
+.extras li span { font-size: 23px; font-weight: 700; }
+.extras b { font-size: 25px; font-weight: 800; color: var(--red); white-space: nowrap; }
 
 /* ---------- Listorna ---------- */
-.lists { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 0.86fr); gap: 28px; padding: 24px 36px 0; align-content: start; }
-.cat { display: flex; align-items: center; gap: 12px; height: 60px; margin-top: 16px; font-size: 36px; color: var(--red); border-bottom: 2px solid var(--ink); }
+.lists { display: grid; grid-template-columns: minmax(0, 1.22fr) minmax(0, 1fr) minmax(0, 0.82fr); gap: 34px; padding: 26px 36px 0; align-content: start; }
+.cat { display: flex; align-items: center; gap: 12px; height: 60px; margin-top: 30px; font-size: 36px; color: var(--red); border-bottom: 2px solid var(--ink); }
 .col > .cat:first-child { margin-top: 0; }
 .cat img { width: 52px; height: 52px; animation: turn 240s linear infinite; }
 .cat--plain { height: 48px; }
 .cat small { margin-left: auto; font-stretch: 100%; font-size: 17px; font-weight: 700; letter-spacing: 0.02em; text-transform: none; color: var(--muted); }
-.rows li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.rows li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .rows li span { font-size: 25px; font-weight: 700; line-height: 1.12; }
-.rows li small { display: block; margin-top: 1px; font-size: 17px; font-weight: 600; color: var(--muted); }
+.rows li span small { display: block; margin-top: 1px; font-size: 17px; font-weight: 600; color: var(--muted); }
 .rows li > b { font-size: 25px; font-weight: 800; white-space: nowrap; }
-.rows--tight li { padding: 4px 0; }
+.rows li > b small, .drinks b small, .extras b small { font-size: 0.68em; font-weight: 700; color: var(--muted); }
+.rows--tight li { padding: 7px 0; }
 .rows .note { display: block; padding: 7px 0 0; border: 0; font-size: 18px; font-weight: 700; color: var(--red); }
 .is-gone { display: none !important; }
 
@@ -80,6 +91,8 @@ h2, h3, .hit > b, .lunch dd, .break__big { font-stretch: 62%; font-weight: 900; 
 .drinks ul { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px 30px; margin-top: 10px; }
 .drinks li { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 23px; font-weight: 700; white-space: nowrap; }
 .drinks b { font-weight: 800; color: var(--gold); }
+.drinks b small { color: rgba(255, 255, 255, 0.55); }
+.drinks .label span { font-size: 18px; font-weight: 600; letter-spacing: 0.02em; text-transform: none; color: rgba(255, 255, 255, 0.7); }
 
 /* ---------- Pausen: tre sekunder, toning in och ut ---------- */
 .break { position: absolute; inset: 0; z-index: 10; display: grid; place-items: center; background: #120c0a; color: #fff; opacity: 0; visibility: hidden; transition: opacity 0.35s ease, visibility 0s linear 0.35s; }
@@ -97,7 +110,8 @@ h2, h3, .hit > b, .lunch dd, .break__big { font-stretch: 62%; font-weight: 900; 
 .break__small { font-size: 32px; font-weight: 600; line-height: 1.35; color: var(--cream); }
 .break__kicker { font-size: 26px; font-weight: 800; letter-spacing: 0.24em; text-transform: uppercase; color: var(--gold); }
 .break__url { font-size: 50px; font-weight: 800; color: var(--gold); }
-.break--party .break__body, .break--order .break__body { align-self: end; padding-bottom: 220px; }
+.break__price { font-stretch: 62%; font-size: 96px; font-weight: 900; line-height: 1; color: var(--gold); }
+.break--party .break__body, .break--order .break__body, .break--dish .break__body { align-self: end; padding-bottom: 200px; }
 
 @media (prefers-reduced-motion: reduce) {
   .plate img, .cat img { animation: none; }

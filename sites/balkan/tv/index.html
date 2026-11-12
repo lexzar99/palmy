@@ -9,13 +9,15 @@
   <link rel="preload" as="image" href="/img/tv/grillmix.webp" />
 </head>
 <body>
-  <!-- Stående tavla 1080×1920 som skalas till skärmen (_kit/tv.js). Priserna uppdateras live från viaeats. -->
+  <!-- Stående tavla 1080×1920 som skalas till skärmen (_kit/tv.js). Priserna uppdateras live från viaeats.
+       Säljgreppen: bild på det populära, de dyraste rätterna i mitten, tillbehören direkt under rätterna,
+       priset mindre än namnet och "kr" litet. -->
   <main class="board" data-board>
     <section class="lunch">
       <h2>Lunchbuffé <span>varje dag</span></h2>
       <dl>
-        <div><dt>Vardagar 11–15</dt><dd>145 kr</dd></div>
-        <div><dt>Helger 11.30–15.30</dt><dd>175 kr</dd></div>
+        <div><dt>Vardagar 11–15</dt><dd>145 <small>kr</small></dd></div>
+        <div><dt>Helger 11.30–15.30</dt><dd>175 <small>kr</small></dd></div>
       </dl>
       <p>Dryck och kaffe ingår</p>
     </section>
@@ -25,28 +27,40 @@
       <ul>
         <li class="hit" data-item="Cevapi">
           <div class="plate"><img src="/img/tv/cevapi.webp" alt="" /></div>
-          <h3>Ćevapi</h3><p>Lepinja, lök, ajvar, kajmak</p><b data-price>99 kr</b>
-        </li>
-        <li class="hit" data-item="Klassisk Pljeskavica">
-          <div class="plate"><img src="/img/tv/pljeskavica.webp" alt="" /></div>
-          <h3>Pljeskavica</h3><p data-item="Pljeskavica fylld med ost">Fylld med ost <b data-price>129 kr</b></p><b data-price>109 kr</b>
+          <h3>Ćevapi</h3><p>Med hemlagad kajmak och ajvar</p><b><span data-price>99</span> <small>kr</small></b>
         </li>
         <li class="hit" data-item="Grill Mix">
           <div class="plate"><img src="/img/tv/grillmix.webp" alt="" /></div>
-          <h3>Grill Mix</h3><p>Ćevapi, kyckling, sudjuk, qofte</p><b data-price>149 kr</b>
+          <h3>Grill Mix</h3><p>Ćevapi, kyckling, sudjuk, qofte</p><b><span data-price>149</span> <small>kr</small></b>
         </li>
-        <li class="hit" data-item="Burek med kött">
-          <div class="plate"><img src="/img/tv/burek.webp" alt="" /></div>
-          <h3>Burek</h3><p data-item="Burek med ost">Med kött eller ost <b data-price hidden>49 kr</b></p><b data-price>49 kr</b>
+        <li class="hit" data-item="Klassisk Pljeskavica">
+          <div class="plate"><img src="/img/tv/pljeskavica.webp" alt="" /></div>
+          <h3>Pljeskavica</h3><p data-item="Pljeskavica fylld med ost">Fylld med ost <b><span data-price>129</span> kr</b></p><b><span data-price>109</span> <small>kr</small></b>
         </li>
         <li class="hit" data-item="Skenderbeg">
           <div class="plate"><img src="/img/tv/skenderbeg.webp" alt="" /></div>
-          <h3>Skenderbeg</h3><p>Fylld kycklingfilé, halal</p><b data-price>169 kr</b>
+          <h3>Skenderbeg</h3><p>Ost och rökt skinka, halal</p><b><span data-price>169</span> <small>kr</small></b>
         </li>
         <li class="hit" data-item="Balkan Sofra – 2 personer">
           <div class="plate"><img src="/img/tv/sofra.webp" alt="" /></div>
-          <h3>Balkan Sofra</h3><p>Hela grillen, för två</p><b data-price>499 kr</b>
+          <h3>Balkan Sofra</h3><p>Hela grillen för två</p><b><span data-price>499</span> <small>kr</small></b>
         </li>
+        <li class="hit" data-item="Burek med kött">
+          <div class="plate"><img src="/img/tv/burek.webp" alt="" /></div>
+          <h3>Burek</h3><p data-item="Burek med ost">Handrullad, kött eller ost<span data-price hidden>49</span></p><b><span data-price>49</span> <small>kr</small></b>
+        </li>
+      </ul>
+    </section>
+
+    <!-- Tillbehören direkt under rätterna, där man just valt vad man ska äta -->
+    <section class="extras">
+      <h2 class="label">Lägg till</h2>
+      <ul>
+        <li data-item="Pommes frites" data-sizes><span>Pommes</span><b><span data-price>39 / 59</span> <small>kr</small></b></li>
+        <li data-item="Kajmak"><span>Kajmak</span><b><span data-price>29</span> <small>kr</small></b></li>
+        <li data-item="Ajvar"><span>Ajvar</span><b><span data-price>19</span> <small>kr</small></b></li>
+        <li data-item="Tzatziki"><span>Tzatziki</span><b><span data-price>19</span> <small>kr</small></b></li>
+        <li data-item="Lepinja"><span>Lepinja</span><b><span data-price>19</span> <small>kr</small></b></li>
       </ul>
     </section>
 
@@ -54,84 +68,85 @@
       <div class="col">
         <h2 class="cat"><img src="/img/tv/hamburgare.webp" alt="" />Grill</h2>
         <ul class="rows">
-          <li data-item="Hemlagad Qofte Stark"><span>Qofte stark<small>Lepinja, lök, ajvar, kajmak</small></span><b data-price>119 kr</b></li>
-          <li data-item="Grillad Sudjuk"><span>Grillad sudjuk<small>Lepinja, lök, ajvar, kajmak</small></span><b data-price>99 kr</b></li>
-          <li data-item="Balkansk Hamburgare"><span>Balkansk hamburgare</span><b data-price>99 kr</b></li>
-          <li data-item="Kycklinghamburgare"><span>Kycklinghamburgare</span><b data-price>99 kr</b></li>
+          <li data-item="Hemlagad Qofte Stark"><span>Hemlagad qofte stark<small>Lepinja, lök, ajvar, kajmak</small></span><b><span data-price>119</span> <small>kr</small></b></li>
+          <li data-item="Grillad Sudjuk"><span>Grillad sudjuk<small>Lepinja, lök, ajvar, kajmak</small></span><b><span data-price>99</span> <small>kr</small></b></li>
+          <li data-item="Balkansk Hamburgare"><span>Balkansk hamburgare</span><b><span data-price>99</span> <small>kr</small></b></li>
+          <li data-item="Kycklinghamburgare"><span>Kycklinghamburgare</span><b><span data-price>99</span> <small>kr</small></b></li>
           <li class="note">Pommes till burgaren +20 kr</li>
-          <li data-item="Grillad kycklingfilé"><span>Grillad kycklingfilé<small>Pommes och bearnaisesås</small></span><b data-price>139 kr</b></li>
-          <li data-item="Rödspätta"><span>Rödspätta<small>Pommes och remouladsås</small></span><b data-price>149 kr</b></li>
-          <li data-item="Schnitzel"><span>Schnitzel<small>Pommes och bearnaisesås</small></span><b data-price>159 kr</b></li>
-          <li data-item="Vegetarisk schnitzel"><span>Vegetarisk schnitzel<small>Pommes och bearnaisesås</small></span><b data-price>159 kr</b></li>
-          <li data-item="Traditionell Fli"><span>Traditionell fli<small>Lager på lager, gräddat i ugn</small></span><b data-price>89 kr</b></li>
+          <li data-item="Grillad kycklingfilé"><span>Grillad kycklingfilé<small>Pommes och bearnaisesås</small></span><b><span data-price>139</span> <small>kr</small></b></li>
+          <li data-item="Rödspätta"><span>Rödspätta<small>Pommes och remouladsås</small></span><b><span data-price>149</span> <small>kr</small></b></li>
+          <li data-item="Schnitzel"><span>Schnitzel<small>Pommes och bearnaisesås</small></span><b><span data-price>159</span> <small>kr</small></b></li>
+          <li data-item="Vegetarisk schnitzel"><span>Vegetarisk schnitzel<small>Pommes och bearnaisesås</small></span><b><span data-price>159</span> <small>kr</small></b></li>
+          <li data-item="Traditionell Fli"><span>Traditionell fli</span><b><span data-price>89</span> <small>kr</small></b></li>
         </ul>
       </div>
 
       <div class="col">
         <h2 class="cat"><img src="/img/tv/entrecote.webp" alt="" />Specialiteter</h2>
         <ul class="rows">
-          <li data-item="Lax Deluxe"><span>Lax deluxe</span><b data-price>199 kr</b></li>
-          <li data-item="Ryggbiff Deluxe"><span>Ryggbiff deluxe</span><b data-price>189 kr</b></li>
-          <li data-item="Entrecôte (200 g)"><span>Entrecôte 200 g</span><b data-price>199 kr</b></li>
+          <li data-item="Lax Deluxe"><span>Lax deluxe</span><b><span data-price>199</span> <small>kr</small></b></li>
+          <li data-item="Ryggbiff Deluxe"><span>Ryggbiff deluxe</span><b><span data-price>189</span> <small>kr</small></b></li>
+          <li data-item="Entrecôte (200 g)"><span>Entrecôte 200 g</span><b><span data-price>199</span> <small>kr</small></b></li>
         </ul>
         <h2 class="cat"><img src="/img/tv/shopska.webp" alt="" />Sallader<small>liten / stor</small></h2>
         <ul class="rows">
-          <li data-item="Shopska sallad" data-sizes><span>Shopska<small>Tomat, gurka, lök, ost</small></span><b data-price>39 / 59 kr</b></li>
-          <li data-item="Grekisk sallad" data-sizes><span>Grekisk sallad</span><b data-price>49 / 69 kr</b></li>
-          <li data-item="Kycklingsallad"><span>Kycklingsallad</span><b data-price>109 kr</b></li>
-        </ul>
-        <h2 class="cat cat--plain">Barnmeny</h2>
-        <ul class="rows rows--tight">
-          <li data-item="Chicken nuggets"><span>Nuggets</span><b data-price>69 kr</b></li>
-          <li data-item="Barn cevapi"><span>Ćevapi</span><b data-price>69 kr</b></li>
-          <li data-item="Miniburgare"><span>Miniburgare</span><b data-price>69 kr</b></li>
-          <li data-item="Grillkorv"><span>Grillkorv</span><b data-price>69 kr</b></li>
+          <li data-item="Shopska sallad" data-sizes><span>Shopska<small>Tomat, gurka, lök, ost</small></span><b><span data-price>39 / 59</span> <small>kr</small></b></li>
+          <li data-item="Grekisk sallad" data-sizes><span>Grekisk sallad</span><b><span data-price>49 / 69</span> <small>kr</small></b></li>
+          <li data-item="Kycklingsallad"><span>Kycklingsallad</span><b><span data-price>109</span> <small>kr</small></b></li>
         </ul>
       </div>
 
       <div class="col">
         <h2 class="cat"><img src="/img/tv/baklava.webp" alt="" />Desserter</h2>
         <ul class="rows rows--tight">
-          <li data-item="Trilece"><span>Trilece</span><b data-price>39 kr</b></li>
-          <li data-item="Baklava"><span>Baklava</span><b data-price>39 kr</b></li>
-          <li data-item="Tiramisu"><span>Tiramisu</span><b data-price>39 kr</b></li>
-          <li data-item="Lotus"><span>Lotus</span><b data-price>39 kr</b></li>
-          <li data-item="Shampita"><span>Šampita</span><b data-price>39 kr</b></li>
-          <li data-item="Chokladbollar"><span>Chokladbollar</span><b data-price>29 kr</b></li>
+          <li data-item="Baklava"><span>Baklava</span><b><span data-price>39</span> <small>kr</small></b></li>
+          <li data-item="Trilece"><span>Trilece</span><b><span data-price>39</span> <small>kr</small></b></li>
+          <li data-item="Tiramisu"><span>Tiramisu</span><b><span data-price>39</span> <small>kr</small></b></li>
+          <li data-item="Lotus"><span>Lotus</span><b><span data-price>39</span> <small>kr</small></b></li>
+          <li data-item="Shampita"><span>Šampita</span><b><span data-price>39</span> <small>kr</small></b></li>
+          <li data-item="Chokladbollar"><span>Chokladbollar</span><b><span data-price>29</span> <small>kr</small></b></li>
           <li class="note">Hel plåt till festen? Fråga oss.</li>
         </ul>
-        <h2 class="cat cat--plain">Tillbehör</h2>
+        <h2 class="cat cat--plain">Barnmeny</h2>
         <ul class="rows rows--tight">
-          <li data-item="Pommes frites" data-sizes><span>Pommes</span><b data-price>39 / 59 kr</b></li>
-          <li data-item="Kajmak"><span>Kajmak</span><b data-price>29 kr</b></li>
-          <li data-item="Ajvar"><span>Ajvar</span><b data-price>19 kr</b></li>
-          <li data-item="Tzatziki"><span>Tzatziki</span><b data-price>19 kr</b></li>
-          <li data-item="Lepinja"><span>Lepinja</span><b data-price>19 kr</b></li>
+          <li data-item="Chicken nuggets"><span>Nuggets</span><b><span data-price>69</span> <small>kr</small></b></li>
+          <li data-item="Barn cevapi"><span>Ćevapi</span><b><span data-price>69</span> <small>kr</small></b></li>
+          <li data-item="Miniburgare"><span>Miniburgare</span><b><span data-price>69</span> <small>kr</small></b></li>
+          <li data-item="Grillkorv"><span>Grillkorv</span><b><span data-price>69</span> <small>kr</small></b></li>
         </ul>
       </div>
     </section>
 
     <section class="drinks">
-      <h2 class="label">Dryck</h2>
+      <h2 class="label">Dryck <span>Ayran passar till grillen</span></h2>
       <ul>
-        <li data-item="Ayran"><span>Ayran</span><b data-price>19 kr</b></li>
-        <li data-item="Läsk"><span>Läsk</span><b data-price>25 kr</b></li>
-        <li data-item="Cockta"><span>Cockta</span><b data-price>25 kr</b></li>
-        <li data-item="Bryggkaffe"><span>Bryggkaffe</span><b data-price>25 kr</b></li>
-        <li data-item="Lättöl 2,2 %"><span>Lättöl 2,2 %</span><b data-price>29 kr</b></li>
-        <li data-item="Lättöl 2,1 %"><span>Lättöl 2,1 %</span><b data-price>29 kr</b></li>
-        <li data-item="PEJA 0,0 %"><span>PEJA 0,0 %</span><b data-price>29 kr</b></li>
-        <li data-item="Ceylonte"><span>Ceylonte</span><b data-price>15 kr</b></li>
+        <li data-item="Ayran"><span>Ayran</span><b><span data-price>19</span> <small>kr</small></b></li>
+        <li data-item="Läsk"><span>Läsk</span><b><span data-price>25</span> <small>kr</small></b></li>
+        <li data-item="Cockta"><span>Cockta</span><b><span data-price>25</span> <small>kr</small></b></li>
+        <li data-item="Bryggkaffe"><span>Bryggkaffe</span><b><span data-price>25</span> <small>kr</small></b></li>
+        <li data-item="Lättöl 2,2 %"><span>Lättöl 2,2 %</span><b><span data-price>29</span> <small>kr</small></b></li>
+        <li data-item="Lättöl 2,1 %"><span>Lättöl 2,1 %</span><b><span data-price>29</span> <small>kr</small></b></li>
+        <li data-item="PEJA 0,0 %"><span>PEJA 0,0 %</span><b><span data-price>29</span> <small>kr</small></b></li>
+        <li data-item="Ceylonte"><span>Ceylonte</span><b><span data-price>15</span> <small>kr</small></b></li>
       </ul>
     </section>
 
-    <!-- Pauserna: tre sekunder var tredje minut, en i taget -->
+    <!-- Pauserna: tre sekunder var tredje minut, en i taget. Varje paus kommer alltså var tolfte minut. -->
     <section class="break break--brand" data-break aria-hidden="true">
       <video src="/film/tv-grill.mp4" muted playsinline preload="auto"></video>
       <div class="break__body">
         <img src="/img/logo.webp" alt="" width="300" height="300" />
         <p class="break__big">Äkta smaker<br />från Balkan</p>
         <p class="break__small">Burlöv Center</p>
+      </div>
+    </section>
+    <section class="break break--dish" data-break aria-hidden="true">
+      <img class="break__bg" src="/img/dishes/sofra.webp" alt="" />
+      <div class="break__body" data-item="Balkan Sofra – 2 personer">
+        <p class="break__kicker">Dela grillen</p>
+        <p class="break__big">Balkan Sofra</p>
+        <p class="break__small">Ćevapi, sudjuk, kyckling, pljeskavica,<br />burek och entrecôte. För två.</p>
+        <p class="break__price"><span data-price>499</span> kr</p>
       </div>
     </section>
     <section class="break break--party" data-break aria-hidden="true">
