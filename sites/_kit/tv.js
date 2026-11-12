@@ -6,10 +6,12 @@
 //          Bara siffran skrivs, så att sajten själv bestämmer hur "kr" ser ut.
 //          data-sizes på en rätt med storlek: priset visas som "39 / 59" (Liten / Stor).
 //          Samma rätt får finnas på flera ställen, till exempel i en lista och i en paus.
-// Paus:    <section data-break> … </section>, en eller flera. Visas i tur och ordning.
+// Paus:    <section data-break="namn" data-seconds="4"> … </section>, en eller flera.
+//          breakOrder: ["order", "brand", "order"] bestämmer turordningen, så att en paus kan visas oftare.
+//          Utan breakOrder visas pauserna i den ordning de står. data-seconds saknas: breakLength gäller.
 //
 // Adressflaggor: ?rotate=90 eller 270 om TV:n visar liggande bild på en stående skärm,
-//                ?break visar en paus direkt, ?nobreak stänger av pauserna.
+//                ?break visar nästa paus direkt (?break=namn en viss), ?nobreak stänger av pauserna.
 const API = "https://api.viaeats.se/api/restaurants/";
 const num = (n) => String(Math.round(n));
 
@@ -50,24 +52,27 @@ async function updatePrices(slug) {
   return true;
 }
 
-function startBreaks(slides, everySeconds, lengthSeconds) {
-  if (!slides.length) return;
+function startBreaks(slides, everySeconds, lengthSeconds, order) {
+  const byName = new Map(slides.map((s) => [s.dataset.break, s]));
+  const queue = (order?.length ? order.map((n) => byName.get(n)) : slides).filter(Boolean);
+  if (!queue.length) return;
   let next = 0;
-  const show = () => {
-    const slide = slides[next];
-    next = (next + 1) % slides.length;
+  const show = (slide = queue[next]) => {
+    if (slide === queue[next]) next = (next + 1) % queue.length;
     const video = slide.querySelector("video");
     if (video) { video.currentTime = 0; video.play().catch(() => {}); }
     slide.classList.add("is-on");
     document.documentElement.classList.add("is-break");
+    const seconds = Number(slide.dataset.seconds) || lengthSeconds;
     setTimeout(() => {
       slide.classList.remove("is-on");
       document.documentElement.classList.remove("is-break");
       setTimeout(() => video?.pause(), 600);
-    }, lengthSeconds * 1000);
+    }, seconds * 1000);
   };
-  if (new URLSearchParams(location.search).has("break")) setTimeout(show, 1500);
-  setInterval(show, everySeconds * 1000);
+  const forced = new URLSearchParams(location.search).get("break");
+  if (forced !== null) setTimeout(() => show(byName.get(forced) ?? queue[next]), 1500);
+  setInterval(() => show(), everySeconds * 1000);
 }
 
 /** Laddar om sidan en gång per natt, så att nya versioner och bilder kommer med. Bara om nätet svarar. */
@@ -83,7 +88,7 @@ function reloadNightly(hour) {
   }, at - now);
 }
 
-export function startTvBoard({ slug, width = 1080, height = 1920, breakEvery = 180, breakLength = 3, reloadHour = 4 }) {
+export function startTvBoard({ slug, width = 1080, height = 1920, breakEvery = 180, breakLength = 3, breakOrder, reloadHour = 4 }) {
   const params = new URLSearchParams(location.search);
   const rotate = Number(params.get("rotate")) || 0;
   const board = document.querySelector("[data-board]");
@@ -92,7 +97,7 @@ export function startTvBoard({ slug, width = 1080, height = 1920, breakEvery = 1
   updatePrices(slug);
   setInterval(() => updatePrices(slug), 10 * 60 * 1000);
 
-  if (!params.has("nobreak")) startBreaks([...document.querySelectorAll("[data-break]")], breakEvery, breakLength);
+  if (!params.has("nobreak")) startBreaks([...document.querySelectorAll("[data-break]")], breakEvery, breakLength, breakOrder);
   reloadNightly(reloadHour);
 
   // Skärmen ska inte somna, och muspekaren ska inte synas

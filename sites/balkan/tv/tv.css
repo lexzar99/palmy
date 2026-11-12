@@ -20,7 +20,7 @@ ul { list-style: none; }
 img, video { display: block; }
 .board {
   position: fixed; left: 50%; top: 50%; transform-origin: center; overflow: hidden;
-  display: grid; grid-template-rows: 116px auto auto 1fr 148px; grid-template-columns: minmax(0, 1fr);
+  display: grid; grid-template-rows: 116px auto auto 1fr auto; grid-template-columns: minmax(0, 1fr);
   background: var(--paper); color: var(--ink); font: 500 22px/1.25 var(--font);
   font-variant-numeric: tabular-nums;
 }
@@ -79,20 +79,18 @@ h2, h3, .hit > b, .lunch dd, .break__big { font-stretch: 62%; font-weight: 900; 
 .rows li span { font-size: 25px; font-weight: 700; line-height: 1.12; }
 .rows li span small { display: block; margin-top: 1px; font-size: 17px; font-weight: 600; color: var(--muted); }
 .rows li > b { font-size: 25px; font-weight: 800; white-space: nowrap; }
-.rows li > b small, .drinks b small, .extras b small { font-size: 0.68em; font-weight: 700; color: var(--muted); }
+.rows li > b small, .extras b small { font-size: 0.68em; font-weight: 700; color: var(--muted); }
 .rows--tight li { padding: 7px 0; }
 .rows .note { display: block; padding: 7px 0 0; border: 0; font-size: 18px; font-weight: 700; color: var(--red); }
 .is-gone { display: none !important; }
 
-/* ---------- Dryck längst ner ---------- */
-.drinks { align-self: end; padding: 18px 36px 22px; background: var(--ink); color: #fff; }
-.drinks .label { color: var(--gold); }
-.drinks .label::after { background: rgba(255, 255, 255, 0.14); }
-.drinks ul { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px 30px; margin-top: 10px; }
-.drinks li { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 23px; font-weight: 700; white-space: nowrap; }
-.drinks b { font-weight: 800; color: var(--gold); }
-.drinks b small { color: rgba(255, 255, 255, 0.55); }
-.drinks .label span { font-size: 18px; font-weight: 600; letter-spacing: 0.02em; text-transform: none; color: rgba(255, 255, 255, 0.7); }
+/* ---------- Dryck längst ner: drycken syns i kylen, så bara en smal rad med priserna ---------- */
+.drinks { display: flex; align-items: baseline; gap: 22px; margin: 0 36px; padding: 16px 0 22px; border-top: 2px solid var(--ink); }
+.drinks h2 { font-size: 30px; color: var(--red); }
+.drinks ul { display: flex; flex-wrap: wrap; gap: 4px 22px; font-size: 21px; font-weight: 600; color: var(--muted); }
+.drinks li { white-space: nowrap; }
+.drinks b { font-weight: 800; color: var(--ink); }
+.drinks b::after { content: " kr"; font-size: 0.75em; font-weight: 700; color: var(--muted); }
 
 /* ---------- Pausen: tre sekunder, toning in och ut ---------- */
 .break { position: absolute; inset: 0; z-index: 10; display: grid; place-items: center; background: #120c0a; color: #fff; opacity: 0; visibility: hidden; transition: opacity 0.35s ease, visibility 0s linear 0.35s; }

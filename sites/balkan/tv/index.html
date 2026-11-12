@@ -61,6 +61,7 @@
         <li data-item="Ajvar"><span>Ajvar</span><b><span data-price>19</span> <small>kr</small></b></li>
         <li data-item="Tzatziki"><span>Tzatziki</span><b><span data-price>19</span> <small>kr</small></b></li>
         <li data-item="Lepinja"><span>Lepinja</span><b><span data-price>19</span> <small>kr</small></b></li>
+        <li data-item="Ayran"><span>Ayran</span><b><span data-price>19</span> <small>kr</small></b></li>
       </ul>
     </section>
 
@@ -117,22 +118,30 @@
       </div>
     </section>
 
+    <!-- Drycken står synligt i kylen, så här räcker en smal rad med priserna -->
     <section class="drinks">
-      <h2 class="label">Dryck <span>Ayran passar till grillen</span></h2>
+      <h2>Dryck</h2>
       <ul>
-        <li data-item="Ayran"><span>Ayran</span><b><span data-price>19</span> <small>kr</small></b></li>
-        <li data-item="Läsk"><span>Läsk</span><b><span data-price>25</span> <small>kr</small></b></li>
-        <li data-item="Cockta"><span>Cockta</span><b><span data-price>25</span> <small>kr</small></b></li>
-        <li data-item="Bryggkaffe"><span>Bryggkaffe</span><b><span data-price>25</span> <small>kr</small></b></li>
-        <li data-item="Lättöl 2,2 %"><span>Lättöl 2,2 %</span><b><span data-price>29</span> <small>kr</small></b></li>
-        <li data-item="Lättöl 2,1 %"><span>Lättöl 2,1 %</span><b><span data-price>29</span> <small>kr</small></b></li>
-        <li data-item="PEJA 0,0 %"><span>PEJA 0,0 %</span><b><span data-price>29</span> <small>kr</small></b></li>
-        <li data-item="Ceylonte"><span>Ceylonte</span><b><span data-price>15</span> <small>kr</small></b></li>
+        <li data-item="Ayran">Ayran <b data-price>19</b></li>
+        <li data-item="Läsk">Läsk <b data-price>25</b></li>
+        <li data-item="Cockta">Cockta <b data-price>25</b></li>
+        <li data-item="Lättöl 2,2 %">Lättöl 2,2 % <b data-price>29</b></li>
+        <li data-item="Lättöl 2,1 %">Lättöl 2,1 % <b data-price>29</b></li>
+        <li data-item="PEJA 0,0 %">PEJA 0,0 % <b data-price>29</b></li>
+        <li data-item="Bryggkaffe">Kaffe <b data-price>25</b></li>
+        <li data-item="Ceylonte">Te <b data-price>15</b></li>
       </ul>
     </section>
 
-    <!-- Pauserna: tre sekunder var tredje minut, en i taget. Varje paus kommer alltså var tolfte minut. -->
-    <section class="break break--brand" data-break aria-hidden="true">
+    <!-- Pauserna: en var tredje minut, i turordningen i tv.js. Beställ i mobilen kommer varannan gång. -->
+    <section class="break break--order" data-break="order" data-seconds="4" aria-hidden="true">
+      <video src="/film/tv-deg.mp4" muted playsinline preload="auto"></video>
+      <div class="break__body">
+        <p class="break__big">Beställ i mobilen.<br /><span>Hämta utan kö.</span></p>
+        <p class="break__url">balkangrillburek.se</p>
+      </div>
+    </section>
+    <section class="break break--brand" data-break="brand" data-seconds="3" aria-hidden="true">
       <video src="/film/tv-grill.mp4" muted playsinline preload="auto"></video>
       <div class="break__body">
         <img src="/img/logo.webp" alt="" width="300" height="300" />
@@ -140,28 +149,22 @@
         <p class="break__small">Burlöv Center</p>
       </div>
     </section>
-    <section class="break break--dish" data-break aria-hidden="true">
+    <section class="break break--dish" data-break="cevapi" data-seconds="3" aria-hidden="true">
+      <img class="break__bg" src="/img/dishes/cevapi.webp" alt="" />
+      <div class="break__body" data-item="Cevapi">
+        <p class="break__kicker">Från grillen</p>
+        <p class="break__big">Ćevapi<br />i lepinja</p>
+        <p class="break__small">Med hemlagad kajmak, ajvar och lök</p>
+        <p class="break__price"><span data-price>99</span> kr</p>
+      </div>
+    </section>
+    <section class="break break--dish" data-break="sofra" data-seconds="3" aria-hidden="true">
       <img class="break__bg" src="/img/dishes/sofra.webp" alt="" />
       <div class="break__body" data-item="Balkan Sofra – 2 personer">
         <p class="break__kicker">Dela grillen</p>
         <p class="break__big">Balkan Sofra</p>
         <p class="break__small">Ćevapi, sudjuk, kyckling, pljeskavica,<br />burek och entrecôte. För två.</p>
         <p class="break__price"><span data-price>499</span> kr</p>
-      </div>
-    </section>
-    <section class="break break--party" data-break aria-hidden="true">
-      <img class="break__bg" src="/img/dishes/platar.webp" alt="" />
-      <div class="break__body">
-        <p class="break__kicker">Till festen</p>
-        <p class="break__big">Hela plåtar</p>
-        <p class="break__small">Baklava, trilece, tiramisu, šampita och fli.<br />Beställ 24 till 48 timmar innan.</p>
-      </div>
-    </section>
-    <section class="break break--order" data-break aria-hidden="true">
-      <video src="/film/tv-deg.mp4" muted playsinline preload="auto"></video>
-      <div class="break__body">
-        <p class="break__big">Beställ i mobilen.<br /><span>Hämta utan kö.</span></p>
-        <p class="break__url">balkangrillburek.se</p>
       </div>
     </section>
   </main>
