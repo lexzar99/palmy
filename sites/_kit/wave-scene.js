@@ -1,4 +1,5 @@
-// Matmasters scen: omslagsbilden och fyra rätter som glider över i varandra när man skrollar.
+// Bildscen för skrollresan: omslagsbilden och rätterna glider över i varandra när man skrollar.
+// Används av Matmaster och Balkan Grill & Burek. Sajten väljer bilderna, scenen är densamma.
 // Ren WebGL2. En bild åt gången plus nästa, så att bara två texturer används per bildruta.
 // Övergången är en mjuk diagonal våg med brus och en lätt zoom. Inga rotationer, inga lutande plan.
 

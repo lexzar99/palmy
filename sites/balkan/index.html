@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Balkan Grill &amp; Burek · Ćevapi, pljeskavica och burek i Burlöv Center, Arlöv</title>
+  <meta name="description" content="Ćevapi och pljeskavica i lepinja med hemlagad kajmak, burek från ugnen och lunchbuffé varje dag i Burlöv Center, Arlöv. Beställ i mobilen och hämta när det är klart." />
+  <meta name="theme-color" content="#15100e" />
+  <meta property="og:title" content="Balkan Grill &amp; Burek" />
+  <meta property="og:description" content="Äkta smaker från Balkan i Burlöv Center. Beställ i mobilen och hämta." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://balkan-grill-burek.vercel.app/" />
+  <meta property="og:image" content="https://balkan-grill-burek.vercel.app/img/og.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="canonical" href="https://balkan-grill-burek.vercel.app/" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/img/icon-192.png" />
+  <link rel="apple-touch-icon" href="/img/icon-192.png" />
+  <link rel="preload" as="image" href="/img/scene/cover-wide.webp" media="(min-aspect-ratio: 1/1)" />
+  <link rel="preload" as="image" href="/img/scene/cover-tall.webp" media="(max-aspect-ratio: 1/1)" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {"@type": "Question", "name": "Finns det lunchbuffé?", "acceptedAnswer": {"@type": "Answer", "text": "Ja, varje dag. Vardagar 11 till 15 för 145 kr och helger 11.30 till 15.30 för 175 kr. Dryck och kaffe ingår."}},
+      {"@type": "Question", "name": "Hur beställer jag avhämtning?", "acceptedAnswer": {"@type": "Answer", "text": "Tryck på Beställ, välj rätter och tillbehör, betala med Swish eller kort och hämta i Burlöv Center när maten är klar."}},
+      {"@type": "Question", "name": "Kan jag beställa hela plåtar till fest?", "acceptedAnswer": {"@type": "Answer", "text": "Ja. Baklava, trilece, tiramisu, šampita och fli finns på hel plåt. Beställ minst 24 till 48 timmar innan."}},
+      {"@type": "Question", "name": "Vad är lepinja och kajmak?", "acceptedAnswer": {"@type": "Answer", "text": "Lepinja är ett mjukt, luftigt bröd som ćevapi serveras i. Kajmak är en mild, krämig färskost som smälter på det varma köttet."}}
+    ]
+  }
+  </script>
+</head>
+<body>
+  <header class="top" data-top>
+    <a class="logo" href="/" aria-label="Balkan Grill och Burek, till början"><img src="/img/logo.webp" alt="" width="40" height="40" /><b>Balkan</b><span>Grill &amp; Burek</span></a>
+    <nav class="nav" aria-label="Sidan">
+      <a href="#lunch">Lunchbuffé</a>
+      <a href="#favoriter">Favoriter</a>
+      <a href="#festen">Till festen</a>
+      <a href="#oppet">Hitta hit</a>
+    </nav>
+    <a class="btn btn-sm" href="/meny" data-order>Beställ avhämtning</a>
+  </header>
+
+  <main>
+    <!-- 1. Scenen: omslaget och fyra rätter som glider över i varandra när man skrollar (_kit/wave-stage.js) -->
+    <section class="stage" data-stage>
+      <div class="stage__fixed">
+        <canvas class="stage__gl" data-gl aria-hidden="true"></canvas>
+        <div class="stage__tone" aria-hidden="true"></div>
+        <div class="stage__slide stage__intro" data-slide>
+          <p class="status" data-open-state><span class="dot"></span><span data-open-text data-address>Kronetorpsvägen 2, Burlöv Center</span></p>
+          <h1 class="stage__title">Balkan <span>Grill &amp; Burek</span></h1>
+          <p class="stage__lede">Ćevapi i lepinja med hemlagad kajmak, pljeskavica från grillen och burek från ugnen. Mitt i Burlöv Center.</p>
+          <div class="stage__actions"><a class="btn" href="/meny" data-order>Beställ avhämtning</a><a class="btn btn-ghost" href="#lunch">Lunchbuffé</a></div>
+          <p class="slogan">Äkta smaker från Balkan</p>
+        </div>
+        <div class="stage__slide" data-slide><p class="kicker">Från grillen</p><h2 class="stage__dish">Ćevapi</h2><p>Små grillade nötfärsrullar i lepinja med lök, ajvar och kajmak.</p><b class="stage__price">99 kr</b></div>
+        <div class="stage__slide" data-slide><p class="kicker">Från grillen</p><h2 class="stage__dish">Pljeskavica</h2><p>Saftig biff med balkankryddor i lepinja. Klassisk, eller fylld med ost för 129 kr.</p><b class="stage__price">109 kr</b></div>
+        <div class="stage__slide" data-slide><p class="kicker">Från ugnen</p><h2 class="stage__dish">Burek</h2><p>Handrullad deg med kött eller ost, bakad i ugnen.</p><b class="stage__price">49 kr</b></div>
+        <div class="stage__slide" data-slide><p class="kicker">Lite av allt</p><h2 class="stage__dish">Grill Mix</h2><p>Två ćevapi, kycklingfilé, två sudjuk och två qofte på samma tallrik.</p><b class="stage__price">149 kr</b><div class="stage__actions"><a class="btn" href="/meny" data-order>Beställ avhämtning nu</a></div></div>
+        <ol class="stage__dots" aria-hidden="true"><li></li><li></li><li></li><li></li><li></li></ol>
+        <p class="stage__hint" data-hint>Skrolla<i aria-hidden="true"></i></p>
+      </div>
+    </section>
+
+    <!-- 2. Lunchbuffén, på plats varje dag -->
+    <section class="lunch" id="lunch">
+      <p class="lunch__price">145<small>kr</small></p>
+      <div>
+        <h2 class="lunch__title">Lunchbuffé varje dag</h2>
+        <p>Vardagar 11 till 15. Helger 11.30 till 15.30 för 175 kr. Balkanska rätter, sallader och såser som byts dagligen. Dryck och kaffe ingår.</p>
+      </div>
+      <a class="btn" href="#oppet">Hitta hit</a>
+    </section>
+
+    <!-- 3. Favoriterna med priser från menyn -->
+    <section class="favs" id="favoriter">
+      <div class="favs__head">
+        <h2 class="h2 reveal">Det folk<br />kommer för.</h2>
+        <p class="reveal">Första gången? Börja med ćevapi i lepinja. Är ni två och hungriga? Balkan Sofra är hela grillen på ett fat.</p>
+      </div>
+      <ul class="favs__grid">
+        <li class="fav reveal"><a href="/meny"><img src="/img/dishes/cevapi-480.webp" srcset="/img/dishes/cevapi-480.webp 480w, /img/dishes/cevapi.webp 1200w" sizes="(max-width: 900px) 50vw, 33vw" alt="Ćevapi i lepinja med kajmak, hackad lök och ajvar" loading="lazy" width="480" height="600" /><h3>Ćevapi</h3><p>I lepinja med lök, ajvar och kajmak</p><b>99 kr</b></a></li>
+        <li class="fav reveal"><a href="/meny"><img src="/img/dishes/pljeskavica-480.webp" srcset="/img/dishes/pljeskavica-480.webp 480w, /img/dishes/pljeskavica.webp 1200w" sizes="(max-width: 900px) 50vw, 33vw" alt="Pljeskavica i lepinja med smältande kajmak" loading="lazy" width="480" height="600" /><h3>Pljeskavica</h3><p>Klassisk, eller fylld med ost för 129 kr</p><b>109 kr</b></a></li>
+        <li class="fav reveal"><a href="/meny"><img src="/img/dishes/burek-480.webp" srcset="/img/dishes/burek-480.webp 480w, /img/dishes/burek.webp 1200w" sizes="(max-width: 900px) 50vw, 33vw" alt="En bit burek med köttfyllning och ett glas yoghurt" loading="lazy" width="480" height="600" /><h3>Burek</h3><p>Med kött eller ost, från ugnen</p><b>49 kr</b></a></li>
+        <li class="fav reveal"><a href="/meny"><img src="/img/dishes/grillmix-480.webp" srcset="/img/dishes/grillmix-480.webp 480w, /img/dishes/grillmix.webp 1200w" sizes="(max-width: 900px) 50vw, 33vw" alt="Grill Mix med ćevapi, kycklingfilé, sudjuk och qofte" loading="lazy" width="480" height="600" /><h3>Grill Mix</h3><p>Ćevapi, kyckling, sudjuk och qofte</p><b>149 kr</b></a></li>
+        <li class="fav reveal"><a href="/meny"><img src="/img/dishes/skenderbeg-480.webp" srcset="/img/dishes/skenderbeg-480.webp 480w, /img/dishes/skenderbeg.webp 1200w" sizes="(max-width: 900px) 50vw, 33vw" alt="Skenderbeg, panerad kycklingfilé fylld med ost, med potatis och sås" loading="lazy" width="480" height="600" /><h3>Skenderbeg</h3><p>Kycklingfilé fylld med ost och rökt skinka, 100 % halal</p><b>169 kr</b></a></li>
+        <li class="fav reveal"><a href="/meny"><img src="/img/dishes/sofra-480.webp" srcset="/img/dishes/sofra-480.webp 480w, /img/dishes/sofra.webp 1200w" sizes="(max-width: 900px) 50vw, 33vw" alt="Balkan Sofra, ett stort grillfat för två" loading="lazy" width="480" height="600" /><h3>Balkan Sofra</h3><p>Hela grillen på ett fat, för två</p><b>499 kr</b></a></li>
+      </ul>
+      <p class="favs__more reveal"><a class="btn" href="/meny" data-order>Se hela menyn och tillbehören</a></p>
+    </section>
+
+    <!-- 4. Grillen -->
+    <section class="film">
+      <div class="film__media">
+        <video muted loop playsinline preload="none" poster="/film/grill.jpg" aria-hidden="true" data-film><source src="/film/grill.mp4" type="video/mp4" /></video>
+      </div>
+      <div class="film__text">
+        <h2 class="h2 reveal">Från<br /><span>gallret.</span></h2>
+        <p class="reveal">Ćevapi, pljeskavica, sudjuk och qofte, grillat med recept från Balkan. Kajmaken smälter på det heta köttet och lepinjan suger upp resten.</p>
+        <p class="reveal">Lägg till ajvar, tzatziki, extra kajmak eller pommes när du beställer.</p>
+        <a class="btn reveal" href="/meny" data-order>Beställ ćevapi</a>
+      </div>
+    </section>
+
+    <!-- 5. Degen -->
+    <section class="film film--flip">
+      <div class="film__media">
+        <video muted loop playsinline preload="none" poster="/film/deg.jpg" aria-hidden="true" data-film><source src="/film/deg.mp4" type="video/mp4" /></video>
+      </div>
+      <div class="film__text">
+        <h2 class="h2 reveal">Handrullad<br /><span>deg.</span></h2>
+        <p class="reveal">Burek görs av tunn deg som rullas för hand runt fyllningen och bakas i ugnen tills den är krispig ytterst och saftig inuti.</p>
+        <p class="reveal">Med kött eller med ost, 49 kr styck. Ta en till lunchen eller några med hem.</p>
+        <a class="btn reveal" href="/meny" data-order>Beställ burek</a>
+      </div>
+    </section>
+
+    <!-- 6. Hela plåtar till festen, beställs i förväg -->
+    <section class="party" id="festen">
+      <div class="party__img reveal"><img src="/img/dishes/platar.webp" alt="En hel plåt baklava och en plåt trilece" loading="lazy" width="1200" height="1500" /></div>
+      <div class="party__text">
+        <p class="kicker reveal">Till festen</p>
+        <h2 class="h2 reveal">Hela<br />plåtar.</h2>
+        <p class="reveal">Hemlagade desserter på hel plåt till kalaset, familjefesten eller jobbet. Beställ minst 24 till 48 timmar innan.</p>
+        <ul class="trays reveal">
+          <li><span>Baklava</span><b>799 kr</b></li>
+          <li><span>Trilece</span><b>599 kr</b></li>
+          <li><span>Tiramisu</span><b>599 kr</b></li>
+          <li><span>Šampita</span><b>599 kr</b></li>
+          <li><span>Fli</span><b>999 kr</b></li>
+        </ul>
+        <p class="reveal">Beställ i restaurangen eller ring oss. <a class="call" data-phone hidden></a></p>
+      </div>
+    </section>
+
+    <!-- 7. Så går det till -->
+    <section class="how">
+      <h2 class="h2 reveal">Tre tryck.<br />Sen mat.</h2>
+      <ol>
+        <li class="reveal"><b>1</b><span>Välj rätter och tillbehör i menyn</span></li>
+        <li class="reveal"><b>2</b><span>Betala med Swish eller kort</span></li>
+        <li class="reveal"><b>3</b><span>Hämta i Burlöv Center när det är klart</span></li>
+      </ol>
+    </section>
+
+    <!-- 8. Omdömen: ordagrant och med källa. Inget snittbetyg visas. -->
+    <section class="reviews" id="omdomen">
+      <div class="reviews__head reveal">
+        <h2 class="h2">Gästerna<br />om maten.</h2>
+        <ul class="platforms">
+          <li><a href="https://restaurantguru.com/Balkan-Grill-and-Burek-Arlov" target="_blank" rel="noopener"><span>Restaurant Guru<small>Rekommenderad av Restaurant Guru</small></span><b>→</b></a></li>
+          <li><a href="https://www.google.com/maps/search/?api=1&amp;query=Balkan+Grill+%26+Burek+Burl%C3%B6v+Center+Arl%C3%B6v" target="_blank" rel="noopener"><span>Google<small>Läs och skriv omdömen</small></span><b>→</b></a></li>
+        </ul>
+      </div>
+      <div class="quotes">
+        <blockquote class="reveal"><p>”Riktigt gott. Kunde knappt tro det, eftersom det ligger i en food court där maten brukar vara sådär, men det här var grymt!”</p><cite>Zijah M., 5 av 5 på Google</cite></blockquote>
+        <blockquote class="reveal"><p>”Jag har varit där fyra, fem gånger och maten har varit jättegod varje gång. Älskar er, fortsätt med det balkanska!”</p><cite>Eridon G., 5 av 5 på Google</cite></blockquote>
+        <p class="muted small">Översatta från engelska. Originalen finns på Google och Restaurant Guru.</p>
+      </div>
+    </section>
+
+    <!-- 9. Hitta hit: tiderna, adressen och telefonen kommer från viaeats -->
+    <section class="find" id="oppet">
+      <div class="reveal">
+        <h2 class="h2">Hitta hit.</h2>
+        <p class="find__addr" data-address>Kronetorpsvägen 2, Burlöv Center, Arlöv</p>
+        <p class="find__near">Inne i Burlöv Center, med parkering utanför.</p>
+        <dl class="week" data-week></dl>
+        <ul class="facts"><li>Avhämtning</li><li>Lunchbuffé varje dag</li><li>Hela plåtar</li><li>Parkering</li></ul>
+        <p class="find__cta"><a class="btn" href="/meny" data-order>Beställ avhämtning</a> <a class="btn btn-line" href="https://www.google.com/maps/dir/?api=1&amp;destination=Balkan+Grill+%26+Burek%2C+Burl%C3%B6v+Center%2C+Arl%C3%B6v" target="_blank" rel="noopener">Vägbeskrivning</a></p>
+        <p class="muted small">Frågor? Ring <a data-phone hidden></a></p>
+      </div>
+      <div class="map reveal">
+        <iframe title="Karta till Burlöv Center, Arlöv" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://maps.google.com/maps?q=Burl%C3%B6v%20Center%2C%20Kronetorpsv%C3%A4gen%202%2C%20Arl%C3%B6v&amp;z=15&amp;output=embed"></iframe>
+      </div>
+    </section>
+
+    <!-- 10. Vanliga frågor -->
+    <section class="faq">
+      <h2 class="h2 reveal">Vanliga frågor.</h2>
+      <details><summary>Finns det lunchbuffé?</summary><p>Ja, varje dag. Vardagar 11 till 15 för 145 kr och helger 11.30 till 15.30 för 175 kr. Balkanska rätter, sallader, tillbehör och såser som byts dagligen. Dryck och kaffe ingår.</p></details>
+      <details><summary>Hur beställer jag avhämtning?</summary><p>Tryck på Beställ, välj rätter och tillbehör, betala med Swish eller kort och hämta i Burlöv Center när maten är klar.</p></details>
+      <details><summary>Kan jag beställa hela plåtar till fest?</summary><p>Ja. Baklava, trilece, tiramisu, šampita och fli finns på hel plåt. Beställ minst 24 till 48 timmar innan, i restaurangen eller på telefon.</p></details>
+      <details><summary>Vad är lepinja och kajmak?</summary><p>Lepinja är ett mjukt, luftigt bröd som ćevapi och pljeskavica serveras i. Kajmak är en mild, krämig färskost som smälter på det varma köttet. Båda hör ihop med balkangrillen.</p></details>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p class="footer__big">Balkan Grill</p>
+    <p data-address>Kronetorpsvägen 2, Burlöv Center, Arlöv</p>
+    <p class="footer__links"><a href="https://www.instagram.com/balkangrillburek/" target="_blank" rel="noopener">Instagram</a> · <a href="https://restaurantguru.com/Balkan-Grill-and-Burek-Arlov" target="_blank" rel="noopener">Restaurant Guru</a></p>
+    <a class="powered" href="https://www.viaeats.se" target="_blank" rel="noopener">Beställning och betalning <span>powered by</span> <strong>viaeats</strong></a>
+  </footer>
+
+  <a class="order-bar hide" href="/meny" data-order-bar><span>Hungrig?</span><strong>Beställ avhämtning</strong></a>
+  <script type="module" src="/main.js"></script>
+</body>
+</html>

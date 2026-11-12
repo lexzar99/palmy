@@ -39,3 +39,27 @@ VIAEATS_ADMIN_TOKEN=<lokal-jwt> node docs/restaurants/balkan-grill-burek/apply.m
 3. Kör `apply.mjs --api https://api.viaeats.se --images r2 --image-base https://www.viaeats.se/demo/balkan-grill-burek/img --publish`.
    **Användaren 2026-10-27: den ska vara publicerad.** Ett utkast är osynligt, och embedden och länkarna fungerar inte.
 4. Lägg till deras domän i embeddens och API:ts listor över tillåtna adresser, som för Wanthai.
+
+**Läge 2026-11-12:** restaurangen är publicerad i produktion (`/api/restaurant-status/balkan-grill-burek` svarar).
+Domänlistorna i punkt 4 är ersatta av admin → restaurangen → Information → Domäner (fas 3).
+
+## Hemsidan (`sites/balkan`, byggd 2026-11-12)
+Samma koncept som Matmaster: skrollscen med omslaget och fyra rätter (`_kit/wave-stage.js` och `_kit/wave-scene.js`, delade med Matmaster),
+lunchbuffén, favoriter, två filmer, hela plåtar, omdömen, hitta hit och vanliga frågor. Vercel-projektet heter `balkan-grill-burek`
+(Root Directory `sites`, `SITE=balkan`). Tider, adress och telefon kommer från viaeats.
+
+- **Bilderna:** 13 studiofoton (Higgsfield, GPT Image 2.6 i 4k, 2026-11-12) på svart rund tallrik med kajmak och ajvar i stålskålar,
+  som restaurangen serverar. Grill Mix, ćevapi, pljeskavica och Skenderbeg har restaurangens egna foton som förlaga. Burek, Sofra och
+  plåtarna är tolkningar. Källfilerna i full upplösning ligger inte i repot.
+- **Filmerna** är riktiga, licensfria videor, utsnittna till 4:5 (1080×1350), utan ljud och spelade fram och tillbaka så att loopen inte hackar:
+  - `film/grill.mp4`: biff på grillen med lågor, Pixabay 124830 (https://pixabay.com/videos/bbq-grill-meat-barbecue-food-124830/), Pixabay Content License.
+  - `film/deg.mp4`: tunn deg kavlas framför vedeld, de första 7 sekunderna, Pexels 30771191
+    (https://www.pexels.com/video/traditional-flatbread-making-near-open-fire-30771191/), Pexels License.
+  - Båda licenserna tillåter kommersiell användning utan källhänvisning. Klippen får inte säljas vidare som de är.
+    Inget gratis klipp med just spiralburek eller ćevapi hittades. Mixkits matklipp har numera begränsad licens och används inte.
+- **Omdömen:** Google-snittet är 3,1 av 53 enligt Restaurant Guru (augusti 2026), så inget snittbetyg visas. Två citat på 5 av 5
+  visas översatta till svenska, med en rad om att de är översatta från engelska. Diplomet "Best BBQ in Arlöv 2026" gick inte att bekräfta online och visas inte.
+- **Telefon saknas i viaeats.** Plåtbeställning och "Frågor? Ring" visar numret först när det läggs in i admin.
+- **balkangrillburek.se svarar inte** (nginx 404 och fel certifikat, 2026-11-12). När domänen pekas om från Loopia:
+  lägg den i Vercel, under Domäner i admin och först i `domains` i `site.config.js`.
+- **Att bekräfta:** lunchbuffén (145 och 175 kr, tiderna) och plåtpriserna är från affischen i oktober.
