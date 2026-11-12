@@ -6,7 +6,9 @@
 //          Bara siffran skrivs, så att sajten själv bestämmer hur "kr" ser ut.
 //          data-sizes på en rätt med storlek: priset visas som "39 / 59" (Liten / Stor).
 //          Samma rätt får finnas på flera ställen, till exempel i en lista och i en paus.
-// Paus:    <section data-break="namn" data-seconds="4"> … </section>, en eller flera.
+// Paus:    <section data-break="namn" data-seconds="4" data-label="Knapptext"> … </section>, en eller flera.
+//          Rör man musen, trycker på skärmen eller en tangent visas knappar för att förhandsvisa varje paus.
+//          Piltangenterna bläddrar mellan pauserna, Escape går tillbaka till menyn.
 //          breakOrder: ["order", "brand", "order"] bestämmer turordningen, så att en paus kan visas oftare.
 //          Utan breakOrder visas pauserna i den ordning de står. data-seconds saknas: breakLength gäller.
 //
@@ -55,24 +57,75 @@ async function updatePrices(slug) {
 function startBreaks(slides, everySeconds, lengthSeconds, order) {
   const byName = new Map(slides.map((s) => [s.dataset.break, s]));
   const queue = (order?.length ? order.map((n) => byName.get(n)) : slides).filter(Boolean);
-  if (!queue.length) return;
-  let next = 0;
+  if (!queue.length) return null;
+  let next = 0, current = null, timer = 0;
+  const hide = () => {
+    clearTimeout(timer);
+    if (!current) return;
+    const { slide, video } = current;
+    slide.classList.remove("is-on");
+    document.documentElement.classList.remove("is-break");
+    setTimeout(() => video?.pause(), 600);
+    current = null;
+  };
   const show = (slide = queue[next]) => {
+    hide();
     if (slide === queue[next]) next = (next + 1) % queue.length;
     const video = slide.querySelector("video");
     if (video) { video.currentTime = 0; video.play().catch(() => {}); }
     slide.classList.add("is-on");
     document.documentElement.classList.add("is-break");
-    const seconds = Number(slide.dataset.seconds) || lengthSeconds;
-    setTimeout(() => {
-      slide.classList.remove("is-on");
-      document.documentElement.classList.remove("is-break");
-      setTimeout(() => video?.pause(), 600);
-    }, seconds * 1000);
+    current = { slide, video };
+    timer = setTimeout(hide, (Number(slide.dataset.seconds) || lengthSeconds) * 1000);
   };
   const forced = new URLSearchParams(location.search).get("break");
   if (forced !== null) setTimeout(() => show(byName.get(forced) ?? queue[next]), 1500);
   setInterval(() => show(), everySeconds * 1000);
+  return { slides, show, hide };
+}
+
+/** Knappar för att förhandsvisa pauserna. Syns bara en stund när någon rör musen, trycker på skärmen eller en tangent. */
+function startControls({ slides, show, hide }) {
+  const bar = document.createElement("div");
+  bar.setAttribute("aria-label", "Förhandsvisa pauserna");
+  Object.assign(bar.style, {
+    position: "fixed", right: "16px", bottom: "16px", zIndex: "100", display: "flex", flexWrap: "wrap", gap: "8px",
+    maxWidth: "calc(100vw - 32px)", padding: "10px", borderRadius: "14px", background: "rgba(20, 14, 11, 0.86)",
+    font: "600 15px/1 system-ui, sans-serif", opacity: "0", pointerEvents: "none", transition: "opacity 0.25s",
+  });
+  const button = (label, onClick) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = label;
+    Object.assign(b.style, { padding: "12px 16px", border: "0", borderRadius: "10px", background: "#fff", color: "#1c1411", font: "inherit", cursor: "pointer" });
+    b.addEventListener("click", onClick);
+    bar.appendChild(b);
+  };
+  button("Meny", hide);
+  slides.forEach((slide) => button(slide.dataset.label || slide.dataset.break || "Paus", () => show(slide)));
+  document.body.appendChild(bar);
+
+  let idle = 0;
+  const reveal = () => {
+    bar.style.opacity = "1";
+    bar.style.pointerEvents = "auto";
+    document.documentElement.style.cursor = "default";
+    clearTimeout(idle);
+    idle = setTimeout(() => {
+      bar.style.opacity = "0";
+      bar.style.pointerEvents = "none";
+      document.documentElement.style.cursor = "none";
+    }, 5000);
+  };
+  ["pointermove", "pointerdown", "keydown"].forEach((type) => addEventListener(type, reveal, { passive: true }));
+  // Piltangenterna bläddrar mellan pauserna, Escape tillbaka till menyn
+  let at = -1;
+  addEventListener("keydown", (e) => {
+    if (e.key === "Escape") return hide();
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    at = (at + (e.key === "ArrowRight" ? 1 : slides.length - 1)) % slides.length;
+    show(slides[at]);
+  });
 }
 
 /** Laddar om sidan en gång per natt, så att nya versioner och bilder kommer med. Bara om nätet svarar. */
@@ -97,7 +150,10 @@ export function startTvBoard({ slug, width = 1080, height = 1920, breakEvery = 1
   updatePrices(slug);
   setInterval(() => updatePrices(slug), 10 * 60 * 1000);
 
-  if (!params.has("nobreak")) startBreaks([...document.querySelectorAll("[data-break]")], breakEvery, breakLength, breakOrder);
+  if (!params.has("nobreak")) {
+    const breaks = startBreaks([...document.querySelectorAll("[data-break]")], breakEvery, breakLength, breakOrder);
+    if (breaks) startControls(breaks);
+  }
   reloadNightly(reloadHour);
 
   // Skärmen ska inte somna, och muspekaren ska inte synas
