@@ -75,6 +75,7 @@ Stående tavla 1080×1920 som ersätter den vita menyskärmen vid kassan. Hela m
 - **Dryck:** bara en smal rad med priserna längst ner, eftersom drycken syns i kylen. Ayran står också under Lägg till.
 - **Priser:** live från viaeats (`_kit/tv.js`, var tionde minut). Det kräver att balkangrillburek.se ligger under Domäner i admin,
   annars visas priserna som står i sidan. En rätt som tas bort i admin försvinner från tavlan. Ny rätt kräver en rad i `tv/index.html`.
+- **Som video:** `tv-video/README.md` (12 min loop, filerna i `~/viaeats/output/balkan-tv/`).
 - **På TV:n:** öppna adressen i helskärm i Chrome eller Edge, till exempel `chrome --kiosk https://balkangrillburek.se/tv/`.
   Om TV:n visar liggande bild på den stående skärmen: lägg till `?rotate=90` (eller `270`). `?break` visar en paus direkt, `?nobreak` stänger av dem.
   Sidan laddar om sig själv varje natt 04.30, om nätet svarar.
