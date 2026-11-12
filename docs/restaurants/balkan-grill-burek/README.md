@@ -63,3 +63,15 @@ lunchbuffén, favoriter, två filmer, hela plåtar, omdömen, hitta hit och vanl
 - **balkangrillburek.se** pekar på Vercel sedan 2026-11-12 (namnservrar ns1/ns2.vercel-dns.com hos Loopia, www skickas vidare). Kvar:
   lägg domänen under Domäner i admin, annars stoppas kassan.
 - **Att bekräfta:** lunchbuffén (145 och 175 kr, tiderna) och plåtpriserna är från affischen i oktober.
+
+## TV-menyn vid kassan (`sites/balkan/tv/`, https://balkangrillburek.se/tv/, byggd 2026-11-12)
+Stående tavla 1080×1920 som ersätter den vita menyskärmen vid kassan. Hela menyn (46 rätter) syns hela tiden.
+- **Populärast:** Ćevapi, Pljeskavica, Grill Mix, Burek, Skenderbeg och Balkan Sofra som tallrikar fotade ovanifrån (Higgsfield,
+  GPT Image 2.6, frilagda, `public/img/tv/`). De vrids sakta, ett varv på cirka 2,5–3 minuter, som på ett bord. Grill Mix bygger på
+  restaurangens eget foto. Övriga rätter står i listor, med en liten tallrik vid några rubriker.
+- **Paus:** var tredje minut i 3 sekunder, en i taget: logga över grillfilmen, hela plåtar, beställ i mobilen.
+- **Priser:** live från viaeats (`_kit/tv.js`, var tionde minut). Det kräver att balkangrillburek.se ligger under Domäner i admin,
+  annars visas priserna som står i sidan. En rätt som tas bort i admin försvinner från tavlan. Ny rätt kräver en rad i `tv/index.html`.
+- **På TV:n:** öppna adressen i helskärm i Chrome eller Edge, till exempel `chrome --kiosk https://balkangrillburek.se/tv/`.
+  Om TV:n visar liggande bild på den stående skärmen: lägg till `?rotate=90` (eller `270`). `?break` visar en paus direkt, `?nobreak` stänger av dem.
+  Sidan laddar om sig själv varje natt 04.30, om nätet svarar.
