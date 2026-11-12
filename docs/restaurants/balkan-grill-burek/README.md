@@ -60,6 +60,6 @@ lunchbuffén, favoriter, två filmer, hela plåtar, omdömen, hitta hit och vanl
 - **Omdömen:** Google-snittet är 3,1 av 53 enligt Restaurant Guru (augusti 2026), så inget snittbetyg visas. Två citat på 5 av 5
   visas översatta till svenska, med en rad om att de är översatta från engelska. Diplomet "Best BBQ in Arlöv 2026" gick inte att bekräfta online och visas inte.
 - **Telefon saknas i viaeats.** Plåtbeställning och "Frågor? Ring" visar numret först när det läggs in i admin.
-- **balkangrillburek.se svarar inte** (nginx 404 och fel certifikat, 2026-11-12). När domänen pekas om från Loopia:
-  lägg den i Vercel, under Domäner i admin och först i `domains` i `site.config.js`.
+- **balkangrillburek.se** pekar på Vercel sedan 2026-11-12 (namnservrar ns1/ns2.vercel-dns.com hos Loopia, www skickas vidare). Kvar:
+  lägg domänen under Domäner i admin, annars stoppas kassan.
 - **Att bekräfta:** lunchbuffén (145 och 175 kr, tiderna) och plåtpriserna är från affischen i oktober.
