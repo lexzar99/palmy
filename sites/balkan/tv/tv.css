@@ -1,11 +1,12 @@
 @import "@fontsource-variable/archivo/wdth.css";
 /* TV-menyn vid kassan. Restaurangens egna färger: ljus botten, svart text och Balkanrött som i loggan.
-   Rörelsen är lugn: tallrikarna vrids sakta som på ett bord, filmen i toppen och en kort paus var tredje minut. */
+   Ingen logga eller film i toppen: maten och texten fyller skärmen och ska synas på avstånd.
+   Rörelsen är lugn: tallrikarna vrids sakta som på ett bord, och en kort paus var tredje minut. */
 :root {
   --paper: #f6f0e7;
   --ink: #1c1411;
-  --muted: #73665d;
-  --line: rgba(28, 20, 17, 0.12);
+  --muted: #6a5d55;
+  --line: rgba(28, 20, 17, 0.13);
   --red: #c8202a;
   --red-hot: #e2343a;
   --gold: #e9a23b;
@@ -19,43 +20,32 @@ ul { list-style: none; }
 img, video { display: block; }
 .board {
   position: fixed; left: 50%; top: 50%; transform-origin: center; overflow: hidden;
-  display: grid; grid-template-rows: 250px 96px auto 1fr 124px;
-  background: var(--paper); color: var(--ink); font: 500 20px/1.25 var(--font);
+  display: grid; grid-template-rows: 116px auto 1fr 148px; grid-template-columns: minmax(0, 1fr);
+  background: var(--paper); color: var(--ink); font: 500 22px/1.25 var(--font);
   font-variant-numeric: tabular-nums;
 }
-.cond { font-stretch: 62%; }
-h1, h2, h3, .hit > b, .lunch dd, .break__big { font-stretch: 62%; font-weight: 900; text-transform: uppercase; letter-spacing: -0.005em; }
+h2, h3, .hit > b, .lunch dd, .break__big { font-stretch: 62%; font-weight: 900; text-transform: uppercase; letter-spacing: -0.005em; }
 .hit > b, .lunch dd { text-transform: none; }
 
-/* ---------- Toppen: riktig grillfilm bakom loggan ---------- */
-.head { position: relative; display: flex; align-items: center; gap: 30px; padding: 0 48px; color: #fff; background: #140e0b; overflow: hidden; }
-.head__film { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: brightness(0.5) saturate(1.05); }
-.head::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(20, 14, 11, 0.85) 0%, rgba(20, 14, 11, 0.35) 70%, rgba(20, 14, 11, 0.15) 100%); }
-.head__logo, .head__name { position: relative; z-index: 1; }
-.head__logo { width: 148px; height: 148px; border-radius: 50%; box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.9), 0 10px 30px rgba(0, 0, 0, 0.45); }
-.head h1 { font-size: 96px; line-height: 0.86; }
-.head h1 span { display: block; color: var(--red-hot); font-size: 64px; }
-.head p { margin-top: 12px; font-size: 21px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--cream); }
-
 /* ---------- Lunchbuffén ---------- */
-.lunch { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 30px; padding: 0 48px; background: var(--red); color: #fff; }
-.lunch h2 { font-size: 46px; line-height: 0.9; }
-.lunch h2 span { display: block; font-size: 22px; letter-spacing: 0.12em; opacity: 0.85; }
-.lunch dl { display: flex; justify-content: center; gap: 56px; }
+.lunch { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 30px; padding: 0 44px; background: var(--red); color: #fff; }
+.lunch h2 { font-size: 58px; line-height: 0.88; }
+.lunch h2 span { display: block; font-size: 24px; letter-spacing: 0.12em; opacity: 0.88; }
+.lunch dl { display: flex; justify-content: center; gap: 60px; }
 .lunch dl div { display: flex; flex-direction: column; gap: 2px; white-space: nowrap; }
-.lunch dt { font-size: 19px; font-weight: 700; opacity: 0.9; }
-.lunch dd { font-size: 44px; line-height: 1; }
-.lunch p { font-size: 18px; font-weight: 700; text-align: right; max-width: 130px; line-height: 1.15; }
+.lunch dt { font-size: 22px; font-weight: 700; opacity: 0.92; }
+.lunch dd { font-size: 56px; line-height: 0.95; }
+.lunch p { font-size: 21px; font-weight: 700; text-align: right; max-width: 150px; line-height: 1.15; }
 
 /* ---------- Populärast: tallrikarna vrids sakta, som på ett bord ---------- */
-.label { display: flex; align-items: center; gap: 16px; font-size: 22px; font-weight: 800; letter-spacing: 0.22em; text-transform: uppercase; color: var(--red); font-stretch: 100%; }
+.label { display: flex; align-items: center; gap: 16px; font-size: 24px; font-weight: 800; letter-spacing: 0.22em; text-transform: uppercase; color: var(--red); }
 .label::after { content: ""; flex: 1; height: 2px; background: var(--line); }
-.hits { padding: 22px 40px 0; }
-.hits ul { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 22px; margin-top: 10px; }
-.hit { display: flex; flex-direction: column; align-items: center; text-align: center; }
-.plate { position: relative; width: 248px; height: 248px; margin-bottom: 8px; }
+.hits { padding: 24px 36px 0; }
+.hits ul { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 18px; margin-top: 12px; }
+.hit { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0; }
+.plate { position: relative; width: 286px; height: 286px; margin-bottom: 10px; }
 /* Skuggan ligger still på bordet, bara tallriken vrids */
-.plate::before { content: ""; position: absolute; inset: 6% 4% -2%; border-radius: 50%; background: radial-gradient(closest-side, rgba(28, 20, 17, 0.34), rgba(28, 20, 17, 0.12) 70%, transparent); filter: blur(10px); transform: translateY(12px); }
+.plate::before { content: ""; position: absolute; inset: 6% 4% -2%; border-radius: 50%; background: radial-gradient(closest-side, rgba(28, 20, 17, 0.34), rgba(28, 20, 17, 0.12) 70%, transparent); filter: blur(12px); transform: translateY(14px); }
 .plate img { position: relative; width: 100%; height: 100%; animation: turn 150s linear infinite; will-change: transform; }
 .hit:nth-child(2) .plate img { animation-duration: 170s; animation-delay: -40s; }
 .hit:nth-child(3) .plate img { animation-duration: 160s; animation-delay: -95s; }
@@ -63,32 +53,32 @@ h1, h2, h3, .hit > b, .lunch dd, .break__big { font-stretch: 62%; font-weight: 9
 .hit:nth-child(5) .plate img { animation-duration: 175s; animation-delay: -130s; }
 .hit:nth-child(6) .plate img { animation-duration: 200s; animation-delay: -70s; }
 @keyframes turn { to { transform: rotate(360deg); } }
-.hit h3 { font-size: 42px; line-height: 0.95; }
-.hit p { margin-top: 4px; font-size: 18px; color: var(--muted); white-space: nowrap; }
+.hit h3 { font-size: 54px; line-height: 0.92; }
+.hit p { margin-top: 5px; max-width: 100%; font-size: 21px; font-weight: 600; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hit p b { font-weight: 800; color: var(--ink); }
-.hit > b { margin-top: 4px; font-size: 46px; line-height: 1; color: var(--red); }
+.hit > b { margin-top: 4px; font-size: 60px; line-height: 1; color: var(--red); }
 
 /* ---------- Listorna ---------- */
-.lists { display: grid; grid-template-columns: 1.08fr 1fr 0.92fr; gap: 34px; padding: 20px 40px 0; align-content: start; }
-.cat { display: flex; align-items: center; gap: 12px; height: 56px; margin-top: 16px; font-size: 32px; color: var(--red); border-bottom: 2px solid var(--ink); }
+.lists { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 0.86fr); gap: 28px; padding: 24px 36px 0; align-content: start; }
+.cat { display: flex; align-items: center; gap: 12px; height: 60px; margin-top: 16px; font-size: 36px; color: var(--red); border-bottom: 2px solid var(--ink); }
 .col > .cat:first-child { margin-top: 0; }
-.cat img { width: 48px; height: 48px; animation: turn 240s linear infinite; }
-.cat--plain { height: 44px; }
+.cat img { width: 52px; height: 52px; animation: turn 240s linear infinite; }
+.cat--plain { height: 48px; }
+.cat small { margin-left: auto; font-stretch: 100%; font-size: 17px; font-weight: 700; letter-spacing: 0.02em; text-transform: none; color: var(--muted); }
 .rows li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); }
-.rows li span { font-size: 22px; font-weight: 700; line-height: 1.15; }
-.rows li small { display: block; font-size: 15px; font-weight: 500; color: var(--muted); }
-.rows li > b { font-size: 22px; font-weight: 800; white-space: nowrap; }
+.rows li span { font-size: 25px; font-weight: 700; line-height: 1.12; }
+.rows li small { display: block; margin-top: 1px; font-size: 17px; font-weight: 600; color: var(--muted); }
+.rows li > b { font-size: 25px; font-weight: 800; white-space: nowrap; }
 .rows--tight li { padding: 4px 0; }
-.rows--two { display: grid; grid-template-columns: 1fr 1fr; column-gap: 20px; }
-.rows .note { display: block; padding: 6px 0 0; border: 0; font-size: 16px; font-weight: 700; color: var(--red); }
+.rows .note { display: block; padding: 7px 0 0; border: 0; font-size: 18px; font-weight: 700; color: var(--red); }
 .is-gone { display: none !important; }
 
 /* ---------- Dryck längst ner ---------- */
-.drinks { align-self: end; padding: 16px 40px 20px; background: var(--ink); color: #fff; }
+.drinks { align-self: end; padding: 18px 36px 22px; background: var(--ink); color: #fff; }
 .drinks .label { color: var(--gold); }
 .drinks .label::after { background: rgba(255, 255, 255, 0.14); }
-.drinks ul { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px 34px; margin-top: 8px; }
-.drinks li { display: flex; justify-content: space-between; align-items: baseline; font-size: 20px; font-weight: 700; }
+.drinks ul { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px 30px; margin-top: 10px; }
+.drinks li { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 23px; font-weight: 700; white-space: nowrap; }
 .drinks b { font-weight: 800; color: var(--gold); }
 
 /* ---------- Pausen: tre sekunder, toning in och ut ---------- */
