@@ -69,9 +69,9 @@ Stående tavla 1080×1920 som ersätter den vita menyskärmen vid kassan. Hela m
 - **Populärast:** Ćevapi, Pljeskavica, Grill Mix, Burek, Skenderbeg och Balkan Sofra som tallrikar fotade ovanifrån (Higgsfield,
   GPT Image 2.6, frilagda, `public/img/tv/`). De vrids sakta, ett varv på cirka 2,5–3 minuter, som på ett bord. Grill Mix bygger på
   restaurangens eget foto. Övriga rätter står i listor, med en liten tallrik vid några rubriker.
-- **Paus:** menyn står sex minuter mellan pauserna, i turordningen i `tv/tv.js`: Beställ i mobilen (5 s) varannan gång,
-  däremellan loggan över grillfilmen och ćevapi i lepinja (3 s var). Hela plåtar och Sofra är borttagna (användaren 2026-11-12).
-  Rör man musen eller trycker på skärmen syns knappar för att förhandsvisa varje paus (Meny, Beställ i mobilen, Loggan, Ćevapi).
+- **Paus:** menyn står sex minuter mellan pauserna, i turordningen i `tv/tv.js`: Beställ i mobilen (5 s) varannan gång och
+  däremellan loggan över grillfilmen (3 s). Bara de två annonserna, Hela plåtar, Sofra och ćevapi är borttagna (användaren 2026-11-12).
+  Rör man musen eller trycker på skärmen syns knappar för att förhandsvisa varje paus (Meny, Beställ i mobilen, Loggan).
 - **Dryck:** bara en smal rad med priserna längst ner, eftersom drycken syns i kylen. Ayran står också under Lägg till.
 - **Priser:** live från viaeats (`_kit/tv.js`, var tionde minut). Det kräver att balkangrillburek.se ligger under Domäner i admin,
   annars visas priserna som står i sidan. En rätt som tas bort i admin försvinner från tavlan. Ny rätt kräver en rad i `tv/index.html`.

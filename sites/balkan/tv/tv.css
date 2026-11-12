@@ -85,12 +85,13 @@ h2, h3, .hit > b, .lunch dd, .break__big { font-stretch: 62%; font-weight: 900; 
 .is-gone { display: none !important; }
 
 /* ---------- Dryck längst ner: drycken syns i kylen, så bara en smal rad med priserna ---------- */
-.drinks { display: flex; align-items: baseline; gap: 22px; margin: 0 36px; padding: 16px 0 22px; border-top: 2px solid var(--ink); }
-.drinks h2 { font-size: 30px; color: var(--red); }
-.drinks ul { display: flex; flex-wrap: wrap; gap: 4px 22px; font-size: 21px; font-weight: 600; color: var(--muted); }
-.drinks li { white-space: nowrap; }
+.drinks { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 28px; margin: 0 36px; padding: 16px 0 22px; border-top: 2px solid var(--ink); }
+.drinks h2 { font-size: 34px; color: var(--red); }
+.drinks ul { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px 30px; font-size: 21px; font-weight: 600; }
+.drinks li { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; white-space: nowrap; border-bottom: 1px solid var(--line); padding-bottom: 3px; }
+.drinks li span { color: var(--ink); }
 .drinks b { font-weight: 800; color: var(--ink); }
-.drinks b::after { content: " kr"; font-size: 0.75em; font-weight: 700; color: var(--muted); }
+.drinks b::after { content: " kr"; font-size: 0.72em; font-weight: 700; color: var(--muted); }
 
 /* ---------- Pausen: tre sekunder, toning in och ut ---------- */
 .break { position: absolute; inset: 0; z-index: 10; display: grid; place-items: center; background: #120c0a; color: #fff; opacity: 0; visibility: hidden; transition: opacity 0.35s ease, visibility 0s linear 0.35s; }
