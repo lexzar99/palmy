@@ -1,0 +1,114 @@
+@import "@fontsource-variable/archivo/wdth.css";
+/* TV-menyn vid kassan. Restaurangens egna färger: ljus botten, svart text och Balkanrött som i loggan.
+   Rörelsen är lugn: tallrikarna vrids sakta som på ett bord, filmen i toppen och en kort paus var tredje minut. */
+:root {
+  --paper: #f6f0e7;
+  --ink: #1c1411;
+  --muted: #73665d;
+  --line: rgba(28, 20, 17, 0.12);
+  --red: #c8202a;
+  --red-hot: #e2343a;
+  --gold: #e9a23b;
+  --cream: #f3e6d6;
+  --font: "Archivo Variable", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0907; }
+h1, h2, h3, p, ul, dl, dd { margin: 0; padding: 0; }
+ul { list-style: none; }
+img, video { display: block; }
+.board {
+  position: fixed; left: 50%; top: 50%; transform-origin: center; overflow: hidden;
+  display: grid; grid-template-rows: 250px 96px auto 1fr 124px;
+  background: var(--paper); color: var(--ink); font: 500 20px/1.25 var(--font);
+  font-variant-numeric: tabular-nums;
+}
+.cond { font-stretch: 62%; }
+h1, h2, h3, .hit > b, .lunch dd, .break__big { font-stretch: 62%; font-weight: 900; text-transform: uppercase; letter-spacing: -0.005em; }
+.hit > b, .lunch dd { text-transform: none; }
+
+/* ---------- Toppen: riktig grillfilm bakom loggan ---------- */
+.head { position: relative; display: flex; align-items: center; gap: 30px; padding: 0 48px; color: #fff; background: #140e0b; overflow: hidden; }
+.head__film { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: brightness(0.5) saturate(1.05); }
+.head::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(20, 14, 11, 0.85) 0%, rgba(20, 14, 11, 0.35) 70%, rgba(20, 14, 11, 0.15) 100%); }
+.head__logo, .head__name { position: relative; z-index: 1; }
+.head__logo { width: 148px; height: 148px; border-radius: 50%; box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.9), 0 10px 30px rgba(0, 0, 0, 0.45); }
+.head h1 { font-size: 96px; line-height: 0.86; }
+.head h1 span { display: block; color: var(--red-hot); font-size: 64px; }
+.head p { margin-top: 12px; font-size: 21px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--cream); }
+
+/* ---------- Lunchbuffén ---------- */
+.lunch { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 30px; padding: 0 48px; background: var(--red); color: #fff; }
+.lunch h2 { font-size: 46px; line-height: 0.9; }
+.lunch h2 span { display: block; font-size: 22px; letter-spacing: 0.12em; opacity: 0.85; }
+.lunch dl { display: flex; justify-content: center; gap: 56px; }
+.lunch dl div { display: flex; flex-direction: column; gap: 2px; white-space: nowrap; }
+.lunch dt { font-size: 19px; font-weight: 700; opacity: 0.9; }
+.lunch dd { font-size: 44px; line-height: 1; }
+.lunch p { font-size: 18px; font-weight: 700; text-align: right; max-width: 130px; line-height: 1.15; }
+
+/* ---------- Populärast: tallrikarna vrids sakta, som på ett bord ---------- */
+.label { display: flex; align-items: center; gap: 16px; font-size: 22px; font-weight: 800; letter-spacing: 0.22em; text-transform: uppercase; color: var(--red); font-stretch: 100%; }
+.label::after { content: ""; flex: 1; height: 2px; background: var(--line); }
+.hits { padding: 22px 40px 0; }
+.hits ul { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 22px; margin-top: 10px; }
+.hit { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.plate { position: relative; width: 248px; height: 248px; margin-bottom: 8px; }
+/* Skuggan ligger still på bordet, bara tallriken vrids */
+.plate::before { content: ""; position: absolute; inset: 6% 4% -2%; border-radius: 50%; background: radial-gradient(closest-side, rgba(28, 20, 17, 0.34), rgba(28, 20, 17, 0.12) 70%, transparent); filter: blur(10px); transform: translateY(12px); }
+.plate img { position: relative; width: 100%; height: 100%; animation: turn 150s linear infinite; will-change: transform; }
+.hit:nth-child(2) .plate img { animation-duration: 170s; animation-delay: -40s; }
+.hit:nth-child(3) .plate img { animation-duration: 160s; animation-delay: -95s; }
+.hit:nth-child(4) .plate img { animation-duration: 185s; animation-delay: -20s; }
+.hit:nth-child(5) .plate img { animation-duration: 175s; animation-delay: -130s; }
+.hit:nth-child(6) .plate img { animation-duration: 200s; animation-delay: -70s; }
+@keyframes turn { to { transform: rotate(360deg); } }
+.hit h3 { font-size: 42px; line-height: 0.95; }
+.hit p { margin-top: 4px; font-size: 18px; color: var(--muted); white-space: nowrap; }
+.hit p b { font-weight: 800; color: var(--ink); }
+.hit > b { margin-top: 4px; font-size: 46px; line-height: 1; color: var(--red); }
+
+/* ---------- Listorna ---------- */
+.lists { display: grid; grid-template-columns: 1.08fr 1fr 0.92fr; gap: 34px; padding: 20px 40px 0; align-content: start; }
+.cat { display: flex; align-items: center; gap: 12px; height: 56px; margin-top: 16px; font-size: 32px; color: var(--red); border-bottom: 2px solid var(--ink); }
+.col > .cat:first-child { margin-top: 0; }
+.cat img { width: 48px; height: 48px; animation: turn 240s linear infinite; }
+.cat--plain { height: 44px; }
+.rows li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.rows li span { font-size: 22px; font-weight: 700; line-height: 1.15; }
+.rows li small { display: block; font-size: 15px; font-weight: 500; color: var(--muted); }
+.rows li > b { font-size: 22px; font-weight: 800; white-space: nowrap; }
+.rows--tight li { padding: 4px 0; }
+.rows--two { display: grid; grid-template-columns: 1fr 1fr; column-gap: 20px; }
+.rows .note { display: block; padding: 6px 0 0; border: 0; font-size: 16px; font-weight: 700; color: var(--red); }
+.is-gone { display: none !important; }
+
+/* ---------- Dryck längst ner ---------- */
+.drinks { align-self: end; padding: 16px 40px 20px; background: var(--ink); color: #fff; }
+.drinks .label { color: var(--gold); }
+.drinks .label::after { background: rgba(255, 255, 255, 0.14); }
+.drinks ul { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px 34px; margin-top: 8px; }
+.drinks li { display: flex; justify-content: space-between; align-items: baseline; font-size: 20px; font-weight: 700; }
+.drinks b { font-weight: 800; color: var(--gold); }
+
+/* ---------- Pausen: tre sekunder, toning in och ut ---------- */
+.break { position: absolute; inset: 0; z-index: 10; display: grid; place-items: center; background: #120c0a; color: #fff; opacity: 0; visibility: hidden; transition: opacity 0.35s ease, visibility 0s linear 0.35s; }
+.break.is-on { opacity: 1; visibility: visible; transition: opacity 0.35s ease; }
+.break video, .break__bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.break::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(18, 12, 10, 0.25), rgba(18, 12, 10, 0.55) 55%, rgba(18, 12, 10, 0.88)); }
+.break.is-on video, .break.is-on .break__bg { animation: settle 3.4s ease-out both; }
+@keyframes settle { from { transform: scale(1.06); } to { transform: scale(1); } }
+.break__body { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 26px; text-align: center; padding: 0 70px; }
+.break.is-on .break__body { animation: rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) both 0.1s; }
+@keyframes rise { from { opacity: 0; transform: translateY(26px); } to { opacity: 1; transform: none; } }
+.break__body img { width: 300px; height: 300px; border-radius: 50%; box-shadow: 0 0 0 8px rgba(255, 255, 255, 0.92), 0 24px 60px rgba(0, 0, 0, 0.5); }
+.break__big { font-size: 132px; line-height: 0.88; }
+.break__big span { color: var(--red-hot); }
+.break__small { font-size: 32px; font-weight: 600; line-height: 1.35; color: var(--cream); }
+.break__kicker { font-size: 26px; font-weight: 800; letter-spacing: 0.24em; text-transform: uppercase; color: var(--gold); }
+.break__url { font-size: 50px; font-weight: 800; color: var(--gold); }
+.break--party .break__body, .break--order .break__body { align-self: end; padding-bottom: 220px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .plate img, .cat img { animation: none; }
+}
